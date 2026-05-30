@@ -1,31 +1,28 @@
 // =========================================================================
-// checkbox.tsx — custom checkbox (canonical implementation)
+// Switch.tsx — toggle switch
 // =========================================================================
 import React from 'react';
-import { Icon } from './Logo';
 
-interface CheckboxProps {
+interface SwitchProps {
   checked: boolean;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  id?: string;
   label?: string;
   disabled?: boolean;
 }
 
-export function Checkbox({ checked, onChange, id, label, ...rest }: CheckboxProps) {
+export function Switch({ checked, onChange, label, ...rest }: SwitchProps) {
   return (
-    <span className="checkbox">
+    <span className="switch">
       <input
         type="checkbox"
-        id={id}
+        role="switch"
         checked={checked}
         onChange={onChange}
         aria-label={label}
         {...rest}
       />
-      <span className="checkbox__box">
-        <Icon name="check" />
-      </span>
+      <span className="switch__track" />
+      <span className="switch__thumb" />
     </span>
   );
 }

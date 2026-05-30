@@ -1,20 +1,37 @@
-import { useEffect } from 'react';
-import { Dashboard } from '@/components/dashboard/Dashboard';
-import { useSyncUser } from '@/hooks/useAuth';
-import { useAuth } from '@/hooks/useAuth';
+// =========================================================================
+// DashboardPage.tsx
+// =========================================================================
+import React, { useState, useEffect } from 'react';
+import { useApp } from '../lib/appContext';
+import { DisplayCard } from '../components/dashboard/DisplayCard';
+import { ApiKeysCard } from '../components/dashboard/ApiKeysCard';
+import { PreviewCard } from '../components/dashboard/PreviewCard';
 
-/**
- * Dashboard page wrapper — syncs Clerk user into our backend on first load
- */
 export function DashboardPage() {
-  const { isSignedIn } = useAuth();
-  const syncUser = useSyncUser();
+  const app = useApp();
+  const t = app.t;
+  const [prefsLoading, setPrefsLoading] = useState(true);
 
   useEffect(() => {
-    if (isSignedIn && !syncUser.isSuccess && !syncUser.isPending) {
-      syncUser.mutate();
-    }
-  }, [isSignedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+    const id = setTimeout(() => setPrefsLoading(false), 950);
+    return () => clearTimeout(id);
+  }, []);
 
-  return <Dashboard />;
+  return (
+    <div className="page">
+      <header className="page__head">
+        <h1 className="page__title">{t.dashTitle}</h1>
+        <p className="page__sub">{t.dashSub}</p>
+      </header>
+      <div className="dash-grid">
+        <div className="dash-col">
+          <DisplayCard loading={prefsLoading} />
+          <ApiKeysCard />
+        </div>
+        <div className="preview-col">
+          <PreviewCard />
+        </div>
+      </div>
+    </div>
+  );
 }

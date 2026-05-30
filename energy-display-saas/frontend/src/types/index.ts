@@ -1,3 +1,5 @@
+// ---- Legacy API types (kept for compatibility with existing hooks/api.ts) ----
+
 export interface UserPreferences {
   show_energy_price: boolean;
   show_weather: boolean;
@@ -35,6 +37,61 @@ export interface DisplayData {
   nextRefresh: number;
 }
 
+export interface MaskedApiKey {
+  id: string;
+  provider: string;
+  api_key: string; // masked like "sk_tes••••••••"
+  created_at: string;
+}
+
+export interface ApiResponse<T> {
+  data?: T;
+  error?: string;
+}
+
+// ---- App-level types for the new design system ----
+
+export interface Preferences {
+  energy: { on: boolean; zone: string };
+  weather: { on: boolean; location: string };
+  news: { on: boolean; lang: string; source: string };
+}
+
+export interface AppDevice {
+  id: string;
+  name: { en: string; da: string };
+  license: string;
+  firmware: string;
+  lastSeenMin: number;
+}
+
+export interface ApiKeyEntry {
+  status: string;
+  key: string;
+}
+
+export interface ToastData {
+  id?: number;
+  type: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  msg?: string;
+  persist?: boolean;
+  ttl?: number;
+  action?: { label: string; onClick: () => void };
+}
+
+export interface AppUser {
+  name: string;
+  email: string;
+}
+
+export interface UsageData {
+  apiCalls: number;
+  apiLimit: number;
+  deviceLimit: number;
+}
+
+// Legacy Device type kept for existing hooks
 export interface Device {
   id: string;
   device_id: string;
@@ -50,16 +107,4 @@ export interface User {
   display_name: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface MaskedApiKey {
-  id: string;
-  provider: string;
-  api_key: string; // masked like "sk_tes••••••••"
-  created_at: string;
-}
-
-export interface ApiResponse<T> {
-  data?: T;
-  error?: string;
 }

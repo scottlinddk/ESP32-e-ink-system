@@ -1,14 +1,4 @@
-import { UserButton } from '@clerk/clerk-react';
-
+// Legacy — replaced by shell/AppBar.tsx UserMenu in the new design system.
 export function UserMenu() {
-  return (
-    <UserButton
-      afterSignOutUrl="/"
-      appearance={{
-        elements: {
-          avatarBox: 'h-8 w-8',
-        },
-      }}
-    />
-  );
+  return null;
 }
