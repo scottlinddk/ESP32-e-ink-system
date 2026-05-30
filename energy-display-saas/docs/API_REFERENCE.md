@@ -1,0 +1,255 @@
+# API Reference
+
+Base URL: `https://api.yourdomain.com` (or `http://localhost:3001` for local dev)
+
+All authenticated endpoints require a Clerk JWT in the `Authorization: Bearer <token>` header.
+
+---
+
+## Health
+
+### GET /health
+
+Check if the API is running. No authentication required.
+
+**Response 200:**
+```json
+{
+  "status": "ok",
+  "timestamp": "2024-01-15T14:32:00.000Z",
+  "uptime": 3600.123,
+  "version": "1.0.0"
+}
+```
+
+---
+
+## Auth
+
+### POST /api/auth/login
+
+Sync the authenticated Clerk user into the Supabase database. Call this after sign-in.
+
+**Headers:** `Authorization: Bearer <clerk_jwt>`
+
+**Response 200:**
+```json
+{
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "display_name": "Jane Doe",
+    "created_at": "2024-01-01T00:00:00.000Z",
+    "updated_at": "2024-01-15T14:00:00.000Z"
+  }
+}
+```
+
+### GET /api/auth/user
+
+Get the currently authenticated user.
+
+**Headers:** `Authorization: Bearer <clerk_jwt>`
+
+**Response 200:** Same as `POST /api/auth/login`
+
+---
+
+## Preferences
+
+### GET /api/preferences
+
+Get the authenticated user's display preferences.
+
+**Headers:** `Authorization: Bearer <clerk_jwt>`
+
+**Response 200:**
+```json
+{
+  "preferences": {
+    "show_energy_price": true,
+    "show_weather": true,
+    "show_news": true,
+    "show_calendar": false,
+    "show_air_quality": false,
+    "energy_price_location": "DK1",
+    "weather_location": "55.3,10.4",
+    "news_language": "da",
+    "refresh_interval_minutes": 30
+  }
+}
+```
+
+### POST /api/preferences
+
+Update display preferences (partial updates supported).
+
+**Headers:** `Authorization: Bearer <clerk_jwt>`
+
+**Body:**
+```json
+{
+  "show_energy_price": true,
+  "energy_price_location": "DK2",
+  "refresh_interval_minutes": 60
+}
+```
+
+**Response 200:** Full updated preferences object (same shape as GET)
+
+### GET /api/preferences/api-keys
+
+List stored API keys (values are masked).
+
+**Headers:** `Authorization: Bearer <clerk_jwt>`
+
+**Response 200:**
+```json
+{
+  "api_keys": [
+    {
+      "id": "uuid",
+      "provider": "openweathermap",
+      "api_key": "a1b2c3••••••••",
+      "created_at": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+### POST /api/preferences/api-keys
+
+Store or update an API key for a provider.
+
+**Headers:** `Authorization: Bearer <clerk_jwt>`
+
+**Body:**
+```json
+{
+  "provider": "openweathermap",
+  "api_key": "your-actual-api-key"
+}
+```
+
+Valid providers: `openweathermap`, `newsapi`
+
+**Response 200:**
+```json
+{
+  "api_key": {
+    "id": "uuid",
+    "provider": "openweathermap",
+    "api_key": "your-ac••••••••",
+    "created_at": "2024-01-15T14:00:00.000Z"
+  }
+}
+```
+
+---
+
+## Display Data
+
+### GET /api/display-data/:userId
+
+Device-facing endpoint. Used by the ESP32 firmware. No JWT required — authenticated via `licenseKey`.
+
+**Query parameters:**
+- `licenseKey` (required) — the device's license key
+
+**Example:**
+```
+GET /api/display-data/abc123?licenseKey=LK-xyz-789
+```
+
+**Response 200:**
+```json
+{
+  "price": {
+    "now": 142.5,
+    "average": 118.3,
+    "trend": "up"
+  },
+  "weather": {
+    "temp": 12,
+    "condition": "cloudy",
+    "windSpeed": 6,
+    "icon": "04d"
+  },
+  "news": [
+    { "title": "Energipriserne stiger i Danmark", "url": "https://..." },
+    { "title": "Nyt vejrsystem på vej", "url": "https://..." },
+    { "title": "Grøn energi slår rekord", "url": "https://..." }
+  ],
+  "nextRefresh": 1800000
+}
+```
+
+Fields are only included if the corresponding `show_*` preference is enabled.
+
+`nextRefresh` is in milliseconds — the device should deep sleep for this duration.
+
+**Response 401:** Missing or invalid `licenseKey`
+**Response 403:** `licenseKey` does not belong to `userId`
+
+### GET /api/preview
+
+Auth-required version of the display data endpoint. Used by the dashboard to preview current data.
+
+**Headers:** `Authorization: Bearer <clerk_jwt>`
+
+**Response 200:** Same shape as `GET /api/display-data/:userId`
+
+---
+
+## Checkout (stub)
+
+### POST /api/checkout
+
+Stripe checkout session (not yet implemented).
+
+**Response 501:**
+```json
+{
+  "error": "Checkout not yet implemented",
+  "message": "Stripe integration coming soon"
+}
+```
+
+---
+
+## Error Responses
+
+All errors return JSON with an `error` field:
+
+```json
+{ "error": "Description of what went wrong" }
+```
+
+| Status | Meaning |
+|---|---|
+| 400 | Bad request — missing or invalid parameters |
+| 401 | Unauthorized — missing or invalid auth |
+| 403 | Forbidden — authenticated but not allowed |
+| 404 | Not found |
+| 429 | Rate limit exceeded (100 req/15 min per IP) |
+| 500 | Internal server error |
+| 501 | Not implemented |
+
+---
+
+## Rate Limits
+
+- General API: **100 requests per 15 minutes** per IP
+- `/api/display-data`: **10 requests per minute** per IP (device polling endpoint)
+
+---
+
+## Data Freshness (Server-Side Cache)
+
+| Source | Cache TTL |
+|---|---|
+| Energinet (energy prices) | 15 minutes |
+| OpenWeatherMap (weather) | 1 hour |
+| NewsAPI (headlines) | 1 hour |
+
+The cache is in-memory per server instance. Restarts clear the cache.
