@@ -1,0 +1,297 @@
+/* =========================================================================
+   Test Design System — Colors & Type
+   Based on MUI palette tokens. Light is the default; .dark flips to dark mode.
+   ========================================================================= */
+
+/* ---------- Fonts ---------- */
+/* DM Sans for UI/display + Roboto Mono for code.
+   Loaded from Google Fonts; swap to hosted files if needed. */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Roboto+Mono:wght@400;500&display=swap');
+
+/* =========================================================================
+   LIGHT MODE (default)
+   ========================================================================= */
+:root {
+  /* --- MUI palette: light --- */
+  --palette-primary-main: #505962;
+  --palette-primary-contrastText: #f5f7f9;
+
+  --palette-secondary-main: #557370;
+  --palette-secondary-light: #7a958f;
+  --palette-secondary-dark: #3a524f;
+  --palette-secondary-contrastText: #ffffff;
+
+  --palette-background-default: #f5f7f9;
+  --palette-background-paper: #ffffff;
+
+  --palette-text-primary: #505962;
+  --palette-text-secondary: #505962;
+  --palette-text-disabled: #00000061;
+
+  --palette-error-main: #f3164e;
+  --palette-warning-main: #d3970a;
+  --palette-warning-contrastText: #ffffff;
+  --palette-info-main: #0090d6;
+  --palette-success-main: #26a95f;
+
+  /* --- Semantic surface tokens --- */
+  --color-bg: var(--palette-background-default);
+  --color-surface: var(--palette-background-paper);
+  --color-surface-alt: var(--palette-secondary-main);
+  --color-border: rgba(0, 0, 0, 0.12);
+  --color-border-strong: rgba(0, 0, 0, 0.23);
+  --color-divider: rgba(0, 0, 0, 0.08);
+
+  /* --- Foreground / text --- */
+  --fg-1: var(--palette-text-primary);          /* primary text */
+  --fg-2: var(--palette-text-secondary);        /* secondary text */
+  --fg-3: rgba(80, 89, 98, 0.7);                /* tertiary / hint */
+  --fg-disabled: var(--palette-text-disabled);
+  --fg-on-primary: var(--palette-primary-contrastText);
+
+  /* --- Accent / state --- */
+  --accent: var(--palette-primary-main);
+  --accent-hover: #3f464d;
+  --accent-press: #2d3338;
+
+  /* --- Typography scale --- */
+  --font-sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Roboto Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --fs-h1: 2.5rem;     /* 40px */
+  --fs-h2: 2rem;       /* 32px */
+  --fs-h3: 1.5rem;     /* 24px */
+  --fs-h4: 1.25rem;    /* 20px */
+  --fs-h5: 1.125rem;   /* 18px */
+  --fs-h6: 1rem;       /* 16px */
+  --fs-body: 1rem;     /* 16px */
+  --fs-body-sm: 0.875rem; /* 14px */
+  --fs-caption: 0.75rem;  /* 12px */
+  --fs-overline: 0.75rem; /* 12px, uppercase */
+
+  --lh-tight: 1.2;
+  --lh-normal: 1.5;
+  --lh-loose: 1.75;
+
+  --fw-light: 400;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-bold: 700;
+
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.08em;
+
+  /* --- Spacing (MUI 8px base) --- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* --- Radius --- */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 9999px;
+
+  /* --- Elevation (MUI shadows, abridged) --- */
+  --shadow-1: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08);
+  --shadow-2: 0 3px 6px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.06);
+  --shadow-3: 0 10px 20px rgba(0,0,0,0.12), 0 3px 6px rgba(0,0,0,0.08);
+  --shadow-4: 0 14px 28px rgba(0,0,0,0.18), 0 10px 10px rgba(0,0,0,0.10);
+
+  /* --- Motion --- */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --ease-accelerate: cubic-bezier(0.4, 0, 1, 1);
+  --dur-fast: 150ms;
+  --dur-base: 225ms;
+  --dur-slow: 375ms;
+}
+
+/* =========================================================================
+   DARK MODE
+   ========================================================================= */
+.dark, [data-theme="dark"] {
+  --palette-primary-main: #E0D9CF;
+  --palette-primary-contrastText: #222323;
+
+  --palette-secondary-main: #a8c2bd;
+  --palette-secondary-light: #c5d6d2;
+  --palette-secondary-dark: #83a39d;
+  --palette-secondary-contrastText: #0f1d1b;
+
+  --palette-background-default: #1d2c35;
+  --palette-background-paper: #081821;
+
+  --palette-text-primary: #c4c2c2;
+  --palette-text-secondary: #99a2b2;
+  --palette-text-disabled: #ffffff61;
+
+  --palette-error-main: #f3164e;
+  --palette-warning-main: #d3970a;
+  --palette-warning-contrastText: #ffffff;
+  --palette-info-main: #0090d6;
+  --palette-success-main: #26a95f;
+
+  --color-bg: var(--palette-background-default);
+  --color-surface: var(--palette-background-paper);
+  --color-surface-alt: var(--palette-secondary-main);
+  --color-border: rgba(255, 255, 255, 0.12);
+  --color-border-strong: rgba(255, 255, 255, 0.23);
+  --color-divider: rgba(255, 255, 255, 0.08);
+
+  --fg-1: var(--palette-text-primary);
+  --fg-2: var(--palette-text-secondary);
+  --fg-3: rgba(196, 194, 194, 0.6);
+  --fg-disabled: var(--palette-text-disabled);
+  --fg-on-primary: var(--palette-primary-contrastText);
+
+  --accent: var(--palette-primary-main);
+  --accent-hover: #ece6dc;
+  --accent-press: #d2c9bc;
+}
+
+/* =========================================================================
+   BLACK MODE (pure-black / OLED)
+   ========================================================================= */
+.black, [data-theme="black"] {
+  --palette-primary-main: #F2EDE5;
+  --palette-primary-light: #fbf8f3;
+  --palette-primary-dark: #c2bdb5;
+  --palette-primary-contrastText: #000000;
+
+  --palette-secondary-main: #b8d3ce;
+  --palette-secondary-light: #d6e4e1;
+  --palette-secondary-dark: #92b3ad;
+  --palette-secondary-contrastText: #000000;
+
+  --palette-background-default: #000000;
+  --palette-background-paper: #0a0a0a;
+
+  --palette-text-primary: #e8e8e8;
+  --palette-text-secondary: rgba(255,255,255,0.65);
+  --palette-text-disabled: rgba(255,255,255,0.35);
+
+  --palette-error-main: #ff3d6e;
+  --palette-error-light: #ff7a9d;
+  --palette-error-dark: #cc1845;
+  --palette-warning-main: #f5b631;
+  --palette-warning-light: #f9cc6a;
+  --palette-warning-dark: #c08a14;
+  --palette-warning-contrastText: #000000;
+  --palette-info-main: #3ab2ee;
+  --palette-info-light: #74cdf5;
+  --palette-info-dark: #0e84bf;
+  --palette-success-main: #3dc579;
+  --palette-success-light: #73d89e;
+  --palette-success-dark: #249a59;
+
+  --color-bg: var(--palette-background-default);
+  --color-surface: var(--palette-background-paper);
+  --color-surface-alt: #111111;
+  --color-border: rgba(255, 255, 255, 0.10);
+  --color-border-strong: rgba(255, 255, 255, 0.20);
+  --color-divider: rgba(255, 255, 255, 0.06);
+
+  --fg-1: var(--palette-text-primary);
+  --fg-2: var(--palette-text-secondary);
+  --fg-3: rgba(255,255,255,0.45);
+  --fg-disabled: var(--palette-text-disabled);
+  --fg-on-primary: var(--palette-primary-contrastText);
+
+  --accent: var(--palette-primary-main);
+  --accent-hover: #fbf8f3;
+  --accent-press: #c2bdb5;
+}
+
+/* =========================================================================
+   SEMANTIC TYPE STYLES
+   ========================================================================= */
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  color: var(--fg-1);
+  background: var(--color-bg);
+  font-weight: var(--fw-regular);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, .h1 {
+  font-family: var(--font-sans);
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-light);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  margin: 0 0 var(--space-4);
+  color: var(--fg-1);
+}
+h2, .h2 {
+  font-family: var(--font-sans);
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-light);
+  line-height: var(--lh-tight);
+  margin: 0 0 var(--space-4);
+  color: var(--fg-1);
+}
+h3, .h3 {
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-tight);
+  margin: 0 0 var(--space-3);
+  color: var(--fg-1);
+}
+h4, .h4 {
+  font-size: var(--fs-h4);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  margin: 0 0 var(--space-3);
+}
+h5, .h5 {
+  font-size: var(--fs-h5);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-normal);
+  margin: 0 0 var(--space-2);
+}
+h6, .h6 {
+  font-size: var(--fs-h6);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-normal);
+  margin: 0 0 var(--space-2);
+}
+p {
+  margin: 0 0 var(--space-3);
+  line-height: var(--lh-normal);
+}
+small, .caption {
+  font-size: var(--fs-caption);
+  color: var(--fg-2);
+}
+.overline {
+  font-size: var(--fs-overline);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  font-weight: var(--fw-medium);
+  color: var(--fg-2);
+}
+code, kbd, pre {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+code {
+  background: var(--color-surface-alt);
+  color: var(--fg-1);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+}
+a {
+  color: var(--palette-info-main);
+  text-decoration: none;
+}
+a:hover { text-decoration: underline; }
