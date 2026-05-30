@@ -1,17 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
-import { createClerkClient } from '@clerk/backend';
+import { verifyToken } from '@clerk/backend';
 
-let clerkClient: ReturnType<typeof createClerkClient> | null = null;
-
-function getClerkClient(): ReturnType<typeof createClerkClient> {
-  if (!clerkClient) {
-    const secretKey = process.env.CLERK_SECRET_KEY;
-    if (!secretKey) {
-      throw new Error('CLERK_SECRET_KEY environment variable is not set');
-    }
-    clerkClient = createClerkClient({ secretKey });
+function getSecretKey(): string {
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error('CLERK_SECRET_KEY environment variable is not set');
   }
-  return clerkClient;
+  return secretKey;
 }
 
 export async function requireAuth(
@@ -29,8 +24,8 @@ export async function requireAuth(
   const token = authHeader.slice(7);
 
   try {
-    const clerk = getClerkClient();
-    const verifiedToken = await clerk.verifyToken(token);
+    const secretKey = getSecretKey();
+    const verifiedToken = await verifyToken(token, { secretKey });
 
     req.clerkUserId = verifiedToken.sub;
     next();
@@ -55,8 +50,8 @@ export async function optionalAuth(
   const token = authHeader.slice(7);
 
   try {
-    const clerk = getClerkClient();
-    const verifiedToken = await clerk.verifyToken(token);
+    const secretKey = getSecretKey();
+    const verifiedToken = await verifyToken(token, { secretKey });
     req.clerkUserId = verifiedToken.sub;
   } catch {
     // Silently ignore invalid tokens in optional auth
