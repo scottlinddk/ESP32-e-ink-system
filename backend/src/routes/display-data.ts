@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth';
 import {
   getDeviceByLicenseKey,
   updateDeviceLastSeen,
@@ -7,11 +7,11 @@ import {
   getApiKeys,
   logApiUsage,
   upsertUser,
-} from '../services/database.js';
-import { fetchEnergyPrice } from '../services/energinet.js';
-import { fetchWeather } from '../services/weather.js';
-import { fetchNews } from '../services/news.js';
-import { DisplayData, UserPreferences } from '../types/index.js';
+} from '../services/database';
+import { fetchEnergyPrice } from '../services/energinet';
+import { fetchWeather } from '../services/weather';
+import { fetchNews } from '../services/news';
+import { DisplayData, UserPreferences } from '../types/index';
 import { createClerkClient } from '@clerk/backend';
 
 const router = Router();

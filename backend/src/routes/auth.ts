@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { requireAuth } from '../middleware/auth.js';
-import { upsertUser, getUserById } from '../services/database.js';
+import { requireAuth } from '../middleware/auth';
+import { upsertUser, getUserById } from '../services/database';
 import { createClerkClient } from '@clerk/backend';
 
 const router = Router();

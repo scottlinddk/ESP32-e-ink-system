@@ -1,14 +1,14 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth';
 import {
   getPreferences,
   upsertPreferences,
   upsertUser,
   getApiKeys,
   upsertApiKey,
-} from '../services/database.js';
+} from '../services/database';
 import { createClerkClient } from '@clerk/backend';
-import { UserPreferences } from '../types/index.js';
+import { UserPreferences } from '../types/index';
 
 const router = Router();
 

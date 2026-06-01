@@ -4,11 +4,11 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import 'dotenv/config';
 
-import healthRouter from './routes/health.js';
-import authRouter from './routes/auth.js';
-import preferencesRouter from './routes/preferences.js';
-import displayDataRouter from './routes/display-data.js';
-import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import healthRouter from './routes/health';
+import authRouter from './routes/auth';
+import preferencesRouter from './routes/preferences';
+import displayDataRouter from './routes/display-data';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 
 const app = express();
 

@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { User, UserPreferences, ApiKey, Device } from '../types/index.js';
+import { User, UserPreferences, ApiKey, Device } from '../types/index';
 
 let supabase: SupabaseClient | null = null;
 

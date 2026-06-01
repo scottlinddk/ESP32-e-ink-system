@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import { EnergyPrice, EnergidataResponse, EnergidataRecord, CacheEntry } from '../types/index.js';
+import { EnergyPrice, EnergidataResponse, EnergidataRecord, CacheEntry } from '../types/index';
 
 const ENERGINET_BASE_URL = 'https://api.energidataservice.dk/dataset/Elspotprices';
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
