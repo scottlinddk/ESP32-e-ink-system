@@ -88,8 +88,8 @@ const DEFAULT_API_KEYS: Record<string, ApiKeyEntry> = {
 };
 
 const DEFAULT_USER: AppUser = {
-  name: 'Jonas Holm',
-  email: 'jonas.holm@gmail.com',
+  name: 'Scott Lind',
+  email: 'sl@gmail.com',
 };
 
 const USAGE: UsageData = { apiCalls: 312, apiLimit: 1000, deviceLimit: 5 };
