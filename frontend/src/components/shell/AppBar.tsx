@@ -33,13 +33,19 @@ export function ThemeToggle() {
   return (
     <IconButton
       icon={app.theme === 'dark' ? 'light_mode' : 'dark_mode'}
-      label={app.theme === 'dark' ? 'Light mode' : 'Dark mode'}
+      label={app.theme === 'dark' ? app.t.themeLight : app.t.themeDark}
       onClick={app.toggleTheme}
     />
   );
 }
 
-export function AppBar({ onMenu }: { onMenu: () => void }) {
+export function AppBar({
+  onMenu,
+  onSignOut,
+}: {
+  onMenu: () => void;
+  onSignOut: () => void;
+}) {
   const app = useApp();
   const t = app.t;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -56,11 +62,8 @@ export function AppBar({ onMenu }: { onMenu: () => void }) {
   }, []);
 
   const initials = app.user.name
-    .split(' ')
-    .map((s) => s[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+    ? app.user.name.split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase()
+    : '?';
 
   const crumb = t.crumbs[app.route];
 
@@ -87,17 +90,13 @@ export function AppBar({ onMenu }: { onMenu: () => void }) {
       <div className="appbar__actions">
         <IconButton
           icon={app.online ? 'cloud_done' : 'cloud_off'}
-          label={
-            app.online
-              ? 'Connection: online (click to simulate offline)'
-              : 'Connection: offline (click to restore)'
-          }
+          label={app.online ? t.connOnline : t.connOffline}
           onClick={() => {
             const next = !app.online;
             app.setOnline(next);
             app.toast({
               type: next ? 'info' : 'warning',
-              title: next ? 'Back online' : 'Offline mode (demo)',
+              title: next ? t.toastOnline : t.toastOffline,
             });
           }}
         />
@@ -147,7 +146,7 @@ export function AppBar({ onMenu }: { onMenu: () => void }) {
               <button
                 className="menu__item is-danger"
                 role="menuitem"
-                onClick={app.signOut}
+                onClick={onSignOut}
               >
                 <Icon name="logout" />
                 {t.menuLogout}

@@ -1,6 +1,6 @@
 # Firmware Flashing Guide
 
-This guide explains how to flash the ESP32 firmware for the Energy Display project.
+This guide explains how to flash the ESP32 firmware for the ESP32 Display project.
 
 ## Hardware
 
@@ -66,7 +66,7 @@ Copy `config.h.example` to `config.h` and fill in your values:
 #define WIFI_SSID     "YourNetworkName"
 #define WIFI_PASSWORD "YourNetworkPassword"
 
-// Energy Display API
+// ESP32 Display API
 #define API_BASE_URL  "https://api.yourdomain.com"
 #define USER_ID       "your-supabase-user-uuid"
 #define LICENSE_KEY   "your-license-key"
@@ -104,7 +104,7 @@ pio device monitor
 ## Expected Serial Output
 
 ```
-[Boot] Energy Display v1.0.0
+[Boot] ESP32 Display v1.0.0
 [WiFi] Connecting to YourNetworkName...
 [WiFi] Connected! IP: 192.168.1.42
 [API] Fetching: https://api.yourdomain.com/api/display-data/abc...?licenseKey=xyz...

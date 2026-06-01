@@ -120,8 +120,8 @@ export function DisplayCard({ loading }: { loading: boolean }) {
                     set({ energy: { ...p.energy, zone: e.target.value } })
                   }
                   options={[
-                    { value: 'DK1', label: 'DK1 — Vest for Storebælt' },
-                    { value: 'DK2', label: 'DK2 — Øst for Storebælt' },
+                    { value: 'DK1', label: t.zoneDK1 },
+                    { value: 'DK2', label: t.zoneDK2 },
                   ]}
                 />
               </Field>
@@ -180,8 +180,8 @@ export function DisplayCard({ loading }: { loading: boolean }) {
                     set({ news: { ...p.news, lang: e.target.value } })
                   }
                   options={[
-                    { value: 'da', label: 'Dansk' },
-                    { value: 'en', label: 'English' },
+                    { value: 'da', label: t.langDanish },
+                    { value: 'en', label: t.langEnglish },
                   ]}
                 />
               </Field>
@@ -193,9 +193,9 @@ export function DisplayCard({ loading }: { loading: boolean }) {
                     set({ news: { ...p.news, source: e.target.value } })
                   }
                   options={[
-                    { value: 'dr', label: 'DR Nyheder' },
-                    { value: 'pol', label: 'Politiken' },
-                    { value: 'tv2', label: 'TV 2' },
+                    { value: 'dr', label: t.newsSrcDR },
+                    { value: 'pol', label: t.newsSrcPolitiken },
+                    { value: 'tv2', label: t.newsSrcTV2 },
                   ]}
                 />
               </Field>

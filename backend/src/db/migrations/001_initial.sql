@@ -1,4 +1,4 @@
--- Energy Display SaaS — Initial Database Schema
+-- ESP32 Display SaaS — Initial Database Schema
 -- Run this migration in your Supabase SQL editor
 
 -- Enable UUID generation

@@ -41,7 +41,6 @@ function save<T>(key: string, val: T): void {
 export interface AppState {
   theme: 'light' | 'dark';
   lang: Lang;
-  authed: boolean;
   route: string;
   online: boolean;
   navOpen: boolean;
@@ -64,8 +63,6 @@ export interface AppState {
   setNavOpen: (open: boolean) => void;
   toast: (obj: ToastData) => void;
   dismiss: (id: number) => void;
-  signIn: (provider: string) => void;
-  signOut: () => void;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -88,8 +85,8 @@ const DEFAULT_API_KEYS: Record<string, ApiKeyEntry> = {
 };
 
 const DEFAULT_USER: AppUser = {
-  name: 'Scott Lind',
-  email: 'sl@gmail.com',
+  name: '',
+  email: '',
 };
 
 const USAGE: UsageData = { apiCalls: 312, apiLimit: 1000, deviceLimit: 5 };
@@ -99,7 +96,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     load<'light' | 'dark'>('theme', 'light')
   );
   const [lang, setLangState] = useState<Lang>(() => load<Lang>('lang', 'en'));
-  const [authed, setAuthed] = useState<boolean>(() => load<boolean>('authed', false));
   const [route, setRoute] = useState<string>(() => load<string>('route', 'dashboard'));
   const [online, setOnlineState] = useState<boolean>(true);
   const [navOpen, setNavOpen] = useState<boolean>(false);
@@ -119,7 +115,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Persist to localStorage
   useEffect(() => { save('theme', theme); }, [theme]);
   useEffect(() => { save('lang', lang); }, [lang]);
-  useEffect(() => { save('authed', authed); }, [authed]);
   useEffect(() => { save('route', route); }, [route]);
   useEffect(() => { save('user', user); }, [user]);
   useEffect(() => { save('prefs', prefs); }, [prefs]);
@@ -149,7 +144,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value: AppState = {
     theme,
     lang,
-    authed,
     route,
     online,
     navOpen,
@@ -171,8 +165,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNavOpen,
     toast,
     dismiss,
-    signIn: (_provider: string) => { setAuthed(true); setRoute('dashboard'); },
-    signOut: () => { setAuthed(false); setNavOpen(false); },
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

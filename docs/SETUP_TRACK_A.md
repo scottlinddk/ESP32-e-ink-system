@@ -1,6 +1,6 @@
 # Setup Guide — Track A: Self-Hosted / Development
 
-This guide covers running the Energy Display SaaS stack locally for development.
+This guide covers running the ESP32 Display SaaS stack locally for development.
 
 ## Prerequisites
 

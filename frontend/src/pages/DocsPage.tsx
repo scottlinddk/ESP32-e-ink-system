@@ -10,50 +10,17 @@ export function DocsPage() {
   const app = useApp();
   const t = app.t;
 
-  const steps =
-    app.lang === 'da'
-      ? [
-          {
-            icon: 'cast',
-            title: 'Par dit display',
-            body: "Indtast enheds-ID'et bag på dit display under Enheder.",
-          },
-          {
-            icon: 'key',
-            title: 'Tilføj API-nøgler',
-            body: 'Hent gratis nøgler hos OpenWeatherMap og NewsAPI, og indsæt dem på oversigten.',
-          },
-          {
-            icon: 'tune',
-            title: 'Vælg hvad der vises',
-            body: 'Slå elpris, vejr og nyheder til, og se forhåndsvisningen opdatere.',
-          },
-        ]
-      : [
-          {
-            icon: 'cast',
-            title: 'Pair your display',
-            body: 'Enter the device ID printed on the back of your display under Devices.',
-          },
-          {
-            icon: 'key',
-            title: 'Add API keys',
-            body: 'Get free keys from OpenWeatherMap and NewsAPI, then paste them on the dashboard.',
-          },
-          {
-            icon: 'tune',
-            title: 'Choose what shows',
-            body: 'Toggle energy price, weather and news, and watch the preview update.',
-          },
-        ];
+  const steps = [
+    { icon: 'cast', title: t.docsStep1Title, body: t.docsStep1Body },
+    { icon: 'key', title: t.docsStep2Title, body: t.docsStep2Body },
+    { icon: 'tune', title: t.docsStep3Title, body: t.docsStep3Body },
+  ];
 
   return (
     <div className="page" style={{ maxWidth: 760 }}>
       <header className="page__head">
         <h1 className="page__title">{t.nav.docs}</h1>
-        <p className="page__sub">
-          {app.lang === 'da' ? 'Kom i gang på tre trin.' : 'Get set up in three steps.'}
-        </p>
+        <p className="page__sub">{t.docsSub}</p>
       </header>
       <div className="stack">
         {steps.map((s, i) => (

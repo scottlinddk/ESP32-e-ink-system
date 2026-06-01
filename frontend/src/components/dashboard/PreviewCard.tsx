@@ -20,6 +20,7 @@ interface EinkSurfaceProps {
   keys: { weather: boolean; news: boolean };
   data: ReturnType<typeof einkContent>;
   lang: string;
+  strings: React.ComponentProps<typeof EInk>['strings'];
   refreshToken: number;
   view: 'device' | 'raw';
 }
@@ -126,7 +127,7 @@ export function PreviewCard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hardError, app.online]);
 
-  const lastUpdated = app.lang === 'da' ? 'lige nu' : 'just now';
+  const lastUpdated = t.justNow;
 
   return (
     <Card
@@ -162,6 +163,7 @@ export function PreviewCard() {
                 keys={keys}
                 data={data}
                 lang={app.lang}
+                strings={t}
                 refreshToken={refreshToken}
                 view="device"
               />
@@ -176,6 +178,7 @@ export function PreviewCard() {
               keys={keys}
               data={data}
               lang={app.lang}
+              strings={t}
               refreshToken={refreshToken}
               view="raw"
             />
@@ -210,11 +213,7 @@ export function PreviewCard() {
         {enabledCount > 0 && availCount < enabledCount && !hardError && (
           <div className="info-banner" style={{ background: 'rgba(211,151,10,0.10)' }}>
             <Icon name="warning" style={{ color: 'var(--palette-warning-main)' }} />
-            <span>
-              {app.lang === 'da'
-                ? 'En valgt kilde mangler sin API-nøgle og vises ikke.'
-                : 'An enabled source is missing its API key and won\'t show.'}
-            </span>
+            <span>{t.missingApiKey}</span>
           </div>
         )}
       </div>

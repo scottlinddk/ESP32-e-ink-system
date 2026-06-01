@@ -6,7 +6,7 @@ export const STRINGS = {
   en: {
     locale: "en-GB",
     // brand
-    product: "Energy Display",
+    product: "ESP32 Display",
     tagline: "Control what shows on your wall display",
     // login
     signInGoogle: "Continue with Google",
@@ -140,6 +140,50 @@ export const STRINGS = {
     // misc
     show: "Show",
     hide: "Hide",
+    loading: "Loading…",
+    // theme / connection
+    themeLight: "Light mode",
+    themeDark: "Dark mode",
+    connOnline: "Connection: online (click to simulate offline)",
+    connOffline: "Connection: offline (click to restore)",
+    toastOnline: "Back online",
+    toastOffline: "Offline mode (demo)",
+    // devices
+    copy: "Copy",
+    deviceIdHint: "Printed on the back of your display",
+    // preview
+    justNow: "just now",
+    missingApiKey: "An enabled source is missing its API key and won't show.",
+    // display card options
+    zoneDK1: "DK1 — West of the Great Belt",
+    zoneDK2: "DK2 — East of the Great Belt",
+    langDanish: "Dansk",
+    langEnglish: "English",
+    newsSrcDR: "DR Nyheder",
+    newsSrcPolitiken: "Politiken",
+    newsSrcTV2: "TV 2",
+    // e-ink canvas
+    hours24: "24h",
+    energyLabel: "POWER",
+    nothingSelectedCanvas: "NOTHING SELECTED",
+    avgShort: "Avg ",
+    weatherConnectKey: "Weather — connect API key",
+    wind: "wind",
+    newsConnectKey: "News — connect API key",
+    // docs page
+    docsSub: "Get set up in three steps.",
+    docsStep1Title: "Pair your display",
+    docsStep1Body: "Enter the device ID printed on the back of your display under Devices.",
+    docsStep2Title: "Add API keys",
+    docsStep2Body: "Get free keys from OpenWeatherMap and NewsAPI, then paste them on the dashboard.",
+    docsStep3Title: "Choose what shows",
+    docsStep3Body: "Toggle energy price, weather and news, and watch the preview update.",
+    // auth
+    verifyingSession: "Verifying session…",
+    welcomeBack: "Welcome back",
+    signInSub: "Sign in to manage your e-ink display",
+    createAccount: "Create your account",
+    createAccountSub: "Get started with your ESP32 Display dashboard",
   },
   da: {
     locale: "da-DK",
@@ -268,6 +312,50 @@ export const STRINGS = {
     typeToConfirm: "Skriv DELETE for at bekræfte",
     show: "Vis",
     hide: "Skjul",
+    loading: "Indlæser…",
+    // theme / connection
+    themeLight: "Lystilstand",
+    themeDark: "Mørktilstand",
+    connOnline: "Forbindelse: online (klik for at simulere offline)",
+    connOffline: "Forbindelse: offline (klik for at gendanne)",
+    toastOnline: "Tilbage online",
+    toastOffline: "Offline-tilstand (demo)",
+    // devices
+    copy: "Kopiér",
+    deviceIdHint: "Står bag på dit display",
+    // preview
+    justNow: "lige nu",
+    missingApiKey: "En valgt kilde mangler sin API-nøgle og vises ikke.",
+    // display card options
+    zoneDK1: "DK1 — Vest for Storebælt",
+    zoneDK2: "DK2 — Øst for Storebælt",
+    langDanish: "Dansk",
+    langEnglish: "English",
+    newsSrcDR: "DR Nyheder",
+    newsSrcPolitiken: "Politiken",
+    newsSrcTV2: "TV 2",
+    // e-ink canvas
+    hours24: "24t",
+    energyLabel: "ELPRIS",
+    nothingSelectedCanvas: "INTET VALGT",
+    avgShort: "Gns ",
+    weatherConnectKey: "Vejr — forbind API-nøgle",
+    wind: "vind",
+    newsConnectKey: "Nyheder — forbind API-nøgle",
+    // docs page
+    docsSub: "Kom i gang på tre trin.",
+    docsStep1Title: "Par dit display",
+    docsStep1Body: "Indtast enheds-ID'et bag på dit display under Enheder.",
+    docsStep2Title: "Tilføj API-nøgler",
+    docsStep2Body: "Hent gratis nøgler hos OpenWeatherMap og NewsAPI, og indsæt dem på oversigten.",
+    docsStep3Title: "Vælg hvad der vises",
+    docsStep3Body: "Slå elpris, vejr og nyheder til, og se forhåndsvisningen opdatere.",
+    // auth
+    verifyingSession: "Bekræfter session…",
+    welcomeBack: "Velkommen tilbage",
+    signInSub: "Log ind for at styre dit e-ink display",
+    createAccount: "Opret din konto",
+    createAccountSub: "Kom i gang med dit Energidisplay",
   },
 } as const;
 

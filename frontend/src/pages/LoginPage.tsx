@@ -2,6 +2,8 @@
 // LoginPage.tsx
 // =========================================================================
 import React, { useState } from 'react';
+import { useSignIn } from '@clerk/clerk-react';
+import type { OAuthStrategy } from '@clerk/types';
 import { useApp } from '../lib/appContext';
 import { Logo, Icon } from '../components/ui/Logo';
 import { Card } from '../components/ui/card';
@@ -42,20 +44,24 @@ function AppleGlyph() {
 export function LoginPage() {
   const app = useApp();
   const t = app.t;
+  const { signIn, isLoaded } = useSignIn();
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
-  function go(provider: string) {
+  async function go(provider: 'google' | 'apple') {
+    if (!isLoaded || !signIn) return;
     setError(false);
     setLoading(provider);
-    setTimeout(() => {
-      if (provider === 'apple' && !app.online) {
-        setLoading(null);
-        setError(true);
-        return;
-      }
-      app.signIn(provider);
-    }, 1400);
+    try {
+      await signIn.authenticateWithRedirect({
+        strategy: `oauth_${provider}` as OAuthStrategy,
+        redirectUrl: window.location.origin,
+        redirectUrlComplete: window.location.origin,
+      });
+    } catch {
+      setLoading(null);
+      setError(true);
+    }
   }
 
   return (

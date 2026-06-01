@@ -4,6 +4,7 @@
 import React, { useRef, useEffect } from 'react';
 import { hourlyPrices } from '../../lib/mockData';
 import type { EinkContentData } from '../../lib/mockData';
+import type { Strings } from '../../lib/strings';
 
 const EINK_W = 250;
 const EINK_H = 122;
@@ -106,10 +107,11 @@ interface RenderOpts {
   keys: { weather: boolean; news: boolean };
   data: EinkContentData;
   lang: string;
+  strings: Pick<Strings, 'nothingSelectedCanvas' | 'energyLabel' | 'hours24' | 'avgShort' | 'weatherConnectKey' | 'wind' | 'newsConnectKey'>;
 }
 
 function renderEink(ctx: CanvasRenderingContext2D, opts: RenderOpts) {
-  const { sources, keys, data, lang } = opts;
+  const { sources, keys, data, lang, strings: s } = opts;
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, EINK_W, EINK_H);
   ctx.fillStyle = '#000';
@@ -126,11 +128,7 @@ function renderEink(ctx: CanvasRenderingContext2D, opts: RenderOpts) {
   if (enabled.length === 0) {
     ctx.textAlign = 'center';
     ctx.font = `400 11px ${mono}`;
-    ctx.fillText(
-      lang === 'da' ? 'INTET VALGT' : 'NOTHING SELECTED',
-      EINK_W / 2,
-      EINK_H / 2
-    );
+    ctx.fillText(s.nothingSelectedCanvas, EINK_W / 2, EINK_H / 2);
     ctx.textAlign = 'left';
     return;
   }
@@ -139,11 +137,11 @@ function renderEink(ctx: CanvasRenderingContext2D, opts: RenderOpts) {
   if (sources.energy) {
     ctx.textAlign = 'left';
     ctx.font = `500 8px ${mono}`;
-    ctx.fillText((lang === 'da' ? 'ELPRIS' : 'POWER') + ' · ' + data.zone, PAD, y + 7);
+    ctx.fillText(s.energyLabel + ' · ' + data.zone, PAD, y + 7);
     // chart top-right
     drawChart(ctx, EINK_W - PAD - 92, y, 92, 22, hourlyPrices, data.avg);
     ctx.font = `500 7px ${mono}`;
-    ctx.fillText('24t', EINK_W - PAD - 92, y + 7 - 9 + 9);
+    ctx.fillText(s.hours24, EINK_W - PAD - 92, y + 7 - 9 + 9);
     // big price
     ctx.font = `700 28px ${mono}`;
     const price = nf(lang, data.price, 2);
@@ -154,11 +152,7 @@ function renderEink(ctx: CanvasRenderingContext2D, opts: RenderOpts) {
     drawDownArrow(ctx, PAD + pw + 4, y + 36, data.trend === 'up');
     // average
     ctx.font = `400 9px ${mono}`;
-    ctx.fillText(
-      (lang === 'da' ? 'Gns ' : 'Avg ') + nf(lang, data.avg, 2) + ' kr',
-      PAD,
-      y + 47
-    );
+    ctx.fillText(s.avgShort + nf(lang, data.avg, 2) + ' kr', PAD, y + 47);
     y += 53;
     if (enabled.length > 1) {
       dashedLine(ctx, PAD, EINK_W - PAD, y);
@@ -170,18 +164,14 @@ function renderEink(ctx: CanvasRenderingContext2D, opts: RenderOpts) {
   if (sources.weather) {
     if (!keys.weather) {
       ctx.font = `400 10px ${mono}`;
-      ctx.fillText(
-        lang === 'da' ? 'Vejr — forbind API-nøgle' : 'Weather — connect API key',
-        PAD,
-        y + 12
-      );
+      ctx.fillText(s.weatherConnectKey, PAD, y + 12);
       y += 20;
     } else {
       drawCloud(ctx, PAD, y);
       ctx.font = `500 12px ${mono}`;
       ctx.fillText(`${data.temp}°C`, PAD + 22, y + 12);
       ctx.font = `400 10px ${mono}`;
-      const wtxt = `${data.cond} ${data.rain}% · ${lang === 'da' ? 'vind' : 'wind'} ${data.wind} m/s`;
+      const wtxt = `${data.cond} ${data.rain}% · ${s.wind} ${data.wind} m/s`;
       ctx.fillText(wtxt, PAD + 22 + 42, y + 12);
       y += 20;
     }
@@ -195,11 +185,7 @@ function renderEink(ctx: CanvasRenderingContext2D, opts: RenderOpts) {
   if (sources.news) {
     if (!keys.news) {
       ctx.font = `400 10px ${mono}`;
-      ctx.fillText(
-        lang === 'da' ? 'Nyheder — forbind API-nøgle' : 'News — connect API key',
-        PAD,
-        y + 12
-      );
+      ctx.fillText(s.newsConnectKey, PAD, y + 12);
     } else {
       drawNews(ctx, PAD, y + 1);
       ctx.font = `400 10px ${mono}`;
@@ -246,11 +232,12 @@ interface EInkProps {
   keys: { weather: boolean; news: boolean };
   data: EinkContentData;
   lang: string;
+  strings: RenderOpts['strings'];
   refreshToken: number;
   view?: 'device' | 'raw';
 }
 
-export function EInk({ sources, keys, data, lang, refreshToken, view = 'device' }: EInkProps) {
+export function EInk({ sources, keys, data, lang, strings, refreshToken, view = 'device' }: EInkProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const first = useRef(true);
@@ -261,7 +248,7 @@ export function EInk({ sources, keys, data, lang, refreshToken, view = 'device' 
     const ctx = cv.getContext('2d');
     if (!ctx) return;
     ctx.imageSmoothingEnabled = false;
-    renderEink(ctx, { sources, keys, data, lang });
+    renderEink(ctx, { sources, keys, data, lang, strings });
     ditherTo1bit(ctx);
   };
 

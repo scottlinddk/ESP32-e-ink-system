@@ -2,6 +2,7 @@
 // AccountPage.tsx
 // =========================================================================
 import React, { useState } from 'react';
+import { useClerk } from '@clerk/clerk-react';
 import { useApp } from '../lib/appContext';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -13,6 +14,7 @@ import { Dialog } from '../components/ui/Dialog';
 export function AccountPage() {
   const app = useApp();
   const t = app.t;
+  const { signOut } = useClerk();
   const [name, setName] = useState(app.user.name);
   const [saving, setSaving] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
@@ -157,7 +159,7 @@ export function AccountPage() {
               disabled={confirmText !== 'DELETE'}
               onClick={() => {
                 setDelOpen(false);
-                app.signOut();
+                signOut();
               }}
             >
               {t.deleteForever}

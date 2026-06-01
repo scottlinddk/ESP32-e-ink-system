@@ -22,6 +22,7 @@ function deviceStatus(min: number, t: ReturnType<typeof useApp>['t']) {
 }
 
 function CopyField({ value }: { value: string }) {
+  const { t } = useApp();
   const [done, setDone] = useState(false);
   function copy() {
     try {
@@ -33,7 +34,7 @@ function CopyField({ value }: { value: string }) {
     setTimeout(() => setDone(false), 1200);
   }
   return (
-    <button className="copybtn" onClick={copy} title="Copy" aria-label="Copy">
+    <button className="copybtn" onClick={copy} title={t.copy} aria-label={t.copy}>
       <Icon name={done ? 'check' : 'content_copy'} />
     </button>
   );
@@ -242,11 +243,7 @@ export function DevicesPage() {
             <Field
               label={t.deviceId}
               htmlFor="di"
-              helper={
-                app.lang === 'da'
-                  ? 'Står bag på dit display'
-                  : 'Printed on the back of your display'
-              }
+              helper={t.deviceIdHint}
             >
               <Input
                 id="di"

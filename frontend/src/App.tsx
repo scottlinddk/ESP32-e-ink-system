@@ -1,11 +1,13 @@
 // =========================================================================
-// App.tsx — application root: AppProvider, string-based router, shell
+// App.tsx — application root: AppProvider, Clerk auth gate, shell
 // =========================================================================
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect } from 'react';
+import { useAuth, useUser, useClerk } from '@clerk/clerk-react';
 import { AppProvider, useApp } from './lib/appContext';
 import { AppBar } from './components/shell/AppBar';
 import { Sidebar } from './components/shell/Sidebar';
 import { ToastStack } from './components/ui/Toast';
+import { FullPageSpinner } from './components/common/LoadingSpinner';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { DevicesPage } from './pages/DevicesPage';
@@ -14,8 +16,24 @@ import { DocsPage } from './pages/DocsPage';
 
 function AppShell() {
   const app = useApp();
+  const { isLoaded, isSignedIn } = useAuth();
+  const { user: clerkUser } = useUser();
+  const { signOut } = useClerk();
 
-  if (!app.authed) {
+  useEffect(() => {
+    if (clerkUser) {
+      app.setUser({
+        name: clerkUser.fullName ?? clerkUser.username ?? '',
+        email: clerkUser.primaryEmailAddress?.emailAddress ?? '',
+      });
+    }
+  }, [clerkUser]);
+
+  if (!isLoaded) {
+    return <FullPageSpinner label={app.t.loading} />;
+  }
+
+  if (!isSignedIn) {
     return (
       <div className="app">
         <LoginPage />
@@ -33,7 +51,7 @@ function AppShell() {
 
   return (
     <div className="app">
-      <AppBar onMenu={() => app.setNavOpen(!app.navOpen)} />
+      <AppBar onMenu={() => app.setNavOpen(!app.navOpen)} onSignOut={signOut} />
       <div className="shell">
         <div
           className={'scrim-nav' + (app.navOpen ? ' is-open' : '')}
