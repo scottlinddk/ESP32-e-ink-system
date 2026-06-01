@@ -11,6 +11,7 @@ export const STRINGS = {
     // login
     signInGoogle: "Continue with Google",
     signInApple: "Continue with Apple",
+    signInGithub: "Continue with GitHub",
     signingIn: "Signing in…",
     loginOr: "or",
     whatIsThis: "What is this?",
@@ -191,6 +192,7 @@ export const STRINGS = {
     tagline: "Bestem hvad der vises på dit vægdisplay",
     signInGoogle: "Fortsæt med Google",
     signInApple: "Fortsæt med Apple",
+    signInGithub: "Fortsæt med GitHub",
     signingIn: "Logger ind…",
     loginOr: "eller",
     whatIsThis: "Hvad er det?",
