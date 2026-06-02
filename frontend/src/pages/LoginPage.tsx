@@ -3,7 +3,6 @@
 // =========================================================================
 import React, { useState } from 'react';
 import { useSignIn } from '@clerk/clerk-react';
-import type { OAuthStrategy } from '@clerk/types';
 import { useApp } from '../lib/appContext';
 import { Logo, Icon } from '../components/ui/Logo';
 import { Card } from '../components/ui/card';
@@ -62,7 +61,7 @@ export function LoginPage() {
     setLoading(provider);
     try {
       await signIn.authenticateWithRedirect({
-        strategy: `oauth_${provider}` as OAuthStrategy,
+        strategy: `oauth_${provider}`,
         redirectUrl: window.location.origin,
         redirectUrlComplete: window.location.origin,
       });
