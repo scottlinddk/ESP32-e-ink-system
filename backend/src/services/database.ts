@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { User, UserPreferences, ApiKey, Device } from '../types/index';
+import { encrypt, decrypt, isEncrypted } from '../utils/crypto';
 
 let supabase: SupabaseClient | null = null;
 
@@ -108,7 +109,14 @@ export async function getApiKeys(userId: string): Promise<ApiKey[]> {
     .eq('user_id', userId);
 
   if (error) throw error;
-  return (data ?? []) as ApiKey[];
+  return (data ?? []).map((row) => {
+    if (isEncrypted(row.api_key)) {
+      return { ...row, api_key: decrypt(row.api_key) } as ApiKey;
+    }
+    // Legacy plaintext row — return as-is until migrated
+    console.warn(`api_keys row ${row.id} for provider ${row.provider} is not encrypted`);
+    return row as ApiKey;
+  });
 }
 
 export async function upsertApiKey(
@@ -120,14 +128,15 @@ export async function upsertApiKey(
   const { data, error } = await db
     .from('api_keys')
     .upsert(
-      { user_id: userId, provider, api_key: apiKey },
+      { user_id: userId, provider, api_key: encrypt(apiKey) },
       { onConflict: 'user_id,provider' }
     )
     .select()
     .single();
 
   if (error) throw error;
-  return data as ApiKey;
+  // Return with decrypted key so callers work with the plaintext value
+  return { ...data, api_key: apiKey } as ApiKey;
 }
 
 export async function getDeviceByLicenseKey(licenseKey: string): Promise<Device | null> {
