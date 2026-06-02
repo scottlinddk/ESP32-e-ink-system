@@ -22,7 +22,7 @@ interface EinkSurfaceProps {
   lang: string;
   strings: React.ComponentProps<typeof EInk>['strings'];
   refreshToken: number;
-  view: 'device' | 'raw';
+  view: 'device' | 'raw' | 'clear';
 }
 
 function EinkSurface({ state, t, onRetry, ...einkProps }: EinkSurfaceProps) {
@@ -76,7 +76,7 @@ export function PreviewCard() {
   const app = useApp();
   const t = app.t;
   const p = app.prefs;
-  const [view, setView] = useState<'device' | 'raw'>('device');
+  const [view, setView] = useState<'device' | 'raw' | 'clear'>('device');
   const [refreshToken, setRefreshToken] = useState(0);
   const [state, setState] = useState<PreviewState>('ok');
   const [countdown, setCountdown] = useState(30);
@@ -148,6 +148,12 @@ export function PreviewCard() {
           >
             {t.viewRaw}
           </button>
+          <button
+            className={view === 'clear' ? 'is-active' : ''}
+            onClick={() => setView('clear')}
+          >
+            {t.viewClear}
+          </button>
         </div>
       }
     >
@@ -180,7 +186,7 @@ export function PreviewCard() {
               lang={app.lang}
               strings={t}
               refreshToken={refreshToken}
-              view="raw"
+              view={view}
             />
           )}
         </div>

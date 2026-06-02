@@ -234,7 +234,7 @@ interface EInkProps {
   lang: string;
   strings: RenderOpts['strings'];
   refreshToken: number;
-  view?: 'device' | 'raw';
+  view?: 'device' | 'raw' | 'clear';
 }
 
 export function EInk({ sources, keys, data, lang, strings, refreshToken, view = 'device' }: EInkProps) {
@@ -247,9 +247,9 @@ export function EInk({ sources, keys, data, lang, strings, refreshToken, view = 
     if (!cv) return;
     const ctx = cv.getContext('2d');
     if (!ctx) return;
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = view === 'clear';
     renderEink(ctx, { sources, keys, data, lang, strings });
-    ditherTo1bit(ctx);
+    if (view !== 'clear') ditherTo1bit(ctx);
   };
 
   const flashThenPaint = () => {
@@ -274,7 +274,7 @@ export function EInk({ sources, keys, data, lang, strings, refreshToken, view = 
   useEffect(() => {
     paint();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(sources), JSON.stringify(keys), lang]);
+  }, [JSON.stringify(sources), JSON.stringify(keys), lang, view]);
 
   // Explicit refresh → e-ink flash animation
   useEffect(() => {
@@ -293,7 +293,7 @@ export function EInk({ sources, keys, data, lang, strings, refreshToken, view = 
       width={EINK_W}
       height={EINK_H}
       className="eink-screen"
-      style={view === 'raw' ? { maxWidth: EINK_W * 3, width: '100%' } : undefined}
+      style={view !== 'device' ? { maxWidth: EINK_W * 3, width: '100%' } : undefined}
       role="img"
       aria-label="E-ink display preview"
     />

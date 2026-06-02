@@ -86,6 +86,7 @@ export const STRINGS = {
     refreshNow: "Refresh now",
     viewDevice: "Device",
     viewRaw: "Raw buffer",
+    viewClear: "Clear",
     nothingOn: "Nothing selected",
     nothingOnMsg: "Turn on a source to see it here.",
     // devices
@@ -262,6 +263,7 @@ export const STRINGS = {
     refreshNow: "Opdatér nu",
     viewDevice: "Enhed",
     viewRaw: "Rå buffer",
+    viewClear: "Klar",
     nothingOn: "Intet valgt",
     nothingOnMsg: "Slå en kilde til for at se den her.",
     devTitle: "Mine enheder",
