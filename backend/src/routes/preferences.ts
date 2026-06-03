@@ -11,6 +11,157 @@ import {
 import { createClerkClient } from '@clerk/backend';
 import { UserPreferences } from '../types/index';
 
+/**
+ * @swagger
+ * tags:
+ *   name: Preferences
+ *   description: User display preferences and third-party API key management
+ *
+ * /api/preferences:
+ *   get:
+ *     summary: Get authenticated user's display preferences
+ *     description: Returns saved preferences, or sensible defaults if none have been set yet
+ *     tags: [Preferences]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User preferences
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 preferences:
+ *                   $ref: '#/components/schemas/UserPreferences'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *
+ *   post:
+ *     summary: Update authenticated user's display preferences
+ *     description: Partial updates are supported — only fields present in the body are updated
+ *     tags: [Preferences]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UserPreferences'
+ *     responses:
+ *       200:
+ *         description: Updated preferences
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 preferences:
+ *                   $ref: '#/components/schemas/UserPreferences'
+ *       401:
+ *         description: Unauthorized
+ *
+ * /api/preferences/api-keys:
+ *   get:
+ *     summary: List stored third-party API keys (values are masked)
+ *     tags: [Preferences]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Masked API keys
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 api_keys:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/ApiKey'
+ *       401:
+ *         description: Unauthorized
+ *
+ *   post:
+ *     summary: Store or update an API key for a provider
+ *     tags: [Preferences]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - provider
+ *               - api_key
+ *             properties:
+ *               provider:
+ *                 type: string
+ *                 enum: [openweathermap, newsapi, openai]
+ *               api_key:
+ *                 type: string
+ *                 minLength: 4
+ *                 description: Plain-text key — stored encrypted at rest
+ *     responses:
+ *       200:
+ *         description: API key stored (value masked in response)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 api_key:
+ *                   $ref: '#/components/schemas/ApiKey'
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *
+ * /api/preferences/api-keys/{provider}:
+ *   delete:
+ *     summary: Remove an API key for a provider
+ *     tags: [Preferences]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: provider
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [openweathermap, newsapi, openai]
+ *     responses:
+ *       200:
+ *         description: API key deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *       400:
+ *         description: Invalid provider
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ */
+
 const router = Router();
 
 async function getOrCreateUserFromClerk(clerkUserId: string): Promise<string> {

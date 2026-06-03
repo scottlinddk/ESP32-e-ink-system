@@ -10,6 +10,150 @@ import {
   deleteDevice,
 } from '../services/database';
 
+/**
+ * @swagger
+ * tags:
+ *   name: Devices
+ *   description: ESP32 device registration and management
+ *
+ * /api/devices:
+ *   get:
+ *     summary: List all devices for the authenticated user
+ *     tags: [Devices]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of registered devices
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 devices:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Device'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *
+ *   post:
+ *     summary: Register a new device
+ *     tags: [Devices]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - device_name
+ *             properties:
+ *               device_name:
+ *                 type: string
+ *                 example: Living Room Display
+ *               device_id:
+ *                 type: string
+ *                 description: Hardware ID — auto-generated if omitted
+ *                 example: ESP-A1B2C3
+ *     responses:
+ *       201:
+ *         description: Device registered with a generated license key
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 device:
+ *                   $ref: '#/components/schemas/Device'
+ *       400:
+ *         description: Validation error (device_name required)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *
+ * /api/devices/{id}:
+ *   put:
+ *     summary: Rename a device
+ *     tags: [Devices]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Device UUID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - device_name
+ *             properties:
+ *               device_name:
+ *                 type: string
+ *                 example: Kitchen Display
+ *     responses:
+ *       200:
+ *         description: Device renamed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 device:
+ *                   $ref: '#/components/schemas/Device'
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *
+ *   delete:
+ *     summary: Delete a device
+ *     tags: [Devices]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Device UUID
+ *     responses:
+ *       200:
+ *         description: Device deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *       401:
+ *         description: Unauthorized
+ */
+
 const router = Router();
 
 async function resolveUserId(clerkUserId: string): Promise<string> {
