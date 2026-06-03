@@ -79,6 +79,25 @@ app.use(
   express.static(firmwareBuildsDir)
 );
 
+// Proxy fallback: when DEFAULT_FIRMWARE_URL is set and default.bin is absent locally,
+// stream the binary from the configured URL so the browser always hits the same origin.
+app.get('/firmware/default.bin', async (_req: Request, res: Response, next: NextFunction) => {
+  const url = process.env.DEFAULT_FIRMWARE_URL?.trim();
+  if (!url) return next();
+  try {
+    const { default: fetch } = await import('node-fetch');
+    const upstream = await fetch(url, { redirect: 'follow' });
+    if (!upstream.ok) return next();
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/octet-stream');
+    const cl = upstream.headers.get('content-length');
+    if (cl) res.setHeader('Content-Length', cl);
+    upstream.body!.pipe(res);
+  } catch {
+    next();
+  }
+});
+
 // Routes
 app.use('/health', healthRouter);
 app.use('/api/auth', authRouter);

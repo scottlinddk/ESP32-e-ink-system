@@ -26,6 +26,7 @@ export function FirmwarePage() {
   const [manifestLoading, setManifestLoading] = useState(false);
   const [manifestError, setManifestError] = useState<string | null>(null);
   const blobUrlRef = useRef<string | null>(null);
+  const hasAutoSelected = useRef(false);
   const supportsWebSerial = 'serial' in navigator;
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -40,6 +41,14 @@ export function FirmwarePage() {
   const firmwareVersions = data?.firmware_versions ?? [];
   const defaultFw = firmwareVersions.find((fw) => fw.is_default);
   const userVersions = firmwareVersions.filter((fw) => !fw.is_default);
+
+  // Auto-select the active default firmware on first load so users can flash immediately.
+  useEffect(() => {
+    if (!hasAutoSelected.current && defaultFw?.active) {
+      hasAutoSelected.current = true;
+      setSelectedFwId('default');
+    }
+  }, [defaultFw?.active]);
 
   const createMutation = useMutation({
     mutationFn: async (payload: {
@@ -122,11 +131,16 @@ export function FirmwarePage() {
             {item.is_default && (
               <span className="chip chip--info">{t.fwDefaultBadge}</span>
             )}
+            {item.is_default && item.active && (
+              <span className="chip chip--success">{t.fwDefaultReady}</span>
+            )}
             {item.active && !item.is_default && (
               <span className="chip chip--success">{t.fwActive}</span>
             )}
             {item.is_default && !item.active && (
-              <span className="chip chip--warning">{t.fwDefaultNotBuilt}</span>
+              <span className="chip chip--warning" title={t.fwDefaultNotBuilt}>
+                {t.fwDefaultNotBuilt}
+              </span>
             )}
           </div>
           <div className="device__rows">
@@ -252,7 +266,7 @@ export function FirmwarePage() {
               <Icon name="warning" /> {t.fwFlashBrowserNote}
             </div>
           )}
-          {firmwareVersions.length === 0 ? (
+          {!firmwareVersions.some((fw) => fw.active) ? (
             <p className="muted">{t.fwFlashNoVersions}</p>
           ) : (
             <>
@@ -265,7 +279,7 @@ export function FirmwarePage() {
                 >
                   <option value="">{t.fwFlashSelectPlaceholder}</option>
                   {firmwareVersions.map((fw) => (
-                    <option key={fw.id} value={fw.id}>
+                    <option key={fw.id} value={fw.id} disabled={fw.is_default && !fw.active}>
                       {fw.is_default
                         ? `v${fw.version} — ${t.fwDefault}${fw.active ? '' : ' ⚠'}`
                         : `v${fw.version}${fw.active ? ' ★' : ''}`}

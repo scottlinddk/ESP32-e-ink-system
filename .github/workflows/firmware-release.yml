@@ -65,24 +65,59 @@ jobs:
           pio run -e esp32dev \
             --project-option="build_flags=-D CORE_DEBUG_LEVEL=3 -D DEBUG_ESP_PORT=Serial -D PROVISION_DEFAULT_API_URL='\"${PRODUCTION_API_URL}\"'"
 
-      - name: Copy firmware binary
+      - name: Copy firmware binaries
         run: |
-          cp firmware/.pio/build/esp32dev/firmware.bin firmware.bin
-          echo "Binary size: $(du -sh firmware.bin)"
+          cp firmware/.pio/build/esp32dev/firmware.bin    firmware.bin
+          cp firmware/.pio/build/esp32dev/bootloader.bin  bootloader.bin
+          cp firmware/.pio/build/esp32dev/partitions.bin  partitions.bin
+          echo "App:         $(du -sh firmware.bin)"
+          echo "Bootloader:  $(du -sh bootloader.bin)"
+          echo "Partitions:  $(du -sh partitions.bin)"
 
-      - name: Create GitHub Release and upload binary
+      - name: Generate flash manifest
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          cat > manifest.json <<EOF
+          {
+            "name": "ESP32 Display v${VERSION}",
+            "builds": [{
+              "chipFamily": "ESP32",
+              "parts": [
+                { "path": "bootloader.bin", "offset": 4096 },
+                { "path": "partitions.bin", "offset": 32768 },
+                { "path": "firmware.bin",   "offset": 65536 }
+              ]
+            }]
+          }
+          EOF
+
+      - name: Create GitHub Release and upload binaries
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: firmware.bin
+          files: |
+            firmware.bin
+            bootloader.bin
+            partitions.bin
+            manifest.json
           generate_release_notes: true
+          body: |
+            ## Flashing
+
+            **Browser (USB):** Set `DEFAULT_FIRMWARE_URL` in the backend `.env` to the `firmware.bin` asset URL below, then use the Firmware page to flash directly via USB.
+
+            **CLI:** `cd firmware && pio run -e esp32dev --target upload`
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload binary as artifact (workflow_dispatch)
+      - name: Upload binaries as artifact (workflow_dispatch)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: firmware-${{ steps.version.outputs.VERSION }}
-          path: firmware.bin
+          path: |
+            firmware.bin
+            bootloader.bin
+            partitions.bin
+            manifest.json
           retention-days: 30
