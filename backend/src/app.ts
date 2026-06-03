@@ -1,7 +1,8 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import swaggerUi from 'swagger-ui-express';
 import 'dotenv/config';
 
 import healthRouter from './routes/health';
@@ -10,6 +11,7 @@ import preferencesRouter from './routes/preferences';
 import devicesRouter from './routes/devices';
 import displayDataRouter from './routes/display-data';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { swaggerSpec } from './swagger';
 
 const app = express();
 
@@ -76,6 +78,20 @@ app.post('/api/checkout', (_req, res) => {
     message: 'Stripe integration coming soon',
   });
 });
+
+// Swagger UI — override helmet's CSP to allow inline scripts/styles needed by the UI
+app.use(
+  '/api-docs',
+  (_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+    );
+    next();
+  },
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, { explorer: true })
+);
 
 // 404 handler
 app.use(notFoundHandler);

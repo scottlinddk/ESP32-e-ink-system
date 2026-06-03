@@ -14,6 +14,96 @@ import { fetchNews } from '../services/news';
 import { DisplayData, UserPreferences } from '../types/index';
 import { createClerkClient } from '@clerk/backend';
 
+/**
+ * @swagger
+ * tags:
+ *   - name: Display Data
+ *     description: Aggregated data for e-ink display rendering
+ *   - name: Billing
+ *     description: Subscription and payment stubs
+ *
+ * /api/display-data/{userId}:
+ *   get:
+ *     summary: Get display data for an ESP32 device
+ *     description: >
+ *       Device-facing endpoint. Authenticated via `licenseKey` query parameter —
+ *       no JWT is required. The ESP32 polls this endpoint on its configured refresh interval.
+ *     tags: [Display Data]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Supabase user ID that owns the device
+ *       - in: query
+ *         name: licenseKey
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: DSPL-A1B2-C3D4-E5F6
+ *         description: License key printed on the device registration
+ *     responses:
+ *       200:
+ *         description: Aggregated display data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/DisplayData'
+ *       401:
+ *         description: Missing or invalid license key
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: License key does not belong to this user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *
+ * /api/preview:
+ *   get:
+ *     summary: Preview display data for the authenticated user
+ *     description: Dashboard preview of what the e-ink display will render, using the user's current preferences
+ *     tags: [Display Data]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Preview display data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/DisplayData'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *
+ * /api/checkout:
+ *   post:
+ *     summary: Create a checkout session (stub)
+ *     description: Stripe integration is not yet implemented
+ *     tags: [Billing]
+ *     responses:
+ *       501:
+ *         description: Not implemented
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 message:
+ *                   type: string
+ */
+
 const router = Router();
 
 const DEFAULT_PREFS: UserPreferences = {
