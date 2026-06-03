@@ -62,7 +62,7 @@ export function DevicesPage() {
   const [dialog, setDialog] = useState<DialogState>(null);
   const [form, setForm] = useState({ name: '', id: '' });
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['devices'],
     queryFn: async () => {
       const token = await getToken();
@@ -150,16 +150,6 @@ export function DevicesPage() {
   const isRemove = dialog !== null && dialog.type === 'remove';
   const isBusy = addMutation.isPending || editMutation.isPending || deleteMutation.isPending;
 
-  if (error) {
-    return (
-      <div className="page">
-        <p className="helper" style={{ color: 'var(--color-error)', padding: 24 }}>
-          {(error as Error).message}
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="page">
       <header className="page__head">
@@ -168,7 +158,7 @@ export function DevicesPage() {
             <h1 className="page__title">{t.devTitle}</h1>
             <p className="page__sub">{t.devSub}</p>
           </div>
-          {!isLoading && devices.length > 0 && (
+          {!isLoading && !error && (
             <Button icon="add" onClick={openAdd}>
               {t.addDevice}
             </Button>
@@ -179,6 +169,22 @@ export function DevicesPage() {
       <Card flat>
         {isLoading ? (
           <LoadBox text={t.loadingDevices} />
+        ) : error ? (
+          <Empty
+            icon="wifi_off"
+            title={t.devFetchError}
+            text={t.devFetchErrorMsg}
+            action={
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Button variant="outlined" icon="refresh" onClick={() => refetch()}>
+                  {t.retry}
+                </Button>
+                <Button icon="add" onClick={openAdd}>
+                  {t.addDevice}
+                </Button>
+              </div>
+            }
+          />
         ) : devices.length === 0 ? (
           <Empty
             icon="cast"

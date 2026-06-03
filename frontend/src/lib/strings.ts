@@ -118,6 +118,8 @@ export const STRINGS = {
     pairing: "Pairing…",
     devicePaired: "Device paired",
     loadingDevices: "Loading devices…",
+    devFetchError: "Couldn't load devices",
+    devFetchErrorMsg: "Check your connection and try again.",
     // account
     accTitle: "Account",
     accSub: "Your profile, plan and usage.",
@@ -294,6 +296,8 @@ export const STRINGS = {
     pairing: "Parrer…",
     devicePaired: "Enhed parret",
     loadingDevices: "Indlæser enheder…",
+    devFetchError: "Kunne ikke indlæse enheder",
+    devFetchErrorMsg: "Tjek din forbindelse og prøv igen.",
     accTitle: "Konto",
     accSub: "Din profil, dit abonnement og forbrug.",
     profile: "Profil",
