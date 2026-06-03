@@ -1,0 +1,15 @@
+{
+  "name": "ESP32 E-Ink Display",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        {
+          "path": "https://github.com/scottlinddk/esp32-e-ink-system/releases/latest/download/firmware.bin",
+          "offset": 65536
+        }
+      ]
+    }
+  ]
+}

@@ -59,8 +59,18 @@ const displayLimiter = rateLimit({
   message: { error: 'Rate limit exceeded for display data endpoint.' },
 });
 
+// Tight limit for device pairing (unauthenticated)
+const pairingLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many pairing requests, please try again later.' },
+});
+
 app.use('/api/', limiter);
 app.use('/api/display-data', displayLimiter);
+app.use('/api/devices/pair', pairingLimiter);
 
 // Body parsing
 app.use(express.json({ limit: '10kb' }));

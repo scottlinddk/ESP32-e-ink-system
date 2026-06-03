@@ -11,6 +11,7 @@ import {
   updateDeviceName,
   deleteDevice,
   getDeviceByLicenseKey,
+  getDeviceByDeviceId,
   getLatestFirmwareVersion,
   getFirmwareVersionByUserAndVersion,
 } from '../services/database';
@@ -185,6 +186,56 @@ function generateLicenseKey(): string {
   const part = () => crypto.randomBytes(2).toString('hex').toUpperCase();
   return `DSPL-${part()}-${part()}-${part()}`;
 }
+
+/**
+ * POST /api/devices/pair
+ *
+ * Unauthenticated endpoint called by the ESP32 on first WiFi connect.
+ * Idempotent: returns existing credentials if the device already registered.
+ * New devices are registered under an auto-provisioned system user until a
+ * dashboard user claims the device.
+ */
+router.post(
+  '/pair',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { mac_address, device_name } = req.body as {
+        mac_address?: string;
+        device_name?: string;
+      };
+
+      if (!mac_address || typeof mac_address !== 'string') {
+        res.status(400).json({ error: 'mac_address is required' });
+        return;
+      }
+
+      // Normalize MAC → device_id (strip colons/dashes, uppercase)
+      const deviceId = mac_address.replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+      if (deviceId.length !== 12) {
+        res.status(400).json({ error: 'Invalid mac_address format' });
+        return;
+      }
+
+      // Idempotent: return existing creds if device already registered
+      const existing = await getDeviceByDeviceId(deviceId);
+      if (existing) {
+        res.json({ user_id: existing.user_id, license_key: existing.license_key });
+        return;
+      }
+
+      // Auto-provision a system user that will own unclaimed devices
+      const systemUser = await upsertUser('system@esp32-display.internal', 'System');
+
+      const licenseKey = generateLicenseKey();
+      const name = (device_name ?? 'ESP32 Display').trim().slice(0, 64) || 'ESP32 Display';
+      const device = await createDevice(systemUser.id, deviceId, name, licenseKey);
+
+      res.status(201).json({ user_id: device.user_id, license_key: device.license_key });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 /** GET /api/devices */
 router.get(
