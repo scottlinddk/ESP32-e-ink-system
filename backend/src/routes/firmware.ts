@@ -19,14 +19,16 @@ const DEFAULT_BIN = path.join(FIRMWARE_BUILDS_DIR, 'default.bin');
 function buildDefaultEntry(req: Request): FirmwareVersion {
   const version = process.env.DEFAULT_FIRMWARE_VERSION ?? '1.0.0';
   const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const externalUrl = process.env.DEFAULT_FIRMWARE_URL?.trim();
+  const active = !!(externalUrl || existsSync(DEFAULT_BIN));
   return {
     id: 'default',
     user_id: 'system',
     version,
     download_path: `${baseUrl}/firmware/default.bin`,
     checksum: null,
-    release_notes: 'Official default firmware build. Place default.bin in firmware/builds/ to enable.',
-    active: existsSync(DEFAULT_BIN),
+    release_notes: 'Official default firmware. Flash directly to your ESP32 via USB — no setup required.',
+    active,
     created_at: new Date(0).toISOString(),
     is_default: true,
   };
@@ -125,8 +127,14 @@ router.get(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      const externalUrl = process.env.DEFAULT_FIRMWARE_URL?.trim();
+      if (!externalUrl && !existsSync(DEFAULT_BIN)) {
+        res.status(404).json({ error: 'Default firmware binary not available. Set DEFAULT_FIRMWARE_URL or build firmware/builds/default.bin.' });
+        return;
+      }
       const version = process.env.DEFAULT_FIRMWARE_VERSION ?? '1.0.0';
       const baseUrl = `${req.protocol}://${req.get('host')}`;
+      // Always use the backend URL — the backend proxies DEFAULT_FIRMWARE_URL when needed.
       const binaryUrl = `${baseUrl}/firmware/default.bin`;
       res.json({
         name: `ESP32 Display v${version}`,
