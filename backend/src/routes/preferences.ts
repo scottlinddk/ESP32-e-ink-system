@@ -6,6 +6,7 @@ import {
   upsertUser,
   getApiKeys,
   upsertApiKey,
+  deleteApiKey,
 } from '../services/database';
 import { createClerkClient } from '@clerk/backend';
 import { UserPreferences } from '../types/index';
@@ -173,6 +174,33 @@ router.post(
           created_at: key.created_at,
         },
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * DELETE /api/preferences/api-keys/:provider
+ * Remove an API key for a provider
+ */
+router.delete(
+  '/api-keys/:provider',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const clerkUserId = req.clerkUserId!;
+      const userId = await getOrCreateUserFromClerk(clerkUserId);
+
+      const { provider } = req.params as { provider: string };
+      const validProviders = ['openweathermap', 'newsapi', 'openai'];
+      if (!validProviders.includes(provider)) {
+        res.status(400).json({ error: `provider must be one of: ${validProviders.join(', ')}` });
+        return;
+      }
+
+      await deleteApiKey(userId, provider);
+      res.json({ success: true });
     } catch (err) {
       next(err);
     }
