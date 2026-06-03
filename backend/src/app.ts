@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import swaggerUi from 'swagger-ui-express';
+import path from 'path';
 import 'dotenv/config';
 
 import healthRouter from './routes/health';
@@ -63,6 +64,18 @@ app.use('/api/display-data', displayLimiter);
 // Body parsing
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: false }));
+
+// Firmware binaries — served without auth so browsers can fetch them for esp-web-tools flashing.
+// CORS is opened wide (*) here intentionally: these are public binary assets, not API endpoints.
+const firmwareBuildsDir = path.join(__dirname, '../../firmware/builds');
+app.use(
+  '/firmware',
+  (_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    next();
+  },
+  express.static(firmwareBuildsDir)
+);
 
 // Routes
 app.use('/health', healthRouter);

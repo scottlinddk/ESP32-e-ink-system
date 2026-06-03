@@ -54,6 +54,7 @@ export interface FirmwareVersion {
   release_notes: string | null;
   active: boolean;
   created_at: string;
+  is_default?: boolean;
 }
 
 export interface User {

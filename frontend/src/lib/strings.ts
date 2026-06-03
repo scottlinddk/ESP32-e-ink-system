@@ -144,6 +144,9 @@ export const STRINGS = {
     fwEmptyMsg: "Create a firmware release before your device can update.",
     fwCreateFirst: "Create first release",
     fwNone: "None",
+    fwDefault: "Default",
+    fwDefaultBadge: "System default",
+    fwDefaultNotBuilt: "Binary not built — see firmware/builds/README.md",
     // firmware flash assistant
     fwFlashTitle: "Flash device",
     fwFlashSub: "Program your ESP32 directly from this browser via USB.",
@@ -358,6 +361,9 @@ export const STRINGS = {
     fwEmptyMsg: "Opret en firmwarefrigivelse før din enhed kan opdatere.",
     fwCreateFirst: "Opret første frigivelse",
     fwNone: "Ingen",
+    fwDefault: "Standard",
+    fwDefaultBadge: "Systemstandard",
+    fwDefaultNotBuilt: "Binærfil ikke bygget — se firmware/builds/README.md",
     // firmware flash assistant
     fwFlashTitle: "Flash enhed",
     fwFlashSub: "Programmér din ESP32 direkte fra denne browser via USB.",

@@ -38,6 +38,8 @@ export function FirmwarePage() {
   });
 
   const firmwareVersions = data?.firmware_versions ?? [];
+  const defaultFw = firmwareVersions.find((fw) => fw.is_default);
+  const userVersions = firmwareVersions.filter((fw) => !fw.is_default);
 
   const createMutation = useMutation({
     mutationFn: async (payload: {
@@ -108,6 +110,50 @@ export function FirmwarePage() {
     });
   }
 
+  function renderFirmwareItem(item: FirmwareVersion) {
+    return (
+      <div className="device" key={item.id}>
+        <div className="device__glyph">
+          <Icon name={item.is_default ? 'deployed_code' : 'download'} />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div className="device__name">
+            {t.fwVersion} <b>{item.version}</b>
+            {item.is_default && (
+              <span className="chip chip--info">{t.fwDefaultBadge}</span>
+            )}
+            {item.active && !item.is_default && (
+              <span className="chip chip--success">{t.fwActive}</span>
+            )}
+            {item.is_default && !item.active && (
+              <span className="chip chip--warning">{t.fwDefaultNotBuilt}</span>
+            )}
+          </div>
+          <div className="device__rows">
+            <span className="device__kv">
+              {t.fwDownloadPath} <b>{item.download_path}</b>
+            </span>
+            {!item.is_default && (
+              <span className="device__kv">
+                {t.fwChecksum} <b>{item.checksum || t.fwNone}</b>
+              </span>
+            )}
+            {!item.is_default && (
+              <span className="device__kv">
+                {t.fwCreatedAt} <b>{new Date(item.created_at).toLocaleString(app.t.locale)}</b>
+              </span>
+            )}
+            {item.release_notes ? (
+              <span className="device__kv">
+                {t.fwNotes} <b>{item.release_notes}</b>
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <header className="page__head">
@@ -132,47 +178,24 @@ export function FirmwarePage() {
               </Button>
             }
           />
-        ) : firmwareVersions.length === 0 ? (
-          <Empty
-            icon="cloud_upload"
-            title={t.fwEmpty}
-            text={t.fwEmptyMsg}
-            action={
-              <Button onClick={() => setForm({ version: '1.0.1', downloadPath: '', checksum: '', notes: '' })}>
-                {t.fwCreateFirst}
-              </Button>
-            }
-          />
         ) : (
-          firmwareVersions.map((item) => (
-            <div className="device" key={item.id}>
-              <div className="device__glyph">
-                <Icon name="download" />
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div className="device__name">
-                  {t.fwVersion} <b>{item.version}</b>
-                  {item.active && <span className="chip chip--success">{t.fwActive}</span>}
-                </div>
-                <div className="device__rows">
-                  <span className="device__kv">
-                    {t.fwDownloadPath} <b>{item.download_path}</b>
-                  </span>
-                  <span className="device__kv">
-                    {t.fwChecksum} <b>{item.checksum || t.fwNone}</b>
-                  </span>
-                  <span className="device__kv">
-                    {t.fwCreatedAt} <b>{new Date(item.created_at).toLocaleString(app.t.locale)}</b>
-                  </span>
-                  {item.release_notes ? (
-                    <span className="device__kv">
-                      {t.fwNotes} <b>{item.release_notes}</b>
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          ))
+          <>
+            {defaultFw && renderFirmwareItem(defaultFw)}
+            {userVersions.length === 0 && !defaultFw ? (
+              <Empty
+                icon="cloud_upload"
+                title={t.fwEmpty}
+                text={t.fwEmptyMsg}
+                action={
+                  <Button onClick={() => setForm({ version: '1.0.1', downloadPath: '', checksum: '', notes: '' })}>
+                    {t.fwCreateFirst}
+                  </Button>
+                }
+              />
+            ) : (
+              userVersions.map((item) => renderFirmwareItem(item))
+            )}
+          </>
         )}
       </Card>
 
@@ -243,7 +266,9 @@ export function FirmwarePage() {
                   <option value="">{t.fwFlashSelectPlaceholder}</option>
                   {firmwareVersions.map((fw) => (
                     <option key={fw.id} value={fw.id}>
-                      v{fw.version}{fw.active ? ' ★' : ''}
+                      {fw.is_default
+                        ? `v${fw.version} — ${t.fwDefault}${fw.active ? '' : ' ⚠'}`
+                        : `v${fw.version}${fw.active ? ' ★' : ''}`}
                     </option>
                   ))}
                 </select>

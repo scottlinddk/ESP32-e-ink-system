@@ -1,4 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { existsSync } from 'fs';
+import path from 'path';
 import { createClerkClient } from '@clerk/backend';
 import { requireAuth } from '../middleware/auth';
 import {
@@ -7,8 +9,28 @@ import {
   getFirmwareVersionById,
   upsertUser,
 } from '../services/database';
+import type { FirmwareVersion } from '../types';
 
 const router = Router();
+
+const FIRMWARE_BUILDS_DIR = path.join(__dirname, '../../firmware/builds');
+const DEFAULT_BIN = path.join(FIRMWARE_BUILDS_DIR, 'default.bin');
+
+function buildDefaultEntry(req: Request): FirmwareVersion {
+  const version = process.env.DEFAULT_FIRMWARE_VERSION ?? '1.0.0';
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  return {
+    id: 'default',
+    user_id: 'system',
+    version,
+    download_path: `${baseUrl}/firmware/default.bin`,
+    checksum: null,
+    release_notes: 'Official default firmware build. Place default.bin in firmware/builds/ to enable.',
+    active: existsSync(DEFAULT_BIN),
+    created_at: new Date(0).toISOString(),
+    is_default: true,
+  };
+}
 
 async function resolveUserId(clerkUserId: string): Promise<string> {
   const secretKey = process.env.CLERK_SECRET_KEY;
@@ -32,7 +54,7 @@ async function resolveUserId(clerkUserId: string): Promise<string> {
 
 /**
  * GET /api/firmware
- * Admin endpoint to list firmware versions for the authenticated user
+ * Lists firmware versions for the authenticated user, prepended with the system default.
  */
 router.get(
   '/',
@@ -40,7 +62,8 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = await resolveUserId(req.clerkUserId!);
-      const firmware_versions = await getFirmwareVersions(userId);
+      const userVersions = await getFirmwareVersions(userId);
+      const firmware_versions = [buildDefaultEntry(req), ...userVersions];
       res.json({ firmware_versions });
     } catch (err) {
       next(err);
@@ -50,7 +73,7 @@ router.get(
 
 /**
  * POST /api/firmware
- * Create a new firmware release for OTA updates
+ * Create a new firmware release for OTA updates.
  */
 router.post(
   '/',
@@ -93,8 +116,31 @@ router.post(
 );
 
 /**
+ * GET /api/firmware/default/manifest
+ * Returns esp-web-tools manifest for the backend-hosted default firmware binary.
+ * Must be declared before /:id/manifest to take precedence.
+ */
+router.get(
+  '/default/manifest',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const version = process.env.DEFAULT_FIRMWARE_VERSION ?? '1.0.0';
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const binaryUrl = `${baseUrl}/firmware/default.bin`;
+      res.json({
+        name: `ESP32 Display v${version}`,
+        builds: [{ chipFamily: 'ESP32', parts: [{ path: binaryUrl, offset: 65536 }] }],
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
  * GET /api/firmware/:id/manifest
- * Returns esp-web-tools manifest JSON. The binary at download_path must be a publicly accessible URL.
+ * Returns esp-web-tools manifest JSON. Binary at download_path must be a public URL.
  */
 router.get(
   '/:id/manifest',
@@ -103,22 +149,12 @@ router.get(
     try {
       const userId = await resolveUserId(req.clerkUserId!);
       const fw = await getFirmwareVersionById(userId, req.params.id);
-      if (!fw) {
-        res.status(404).json({ error: 'Firmware version not found' });
-        return;
-      }
+      if (!fw) { res.status(404).json({ error: 'Firmware version not found' }); return; }
       res.json({
         name: `ESP32 Display v${fw.version}`,
-        builds: [
-          {
-            chipFamily: 'ESP32',
-            parts: [{ path: fw.download_path, offset: 65536 }],
-          },
-        ],
+        builds: [{ chipFamily: 'ESP32', parts: [{ path: fw.download_path, offset: 65536 }] }],
       });
-    } catch (err) {
-      next(err);
-    }
+    } catch (err) { next(err); }
   }
 );
 
