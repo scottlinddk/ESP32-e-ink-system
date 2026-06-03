@@ -139,6 +139,81 @@ export async function upsertApiKey(
   return { ...data, api_key: apiKey } as ApiKey;
 }
 
+export async function getDevices(userId: string): Promise<Device[]> {
+  const db = getSupabaseClient();
+  const { data, error } = await db
+    .from('devices')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as Device[];
+}
+
+export async function createDevice(
+  userId: string,
+  deviceId: string,
+  deviceName: string,
+  licenseKey: string
+): Promise<Device> {
+  const db = getSupabaseClient();
+  const { data, error } = await db
+    .from('devices')
+    .insert({
+      user_id: userId,
+      device_id: deviceId,
+      device_name: deviceName,
+      license_key: licenseKey,
+      firmware_version: '1.0.0',
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Device;
+}
+
+export async function updateDeviceName(
+  id: string,
+  userId: string,
+  deviceName: string
+): Promise<Device> {
+  const db = getSupabaseClient();
+  const { data, error } = await db
+    .from('devices')
+    .update({ device_name: deviceName })
+    .eq('id', id)
+    .eq('user_id', userId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Device;
+}
+
+export async function deleteDevice(id: string, userId: string): Promise<void> {
+  const db = getSupabaseClient();
+  const { error } = await db
+    .from('devices')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+}
+
+export async function deleteApiKey(userId: string, provider: string): Promise<void> {
+  const db = getSupabaseClient();
+  const { error } = await db
+    .from('api_keys')
+    .delete()
+    .eq('user_id', userId)
+    .eq('provider', provider);
+
+  if (error) throw error;
+}
+
 export async function getDeviceByLicenseKey(licenseKey: string): Promise<Device | null> {
   const db = getSupabaseClient();
   const { data, error } = await db

@@ -145,6 +145,108 @@ Valid providers: `openweathermap`, `newsapi`
 }
 ```
 
+### DELETE /api/preferences/api-keys/:provider
+
+Remove a stored API key.
+
+**Headers:** `Authorization: Bearer <clerk_jwt>`
+
+**Path parameter:** `provider` — one of `openweathermap`, `newsapi`
+
+**Response 200:**
+```json
+{ "success": true }
+```
+
+---
+
+## Devices
+
+### GET /api/devices
+
+List all devices paired to the authenticated user.
+
+**Headers:** `Authorization: Bearer <clerk_jwt>`
+
+**Response 200:**
+```json
+{
+  "devices": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "device_id": "ESP-7F3A9C",
+      "device_name": "Living room display",
+      "license_key": "DSPL-2K4M-9XQ1-7TBA",
+      "firmware_version": "1.0.0",
+      "last_seen_at": "2024-01-15T14:30:00.000Z"
+    }
+  ]
+}
+```
+
+### POST /api/devices
+
+Pair a new device. Generates a unique license key automatically.
+
+**Headers:** `Authorization: Bearer <clerk_jwt>`
+
+**Body:**
+```json
+{
+  "device_name": "Living room display",
+  "device_id": "ESP-7F3A9C"
+}
+```
+
+`device_id` is optional — a random ID is generated if omitted.
+
+**Response 201:**
+```json
+{
+  "device": {
+    "id": "uuid",
+    "user_id": "uuid",
+    "device_id": "ESP-7F3A9C",
+    "device_name": "Living room display",
+    "license_key": "DSPL-2K4M-9XQ1-7TBA",
+    "firmware_version": "1.0.0",
+    "last_seen_at": null
+  }
+}
+```
+
+### PUT /api/devices/:id
+
+Rename a device.
+
+**Headers:** `Authorization: Bearer <clerk_jwt>`
+
+**Path parameter:** `id` — the device UUID
+
+**Body:**
+```json
+{ "device_name": "Kitchen display" }
+```
+
+**Response 200:**
+```json
+{ "device": { ...updated device object... } }
+```
+
+### DELETE /api/devices/:id
+
+Remove a device. The device's license key immediately becomes invalid.
+
+**Headers:** `Authorization: Bearer <clerk_jwt>`
+
+**Path parameter:** `id` — the device UUID
+
+**Response 200:**
+```json
+{ "success": true }
+```
+
 ---
 
 ## Display Data

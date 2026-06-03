@@ -1,5 +1,5 @@
 import { buildAuthHeaders } from './auth';
-import { UserPreferences, DisplayData, MaskedApiKey, User } from '../types';
+import { UserPreferences, DisplayData, MaskedApiKey, User, Device } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
 
@@ -41,6 +41,7 @@ async function request<T>(
     throw new ApiError(response.status, message);
   }
 
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -98,6 +99,49 @@ export async function saveApiKey(
     token,
     body: JSON.stringify({ provider, api_key }),
   });
+}
+
+export async function deleteApiKey(token: string, provider: string): Promise<void> {
+  await request<void>(`/api/preferences/api-keys/${provider}`, {
+    method: 'DELETE',
+    token,
+  });
+}
+
+// ============================================================
+// Devices
+// ============================================================
+
+export async function getDevices(token: string): Promise<{ devices: Device[] }> {
+  return request<{ devices: Device[] }>('/api/devices', { token });
+}
+
+export async function addDevice(
+  token: string,
+  device_id: string,
+  device_name: string
+): Promise<{ device: Device }> {
+  return request<{ device: Device }>('/api/devices', {
+    method: 'POST',
+    token,
+    body: JSON.stringify({ device_id, device_name }),
+  });
+}
+
+export async function updateDevice(
+  token: string,
+  id: string,
+  device_name: string
+): Promise<{ device: Device }> {
+  return request<{ device: Device }>(`/api/devices/${id}`, {
+    method: 'PUT',
+    token,
+    body: JSON.stringify({ device_name }),
+  });
+}
+
+export async function removeDevice(token: string, id: string): Promise<void> {
+  await request<void>(`/api/devices/${id}`, { method: 'DELETE', token });
 }
 
 // ============================================================

@@ -10,7 +10,6 @@ import React, {
   ReactNode,
 } from 'react';
 import { STRINGS, Lang, Strings } from './strings';
-import { initialDevices } from './mockData';
 import type {
   Preferences,
   AppDevice,
@@ -79,11 +78,6 @@ const DEFAULT_PREFS: Preferences = {
   news: { on: false, lang: 'da', source: 'dr' },
 };
 
-const DEFAULT_API_KEYS: Record<string, ApiKeyEntry> = {
-  openweather: { status: 'connected', key: '0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d' },
-  newsapi: { status: 'none', key: '' },
-};
-
 const DEFAULT_USER: AppUser = {
   name: '',
   email: '',
@@ -104,10 +98,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     load<Preferences>('prefs', DEFAULT_PREFS)
   );
   const [apiKeys, setApiKeysState] = useState<Record<string, ApiKeyEntry>>(() =>
-    load<Record<string, ApiKeyEntry>>('apiKeys', DEFAULT_API_KEYS)
+    load<Record<string, ApiKeyEntry>>('apiKeys', {})
   );
   const [devices, setDevicesState] = useState<AppDevice[]>(() =>
-    load<AppDevice[]>('devices', initialDevices)
+    load<AppDevice[]>('devices', [])
   );
   const [toasts, setToasts] = useState<(ToastData & { id: number })[]>([]);
   const idRef = useRef<number>(1);

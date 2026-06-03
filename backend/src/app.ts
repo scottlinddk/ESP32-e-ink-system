@@ -7,6 +7,7 @@ import 'dotenv/config';
 import healthRouter from './routes/health';
 import authRouter from './routes/auth';
 import preferencesRouter from './routes/preferences';
+import devicesRouter from './routes/devices';
 import displayDataRouter from './routes/display-data';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 
@@ -64,6 +65,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use('/health', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/preferences', preferencesRouter);
+app.use('/api/devices', devicesRouter);
 app.use('/api/display-data', displayDataRouter);
 app.use('/api/preview', displayDataRouter);
 
