@@ -1,10 +1,10 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import swaggerUi from 'swagger-ui-express';
 import path from 'path';
 import 'dotenv/config';
+import { createRateLimiter } from './middleware/rateLimit';
 
 import healthRouter from './routes/health';
 import authRouter from './routes/auth';
@@ -41,34 +41,25 @@ app.use(
   })
 );
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests, please try again later.' },
-});
+// Rate limiting — backed by Upstash Redis (shared across serverless invocations).
+// Gracefully disabled if UPSTASH_REDIS_REST_URL/TOKEN env vars are not set.
+const globalLimiter = createRateLimiter(
+  100, '15 m',
+  'Too many requests, please try again later.',
+  'global'
+);
+const displayLimiter = createRateLimiter(
+  10, '1 m',
+  'Rate limit exceeded for display data endpoint.',
+  'display-data'
+);
+const pairingLimiter = createRateLimiter(
+  10, '1 m',
+  'Too many pairing requests, please try again later.',
+  'device-pair'
+);
 
-// Stricter limit for display-data endpoint (device polling)
-const displayLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Rate limit exceeded for display data endpoint.' },
-});
-
-// Tight limit for device pairing (unauthenticated)
-const pairingLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many pairing requests, please try again later.' },
-});
-
-app.use('/api/', limiter);
+app.use('/api/', globalLimiter);
 app.use('/api/display-data', displayLimiter);
 app.use('/api/devices/pair', pairingLimiter);
 
