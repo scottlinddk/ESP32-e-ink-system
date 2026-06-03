@@ -214,6 +214,21 @@ export async function deleteApiKey(userId: string, provider: string): Promise<vo
   if (error) throw error;
 }
 
+export async function getDeviceByDeviceId(deviceId: string): Promise<Device | null> {
+  const db = getSupabaseClient();
+  const { data, error } = await db
+    .from('devices')
+    .select('*')
+    .eq('device_id', deviceId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data as Device;
+}
+
 export async function getDeviceByLicenseKey(licenseKey: string): Promise<Device | null> {
   const db = getSupabaseClient();
   const { data, error } = await db

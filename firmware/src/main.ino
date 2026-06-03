@@ -4,6 +4,7 @@
 #include "src/api.h"
 #include "src/battery.h"
 #include "src/ota.h"
+#include "src/provisioning.h"
 
 // Global objects
 WiFiManager wifiManager;
@@ -11,6 +12,7 @@ DisplayManager display;
 ApiClient apiClient;
 BatteryManager battery;
 OTAManager otaManager;
+ProvisioningManager provManager;
 
 // State variables
 unsigned long lastFetchTime = 0;
@@ -54,12 +56,28 @@ void setup() {
   LOG_MAIN("Boot count: %d (wake reason: %d)", bootCount, esp_sleep_get_wakeup_cause());
 #endif
   
+  // Check for provisioning credentials — start captive portal if missing
+  if (!provManager.hasCredentials()) {
+    display.showLoading("Setup required\nConnect to:\nESP32-Display-XXXXXX");
+    LOG_MAIN("No credentials found — starting captive portal AP");
+    provManager.startProvisioningAP();  // blocks until saved, then restarts
+    return;  // unreachable — device restarts inside startProvisioningAP()
+  }
+
+  // Load all credentials from NVS
+  char ssid[64], pass[64], apiUrl[128], userId[64], licenseKey[64];
+  provManager.loadCredentials(ssid, sizeof(ssid), pass, sizeof(pass),
+                               apiUrl, sizeof(apiUrl), userId, sizeof(userId),
+                               licenseKey, sizeof(licenseKey));
+
+  LOG_MAIN("Credentials loaded — SSID: %s  userId: %s", ssid, strlen(userId) ? userId : "(pending)");
+
   // Show loading screen
   display.showLoading("Initializing...");
-  
-  // Initialize WiFi
-  wifiManager.begin(WIFI_SSID, WIFI_PASSWORD);
-  
+
+  // Initialize WiFi with provisioned credentials
+  wifiManager.begin(ssid, pass);
+
   // Attempt to connect
   if (!wifiManager.connect() || !wifiManager.waitForConnection(WIFI_CONNECT_TIMEOUT_SEC * 1000)) {
     LOG_MAIN("WiFi connection failed!");
@@ -68,17 +86,39 @@ void setup() {
     goToDeepSleep();
     return;  // Unreachable but here for safety
   }
-  
-  LOG_MAIN("WiFi connected: %s (RSSI: %d dBm)", 
-           WiFi.localIP().toString().c_str(), 
+
+  LOG_MAIN("WiFi connected: %s (RSSI: %d dBm)",
+           WiFi.localIP().toString().c_str(),
            wifiManager.getSignalStrength());
-  
+
+  // Pair device with backend if userId not yet assigned
+  apiClient.setBaseUrl(apiUrl);
+  if (strlen(userId) == 0) {
+    LOG_MAIN("No userId — pairing device with backend...");
+    display.showLoading("Pairing device...");
+
+    PairingResult pairing;
+    if (apiClient.pairDevice(WiFi.macAddress().c_str(), "ESP32 Display", pairing)) {
+      provManager.saveUserCredentials(pairing.userId, pairing.licenseKey);
+      strlcpy(userId,     pairing.userId,     sizeof(userId));
+      strlcpy(licenseKey, pairing.licenseKey, sizeof(licenseKey));
+      LOG_MAIN("Pairing successful — userId: %s", userId);
+    } else {
+      LOG_MAIN("Pairing failed: %s", pairing.errorMessage);
+      display.showError("Pairing Failed", pairing.errorMessage);
+      delay(3000);
+      wifiManager.disconnect();
+      goToDeepSleep();
+      return;
+    }
+  }
+
   // Set firmware version and fetch display data
   otaManager.setCurrentVersion(FIRMWARE_VERSION);
 
   display.showLoading("Fetching data...");
-  ApiResponse response = apiClient.fetchDisplayData(USER_ID, LICENSE_KEY);
-  
+  ApiResponse response = apiClient.fetchDisplayData(userId, licenseKey);
+
   if (!response.success) {
     LOG_MAIN("API call failed: %s (HTTP %d)", response.errorMessage, response.httpCode);
     display.showError("Data Error", response.errorMessage);
@@ -87,25 +127,25 @@ void setup() {
     goToDeepSleep();
     return;
   }
-  
+
   LOG_MAIN("Display data received successfully");
-  
+
   // Update display
   response.displayData.status.batteryPercent = battery.readPercentage();
   response.displayData.status.signalStrength = wifiManager.getSignalStrength();
-  
+
   display.showData(response.displayData);
-  
+
   // Report device status (optional)
 #if FEATURE_BATTERY_REPORTING
-  apiClient.reportDeviceStatus(USER_ID, LICENSE_KEY, 
-                               battery.readPercentage(), 
+  apiClient.reportDeviceStatus(userId, licenseKey,
+                               battery.readPercentage(),
                                wifiManager.getSignalStrength());
 #endif
-  
+
 #if FEATURE_OTA_UPDATES
   // Check for firmware updates (non-blocking check only)
-  otaManager.checkForUpdates(apiClient, USER_ID, LICENSE_KEY);
+  otaManager.checkForUpdates(apiClient, userId, licenseKey);
 #endif
   
   // Disconnect WiFi to save power
