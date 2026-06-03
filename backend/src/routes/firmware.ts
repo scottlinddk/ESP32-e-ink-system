@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth';
 import {
   getFirmwareVersions,
   createFirmwareVersion,
+  getFirmwareVersionById,
   upsertUser,
 } from '../services/database';
 
@@ -85,6 +86,36 @@ router.post(
       );
 
       res.status(201).json({ firmware_version });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * GET /api/firmware/:id/manifest
+ * Returns esp-web-tools manifest JSON. The binary at download_path must be a publicly accessible URL.
+ */
+router.get(
+  '/:id/manifest',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = await resolveUserId(req.clerkUserId!);
+      const fw = await getFirmwareVersionById(userId, req.params.id);
+      if (!fw) {
+        res.status(404).json({ error: 'Firmware version not found' });
+        return;
+      }
+      res.json({
+        name: `ESP32 Display v${fw.version}`,
+        builds: [
+          {
+            chipFamily: 'ESP32',
+            parts: [{ path: fw.download_path, offset: 65536 }],
+          },
+        ],
+      });
     } catch (err) {
       next(err);
     }

@@ -378,6 +378,13 @@ button { font-family: inherit; }
   background: rgba(0,144,214,0.08); color: var(--fg-2); font-size: var(--fs-body-sm); line-height: 1.5; }
 .info-banner .material-symbols-outlined { font-size: 19px; color: var(--palette-info-main); flex-shrink: 0; margin-top: 1px; }
 
+/* ---------- Flash steps ---------- */
+.flash-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.flash-step { display: flex; align-items: flex-start; gap: var(--space-3); font-size: var(--fs-body-sm); color: var(--fg-2); }
+.flash-step__num { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--fg-on-primary); display: flex; align-items: center; justify-content: center; font-size: var(--fs-caption); font-weight: var(--fw-medium); }
+.flash-action { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+esp-web-install-button { --esp-tools-button-color: var(--accent); --esp-tools-button-text-color: var(--fg-on-primary); --esp-tools-button-border-radius: var(--radius-md); }
+
 /* ---------- Login ---------- */
 .login { flex: 1; display: flex; align-items: center; justify-content: center; padding: var(--space-5); min-height: 100vh; }
 .login__card { width: 100%; max-width: 420px; }

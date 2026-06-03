@@ -118,3 +118,11 @@ export interface User {
   created_at: string;
   updated_at: string;
 }
+
+declare module 'react' {
+  namespace JSX {
+    interface IntrinsicElements {
+      'esp-web-install-button': { manifest: string; [key: string]: unknown };
+    }
+  }
+}

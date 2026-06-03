@@ -150,6 +150,13 @@ export async function createFirmwareVersion(
   });
 }
 
+export async function getFirmwareManifest(
+  token: string,
+  firmwareId: string
+): Promise<object> {
+  return request<object>(`/api/firmware/${firmwareId}/manifest`, { token });
+}
+
 export async function updateDevice(
   token: string,
   id: string,

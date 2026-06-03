@@ -278,6 +278,24 @@ export async function getFirmwareVersionByUserAndVersion(
   return data as FirmwareVersion;
 }
 
+export async function getFirmwareVersionById(
+  userId: string,
+  id: string
+): Promise<FirmwareVersion | null> {
+  const db = getSupabaseClient();
+  const { data, error } = await db
+    .from('firmware_versions')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('id', id)
+    .single();
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data as FirmwareVersion;
+}
+
 export async function createFirmwareVersion(
   userId: string,
   version: string,
