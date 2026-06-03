@@ -10,6 +10,7 @@ import authRouter from './routes/auth';
 import preferencesRouter from './routes/preferences';
 import devicesRouter from './routes/devices';
 import displayDataRouter from './routes/display-data';
+import firmwareRouter from './routes/firmware';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { swaggerSpec } from './swagger';
 
@@ -68,6 +69,7 @@ app.use('/health', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/preferences', preferencesRouter);
 app.use('/api/devices', devicesRouter);
+app.use('/api/firmware', firmwareRouter);
 app.use('/api/display-data', displayDataRouter);
 app.use('/api/preview', displayDataRouter);
 

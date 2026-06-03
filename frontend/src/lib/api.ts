@@ -1,5 +1,5 @@
 import { buildAuthHeaders } from './auth';
-import { UserPreferences, DisplayData, MaskedApiKey, User, Device } from '../types';
+import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
 
@@ -125,6 +125,28 @@ export async function addDevice(
     method: 'POST',
     token,
     body: JSON.stringify({ device_id, device_name }),
+  });
+}
+
+export async function getFirmwareVersions(
+  token: string
+): Promise<{ firmware_versions: FirmwareVersion[] }> {
+  return request<{ firmware_versions: FirmwareVersion[] }>('/api/firmware', { token });
+}
+
+export async function createFirmwareVersion(
+  token: string,
+  payload: {
+    version: string;
+    download_path: string;
+    checksum?: string;
+    release_notes?: string;
+  }
+): Promise<{ firmware_version: FirmwareVersion }> {
+  return request<{ firmware_version: FirmwareVersion }>('/api/firmware', {
+    method: 'POST',
+    token,
+    body: JSON.stringify(payload),
   });
 }
 

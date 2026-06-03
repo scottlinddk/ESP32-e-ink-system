@@ -11,6 +11,7 @@ import { FullPageSpinner } from './components/common/LoadingSpinner';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { DevicesPage } from './pages/DevicesPage';
+import { FirmwarePage } from './pages/FirmwarePage';
 import { AccountPage } from './pages/AccountPage';
 import { DocsPage } from './pages/DocsPage';
 
@@ -45,6 +46,7 @@ function AppShell() {
   const pages: Record<string, ReactNode> = {
     dashboard: <DashboardPage />,
     devices: <DevicesPage />,
+    firmware: <FirmwarePage />,
     account: <AccountPage />,
     docs: <DocsPage />,
   };

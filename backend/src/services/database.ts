@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { User, UserPreferences, ApiKey, Device } from '../types/index';
+import { User, UserPreferences, ApiKey, Device, FirmwareVersion } from '../types/index';
 import { encrypt, decrypt, isEncrypted } from '../utils/crypto';
 
 let supabase: SupabaseClient | null = null;
@@ -227,6 +227,81 @@ export async function getDeviceByLicenseKey(licenseKey: string): Promise<Device 
     throw error;
   }
   return data as Device;
+}
+
+export async function getLatestFirmwareVersion(userId: string): Promise<FirmwareVersion | null> {
+  const db = getSupabaseClient();
+  const { data, error } = await db
+    .from('firmware_versions')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('active', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data as FirmwareVersion;
+}
+
+export async function getFirmwareVersions(userId: string): Promise<FirmwareVersion[]> {
+  const db = getSupabaseClient();
+  const { data, error } = await db
+    .from('firmware_versions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as FirmwareVersion[];
+}
+
+export async function getFirmwareVersionByUserAndVersion(
+  userId: string,
+  version: string
+): Promise<FirmwareVersion | null> {
+  const db = getSupabaseClient();
+  const { data, error } = await db
+    .from('firmware_versions')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('version', version)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data as FirmwareVersion;
+}
+
+export async function createFirmwareVersion(
+  userId: string,
+  version: string,
+  downloadPath: string,
+  checksum: string | null,
+  releaseNotes: string | null,
+  active = true
+): Promise<FirmwareVersion> {
+  const db = getSupabaseClient();
+  const { data, error } = await db
+    .from('firmware_versions')
+    .insert({
+      user_id: userId,
+      version,
+      download_path: downloadPath,
+      checksum,
+      release_notes: releaseNotes,
+      active,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as FirmwareVersion;
 }
 
 export async function updateDeviceLastSeen(deviceId: string): Promise<void> {

@@ -73,6 +73,23 @@ CREATE INDEX IF NOT EXISTS idx_devices_license_key ON devices(license_key);
 CREATE INDEX IF NOT EXISTS idx_devices_device_id ON devices(device_id);
 
 -- ============================================================
+-- FIRMWARE VERSIONS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS firmware_versions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  version TEXT NOT NULL,
+  download_path TEXT NOT NULL,
+  checksum TEXT,
+  release_notes TEXT,
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_firmware_versions_user_id ON firmware_versions(user_id);
+CREATE INDEX IF NOT EXISTS idx_firmware_versions_active ON firmware_versions(user_id, active);
+
+-- ============================================================
 -- API USAGE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS api_usage (

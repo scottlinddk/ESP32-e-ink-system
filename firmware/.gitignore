@@ -1,0 +1,27 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+.vscode/
+*.code-workspace
+
+# Configuration (DO NOT commit)
+config.h
+secret_*
+
+# Build artifacts
+.DS_Store
+*.o
+*.a
+*.hex
+*.bin
+*.elf
+
+# IDEs
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db

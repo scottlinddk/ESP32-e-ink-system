@@ -1,4 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import fs from 'fs';
+import path from 'path';
 import crypto from 'crypto';
 import { createClerkClient } from '@clerk/backend';
 import { requireAuth } from '../middleware/auth';
@@ -8,6 +10,9 @@ import {
   createDevice,
   updateDeviceName,
   deleteDevice,
+  getDeviceByLicenseKey,
+  getLatestFirmwareVersion,
+  getFirmwareVersionByUserAndVersion,
 } from '../services/database';
 
 /**
@@ -259,6 +264,105 @@ router.delete(
       const { id } = req.params as { id: string };
       await deleteDevice(id, userId);
       res.json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** GET /api/devices/:userId/firmware/latest */
+router.get(
+  '/:userId/firmware/latest',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { userId } = req.params as { userId: string };
+      const licenseKey = (req.header('X-License-Key') ?? req.query.licenseKey) as string | undefined;
+
+      if (!licenseKey) {
+        res.status(401).json({ error: 'Missing X-License-Key header' });
+        return;
+      }
+
+      const device = await getDeviceByLicenseKey(licenseKey);
+      if (!device) {
+        res.status(401).json({ error: 'Invalid license key' });
+        return;
+      }
+
+      if (device.user_id !== userId) {
+        res.status(403).json({ error: 'License key does not belong to this user' });
+        return;
+      }
+
+      const latest = await getLatestFirmwareVersion(userId);
+      if (!latest || latest.version === device.firmware_version) {
+        res.status(204).end();
+        return;
+      }
+
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const downloadUrl = `${baseUrl}/api/devices/${encodeURIComponent(userId)}/firmware/download?version=${encodeURIComponent(latest.version)}`;
+
+      res.json({
+        version: latest.version,
+        url: downloadUrl,
+        checksum: latest.checksum ?? '',
+        releaseNotes: latest.release_notes ?? '',
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** GET /api/devices/:userId/firmware/download */
+router.get(
+  '/:userId/firmware/download',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { userId } = req.params as { userId: string };
+      const licenseKey = (req.header('X-License-Key') ?? req.query.licenseKey) as string | undefined;
+      const version = (req.query.version as string) ?? undefined;
+
+      if (!licenseKey) {
+        res.status(401).json({ error: 'Missing X-License-Key header' });
+        return;
+      }
+
+      const device = await getDeviceByLicenseKey(licenseKey);
+      if (!device) {
+        res.status(401).json({ error: 'Invalid license key' });
+        return;
+      }
+
+      if (device.user_id !== userId) {
+        res.status(403).json({ error: 'License key does not belong to this user' });
+        return;
+      }
+
+      const firmware = version
+        ? await getFirmwareVersionByUserAndVersion(userId, version)
+        : await getLatestFirmwareVersion(userId);
+
+      if (!firmware) {
+        res.status(404).json({ error: 'Firmware version not found' });
+        return;
+      }
+
+      const firmwareDir = process.env.FIRMWARE_BINARY_DIR
+        ? path.resolve(process.env.FIRMWARE_BINARY_DIR)
+        : path.resolve(__dirname, '..', '..', '..', 'firmware', 'build');
+      const requestedPath = firmware.download_path.replace(/^([./\\]+)+/, '');
+      const filePath = path.resolve(firmwareDir, requestedPath);
+
+      if (!filePath.startsWith(firmwareDir) || !fs.existsSync(filePath)) {
+        res.status(404).json({ error: 'Firmware binary not found' });
+        return;
+      }
+
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(firmware.download_path)}"`);
+      res.sendFile(filePath);
     } catch (err) {
       next(err);
     }

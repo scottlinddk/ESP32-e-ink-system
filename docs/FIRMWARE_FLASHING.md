@@ -25,6 +25,48 @@ This guide explains how to flash the ESP32 firmware for the ESP32 Display projec
 
 ## Software Setup
 
+## Quick Start (Recommended)
+
+The easiest way to flash firmware is using npm from the project root:
+
+```bash
+# 1. Install PlatformIO (one-time)
+pip install platformio
+
+# 2. Configure firmware
+cd firmware
+cp config.h.example config.h
+# Edit config.h: WiFi SSID, password, API URL, user ID, license key
+
+# 3. Flash to ESP32
+cd ..
+npm run flash
+
+# 4. View serial output
+npm run flash:monitor
+```
+
+### npm Flash Commands
+
+| Command | Purpose |
+|---------|---------|
+| `npm run flash` | Build and upload firmware |
+| `npm run flash:build` | Build only (no upload) |
+| `npm run flash:monitor` | View serial output (115200 baud) |
+| `npm run flash:full` | Build, upload, and monitor |
+| `npm run flash:clean` | Clean build artifacts |
+
+## Alternative: Manual Flashing
+
+```bash
+cd firmware
+bash scripts/flash.sh upload      # Build and upload
+bash scripts/flash.sh monitor     # View logs
+bash scripts/flash.sh help        # Show all commands
+```
+
+## Software Setup (Details)
+
 ### Option A: PlatformIO (recommended)
 
 1. Install [VS Code](https://code.visualstudio.com/) and the PlatformIO extension
@@ -130,19 +172,27 @@ With a 1000 mAh LiPo battery, expected battery life is approximately **80+ days*
 ## Troubleshooting
 
 ### Display shows nothing / white screen
-- Check wiring (especially CS, DC, RST, BUSY)
-- Verify 3.3V power — do not use 5V directly on display
-- Try a lower SPI clock speed: `GxEPD2_BW<...> display(GxEPD2_213_B74(PIN_CS, PIN_DC, PIN_RST, PIN_BUSY));`
 
 ### WiFi won't connect
-- Ensure you're on 2.4 GHz (ESP32 does not support 5 GHz)
-- Check SSID and password (case-sensitive)
 
 ### API returns 401
-- Verify LICENSE_KEY matches what's in your dashboard
-- Verify USER_ID is correct
-- Check that the device is registered
 
 ### Display updates but shows old data
-- The server caches energy prices for 15 minutes and weather/news for 1 hour
-- This is intentional to protect API quotas
+
+### USB/Serial Issues
+- **No COM port detected?** → Install CH340 driver: https://dlldownload.com/ch340-drivers/
+- **Gibberish in serial output?** → Verify baud rate is 115200
+- **Connection drops?** → Try a different USB cable (some are "charging only")
+- **Still not working?** → Run `pio device list` to see detected devices
+
+### High Battery Drain
+- Ensure `DEEP_SLEEP_ENABLED 1` in config.h
+- Increase `REFRESH_MINUTES` to reduce wake frequency
+- Disable `DEBUG_ENABLED` (serial debug consumes power)
+- Check WiFi for failed reconnection attempts in logs
+
+## Related Documentation
+
+- [firmware/README.md](../firmware/README.md) — Development guide & configuration reference
+- [API_REFERENCE.md](./API_REFERENCE.md) — Backend endpoint documentation
+- Serial logs: `npm run flash:monitor`

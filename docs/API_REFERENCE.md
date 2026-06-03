@@ -247,6 +247,99 @@ Remove a device. The device's license key immediately becomes invalid.
 { "success": true }
 ```
 
+### GET /api/devices/:userId/firmware/latest
+
+Check for available OTA firmware updates for a device.
+
+**Headers:** `X-License-Key: <device_license_key>`
+
+**Path parameter:** `userId` — the Supabase user ID owning the device
+
+**Response 200:**
+```json
+{
+  "version": "1.0.1",
+  "url": "https://api.example.com/api/devices/<userId>/firmware/download?version=1.0.1",
+  "checksum": "",
+  "releaseNotes": "Adds OTA support"
+}
+```
+
+**Response 204:** No update available.
+
+### GET /api/devices/:userId/firmware/download
+
+Download the requested firmware binary.
+
+**Headers:** `X-License-Key: <device_license_key>`
+
+**Path parameter:** `userId` — the Supabase user ID owning the device
+
+**Query parameters:**
+- `version` (optional) — firmware version to download; latest active release is used if omitted
+
+**Response 200:** Binary firmware stream
+
+---
+
+## Firmware Management
+
+### GET /api/firmware
+
+List firmware releases for the authenticated user.
+
+**Headers:** `Authorization: Bearer <clerk_jwt>`
+
+**Response 200:**
+```json
+{
+  "firmware_versions": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "version": "1.0.1",
+      "download_path": "firmware.bin",
+      "checksum": "",
+      "release_notes": "Initial OTA release",
+      "active": true,
+      "created_at": "2026-06-03T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+### POST /api/firmware
+
+Create a new firmware release for OTA updates.
+
+**Headers:** `Authorization: Bearer <clerk_jwt>`
+
+**Body:**
+```json
+{
+  "version": "1.0.1",
+  "download_path": "firmware.bin",
+  "checksum": "",
+  "release_notes": "Initial OTA release"
+}
+```
+
+**Response 201:**
+```json
+{
+  "firmware_version": {
+    "id": "uuid",
+    "user_id": "uuid",
+    "version": "1.0.1",
+    "download_path": "firmware.bin",
+    "checksum": "",
+    "release_notes": "Initial OTA release",
+    "active": true,
+    "created_at": "2026-06-03T12:00:00.000Z"
+  }
+}
+```
+
 ---
 
 ## Display Data

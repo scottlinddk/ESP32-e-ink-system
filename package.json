@@ -12,7 +12,12 @@
     "build": "npm run build -w frontend && npm run build -w backend",
     "build:frontend": "npm run build -w frontend",
     "build:backend": "npm run build -w backend",
-    "typecheck": "npm run typecheck -w frontend && npm run typecheck -w backend"
+    "typecheck": "npm run typecheck -w frontend && npm run typecheck -w backend",
+    "flash": "bash firmware/scripts/flash.sh upload",
+    "flash:build": "bash firmware/scripts/flash.sh build",
+    "flash:monitor": "bash firmware/scripts/flash.sh monitor",
+    "flash:full": "bash firmware/scripts/flash.sh flash",
+    "flash:clean": "bash firmware/scripts/flash.sh clean"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

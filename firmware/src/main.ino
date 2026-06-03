@@ -1,0 +1,207 @@
+#include "config.h"
+#include "src/wifi.h"
+#include "src/display.h"
+#include "src/api.h"
+#include "src/battery.h"
+#include "src/ota.h"
+
+// Global objects
+WiFiManager wifiManager;
+DisplayManager display;
+ApiClient apiClient;
+BatteryManager battery;
+OTAManager otaManager;
+
+// State variables
+unsigned long lastFetchTime = 0;
+unsigned long refreshInterval = REFRESH_MINUTES * 60 * 1000;  // Convert minutes to ms
+int displayMode = 0;
+
+// Sleep duration (calculated from config)
+#if DEEP_SLEEP_ENABLED
+RTC_DATA_ATTR int bootCount = 0;  // Persistent counter across sleep cycles
+#endif
+
+#if DEBUG_ENABLED
+#define LOG_MAIN(fmt, ...) Serial.printf("[Main] " fmt "\n", ##__VA_ARGS__)
+#else
+#define LOG_MAIN(fmt, ...)
+#endif
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+void setup() {
+  // Initialize serial for debugging
+#if DEBUG_ENABLED
+  Serial.begin(DEBUG_BAUD);
+  delay(100);
+  Serial.println("\n\n");
+  LOG_MAIN("========================================");
+  LOG_MAIN("ESP32 E-Ink Display Firmware v%s", FIRMWARE_VERSION);
+  LOG_MAIN("========================================");
+#endif
+
+  // Initialize hardware
+  battery.begin();
+  display.begin();
+  
+  LOG_MAIN("Hardware initialized");
+  
+#if DEEP_SLEEP_ENABLED
+  bootCount++;
+  LOG_MAIN("Boot count: %d (wake reason: %d)", bootCount, esp_sleep_get_wakeup_cause());
+#endif
+  
+  // Show loading screen
+  display.showLoading("Initializing...");
+  
+  // Initialize WiFi
+  wifiManager.begin(WIFI_SSID, WIFI_PASSWORD);
+  
+  // Attempt to connect
+  if (!wifiManager.connect() || !wifiManager.waitForConnection(WIFI_CONNECT_TIMEOUT_SEC * 1000)) {
+    LOG_MAIN("WiFi connection failed!");
+    display.showError("WiFi Error", "Cannot connect to network. Check SSID/password.");
+    delay(5000);
+    goToDeepSleep();
+    return;  // Unreachable but here for safety
+  }
+  
+  LOG_MAIN("WiFi connected: %s (RSSI: %d dBm)", 
+           WiFi.localIP().toString().c_str(), 
+           wifiManager.getSignalStrength());
+  
+  // Set firmware version and fetch display data
+  otaManager.setCurrentVersion(FIRMWARE_VERSION);
+
+  display.showLoading("Fetching data...");
+  ApiResponse response = apiClient.fetchDisplayData(USER_ID, LICENSE_KEY);
+  
+  if (!response.success) {
+    LOG_MAIN("API call failed: %s (HTTP %d)", response.errorMessage, response.httpCode);
+    display.showError("Data Error", response.errorMessage);
+    delay(3000);
+    wifiManager.disconnect();
+    goToDeepSleep();
+    return;
+  }
+  
+  LOG_MAIN("Display data received successfully");
+  
+  // Update display
+  response.displayData.status.batteryPercent = battery.readPercentage();
+  response.displayData.status.signalStrength = wifiManager.getSignalStrength();
+  
+  display.showData(response.displayData);
+  
+  // Report device status (optional)
+#if FEATURE_BATTERY_REPORTING
+  apiClient.reportDeviceStatus(USER_ID, LICENSE_KEY, 
+                               battery.readPercentage(), 
+                               wifiManager.getSignalStrength());
+#endif
+  
+#if FEATURE_OTA_UPDATES
+  // Check for firmware updates (non-blocking check only)
+  otaManager.checkForUpdates(apiClient, USER_ID, LICENSE_KEY);
+#endif
+  
+  // Disconnect WiFi to save power
+  wifiManager.disconnect();
+  
+  LOG_MAIN("Display updated, disconnecting WiFi");
+  
+  lastFetchTime = millis();
+  
+  // Go to deep sleep
+  LOG_MAIN("Entering deep sleep for %d minutes", REFRESH_MINUTES);
+  goToDeepSleep();
+}
+
+// ============================================================================
+// Main Loop
+// ============================================================================
+
+void loop() {
+  // Empty - we use deep sleep instead
+  // This is only reached if deep sleep is disabled
+  
+  unsigned long now = millis();
+  
+  if (now - lastFetchTime >= refreshInterval) {
+    LOG_MAIN("Refresh interval reached, fetching data...");
+    lastFetchTime = now;
+    
+    // Re-run setup sequence
+    setup();
+  }
+  
+  delay(1000);  // Prevent watchdog issues
+}
+
+// ============================================================================
+// Deep Sleep Helpers
+// ============================================================================
+
+void goToDeepSleep() {
+#if DEEP_SLEEP_ENABLED
+  LOG_MAIN("Going to deep sleep for %d seconds...", DEEP_SLEEP_DURATION_SEC);
+  
+  // Configure wake-up timer
+  esp_sleep_enable_timer_wakeup(DEEP_SLEEP_DURATION_SEC * 1000000ULL);  // microseconds
+  
+  // Optional: Configure GPIO wake-up (if you have a button)
+  // esp_sleep_enable_ext0_wakeup(GPIO_NUM_36, 0);  // GPIO36, low level
+  
+  // Go to sleep
+  esp_deep_sleep_start();
+  
+  // Code never reaches here; device wakes up and restarts from setup()
+#else
+  delay(REFRESH_MINUTES * 60 * 1000);  // Just delay if deep sleep disabled
+#endif
+}
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+void printWakeupReason() {
+  esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+  
+  switch (wakeup_reason) {
+    case ESP_SLEEP_WAKEUP_EXT0:
+      LOG_MAIN("Wakeup caused by external signal on RTC_IO");
+      break;
+    case ESP_SLEEP_WAKEUP_EXT1:
+      LOG_MAIN("Wakeup caused by external signal on RTC_CNTL");
+      break;
+    case ESP_SLEEP_WAKEUP_TIMER:
+      LOG_MAIN("Wakeup caused by timer");
+      break;
+    case ESP_SLEEP_WAKEUP_TOUCHPAD:
+      LOG_MAIN("Wakeup caused by touchpad");
+      break;
+    case ESP_SLEEP_WAKEUP_ULP:
+      LOG_MAIN("Wakeup caused by ULP program");
+      break;
+    default:
+      LOG_MAIN("Wakeup was not caused by deep sleep");
+      break;
+  }
+}
+
+// Display information screen (useful for debugging)
+void displaySystemInfo() {
+  display.showLoading("System Info");
+  
+  LOG_MAIN("========== System Information ==========");
+  LOG_MAIN("Firmware Version: 1.0.0");
+  LOG_MAIN("Chip ID: %u", ESP.getChipRevision());
+  LOG_MAIN("Free Heap: %d bytes", ESP.getFreeHeap());
+  LOG_MAIN("Flash Size: %d bytes", ESP.getFlashChipSize());
+  LOG_MAIN("Reset Reason: %d", (int)rtc_get_reset_reason(0));
+  LOG_MAIN("========================================");
+}

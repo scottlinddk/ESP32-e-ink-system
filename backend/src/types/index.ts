@@ -45,6 +45,17 @@ export interface Device {
   last_seen_at: string | null;
 }
 
+export interface FirmwareVersion {
+  id: string;
+  user_id: string;
+  version: string;
+  download_path: string;
+  checksum: string | null;
+  release_notes: string | null;
+  active: boolean;
+  created_at: string;
+}
+
 export interface User {
   id: string;
   email: string;
