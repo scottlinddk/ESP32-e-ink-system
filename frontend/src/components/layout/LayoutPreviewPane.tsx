@@ -6,16 +6,7 @@ import { DisplayLayout } from '../../types';
 import { Icon } from '../ui/Logo';
 import { EInk } from '../eink/EInk';
 import { einkContent } from '../../lib/mockData';
-
-const MOCK_STRINGS = {
-  nothingSelectedCanvas: 'No widgets selected',
-  energyLabel: 'Energy',
-  hours24: '24h',
-  avgShort: 'avg ',
-  weatherConnectKey: 'Connect weather key',
-  wind: 'Wind',
-  newsConnectKey: 'Connect news key',
-};
+import { STRINGS } from '../../lib/strings';
 
 interface LayoutPreviewPaneProps {
   layout: DisplayLayout;
@@ -39,7 +30,7 @@ export function LayoutPreviewPane({ layout }: LayoutPreviewPaneProps) {
         keys={{ weather: true, news: true }}
         data={einkContent('en')}
         lang="en"
-        strings={MOCK_STRINGS}
+        strings={STRINGS['en']}
         refreshToken={refreshToken}
         view="raw"
       />
