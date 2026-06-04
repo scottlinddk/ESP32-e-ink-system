@@ -32,7 +32,7 @@ createRoot(rootElement).render(
           <Route
             path="*"
             element={
-              <ClerkProvider publishableKey={PUBLISHABLE_KEY} signInFallbackRedirectUrl="/" signUpFallbackRedirectUrl="/">
+              <ClerkProvider publishableKey={PUBLISHABLE_KEY} signInFallbackRedirectUrl="/dashboard" signUpFallbackRedirectUrl="/dashboard">
                 <App />
               </ClerkProvider>
             }
