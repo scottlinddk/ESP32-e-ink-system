@@ -34,7 +34,7 @@ ApiResponse ApiClient::fetchDisplayData(const char* userId, const char* licenseK
   LOG_A("Fetching display data from: %s", url);
 
   http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
-  http.setTimeout(API_REQUEST_TIMEOUT_MS, API_REQUEST_TIMEOUT_MS);
+  http.setTimeout(API_REQUEST_TIMEOUT_MS);
 
   if (!http.begin(client, url)) {
     snprintf(response.errorMessage, sizeof(response.errorMessage), "Failed to connect to server");
@@ -91,7 +91,7 @@ bool ApiClient::pairDevice(const char* macAddress, const char* deviceName, Pairi
   LOG_A("Pairing device at: %s  MAC: %s", url, macAddress);
 
   http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
-  http.setTimeout(API_REQUEST_TIMEOUT_MS, API_REQUEST_TIMEOUT_MS);
+  http.setTimeout(API_REQUEST_TIMEOUT_MS);
 
   if (!http.begin(client, url)) {
     snprintf(result.errorMessage, sizeof(result.errorMessage), "Failed to connect to server");
@@ -150,7 +150,7 @@ bool ApiClient::reportDeviceStatus(const char* userId, const char* licenseKey,
   LOG_A("Reporting device status to: %s", url);
 
   http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
-  http.setTimeout(API_REQUEST_TIMEOUT_MS, API_REQUEST_TIMEOUT_MS);
+  http.setTimeout(API_REQUEST_TIMEOUT_MS);
 
   if (!http.begin(client, url)) {
     LOG_A("Connection failed");
@@ -186,7 +186,7 @@ bool ApiClient::checkForUpdates(const char* userId, const char* licenseKey,
   LOG_A("Checking for firmware updates at: %s", url);
 
   http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
-  http.setTimeout(API_REQUEST_TIMEOUT_MS, API_REQUEST_TIMEOUT_MS);
+  http.setTimeout(API_REQUEST_TIMEOUT_MS);
 
   if (!http.begin(client, url)) {
     LOG_A("Connection failed");
@@ -240,7 +240,7 @@ bool ApiClient::getPreferences(const char* userId, const char* licenseKey,
   LOG_A("Fetching preferences from: %s", url);
 
   http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
-  http.setTimeout(API_REQUEST_TIMEOUT_MS, API_REQUEST_TIMEOUT_MS);
+  http.setTimeout(API_REQUEST_TIMEOUT_MS);
 
   if (!http.begin(client, url)) {
     LOG_A("Connection failed");
