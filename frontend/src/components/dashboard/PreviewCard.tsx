@@ -1,16 +1,19 @@
 // =========================================================================
 // PreviewCard.tsx — live e-ink preview card
 // =========================================================================
-import React, { useState, useEffect, ReactNode } from 'react';
+import React, { useState, useEffect, useRef, ReactNode } from 'react';
 import { useApp } from '../../lib/appContext';
+import { useAuth } from '../../hooks/useAuth';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Spinner } from '../ui/Spinner';
 import { Icon } from '../ui/Logo';
 import { EInk } from '../eink/EInk';
 import { einkContent } from '../../lib/mockData';
+import { fetchPreviewBmp } from '../../lib/api';
 
 type PreviewState = 'loading' | 'ok' | 'error';
+type ViewMode = 'device' | 'raw' | 'clear' | 'server';
 
 interface EinkSurfaceProps {
   state: PreviewState;
@@ -74,12 +77,17 @@ function EinkSurface({ state, t, onRetry, ...einkProps }: EinkSurfaceProps) {
 
 export function PreviewCard() {
   const app = useApp();
+  const { getToken, isSignedIn } = useAuth();
   const t = app.t;
   const p = app.prefs;
-  const [view, setView] = useState<'device' | 'raw' | 'clear'>('device');
+  const [view, setView] = useState<ViewMode>('device');
   const [refreshToken, setRefreshToken] = useState(0);
   const [state, setState] = useState<PreviewState>('ok');
   const [countdown, setCountdown] = useState(30);
+  const [serverBmpSrc, setServerBmpSrc] = useState<string | null>(null);
+  const [serverLoading, setServerLoading] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const prevBmpSrc = useRef<string | null>(null);
 
   const sources = { energy: p.energy.on, weather: p.weather.on, news: p.news.on };
   const keys = {
@@ -127,6 +135,39 @@ export function PreviewCard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hardError, app.online]);
 
+  // Fetch the server-rendered BMP whenever the server tab is active or manually refreshed
+  useEffect(() => {
+    if (view !== 'server' || !isSignedIn) return;
+    let cancelled = false;
+
+    setServerLoading(true);
+    setServerError(null);
+
+    getToken().then((token) => {
+      if (!token) { setServerError('Not authenticated'); setServerLoading(false); return; }
+      return fetchPreviewBmp(token);
+    }).then((blobUrl) => {
+      if (cancelled || !blobUrl) return;
+      // Revoke previous blob URL to avoid memory leaks
+      if (prevBmpSrc.current) URL.revokeObjectURL(prevBmpSrc.current);
+      prevBmpSrc.current = blobUrl;
+      setServerBmpSrc(blobUrl);
+      setServerLoading(false);
+    }).catch((err: unknown) => {
+      if (cancelled) return;
+      setServerError(err instanceof Error ? err.message : 'Failed to load');
+      setServerLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, refreshToken, isSignedIn]);
+
+  // Revoke blob URL on unmount
+  useEffect(() => {
+    return () => { if (prevBmpSrc.current) URL.revokeObjectURL(prevBmpSrc.current); };
+  }, []);
+
   const lastUpdated = t.justNow;
 
   return (
@@ -154,12 +195,51 @@ export function PreviewCard() {
           >
             {t.viewClear}
           </button>
+          <button
+            className={view === 'server' ? 'is-active' : ''}
+            onClick={() => setView('server')}
+          >
+            Server
+          </button>
         </div>
       }
     >
       <div className="eink-panel">
         <div className="eink-stage">
-          {view === 'device' ? (
+          {view === 'server' ? (
+            <div
+              className="eink-screen"
+              style={{
+                width: 250,
+                height: 122,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#fff',
+                border: '1px solid #ccc',
+              }}
+            >
+              {serverLoading && <Spinner />}
+              {serverError && (
+                <div className="eink-error" style={{ padding: 8 }}>
+                  <Icon name="cloud_off" />
+                  <span style={{ fontSize: 11 }}>{serverError}</span>
+                  <Button variant="outlined" size="sm" icon="refresh" onClick={refresh}>
+                    {t.retry}
+                  </Button>
+                </div>
+              )}
+              {!serverLoading && !serverError && serverBmpSrc && (
+                <img
+                  src={serverBmpSrc}
+                  alt="Server-rendered e-ink display"
+                  width={250}
+                  height={122}
+                  style={{ imageRendering: 'pixelated', display: 'block' }}
+                />
+              )}
+            </div>
+          ) : view === 'device' ? (
             <div className="eink-bezel">
               <EinkSurface
                 state={state}
@@ -186,7 +266,7 @@ export function PreviewCard() {
               lang={app.lang}
               strings={t}
               refreshToken={refreshToken}
-              view={view}
+              view={view as 'raw' | 'clear'}
             />
           )}
         </div>
