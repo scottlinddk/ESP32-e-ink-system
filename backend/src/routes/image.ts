@@ -12,8 +12,16 @@ import { fetchEnergyPrice } from '../services/energinet';
 import { fetchWeather } from '../services/weather';
 import { fetchNews } from '../services/news';
 import { renderDisplayData } from '../utils/bmpGenerator';
-import { DisplayData, UserPreferences, DisplayImageResponse } from '../types/index';
+import { DisplayData, UserPreferences, DisplayImageResponse, WeatherData } from '../types/index';
 import { requireAuth } from '../middleware/auth';
+
+// Mock weather shown in the dashboard preview when no API key is configured
+const MOCK_WEATHER: WeatherData = {
+  temp: 12,
+  condition: 'clear',
+  windSpeed: 4.2,
+  icon: '01d',
+};
 
 /**
  * @swagger
@@ -147,6 +155,43 @@ async function buildDisplayData(
   return result;
 }
 
+// Preview variant: uses mock data for any source that fails (e.g. missing API key),
+// so the dashboard layout editor always shows realistic content.
+async function buildDisplayDataForPreview(
+  prefs: UserPreferences,
+  apiKeyMap: Record<string, string>
+): Promise<DisplayData> {
+  const result: DisplayData = { nextRefresh: prefs.refresh_interval_minutes * 60 * 1000 };
+  const tasks: Promise<void>[] = [];
+
+  if (prefs.show_energy_price) {
+    tasks.push(
+      fetchEnergyPrice(prefs.energy_price_location)
+        .then((price) => { result.price = price; })
+        .catch(() => { /* energy unavailable — leave undefined */ })
+    );
+  }
+
+  if (prefs.show_weather) {
+    tasks.push(
+      fetchWeather(prefs.weather_location, apiKeyMap['openweathermap'])
+        .then((weather) => { result.weather = weather; })
+        .catch(() => { result.weather = MOCK_WEATHER; })
+    );
+  }
+
+  if (prefs.show_news) {
+    tasks.push(
+      fetchNews(prefs.news_language, apiKeyMap['newsapi'])
+        .then((news) => { result.news = news; })
+        .catch(() => { /* news service returns placeholders on failure */ })
+    );
+  }
+
+  await Promise.all(tasks);
+  return result;
+}
+
 async function resolveDevice(req: Request, res: Response, userId: string) {
   const licenseKey =
     (req.header('X-License-Key') ?? req.query.licenseKey) as string | undefined;
@@ -231,7 +276,7 @@ router.get(
         apiKeyMap[row.provider] = row.api_key;
       }
 
-      const displayData = await buildDisplayData(prefs, apiKeyMap);
+      const displayData = await buildDisplayDataForPreview(prefs, apiKeyMap);
       const bmpBuffer = renderDisplayData(displayData, prefs.layout ?? null);
 
       res.setHeader('Content-Type', 'image/bmp');
