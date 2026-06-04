@@ -90,6 +90,67 @@ void DisplayManager::showTestPattern() {
   LOG_D("Test pattern displayed");
 }
 
+void DisplayManager::showBitmap(const uint8_t* bmpData, size_t len) {
+  if (!bmpData || len < 62) {
+    showError("Bitmap Error", "Invalid BMP data");
+    return;
+  }
+
+  // Read pixel data offset from BMP file header (bytes 10-13, little-endian)
+  uint32_t pixelOffset = (uint32_t)bmpData[10]
+                       | ((uint32_t)bmpData[11] << 8)
+                       | ((uint32_t)bmpData[12] << 16)
+                       | ((uint32_t)bmpData[13] << 24);
+
+  // Read dimensions from BITMAPINFOHEADER (bytes 18-25)
+  int32_t bmpWidth  = (int32_t)bmpData[18] | ((int32_t)bmpData[19] << 8)
+                    | ((int32_t)bmpData[20] << 16) | ((int32_t)bmpData[21] << 24);
+  int32_t bmpHeight = (int32_t)bmpData[22] | ((int32_t)bmpData[23] << 8)
+                    | ((int32_t)bmpData[24] << 16) | ((int32_t)bmpData[25] << 24);
+  uint16_t bitCount = (uint16_t)bmpData[28] | ((uint16_t)bmpData[29] << 8);
+
+  if (bitCount != 1) {
+    showError("Bitmap Error", "Only 1-bit BMP supported");
+    return;
+  }
+
+  // Negative height = top-down; absolute value is the actual row count
+  bool topDown = (bmpHeight < 0);
+  int32_t rows = topDown ? -bmpHeight : bmpHeight;
+  int32_t cols = bmpWidth;
+
+  // Row stride must be padded to 4-byte boundary
+  int32_t rowStride = ((cols + 31) / 32) * 4;
+
+  if (pixelOffset + (size_t)(rowStride * rows) > len) {
+    showError("Bitmap Error", "BMP data truncated");
+    return;
+  }
+
+  uint16_t dispW = display->width();
+  uint16_t dispH = display->height();
+  int32_t drawW  = cols < dispW ? cols : dispW;
+  int32_t drawH  = rows < dispH ? rows : dispH;
+
+  display->setFullWindow();
+  display->firstPage();
+  do {
+    display->fillScreen(GxEPD_WHITE);
+    for (int32_t row = 0; row < drawH; row++) {
+      int32_t srcRow = topDown ? row : (rows - 1 - row);
+      const uint8_t* rowPtr = bmpData + pixelOffset + srcRow * rowStride;
+      for (int32_t col = 0; col < drawW; col++) {
+        // BMP 1-bit: index 0 = black (first color table entry)
+        // bit 7 of byte 0 = leftmost pixel
+        bool isBlack = !((rowPtr[col / 8] >> (7 - (col % 8))) & 1);
+        if (isBlack) display->drawPixel(col, row, GxEPD_BLACK);
+      }
+    }
+  } while (display->nextPage());
+
+  LOG_D("Bitmap displayed: %dx%d (1-bit BMP)", (int)drawW, (int)drawH);
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================

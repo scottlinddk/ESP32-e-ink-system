@@ -116,25 +116,51 @@ void setup() {
   // Set firmware version and fetch display data
   otaManager.setCurrentVersion(FIRMWARE_VERSION);
 
-  display.showLoading("Fetching data...");
-  ApiResponse response = apiClient.fetchDisplayData(userId, licenseKey);
+  // ── Image-based flow (TRMNL-style) ──────────────────────────────────────
+  display.showLoading("Fetching image...");
+  ImageDisplayResult imgResult;
+  bool imageShown = false;
 
-  if (!response.success) {
-    LOG_MAIN("API call failed: %s (HTTP %d)", response.errorMessage, response.httpCode);
-    display.showError("Data Error", response.errorMessage);
-    delay(3000);
-    wifiManager.disconnect();
-    goToDeepSleep();
-    return;
+  if (apiClient.fetchImageEndpoint(userId, licenseKey, imgResult)) {
+    const size_t BMP_BUF_SIZE = 8192; // ample for ~4 KB 1-bit BMP
+    uint8_t* bmpBuf = (uint8_t*)malloc(BMP_BUF_SIZE);
+    if (bmpBuf) {
+      int bmpLen = apiClient.downloadBmp(imgResult.imageUrl, bmpBuf, BMP_BUF_SIZE);
+      if (bmpLen > 0) {
+        display.showBitmap(bmpBuf, (size_t)bmpLen);
+        refreshInterval = (unsigned long)imgResult.refreshSeconds * 1000UL;
+        imageShown = true;
+        LOG_MAIN("Image displayed (%d bytes, next refresh %us)", bmpLen, imgResult.refreshSeconds);
+      } else {
+        LOG_MAIN("BMP download failed, falling back to JSON");
+      }
+      free(bmpBuf);
+    } else {
+      LOG_MAIN("OOM allocating BMP buffer, falling back to JSON");
+    }
+  } else {
+    LOG_MAIN("Image endpoint failed (%s), falling back to JSON", imgResult.errorMessage);
   }
 
-  LOG_MAIN("Display data received successfully");
+  // ── JSON fallback ────────────────────────────────────────────────────────
+  if (!imageShown) {
+    display.showLoading("Fetching data...");
+    ApiResponse response = apiClient.fetchDisplayData(userId, licenseKey);
 
-  // Update display
-  response.displayData.status.batteryPercent = battery.readPercentage();
-  response.displayData.status.signalStrength = wifiManager.getSignalStrength();
+    if (!response.success) {
+      LOG_MAIN("API call failed: %s (HTTP %d)", response.errorMessage, response.httpCode);
+      display.showError("Data Error", response.errorMessage);
+      delay(3000);
+      wifiManager.disconnect();
+      goToDeepSleep();
+      return;
+    }
 
-  display.showData(response.displayData);
+    LOG_MAIN("Display data received successfully");
+    response.displayData.status.batteryPercent = battery.readPercentage();
+    response.displayData.status.signalStrength = wifiManager.getSignalStrength();
+    display.showData(response.displayData);
+  }
 
   // Report device status (optional)
 #if FEATURE_BATTERY_REPORTING

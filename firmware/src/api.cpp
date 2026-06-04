@@ -267,6 +267,112 @@ bool ApiClient::getPreferences(const char* userId, const char* licenseKey,
 // Helper Functions
 // ============================================================================
 
+bool ApiClient::fetchImageEndpoint(const char* userId, const char* licenseKey,
+                                   ImageDisplayResult& result) {
+  result.success = false;
+  result.imageUrl[0] = '\0';
+  result.refreshSeconds = 1800;
+  result.errorMessage[0] = '\0';
+
+  char url[512];
+  snprintf(url, sizeof(url), "%s/api/image/%s", _baseUrl, userId);
+
+  LOG_A("Fetching image endpoint: %s", url);
+
+  http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
+  http.setTimeout(API_REQUEST_TIMEOUT_MS);
+
+  if (!http.begin(client, url)) {
+    snprintf(result.errorMessage, sizeof(result.errorMessage), "Failed to connect");
+    return false;
+  }
+
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-License-Key", licenseKey);
+
+  int httpCode = http.GET();
+  LOG_A("Image endpoint HTTP %d", httpCode);
+
+  if (httpCode != 200) {
+    snprintf(result.errorMessage, sizeof(result.errorMessage), "HTTP error %d", httpCode);
+    http.end();
+    return false;
+  }
+
+  String payload = http.getString();
+  http.end();
+
+  StaticJsonDocument<512> doc;
+  DeserializationError err = deserializeJson(doc, payload);
+  if (err) {
+    snprintf(result.errorMessage, sizeof(result.errorMessage), "JSON parse error");
+    return false;
+  }
+
+  if (!doc.containsKey("image_url")) {
+    snprintf(result.errorMessage, sizeof(result.errorMessage), "Missing image_url");
+    return false;
+  }
+
+  strlcpy(result.imageUrl, doc["image_url"] | "", sizeof(result.imageUrl));
+  result.refreshSeconds = doc["refresh_rate"] | 1800;
+  result.success = true;
+
+  LOG_A("Image URL: %s (refresh %us)", result.imageUrl, result.refreshSeconds);
+  return true;
+}
+
+int ApiClient::downloadBmp(const char* url, uint8_t* buffer, size_t bufferSize) {
+  LOG_A("Downloading BMP from: %s", url);
+
+  http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
+  http.setTimeout(API_REQUEST_TIMEOUT_MS);
+
+  if (!http.begin(client, url)) {
+    LOG_A("BMP download: connect failed");
+    return -1;
+  }
+
+  int httpCode = http.GET();
+  LOG_A("BMP download HTTP %d", httpCode);
+
+  if (httpCode != 200) {
+    http.end();
+    return -1;
+  }
+
+  int contentLen = http.getSize();
+  if (contentLen > 0 && (size_t)contentLen > bufferSize) {
+    LOG_A("BMP too large: %d > %u", contentLen, (unsigned)bufferSize);
+    http.end();
+    return -1;
+  }
+
+  WiFiClient* stream = http.getStreamPtr();
+  size_t total = 0;
+  unsigned long deadline = millis() + API_REQUEST_TIMEOUT_MS;
+
+  while ((contentLen < 0 || total < (size_t)contentLen) && millis() < deadline) {
+    if (stream->available()) {
+      int c = stream->read(buffer + total, bufferSize - total);
+      if (c > 0) total += c;
+    } else {
+      delay(1);
+    }
+    if (total >= bufferSize) break;
+  }
+
+  http.end();
+
+  if (total < 62) { // too small to be a valid BMP
+    LOG_A("BMP download incomplete: %u bytes", (unsigned)total);
+    return -1;
+  }
+
+  LOG_A("BMP downloaded: %u bytes", (unsigned)total);
+  return (int)total;
+}
+
 bool ApiClient::parseDisplayDataResponse(const char* jsonResponse, DisplayData& data) {
   StaticJsonDocument<1024> doc;
   DeserializationError error = deserializeJson(doc, jsonResponse);
