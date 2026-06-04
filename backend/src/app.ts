@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import path from 'path';
+import { Readable } from 'stream';
 import 'dotenv/config';
 import { createRateLimiter } from './middleware/rateLimit';
 import { fetchLatestFirmwareRelease, buildManifestFromRelease } from './services/githubRelease';
@@ -62,10 +63,10 @@ const pairingLimiter = createRateLimiter(
   'device-pair'
 );
 
-app.use('/api/', globalLimiter);
-app.use('/api/display-data', displayLimiter);
-app.use('/api/image', displayLimiter);
-app.use('/api/devices/pair', pairingLimiter);
+app.use('/', globalLimiter);
+app.use('/display-data', displayLimiter);
+app.use('/image', displayLimiter);
+app.use('/devices/pair', pairingLimiter);
 
 // Body parsing
 app.use(express.json({ limit: '10kb' }));
@@ -119,14 +120,13 @@ app.get('/firmware/default.bin', async (_req: Request, res: Response, next: Next
   if (!url) url = process.env.DEFAULT_FIRMWARE_URL?.trim();
   if (!url) return next();
   try {
-    const { default: fetch } = await import('node-fetch');
     const upstream = await fetch(url, { redirect: 'follow' });
     if (!upstream.ok) return next();
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/octet-stream');
     const cl = upstream.headers.get('content-length');
     if (cl) res.setHeader('Content-Length', cl);
-    upstream.body!.pipe(res);
+    Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]).pipe(res);
   } catch {
     next();
   }
@@ -134,16 +134,16 @@ app.get('/firmware/default.bin', async (_req: Request, res: Response, next: Next
 
 // Routes
 app.use('/health', healthRouter);
-app.use('/api/auth', authRouter);
-app.use('/api/preferences', preferencesRouter);
-app.use('/api/devices', devicesRouter);
-app.use('/api/firmware', firmwareRouter);
-app.use('/api/display-data', displayDataRouter);
-app.use('/api/preview', displayDataRouter);
-app.use('/api/image', imageRouter);
+app.use('/auth', authRouter);
+app.use('/preferences', preferencesRouter);
+app.use('/devices', devicesRouter);
+app.use('/firmware', firmwareRouter);
+app.use('/display-data', displayDataRouter);
+app.use('/preview', displayDataRouter);
+app.use('/image', imageRouter);
 
 // Checkout stub
-app.post('/api/checkout', (_req, res) => {
+app.post('/checkout', (_req, res) => {
   res.status(501).json({
     error: 'Checkout not yet implemented',
     message: 'Stripe integration coming soon',

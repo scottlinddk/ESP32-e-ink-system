@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import { NewsItem, NewsApiResponse, CacheEntry } from '../types/index';
 
 const NEWSAPI_BASE_URL = 'https://newsapi.org/v2/top-headlines';
