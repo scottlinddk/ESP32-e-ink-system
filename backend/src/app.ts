@@ -29,6 +29,7 @@ const allowedOrigins = [
   'http://localhost:5174',
   'https://esp-32-e-ink-system.vercel.app',
   'https://esp-32-e-ink-system-frontend.vercel.app',
+  'https://esp32.scottlind.dk',
 ];
 
 app.use(
