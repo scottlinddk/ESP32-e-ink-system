@@ -208,6 +208,7 @@ router.get(
         weather_location: '55.3,10.4',
         news_language: 'da',
         refresh_interval_minutes: 30,
+        layout: null,
       };
 
       res.json({ preferences: prefs ?? defaultPrefs });
@@ -239,6 +240,7 @@ router.post(
         'weather_location',
         'news_language',
         'refresh_interval_minutes',
+        'layout',
       ];
 
       const updates: Partial<UserPreferences> = {};

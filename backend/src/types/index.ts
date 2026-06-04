@@ -1,3 +1,19 @@
+export interface WidgetLayout {
+  i: string;       // 'energy' | 'weather' | 'news' | 'status'
+  x: number;       // 0–9
+  y: number;       // 0–5
+  w: number;       // column span
+  h: number;       // row span
+  static?: boolean;
+}
+
+export interface DisplayLayout {
+  version: 1;
+  cols: 10;
+  rows: 6;
+  widgets: WidgetLayout[];
+}
+
 export interface UserPreferences {
   show_energy_price: boolean;
   show_weather: boolean;
@@ -8,6 +24,7 @@ export interface UserPreferences {
   weather_location: string; // 'lat,lng'
   news_language: string; // 'da' | 'en'
   refresh_interval_minutes: number;
+  layout: DisplayLayout | null;
 }
 
 export interface EnergyPrice {

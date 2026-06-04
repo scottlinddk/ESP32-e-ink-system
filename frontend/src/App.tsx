@@ -14,6 +14,7 @@ import { DevicesPage } from './pages/DevicesPage';
 import { FirmwarePage } from './pages/FirmwarePage';
 import { AccountPage } from './pages/AccountPage';
 import { DocsPage } from './pages/DocsPage';
+import { LayoutEditorPage } from './pages/LayoutEditorPage';
 
 function AppShell() {
   const app = useApp();
@@ -49,6 +50,7 @@ function AppShell() {
     firmware: <FirmwarePage />,
     account: <AccountPage />,
     docs: <DocsPage />,
+    layout: <LayoutEditorPage />,
   };
 
   return (

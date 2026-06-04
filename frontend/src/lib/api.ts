@@ -1,5 +1,5 @@
 import { buildAuthHeaders } from './auth';
-import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion } from '../types';
+import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
 
@@ -79,6 +79,13 @@ export async function savePreferences(
     token,
     body: JSON.stringify(prefs),
   });
+}
+
+export async function saveLayout(
+  token: string,
+  layout: DisplayLayout
+): Promise<void> {
+  await savePreferences(token, { layout });
 }
 
 // ============================================================

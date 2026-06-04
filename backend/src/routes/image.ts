@@ -109,6 +109,7 @@ const DEFAULT_PREFS: UserPreferences = {
   weather_location: '55.3,10.4',
   news_language: 'da',
   refresh_interval_minutes: 30,
+  layout: null,
 };
 
 async function buildDisplayData(
@@ -231,7 +232,7 @@ router.get(
       }
 
       const displayData = await buildDisplayData(prefs, apiKeyMap);
-      const bmpBuffer = renderDisplayData(displayData);
+      const bmpBuffer = renderDisplayData(displayData, prefs.layout ?? null);
 
       res.setHeader('Content-Type', 'image/bmp');
       res.setHeader('Content-Length', bmpBuffer.length);
@@ -302,7 +303,7 @@ router.get(
       }
 
       const displayData = await buildDisplayData(prefs, apiKeyMap);
-      const bmpBuffer = renderDisplayData(displayData);
+      const bmpBuffer = renderDisplayData(displayData, prefs.layout ?? null);
 
       res.setHeader('Content-Type', 'image/bmp');
       res.setHeader('Content-Length', bmpBuffer.length);

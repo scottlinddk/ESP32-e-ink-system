@@ -1,4 +1,4 @@
-import { DisplayData } from '../types/index';
+import { DisplayData, DisplayLayout, WidgetLayout } from '../types/index';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, MSB = leftmost pixel
@@ -225,7 +225,35 @@ export class BmpCanvas {
   }
 }
 
-// ── Layout ──────────────────────────────────────────────────────────────────
+// ── Grid constants ───────────────────────────────────────────────────────────
+
+export const GRID_COLS = 10;
+export const GRID_ROWS = 6;
+export const COL_PX = 25;  // DISPLAY_WIDTH / GRID_COLS
+export const ROW_PX = 20;  // ~DISPLAY_HEIGHT / GRID_ROWS
+
+export const DEFAULT_LAYOUT: DisplayLayout = {
+  version: 1,
+  cols: 10,
+  rows: 6,
+  widgets: [
+    { i: 'energy',  x: 0, y: 0, w: 10, h: 2 },
+    { i: 'weather', x: 0, y: 2, w: 10, h: 2 },
+    { i: 'news',    x: 0, y: 4, w: 10, h: 1 },
+    { i: 'status',  x: 0, y: 5, w: 10, h: 1, static: true },
+  ],
+};
+
+interface WidgetBounds { x: number; y: number; width: number; height: number; }
+
+function getWidgetBounds(w: WidgetLayout): WidgetBounds {
+  return {
+    x: w.x * COL_PX,
+    y: w.y * ROW_PX,
+    width: w.w * COL_PX,
+    height: w.h * ROW_PX,
+  };
+}
 
 function trendArrow(trend?: 'up' | 'down' | 'stable'): string {
   if (trend === 'up') return '^';
@@ -233,66 +261,102 @@ function trendArrow(trend?: 'up' | 'down' | 'stable'): string {
   return '-';
 }
 
-export function renderDisplayData(data: DisplayData): Buffer {
-  const canvas = new BmpCanvas();
-  const W = DISPLAY_WIDTH;
-  let y = 2;
+// ── Per-widget renderers ──────────────────────────────────────────────────────
 
-  // ── Energy prices ─────────────────────────────────────────────────────────
-  if (data.price) {
-    const { now, average, trend } = data.price;
+function renderEnergyWidget(
+  canvas: BmpCanvas,
+  bounds: WidgetBounds,
+  price?: DisplayData['price']
+): void {
+  const { x, y, width, height } = bounds;
+  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  const textY = y + 2;
+  const maxW = width - 4;
+  if (price) {
+    const { now, average, trend } = price;
     const arrow = trendArrow(trend);
-    const line1 = `Energy: ${(now / 100).toFixed(2)} DKK/kWh ${arrow}`;
-    canvas.drawText(line1, 2, y, W - 4);
-    y += 11;
-    const line2 = `Avg: ${(average / 100).toFixed(2)}  Now: ${(now / 100).toFixed(2)}`;
-    canvas.drawText(line2, 2, y, W - 4);
-    y += 11;
+    canvas.drawText(`Energy: ${(now / 100).toFixed(2)} DKK/kWh ${arrow}`, x + 2, textY, maxW);
+    if (height >= 20) {
+      canvas.drawText(`Avg: ${(average / 100).toFixed(2)}  Now: ${(now / 100).toFixed(2)}`, x + 2, textY + 11, maxW);
+    }
   } else {
-    canvas.drawText('Energy: unavailable', 2, y, W - 4);
-    y += 11;
+    canvas.drawText('Energy: unavailable', x + 2, textY, maxW);
   }
+}
 
-  canvas.drawHLine(0, y, W);
-  y += 2;
-
-  // ── Weather ───────────────────────────────────────────────────────────────
-  if (data.weather) {
-    const { temp, condition, windSpeed } = data.weather;
-    const line1 = `${condition}  ${Math.round(temp)}C`;
-    canvas.drawText(line1, 2, y, W - 4);
-    y += 11;
-    const line2 = `Wind: ${windSpeed.toFixed(1)} m/s`;
-    canvas.drawText(line2, 2, y, W - 4);
-    y += 11;
+function renderWeatherWidget(
+  canvas: BmpCanvas,
+  bounds: WidgetBounds,
+  weather?: DisplayData['weather']
+): void {
+  const { x, y, width, height } = bounds;
+  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  const textY = y + 2;
+  const maxW = width - 4;
+  if (weather) {
+    const { temp, condition, windSpeed } = weather;
+    canvas.drawText(`${condition}  ${Math.round(temp)}C`, x + 2, textY, maxW);
+    if (height >= 20) {
+      canvas.drawText(`Wind: ${windSpeed.toFixed(1)} m/s`, x + 2, textY + 11, maxW);
+    }
   } else {
-    canvas.drawText('Weather: unavailable', 2, y, W - 4);
-    y += 11;
+    canvas.drawText('Weather: unavailable', x + 2, textY, maxW);
   }
+}
 
-  canvas.drawHLine(0, y, W);
-  y += 2;
-
-  // ── News ──────────────────────────────────────────────────────────────────
-  const newsTop = y;
-  const newsBottom = DISPLAY_HEIGHT - 14; // leave room for status bar
-
-  if (data.news && data.news.length > 0) {
-    const headline = data.news[0].title;
-    canvas.drawWrappedText(headline, 2, newsTop, W - 4, 10);
+function renderNewsWidget(
+  canvas: BmpCanvas,
+  bounds: WidgetBounds,
+  news?: DisplayData['news']
+): void {
+  const { x, y, width, height } = bounds;
+  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  const textY = y + 2;
+  const maxW = width - 4;
+  if (news && news.length > 0) {
+    canvas.drawWrappedText(news[0].title, x + 2, textY, maxW, 10);
   } else {
-    canvas.drawText('No news available', 2, newsTop, W - 4);
+    canvas.drawText('No news available', x + 2, textY, maxW);
   }
+}
 
-  // ── Status bar ────────────────────────────────────────────────────────────
-  const statusY = DISPLAY_HEIGHT - 12;
-  canvas.drawHLine(0, statusY - 2, W);
-
+function renderStatusWidget(
+  canvas: BmpCanvas,
+  bounds: WidgetBounds,
+  nextRefresh: number
+): void {
+  const { x, y, width } = bounds;
+  canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  const statusY = y + 2;
   const now = new Date();
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const refreshMin = Math.round(data.nextRefresh / 60000);
-  const status = `Refresh: ${refreshMin}min  ${timeStr}`;
-  canvas.drawText(status, 2, statusY, W - 4);
+  const refreshMin = Math.round(nextRefresh / 60000);
+  canvas.drawText(`Refresh: ${refreshMin}min  ${timeStr}`, x + 2, statusY, width - 4);
+}
+
+// ── Main render entry point ───────────────────────────────────────────────────
+
+export function renderDisplayData(data: DisplayData, layout?: DisplayLayout | null): Buffer {
+  const canvas = new BmpCanvas();
+  const effectiveLayout = layout ?? DEFAULT_LAYOUT;
+
+  for (const widget of effectiveLayout.widgets) {
+    const bounds = getWidgetBounds(widget);
+    switch (widget.i) {
+      case 'energy':
+        renderEnergyWidget(canvas, bounds, data.price);
+        break;
+      case 'weather':
+        renderWeatherWidget(canvas, bounds, data.weather);
+        break;
+      case 'news':
+        renderNewsWidget(canvas, bounds, data.news);
+        break;
+      case 'status':
+        renderStatusWidget(canvas, bounds, data.nextRefresh);
+        break;
+    }
+  }
 
   return canvas.toBmp();
 }

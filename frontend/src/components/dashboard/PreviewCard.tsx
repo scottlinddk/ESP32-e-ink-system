@@ -285,15 +285,25 @@ export function PreviewCard() {
             <Icon name="info" />
             {t.updateEvery}
           </span>
-          <Button
-            variant="outlined"
-            size="sm"
-            icon="refresh"
-            onClick={refresh}
-            disabled={state === 'loading'}
-          >
-            {t.refreshNow}
-          </Button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              variant="outlined"
+              size="sm"
+              icon="grid_view"
+              onClick={() => app.nav('layout')}
+            >
+              {t.layoutEditLayout}
+            </Button>
+            <Button
+              variant="outlined"
+              size="sm"
+              icon="refresh"
+              onClick={refresh}
+              disabled={state === 'loading'}
+            >
+              {t.refreshNow}
+            </Button>
+          </div>
         </div>
 
         {enabledCount > 0 && availCount < enabledCount && !hardError && (
