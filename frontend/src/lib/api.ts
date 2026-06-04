@@ -181,6 +181,20 @@ export async function getPreviewData(token: string): Promise<DisplayData> {
   return request<DisplayData>('/api/preview', { token });
 }
 
+/**
+ * Fetches the server-rendered 1-bit BMP for the authenticated user and returns
+ * an object URL that can be set directly as an <img> src.
+ * Caller is responsible for calling URL.revokeObjectURL() when done.
+ */
+export async function fetchPreviewBmp(token: string): Promise<string> {
+  const response = await fetch(`${BASE_URL}/api/image/preview`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
+}
+
 // ============================================================
 // Health
 // ============================================================
