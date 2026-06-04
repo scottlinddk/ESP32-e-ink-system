@@ -15,7 +15,7 @@ export function SignUpPage() {
           routing="path"
           path="/signup"
           signInUrl="/login"
-          afterSignUpUrl="/dashboard"
+          fallbackRedirectUrl="/dashboard"
           appearance={{
             elements: {
               rootBox: 'w-full',
