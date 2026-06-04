@@ -25,12 +25,17 @@ export async function requireAuth(
 
   try {
     const secretKey = getSecretKey();
-    const verifiedToken = await verifyToken(token, { secretKey });
+    const verifiedToken = await verifyToken(token, {
+      secretKey,
+      clockSkewInMs: 5000,
+    });
 
     req.clerkUserId = verifiedToken.sub;
     next();
   } catch (err) {
-    console.error('Auth verification failed:', err);
+    const reason = (err as Record<string, unknown>)?.reason as string | undefined;
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('Auth verification failed:', { reason, message });
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
@@ -51,7 +56,10 @@ export async function optionalAuth(
 
   try {
     const secretKey = getSecretKey();
-    const verifiedToken = await verifyToken(token, { secretKey });
+    const verifiedToken = await verifyToken(token, {
+      secretKey,
+      clockSkewInMs: 5000,
+    });
     req.clerkUserId = verifiedToken.sub;
   } catch {
     // Silently ignore invalid tokens in optional auth
