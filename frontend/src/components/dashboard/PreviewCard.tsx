@@ -199,7 +199,7 @@ export function PreviewCard() {
             className={view === 'server' ? 'is-active' : ''}
             onClick={() => setView('server')}
           >
-            Server
+            {t.viewServer}
           </button>
         </div>
       }
