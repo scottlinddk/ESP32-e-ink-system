@@ -32,7 +32,7 @@ createRoot(rootElement).render(
           <Route
             path="*"
             element={
-              <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+              <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignInUrl="/" afterSignUpUrl="/">
                 <App />
               </ClerkProvider>
             }
