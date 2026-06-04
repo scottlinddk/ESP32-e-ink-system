@@ -1,10 +1,10 @@
 #include "config.h"
-#include "src/wifi.h"
-#include "src/display.h"
-#include "src/api.h"
-#include "src/battery.h"
-#include "src/ota.h"
-#include "src/provisioning.h"
+#include "wifi.h"
+#include "display.h"
+#include "api.h"
+#include "battery.h"
+#include "ota.h"
+#include "provisioning.h"
 
 // Global objects
 WiFiManager wifiManager;

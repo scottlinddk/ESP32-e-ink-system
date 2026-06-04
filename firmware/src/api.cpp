@@ -298,7 +298,7 @@ bool ApiClient::parseDisplayDataResponse(const char* jsonResponse, DisplayData& 
 
   data.status.batteryPercent = doc["status"]["batteryPercent"] | 100;
   data.status.signalStrength = doc["status"]["signalStrength"] | -70;
-  data.status.lastUpdate     = now();
+  data.status.lastUpdate     = 0;
 
   return true;
 }

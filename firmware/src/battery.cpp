@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include "battery.h"
 #include "config.h"
 
