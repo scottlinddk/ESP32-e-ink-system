@@ -87,7 +87,7 @@ bool OTAManager::downloadFirmware(const char* url, uint8_t* buffer, size_t* buff
     return false;
   }
 
-  http.setTimeout(API_REQUEST_TIMEOUT_MS, API_REQUEST_TIMEOUT_MS);
+  http.setTimeout(API_REQUEST_TIMEOUT_MS);
   int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
     LOG_O("Firmware download HTTP error %d", httpCode);

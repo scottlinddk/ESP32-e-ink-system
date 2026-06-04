@@ -242,6 +242,6 @@ void displaySystemInfo() {
   LOG_MAIN("Chip ID: %u", ESP.getChipRevision());
   LOG_MAIN("Free Heap: %d bytes", ESP.getFreeHeap());
   LOG_MAIN("Flash Size: %d bytes", ESP.getFlashChipSize());
-  LOG_MAIN("Reset Reason: %d", (int)rtc_get_reset_reason(0));
+  LOG_MAIN("Reset Reason: %d", (int)esp_rom_get_reset_reason(0));
   LOG_MAIN("========================================");
 }
