@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { ClerkProvider } from '@clerk/clerk-react';
+import { ClerkProvider, AuthenticateWithRedirectCallback } from '@clerk/clerk-react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import './index.css';
@@ -24,20 +24,18 @@ createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <Routes>
-          {/* Public route — no Clerk auth required */}
-          <Route path="/flash" element={<FlashPage />} />
+        <ClerkProvider publishableKey={PUBLISHABLE_KEY} signInFallbackRedirectUrl="/" signUpFallbackRedirectUrl="/">
+          <Routes>
+            {/* Public route — no Clerk auth required */}
+            <Route path="/flash" element={<FlashPage />} />
 
-          {/* All other routes go through the Clerk-guarded app shell */}
-          <Route
-            path="*"
-            element={
-              <ClerkProvider publishableKey={PUBLISHABLE_KEY} signInFallbackRedirectUrl="/dashboard" signUpFallbackRedirectUrl="/dashboard">
-                <App />
-              </ClerkProvider>
-            }
-          />
-        </Routes>
+            {/* OAuth callback — completes the Clerk sign-in handshake */}
+            <Route path="/sso-callback" element={<AuthenticateWithRedirectCallback />} />
+
+            {/* All other routes go through the Clerk-guarded app shell */}
+            <Route path="*" element={<App />} />
+          </Routes>
+        </ClerkProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>
