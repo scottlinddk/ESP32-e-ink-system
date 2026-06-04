@@ -19,7 +19,7 @@ export interface FirmwareRelease {
 }
 
 export async function fetchLatestFirmwareRelease(): Promise<FirmwareRelease | null> {
-  const repo = process.env.GITHUB_REPO?.trim();
+  const repo = process.env.GITHUB_REPO?.trim() || 'scottlinddk/ESP32-e-ink-system';
   if (!repo) return null;
 
   const now = Date.now();

@@ -1,7 +1,12 @@
 import { buildAuthHeaders } from './auth';
 import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout } from '../types';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
+// In production (Vercel), use relative paths so requests always go to the same
+// origin and Vercel routes /api/* to the Express backend service.
+// VITE_API_BASE_URL is honoured in development so the Vite proxy can target it.
+const BASE_URL = import.meta.env.PROD
+  ? ''
+  : (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001');
 
 class ApiError extends Error {
   constructor(
