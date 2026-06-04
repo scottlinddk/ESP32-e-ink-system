@@ -62,7 +62,7 @@ export function LoginPage() {
     try {
       await signIn.authenticateWithRedirect({
         strategy: `oauth_${provider}`,
-        redirectUrl: window.location.origin,
+        redirectUrl: `${window.location.origin}/sso-callback`,
         redirectUrlComplete: window.location.origin,
       });
     } catch {
