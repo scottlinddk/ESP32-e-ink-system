@@ -5,7 +5,7 @@ import swaggerUi from 'swagger-ui-express';
 import path from 'path';
 import 'dotenv/config';
 import { createRateLimiter } from './middleware/rateLimit';
-import { fetchLatestFirmwareRelease } from './services/githubRelease';
+import { fetchLatestFirmwareRelease, buildManifestFromRelease } from './services/githubRelease';
 
 import healthRouter from './routes/health';
 import authRouter from './routes/auth';
@@ -79,6 +79,31 @@ app.use(
   },
   express.static(firmwareBuildsDir)
 );
+
+// Public manifest for FlashPage: resolves GitHub release assets into a complete multi-part manifest.
+app.get('/firmware/manifest.json', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const ghRelease = await fetchLatestFirmwareRelease();
+    if (ghRelease) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Content-Type', 'application/json');
+      res.json(buildManifestFromRelease(ghRelease));
+      return;
+    }
+    const externalUrl = process.env.DEFAULT_FIRMWARE_URL?.trim();
+    if (externalUrl) {
+      const version = process.env.DEFAULT_FIRMWARE_VERSION ?? '1.0.0';
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Content-Type', 'application/json');
+      res.json({
+        name: `ESP32 Display v${version}`,
+        builds: [{ chipFamily: 'ESP32', parts: [{ path: externalUrl, offset: 65536 }] }],
+      });
+      return;
+    }
+  } catch { /* fall through to static */ }
+  next();
+});
 
 // Proxy fallback: resolve the firmware URL dynamically from GitHub releases (preferred)
 // or fall back to DEFAULT_FIRMWARE_URL env var, then stream to the browser to avoid CORS issues.

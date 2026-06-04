@@ -9,7 +9,7 @@ import {
   getFirmwareVersionById,
   upsertUser,
 } from '../services/database';
-import { fetchLatestFirmwareRelease } from '../services/githubRelease';
+import { fetchLatestFirmwareRelease, buildManifestFromRelease } from '../services/githubRelease';
 import type { FirmwareVersion } from '../types';
 
 const router = Router();
@@ -151,9 +151,13 @@ router.get(
         res.status(404).json({ error: 'Default firmware binary not available. Set GITHUB_REPO, DEFAULT_FIRMWARE_URL, or build firmware/builds/default.bin.' });
         return;
       }
-      const version = ghRelease?.version ?? process.env.DEFAULT_FIRMWARE_VERSION ?? '1.0.0';
+      if (ghRelease) {
+        res.json(buildManifestFromRelease(ghRelease));
+        return;
+      }
+      const version = process.env.DEFAULT_FIRMWARE_VERSION ?? '1.0.0';
       const baseUrl = `${req.protocol}://${req.get('host')}`;
-      const binaryUrl = `${baseUrl}/firmware/default.bin`;
+      const binaryUrl = externalUrl || `${baseUrl}/firmware/default.bin`;
       res.json({
         name: `ESP32 Display v${version}`,
         builds: [{ chipFamily: 'ESP32', parts: [{ path: binaryUrl, offset: 65536 }] }],
