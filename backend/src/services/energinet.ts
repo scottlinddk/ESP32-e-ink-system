@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import { EnergyPrice, EnergidataResponse, EnergidataRecord, CacheEntry } from '../types/index';
 
 const ENERGINET_BASE_URL = 'https://api.energidataservice.dk/dataset/Elspotprices';

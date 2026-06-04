@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import path from 'path';
+import { Readable } from 'stream';
 import 'dotenv/config';
 import { createRateLimiter } from './middleware/rateLimit';
 import { fetchLatestFirmwareRelease, buildManifestFromRelease } from './services/githubRelease';
@@ -119,14 +120,13 @@ app.get('/firmware/default.bin', async (_req: Request, res: Response, next: Next
   if (!url) url = process.env.DEFAULT_FIRMWARE_URL?.trim();
   if (!url) return next();
   try {
-    const { default: fetch } = await import('node-fetch');
     const upstream = await fetch(url, { redirect: 'follow' });
     if (!upstream.ok) return next();
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/octet-stream');
     const cl = upstream.headers.get('content-length');
     if (cl) res.setHeader('Content-Length', cl);
-    upstream.body!.pipe(res);
+    Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]).pipe(res);
   } catch {
     next();
   }

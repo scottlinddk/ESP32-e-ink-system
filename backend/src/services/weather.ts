@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import { WeatherData, OpenWeatherResponse, CacheEntry } from '../types/index';
 
 const OWM_BASE_URL = 'https://api.openweathermap.org/data/2.5/weather';
