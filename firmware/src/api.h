@@ -4,6 +4,13 @@
 #include <HTTPClient.h>
 #include "display.h"
 
+struct ImageDisplayResult {
+  bool success;
+  char imageUrl[512];
+  uint32_t refreshSeconds;
+  char errorMessage[128];
+};
+
 struct ApiResponse {
   bool success;
   int httpCode;
@@ -42,6 +49,14 @@ public:
   // Get user preferences (refresh interval, display mode, etc.)
   bool getPreferences(const char* userId, const char* licenseKey,
                      uint32_t* refreshMinutes, int* displayMode);
+
+  // Fetch TRMNL-style image endpoint: returns image_url + refresh_rate
+  bool fetchImageEndpoint(const char* userId, const char* licenseKey,
+                          ImageDisplayResult& result);
+
+  // Download a BMP from the given URL into caller-supplied buffer.
+  // Returns number of bytes downloaded, or -1 on failure.
+  int downloadBmp(const char* url, uint8_t* buffer, size_t bufferSize);
 
 private:
   HTTPClient http;

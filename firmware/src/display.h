@@ -54,7 +54,10 @@ public:
   
   // Display test pattern (for debugging)
   void showTestPattern();
-  
+
+  // Display a server-rendered 1-bit BMP from memory buffer
+  void showBitmap(const uint8_t* bmpData, size_t len);
+
   // Clear display
   void clear();
   

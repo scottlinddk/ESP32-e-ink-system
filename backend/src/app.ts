@@ -13,6 +13,7 @@ import preferencesRouter from './routes/preferences';
 import devicesRouter from './routes/devices';
 import displayDataRouter from './routes/display-data';
 import firmwareRouter from './routes/firmware';
+import imageRouter from './routes/image';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { swaggerSpec } from './swagger';
 
@@ -62,6 +63,7 @@ const pairingLimiter = createRateLimiter(
 
 app.use('/api/', globalLimiter);
 app.use('/api/display-data', displayLimiter);
+app.use('/api/image', displayLimiter);
 app.use('/api/devices/pair', pairingLimiter);
 
 // Body parsing
@@ -137,6 +139,7 @@ app.use('/api/devices', devicesRouter);
 app.use('/api/firmware', firmwareRouter);
 app.use('/api/display-data', displayDataRouter);
 app.use('/api/preview', displayDataRouter);
+app.use('/api/image', imageRouter);
 
 // Checkout stub
 app.post('/api/checkout', (_req, res) => {

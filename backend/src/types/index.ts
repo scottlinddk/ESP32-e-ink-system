@@ -73,6 +73,13 @@ export interface ApiKey {
   created_at: string;
 }
 
+export interface DisplayImageResponse {
+  image_url: string;
+  filename: string;
+  refresh_rate: number; // seconds
+  status: number;       // 0 = OK
+}
+
 export interface CacheEntry<T> {
   data: T;
   expiresAt: number;
