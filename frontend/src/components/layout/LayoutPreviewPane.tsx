@@ -7,6 +7,13 @@ import { Spinner } from '../ui/Spinner';
 import { Icon } from '../ui/Logo';
 import { fetchPreviewBmp } from '../../lib/api';
 
+const WIDGET_LABELS: Record<string, string> = {
+  energy: 'Energy price',
+  weather: 'Weather',
+  news: 'News',
+  status: 'Status',
+};
+
 interface LayoutPreviewPaneProps {
   layout: DisplayLayout;
   token: string | null;
@@ -16,7 +23,6 @@ interface LayoutPreviewPaneProps {
 export function LayoutPreviewPane({ layout, token, debounceMs = 800 }: LayoutPreviewPaneProps) {
   const [bmpSrc, setBmpSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const prevBmpRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -27,7 +33,6 @@ export function LayoutPreviewPane({ layout, token, debounceMs = 800 }: LayoutPre
 
     timerRef.current = setTimeout(() => {
       setLoading(true);
-      setError(null);
 
       fetchPreviewBmp(token)
         .then((url) => {
@@ -37,7 +42,8 @@ export function LayoutPreviewPane({ layout, token, debounceMs = 800 }: LayoutPre
           setLoading(false);
         })
         .catch((err: unknown) => {
-          setError(err instanceof Error ? err.message : 'Failed to load preview');
+          // Fall back to skeleton silently — backend may be unavailable
+          console.warn('Preview BMP fetch failed:', err);
           setLoading(false);
         });
     }, debounceMs);
@@ -63,37 +69,28 @@ export function LayoutPreviewPane({ layout, token, debounceMs = 800 }: LayoutPre
           position: 'relative',
           background: '#fff',
           border: '1px solid #ccc',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          overflow: 'hidden',
         }}
       >
-        {/* Skeleton overlay while loading */}
-        {loading && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.7)' }}>
-            <Spinner />
-          </div>
-        )}
+        {/* Labelled skeleton — always visible until a real BMP is loaded */}
+        {!bmpSrc && <LayoutSkeleton layout={layout} />}
 
-        {error && !loading && (
-          <div style={{ textAlign: 'center', padding: 8 }}>
-            <Icon name="cloud_off" />
-            <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>{error}</div>
-          </div>
-        )}
-
-        {bmpSrc && !error && (
+        {/* Real BMP overlaid once available */}
+        {bmpSrc && (
           <img
             src={bmpSrc}
             alt="Display preview"
             width={250}
             height={122}
-            style={{ imageRendering: 'pixelated', display: 'block', opacity: loading ? 0.5 : 1 }}
+            style={{ imageRendering: 'pixelated', display: 'block', position: 'absolute', inset: 0, opacity: loading ? 0.5 : 1 }}
           />
         )}
 
-        {!bmpSrc && !loading && !error && (
-          <LayoutSkeleton layout={layout} />
+        {/* Loading spinner overlay */}
+        {loading && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.6)' }}>
+            <Spinner />
+          </div>
         )}
       </div>
       <p className="layout-preview-note">
@@ -103,26 +100,38 @@ export function LayoutPreviewPane({ layout, token, debounceMs = 800 }: LayoutPre
   );
 }
 
-// Simple grey-box skeleton rendered immediately from layout data
+// Labelled grey-box skeleton — always shown while the BMP is loading or unavailable
 function LayoutSkeleton({ layout }: { layout: DisplayLayout }) {
   const COL_PX = 250 / layout.cols;
   const ROW_PX = 122 / layout.rows;
 
   return (
     <svg width={250} height={122} style={{ display: 'block' }}>
-      {layout.widgets.map((w) => (
-        <rect
-          key={w.i}
-          x={w.x * COL_PX + 1}
-          y={w.y * ROW_PX + 1}
-          width={w.w * COL_PX - 2}
-          height={w.h * ROW_PX - 2}
-          fill="#e8e8e8"
-          stroke="#bbb"
-          strokeWidth={1}
-          rx={2}
-        />
-      ))}
+      {layout.widgets.map((w) => {
+        const x = w.x * COL_PX + 1;
+        const y = w.y * ROW_PX + 1;
+        const width = w.w * COL_PX - 2;
+        const height = w.h * ROW_PX - 2;
+        const label = WIDGET_LABELS[w.i] ?? w.i;
+        return (
+          <g key={w.i}>
+            <rect
+              x={x} y={y} width={width} height={height}
+              fill="#f0f0f0" stroke="#bbb" strokeWidth={1} rx={2}
+            />
+            <text
+              x={x + width / 2}
+              y={y + height / 2 + 3}
+              fontSize={8}
+              fill="#888"
+              textAnchor="middle"
+              fontFamily="sans-serif"
+            >
+              {label}
+            </text>
+          </g>
+        );
+      })}
     </svg>
   );
 }
