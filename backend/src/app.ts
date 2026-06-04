@@ -5,6 +5,7 @@ import swaggerUi from 'swagger-ui-express';
 import path from 'path';
 import 'dotenv/config';
 import { createRateLimiter } from './middleware/rateLimit';
+import { fetchLatestFirmwareRelease } from './services/githubRelease';
 
 import healthRouter from './routes/health';
 import authRouter from './routes/auth';
@@ -79,10 +80,15 @@ app.use(
   express.static(firmwareBuildsDir)
 );
 
-// Proxy fallback: when DEFAULT_FIRMWARE_URL is set and default.bin is absent locally,
-// stream the binary from the configured URL so the browser always hits the same origin.
+// Proxy fallback: resolve the firmware URL dynamically from GitHub releases (preferred)
+// or fall back to DEFAULT_FIRMWARE_URL env var, then stream to the browser to avoid CORS issues.
 app.get('/firmware/default.bin', async (_req: Request, res: Response, next: NextFunction) => {
-  const url = process.env.DEFAULT_FIRMWARE_URL?.trim();
+  let url: string | undefined;
+  try {
+    const ghRelease = await fetchLatestFirmwareRelease();
+    url = ghRelease?.firmwareUrl;
+  } catch { /* ignore */ }
+  if (!url) url = process.env.DEFAULT_FIRMWARE_URL?.trim();
   if (!url) return next();
   try {
     const { default: fetch } = await import('node-fetch');
