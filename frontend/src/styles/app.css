@@ -436,3 +436,161 @@ esp-web-install-button { --esp-tools-button-color: var(--accent); --esp-tools-bu
   .toast { min-width: 0; max-width: none; width: 100%; }
   .page__title { font-size: var(--fs-h3); }
 }
+
+/* ── Layout editor ──────────────────────────────────────────────────────── */
+.layout-editor-page { max-width: 1200px; }
+
+.layout-editor-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  flex-wrap: wrap;
+}
+.layout-editor-actions { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+
+.layout-editor-body {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.layout-editor-main { min-width: 0; }
+
+.layout-editor-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-caption);
+  color: var(--c-text-secondary);
+  margin-top: 8px;
+}
+.layout-editor-hint .icon { font-size: 14px; }
+
+.layout-editor-sidebar { position: sticky; top: 80px; }
+
+/* Grid editor canvas */
+.grid-editor-wrap { overflow-x: auto; }
+.grid-editor-canvas {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent calc(60px - 1px),
+    var(--c-divider) calc(60px - 1px),
+    var(--c-divider) 60px
+  ),
+  repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent calc(75px - 1px),
+    var(--c-divider) calc(75px - 1px),
+    var(--c-divider) 75px
+  );
+  border: 1px solid var(--c-divider);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* Widget blocks inside the grid */
+.grid-widget {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-primary-light);
+  border-radius: 4px;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  box-sizing: border-box;
+  transition: box-shadow var(--dur-fast);
+}
+.grid-widget:hover { box-shadow: var(--shadow-2); }
+.grid-widget--static {
+  background: var(--c-surface-3);
+  border-color: var(--c-divider);
+}
+
+.widget-drag-handle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  cursor: grab;
+  user-select: none;
+  min-width: 0;
+}
+.widget-drag-handle:active { cursor: grabbing; }
+.grid-widget--static .widget-drag-handle { cursor: default; }
+.widget-drag-handle .icon { font-size: 16px; color: var(--c-text-secondary); flex-shrink: 0; }
+
+.widget-label {
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--c-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.widget-remove {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--c-divider);
+  cursor: pointer;
+  color: var(--c-text-secondary);
+  padding: 0;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.widget-remove:hover { background: rgba(var(--palette-error-main-rgb, 243,22,78),0.08); color: var(--palette-error-main); }
+.widget-remove .icon { font-size: 14px; }
+
+/* Preview pane */
+.layout-preview-pane { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.layout-preview-note {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-caption);
+  color: var(--c-text-secondary);
+}
+.layout-preview-note .icon { font-size: 14px; }
+
+/* Widget palette */
+.layout-palette { display: flex; flex-direction: column; gap: 8px; }
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-divider);
+  border-radius: var(--radius-md);
+}
+.palette-item .icon { color: var(--c-text-secondary); }
+.palette-item span { flex: 1; font-size: var(--fs-body); }
+.palette-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--c-primary-main);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  color: var(--c-primary-main);
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.palette-add-btn:hover { background: var(--c-primary-main); color: #fff; }
+.palette-add-btn .icon { font-size: 16px; }
+
+@media (max-width: 900px) {
+  .layout-editor-body { grid-template-columns: 1fr; }
+  .layout-editor-sidebar { position: static; }
+}

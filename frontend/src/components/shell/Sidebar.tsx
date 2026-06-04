@@ -11,6 +11,7 @@ export function Sidebar({ open }: { open: boolean }) {
 
   const items = [
     { id: 'dashboard', icon: 'dashboard', label: t.nav.home },
+    { id: 'layout', icon: 'grid_view', label: t.nav.layout },
     { id: 'devices', icon: 'cast', label: t.nav.devices },
     { id: 'firmware', icon: 'download', label: t.nav.firmware },
     { id: 'account', icon: 'person', label: t.nav.account },

@@ -116,6 +116,7 @@ const DEFAULT_PREFS: UserPreferences = {
   weather_location: '55.3,10.4',
   news_language: 'da',
   refresh_interval_minutes: 30,
+  layout: null,
 };
 
 async function buildDisplayData(

@@ -1,5 +1,33 @@
 // ---- Legacy API types (kept for compatibility with existing hooks/api.ts) ----
 
+export interface WidgetLayout {
+  i: string;        // 'energy' | 'weather' | 'news' | 'status'
+  x: number;        // 0–9
+  y: number;        // 0–5
+  w: number;        // column span
+  h: number;        // row span
+  static?: boolean;
+}
+
+export interface DisplayLayout {
+  version: 1;
+  cols: 10;
+  rows: 6;
+  widgets: WidgetLayout[];
+}
+
+export const DEFAULT_LAYOUT: DisplayLayout = {
+  version: 1,
+  cols: 10,
+  rows: 6,
+  widgets: [
+    { i: 'energy',  x: 0, y: 0, w: 10, h: 2 },
+    { i: 'weather', x: 0, y: 2, w: 10, h: 2 },
+    { i: 'news',    x: 0, y: 4, w: 10, h: 1 },
+    { i: 'status',  x: 0, y: 5, w: 10, h: 1, static: true },
+  ],
+};
+
 export interface UserPreferences {
   show_energy_price: boolean;
   show_weather: boolean;
@@ -10,6 +38,7 @@ export interface UserPreferences {
   weather_location: string; // 'lat,lng'
   news_language: string; // 'da' | 'en'
   refresh_interval_minutes: number;
+  layout: DisplayLayout | null;
 }
 
 export interface EnergyPrice {
