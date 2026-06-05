@@ -11,7 +11,6 @@ import { LoadBox } from '../components/ui/Spinner';
 import { Empty } from '../components/ui/Empty';
 import { Icon } from '../components/ui/Logo';
 import type { FirmwareVersion } from '../types';
-import 'esp-web-tools';
 
 export function FirmwarePage() {
   const app = useApp();
@@ -27,7 +26,8 @@ export function FirmwarePage() {
   const [manifestError, setManifestError] = useState<string | null>(null);
   const blobUrlRef = useRef<string | null>(null);
   const hasAutoSelected = useRef(false);
-  const supportsWebSerial = 'serial' in navigator;
+  useEffect(() => { import('esp-web-tools'); }, []);
+  const supportsWebSerial = typeof navigator !== 'undefined' && 'serial' in navigator;
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['firmware_versions'],

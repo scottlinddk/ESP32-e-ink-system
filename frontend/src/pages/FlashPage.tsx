@@ -1,15 +1,4 @@
-import 'esp-web-tools';
-
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      'esp-web-install-button': React.DetailedHTMLProps<
-        React.HTMLAttributes<HTMLElement> & { manifest?: string },
-        HTMLElement
-      >;
-    }
-  }
-}
+import { useEffect } from 'react';
 
 const steps = [
   'Connect your ESP32 via USB to your computer.',
@@ -23,7 +12,8 @@ const steps = [
 ];
 
 export function FlashPage() {
-  const webSerialSupported = 'serial' in navigator;
+  useEffect(() => { import('esp-web-tools'); }, []);
+  const webSerialSupported = typeof navigator !== 'undefined' && 'serial' in navigator;
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: '40px 16px', fontFamily: 'sans-serif' }}>
