@@ -9,11 +9,17 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import './index.css';
 
-// Vercel may expose the key as VITE_CLERK_PUBLISHABLE_KEY (project-level) while
-// @clerk/react-router/server reads CLERK_PUBLISHABLE_KEY. Accept either so the
-// server-side middleware doesn't crash when only the Vite-prefixed name is set.
+// @clerk/react-router/server reads CLERK_PUBLISHABLE_KEY at runtime.
+// Vercel projects set up before SSR migration may only have VITE_CLERK_PUBLISHABLE_KEY,
+// so we fall back to that name. Fail fast with a readable message if neither is set
+// so the error surfaces as a clear log line instead of FUNCTION_INVOCATION_FAILED.
 const clerkPublishableKey =
   process.env.CLERK_PUBLISHABLE_KEY || process.env.VITE_CLERK_PUBLISHABLE_KEY;
+if (!clerkPublishableKey) {
+  throw new Error(
+    'Missing required environment variable: CLERK_PUBLISHABLE_KEY (or VITE_CLERK_PUBLISHABLE_KEY)'
+  );
+}
 
 export const middleware = [clerkMiddleware({ publishableKey: clerkPublishableKey })];
 
