@@ -9,6 +9,7 @@ build/
 .next/
 out/
 .vercel/
+frontend/.react-router/
 
 # Environment variables
 .env
