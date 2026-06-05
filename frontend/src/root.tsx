@@ -9,7 +9,13 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import './index.css';
 
-export const middleware = [clerkMiddleware()];
+// Vercel may expose the key as VITE_CLERK_PUBLISHABLE_KEY (project-level) while
+// @clerk/react-router/server reads CLERK_PUBLISHABLE_KEY. Accept either so the
+// server-side middleware doesn't crash when only the Vite-prefixed name is set.
+const clerkPublishableKey =
+  process.env.CLERK_PUBLISHABLE_KEY || process.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+export const middleware = [clerkMiddleware({ publishableKey: clerkPublishableKey })];
 
 export async function loader(args: LoaderFunctionArgs) {
   return rootAuthLoader(args);
