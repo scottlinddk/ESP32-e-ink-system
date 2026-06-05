@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@clerk/clerk-react": "^5.2.2",
+    "@clerk/react-router": "latest",
+    "@react-router/node": "^7",
     "@radix-ui/react-checkbox": "^1.1.0",
     "@radix-ui/react-dropdown-menu": "^2.1.1",
     "@radix-ui/react-label": "^2.1.0",
@@ -27,13 +28,14 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-grid-layout": "^2.2.3",
-    "react-router-dom": "^6.23.1",
-    "tailwind-merge": "^2.3.0"
+    "react-router": "^7",
+    "tailwind-merge": "^2.3.0",
+    "isbot": "^5"
   },
   "devDependencies": {
+    "@react-router/dev": "^7",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",

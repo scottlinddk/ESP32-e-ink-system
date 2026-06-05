@@ -2,12 +2,12 @@
 // App.tsx — application root: AppProvider, Clerk auth gate, shell
 // =========================================================================
 import React, { ReactNode, useEffect } from 'react';
-import { useAuth, useUser, useClerk } from '@clerk/clerk-react';
+import { useAuth, useUser, useClerk } from '@clerk/react-router';
 import { AppProvider, useApp } from './lib/appContext';
 import { AppBar } from './components/shell/AppBar';
 import { Sidebar } from './components/shell/Sidebar';
 import { ToastStack } from './components/ui/Toast';
-import { FullPageSpinner } from './components/common/LoadingSpinner';
+import { AppLoadingScreen } from './components/common/AppLoadingScreen';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { DevicesPage } from './pages/DevicesPage';
@@ -32,7 +32,7 @@ function AppShell() {
   }, [clerkUser]);
 
   if (!isLoaded) {
-    return <FullPageSpinner label={app.t.loading} />;
+    return <AppLoadingScreen />;
   }
 
   if (!isSignedIn) {

@@ -2,7 +2,7 @@
 // LoginPage.tsx
 // =========================================================================
 import React, { useState } from 'react';
-import { useSignIn } from '@clerk/clerk-react';
+import { useSignIn } from '@clerk/react-router';
 import { useApp } from '../lib/appContext';
 import { Logo, Icon } from '../components/ui/Logo';
 import { Card } from '../components/ui/card';
@@ -51,20 +51,24 @@ function GitHubGlyph() {
 export function LoginPage() {
   const app = useApp();
   const t = app.t;
-  const { signIn, isLoaded } = useSignIn();
+  const { signIn, fetchStatus } = useSignIn();
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
   async function go(provider: 'google' | 'apple' | 'github') {
-    if (!isLoaded || !signIn) return;
+    if (fetchStatus !== 'idle' || !signIn) return;
     setError(false);
     setLoading(provider);
     try {
-      await signIn.authenticateWithRedirect({
-        strategy: `oauth_${provider}`,
-        redirectUrl: `${window.location.origin}/sso-callback`,
-        redirectUrlComplete: window.location.origin,
+      const result = await signIn.sso({
+        strategy: `oauth_${provider}` as const,
+        redirectCallbackUrl: `${window.location.origin}/sso-callback`,
+        redirectUrl: window.location.origin,
       });
+      if (result.error) {
+        setLoading(null);
+        setError(true);
+      }
     } catch {
       setLoading(null);
       setError(true);
@@ -109,7 +113,7 @@ export function LoginPage() {
             <button
               className="btn--oauth btn"
               onClick={() => go('google')}
-              disabled={!!loading}
+              disabled={!!loading || fetchStatus !== 'idle'}
             >
               {loading === 'google' ? <Spinner /> : <GoogleGlyph />}
               {loading === 'google' ? t.signingIn : t.signInGoogle}
@@ -117,7 +121,7 @@ export function LoginPage() {
             <button
               className="btn--oauth btn"
               onClick={() => go('apple')}
-              disabled={!!loading}
+              disabled={!!loading || fetchStatus !== 'idle'}
             >
               {loading === 'apple' ? <Spinner /> : <AppleGlyph />}
               {loading === 'apple' ? t.signingIn : t.signInApple}
@@ -125,7 +129,7 @@ export function LoginPage() {
             <button
               className="btn--oauth btn"
               onClick={() => go('github')}
-              disabled={!!loading}
+              disabled={!!loading || fetchStatus !== 'idle'}
             >
               {loading === 'github' ? <Spinner /> : <GitHubGlyph />}
               {loading === 'github' ? t.signingIn : t.signInGithub}
