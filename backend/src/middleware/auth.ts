@@ -1,12 +1,25 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '@clerk/backend';
 
-function getSecretKey(): string {
+function getVerifyOptions() {
+  const jwtKey = process.env.CLERK_JWT_KEY;
   const secretKey = process.env.CLERK_SECRET_KEY;
-  if (!secretKey) {
-    throw new Error('CLERK_SECRET_KEY environment variable is not set');
+
+  if (!jwtKey && !secretKey) {
+    throw new Error('Either CLERK_JWT_KEY or CLERK_SECRET_KEY environment variable must be set');
   }
-  return secretKey;
+
+  return {
+    // jwtKey enables local (offline) verification — no network call to Clerk.
+    // Preferred in serverless environments where JWKS fetches may fail.
+    // Set CLERK_JWT_KEY in Vercel to the RSA public key from Clerk Dashboard → API Keys.
+    ...(jwtKey ? { jwtKey } : { secretKey: secretKey! }),
+    clockSkewInMs: 5000,
+  };
+}
+
+async function verifyClerkToken(token: string) {
+  return verifyToken(token, getVerifyOptions());
 }
 
 export async function requireAuth(
@@ -24,12 +37,7 @@ export async function requireAuth(
   const token = authHeader.slice(7);
 
   try {
-    const secretKey = getSecretKey();
-    const verifiedToken = await verifyToken(token, {
-      secretKey,
-      clockSkewInMs: 5000,
-    });
-
+    const verifiedToken = await verifyClerkToken(token);
     req.clerkUserId = verifiedToken.sub;
     next();
   } catch (err) {
@@ -55,11 +63,7 @@ export async function optionalAuth(
   const token = authHeader.slice(7);
 
   try {
-    const secretKey = getSecretKey();
-    const verifiedToken = await verifyToken(token, {
-      secretKey,
-      clockSkewInMs: 5000,
-    });
+    const verifiedToken = await verifyClerkToken(token);
     req.clerkUserId = verifiedToken.sub;
   } catch {
     // Silently ignore invalid tokens in optional auth
