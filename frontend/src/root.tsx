@@ -2,11 +2,18 @@
 // root.tsx — framework root: HTML shell, ClerkProvider, QueryClientProvider
 // =========================================================================
 import { ClerkProvider } from '@clerk/react-router';
+import { clerkMiddleware, rootAuthLoader } from '@clerk/react-router/server';
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
+import type { LoaderFunctionArgs, LinkDescriptor } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
-import type { LinkDescriptor } from 'react-router';
 import { queryClient } from './lib/queryClient';
 import './index.css';
+
+export const middleware = [clerkMiddleware()];
+
+export async function loader(args: LoaderFunctionArgs) {
+  return rootAuthLoader(args);
+}
 
 export const links = (): LinkDescriptor[] => [
   { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
@@ -49,16 +56,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
-
-if (!PUBLISHABLE_KEY) {
-  throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY environment variable');
-}
-
-export default function Root() {
+export default function Root({ loaderData }: { loaderData?: unknown }) {
   return (
     <ClerkProvider
-      publishableKey={PUBLISHABLE_KEY}
+      loaderData={loaderData as Parameters<typeof ClerkProvider>[0]['loaderData']}
       signInFallbackRedirectUrl="/"
       signUpFallbackRedirectUrl="/"
     >
