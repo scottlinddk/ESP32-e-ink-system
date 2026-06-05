@@ -2,26 +2,18 @@
 // root.tsx — framework root: HTML shell, ClerkProvider, QueryClientProvider
 // =========================================================================
 import { ClerkProvider } from '@clerk/react-router';
-import { rootAuthLoader } from '@clerk/react-router/ssr.server';
+import { clerkMiddleware, rootAuthLoader } from '@clerk/react-router/server';
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
 import type { LinkDescriptor, LoaderFunctionArgs } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import './index.css';
 
-const clerkPublishableKey =
-  import.meta.env.CLERK_PUBLISHABLE_KEY || import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-if (!clerkPublishableKey) {
-  throw new Error(
-    'Missing Clerk publishable key: set CLERK_PUBLISHABLE_KEY or VITE_CLERK_PUBLISHABLE_KEY'
-  );
-}
+export const middleware = [clerkMiddleware()];
 
 export async function loader(args: LoaderFunctionArgs) {
   return rootAuthLoader(args);
 }
-
-type RootLoaderData = Awaited<ReturnType<typeof loader>>;
 
 export const links = (): LinkDescriptor[] => [
   { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
@@ -64,11 +56,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function Root({ loaderData }: { loaderData: RootLoaderData }) {
+export default function Root({ loaderData }: { loaderData?: unknown }) {
   return (
     <ClerkProvider
-      loaderData={loaderData}
-      publishableKey={clerkPublishableKey}
+      loaderData={loaderData as Parameters<typeof ClerkProvider>[0]['loaderData']}
       signInFallbackRedirectUrl="/"
       signUpFallbackRedirectUrl="/"
     >
