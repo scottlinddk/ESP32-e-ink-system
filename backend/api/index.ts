@@ -8,8 +8,5 @@ for (const key of required) {
     throw new Error(`Missing required environment variable: ${key}`);
   }
 }
-if (!process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_KEY.length !== 64) {
-  throw new Error('ENCRYPTION_KEY must be a 64-character hex string');
-}
 
 export default app;
