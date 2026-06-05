@@ -69,3 +69,5 @@ export function FlashPage() {
     </div>
   );
 }
+
+export default FlashPage;

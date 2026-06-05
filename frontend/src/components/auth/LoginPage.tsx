@@ -1,4 +1,4 @@
-import { SignIn } from '@clerk/clerk-react';
+import { SignIn } from '@clerk/react-router';
 import { useApp } from '@/lib/appContext';
 
 export function LoginPage() {

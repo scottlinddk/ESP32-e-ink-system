@@ -2,7 +2,7 @@
 // AccountPage.tsx
 // =========================================================================
 import React, { useState } from 'react';
-import { useClerk } from '@clerk/clerk-react';
+import { useClerk } from '@clerk/react-router';
 import { useApp } from '../lib/appContext';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';

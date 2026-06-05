@@ -1,4 +1,4 @@
-import { useAuth as useClerkAuth, useUser } from '@clerk/clerk-react';
+import { useAuth as useClerkAuth, useUser } from '@clerk/react-router';
 import { useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { loginUser } from '../lib/api';
