@@ -2,14 +2,22 @@
 // Spinner.tsx — spinner + LoadBox + Skeleton
 // =========================================================================
 import React from 'react';
+import { cn } from '../../lib/utils';
 
 export function Spinner({ lg }: { lg?: boolean }) {
-  return <span className={'spinner' + (lg ? ' spinner--lg' : '')} />;
+  return (
+    <span
+      className={cn(
+        'inline-block rounded-full border-2 border-current border-r-transparent animate-spin',
+        lg ? 'w-[30px] h-[30px] border-[3px]' : 'w-[18px] h-[18px]',
+      )}
+    />
+  );
 }
 
 export function LoadBox({ text }: { text?: string }) {
   return (
-    <div className="loadbox">
+    <div className="flex flex-col items-center justify-center gap-3 py-12 px-4 text-fg-2 text-sm">
       <Spinner lg />
       {text && <span>{text}</span>}
     </div>
@@ -27,8 +35,15 @@ export function Skeleton({
 }) {
   return (
     <span
-      className="skel"
-      style={{ display: 'block', width: w, height: h, ...style }}
+      className="block rounded animate-shimmer"
+      style={{
+        display: 'block',
+        width: w,
+        height: h,
+        background: 'linear-gradient(90deg, rgba(128,128,128,0.10) 0%, rgba(128,128,128,0.18) 50%, rgba(128,128,128,0.10) 100%)',
+        backgroundSize: '400% 100%',
+        ...style,
+      }}
     />
   );
 }

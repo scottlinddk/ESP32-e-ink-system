@@ -15,6 +15,7 @@ import { FirmwarePage } from './pages/FirmwarePage';
 import { AccountPage } from './pages/AccountPage';
 import { DocsPage } from './pages/DocsPage';
 import { LayoutEditorPage } from './pages/LayoutEditorPage';
+import { cn } from './lib/utils';
 
 function AppShell() {
   const app = useApp();
@@ -37,7 +38,7 @@ function AppShell() {
 
   if (!isSignedIn) {
     return (
-      <div className="app">
+      <div className="min-h-full flex flex-col bg-bg text-fg-1 animate-app-enter">
         <LoginPage />
         <ToastStack toasts={app.toasts} dismiss={app.dismiss} />
       </div>
@@ -54,15 +55,17 @@ function AppShell() {
   };
 
   return (
-    <div className="app">
+    <div className="min-h-full flex flex-col bg-bg text-fg-1 animate-app-enter">
       <AppBar onMenu={() => app.setNavOpen(!app.navOpen)} onSignOut={signOut} />
-      <div className="shell">
-        <div
-          className={'scrim-nav' + (app.navOpen ? ' is-open' : '')}
-          onClick={() => app.setNavOpen(false)}
-        />
+      <div className="flex flex-1 min-h-0">
+        {app.navOpen && (
+          <div
+            className="hidden max-[820px]:block fixed top-16 inset-x-0 bottom-0 bg-black/40 z-[65]"
+            onClick={() => app.setNavOpen(false)}
+          />
+        )}
         <Sidebar open={app.navOpen} />
-        <main className="main">{pages[app.route] ?? pages.dashboard}</main>
+        <main className="flex-1 min-w-0 overflow-y-auto">{pages[app.route] ?? pages.dashboard}</main>
       </div>
       <ToastStack toasts={app.toasts} dismiss={app.dismiss} />
     </div>

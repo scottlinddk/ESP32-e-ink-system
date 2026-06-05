@@ -35,17 +35,17 @@ export function DashboardPage() {
   }, [serverPrefs]);
 
   return (
-    <div className="page">
-      <header className="page__head">
-        <h1 className="page__title">{t.dashTitle}</h1>
-        <p className="page__sub">{t.dashSub}</p>
+    <div className="max-w-[1180px] mx-auto px-6 pt-8 pb-20 animate-page-enter">
+      <header className="mb-5">
+        <h1 className="text-[2rem] font-light tracking-tight m-0 mb-1.5">{t.dashTitle}</h1>
+        <p className="text-fg-2 text-base m-0">{t.dashSub}</p>
       </header>
-      <div className="dash-grid">
-        <div className="dash-col">
+      <div className="grid grid-cols-[minmax(0,1fr)_380px] gap-5 items-start max-[1080px]:grid-cols-1">
+        <div className="flex flex-col gap-5 min-w-0">
           <DisplayCard loading={prefsLoading} />
           <ApiKeysCard />
         </div>
-        <div className="preview-col">
+        <div className="sticky top-[calc(64px+24px)]">
           <PreviewCard />
         </div>
       </div>

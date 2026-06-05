@@ -3,6 +3,7 @@
 // =========================================================================
 import React, { useState, useEffect } from 'react';
 import { Icon } from './Logo';
+import { cn } from '../../lib/utils';
 import type { ToastData } from '../../types';
 
 interface ToastItemProps {
@@ -15,6 +16,13 @@ const ICONS: Record<string, string> = {
   error: 'priority_high',
   warning: 'warning',
   info: 'info',
+};
+
+const ICON_BG: Record<string, string> = {
+  success: 'bg-success',
+  error: 'bg-error',
+  warning: 'bg-warning',
+  info: 'bg-info',
 };
 
 export function ToastItem({ toast, dismiss }: ToastItemProps) {
@@ -33,16 +41,27 @@ export function ToastItem({ toast, dismiss }: ToastItemProps) {
   }, []);
 
   return (
-    <div className={'toast' + (out ? ' is-out' : '')} role="status">
-      <span className={'toast__icon toast__icon--' + toast.type}>
+    <div
+      className={cn(
+        'flex items-start gap-3 min-w-[300px] max-w-[400px] px-[14px] py-3 rounded-lg bg-surface border border-[var(--color-border)] shadow-3',
+        out ? 'animate-toast-out' : 'animate-toast-in',
+      )}
+      role="status"
+    >
+      <span
+        className={cn(
+          'w-[22px] h-[22px] rounded-full flex-shrink-0 flex items-center justify-center mt-[1px] [&_.material-symbols-outlined]:text-[16px] [&_.material-symbols-outlined]:text-white',
+          ICON_BG[toast.type] ?? 'bg-info',
+        )}
+      >
         <Icon name={ICONS[toast.type] ?? 'info'} />
       </span>
-      <div className="toast__body">
-        <div className="toast__title">{toast.title}</div>
-        {toast.msg && <div className="toast__msg">{toast.msg}</div>}
+      <div className="flex-1">
+        <div className="text-sm font-medium">{toast.title}</div>
+        {toast.msg && <div className="text-xs text-fg-2 mt-0.5 leading-[1.45]">{toast.msg}</div>}
         {toast.action && (
           <button
-            className="toast__action"
+            className="bg-transparent border-none text-info text-xs font-medium cursor-pointer p-0 mt-1.5 hover:underline"
             onClick={() => {
               toast.action!.onClick();
               dismiss(toast.id);
@@ -53,7 +72,7 @@ export function ToastItem({ toast, dismiss }: ToastItemProps) {
         )}
       </div>
       <button
-        className="toast__close"
+        className="bg-transparent border-none text-fg-3 cursor-pointer inline-flex p-0 [&_.material-symbols-outlined]:text-[18px]"
         onClick={() => {
           setOut(true);
           setTimeout(() => dismiss(toast.id), 240);
@@ -73,7 +92,11 @@ interface ToastStackProps {
 
 export function ToastStack({ toasts, dismiss }: ToastStackProps) {
   return (
-    <div className="toast-wrap" role="region" aria-live="polite">
+    <div
+      className="fixed right-5 bottom-5 z-[90] flex flex-col gap-[10px] items-end"
+      role="region"
+      aria-live="polite"
+    >
       {toasts.map((t) => (
         <ToastItem key={t.id} toast={t} dismiss={dismiss} />
       ))}
