@@ -1,14 +1,27 @@
-// =========================================================================
-// root.tsx — framework root: HTML shell, ClerkProvider, QueryClientProvider
-// =========================================================================
-import { ClerkProvider } from '@clerk/react-router';
-import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
-import type { LinkDescriptor } from 'react-router';
+import { ClerkProvider, SignInButton, SignUpButton, Show, UserButton } from '@clerk/react-router';
+import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
+import type { Route } from './+types/root';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
+import { Logo } from './components/ui/Logo';
 import './index.css';
 
-export const links = (): LinkDescriptor[] => [
+export function HydrateFallback() {
+  return (
+    <div className="app-init" role="status" aria-label="Loading">
+      <div className="app-init__brand">
+        <Logo lg />
+        <div style={{ textAlign: 'center' }}>
+          <p className="app-init__name">ESP32 Display</p>
+          <p className="app-init__sub">Real-time data for your e-ink display</p>
+        </div>
+      </div>
+      <span className="spinner spinner--lg" aria-hidden="true" />
+    </div>
+  );
+}
+
+export const links: Route.LinksFunction = () => [
   { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
   { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
   {
@@ -40,7 +53,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         {children}
         <ScrollRestoration />
         <Scripts />
@@ -49,7 +62,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function Root() {
+export default function App() {
   return (
     <ClerkProvider
       publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
@@ -57,22 +70,33 @@ export default function Root() {
       signUpFallbackRedirectUrl="/"
     >
       <QueryClientProvider client={queryClient}>
+        <header style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: 'var(--space-3) var(--space-4)', gap: 'var(--space-2)' }}>
+          <Show when="signed-out">
+            <SignInButton />
+            <SignUpButton />
+          </Show>
+          <Show when="signed-in">
+            <UserButton />
+          </Show>
+        </header>
         <Outlet />
       </QueryClientProvider>
     </ClerkProvider>
   );
 }
 
-export function ErrorBoundary({ error }: { error?: unknown }) {
+export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   let message = 'Oops!';
   let details = 'An unexpected error occurred.';
   let stack: string | undefined;
 
-  if (error instanceof Error) {
+  if (isRouteErrorResponse(error)) {
+    message = error.status === 404 ? '404' : 'Error';
+    details =
+      error.status === 404 ? 'The requested page could not be found.' : error.statusText || details;
+  } else if (import.meta.env.DEV && error && error instanceof Error) {
     details = error.message;
-    if (import.meta.env.DEV) {
-      stack = error.stack;
-    }
+    stack = error.stack;
   }
 
   return (

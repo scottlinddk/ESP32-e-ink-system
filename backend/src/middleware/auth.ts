@@ -9,12 +9,21 @@ function getVerifyOptions() {
     throw new Error('Either CLERK_JWT_KEY or CLERK_SECRET_KEY environment variable must be set');
   }
 
+  const authorizedParties = process.env.AUTHORIZED_PARTIES
+    ? process.env.AUTHORIZED_PARTIES.split(',').map((s) => s.trim())
+    : process.env.FRONTEND_URL
+      ? [process.env.FRONTEND_URL]
+      : [];
+
   return {
     // jwtKey enables local (offline) verification — no network call to Clerk.
     // Preferred in serverless environments where JWKS fetches may fail.
     // Set CLERK_JWT_KEY in Vercel to the RSA public key from Clerk Dashboard → API Keys.
     ...(jwtKey ? { jwtKey } : { secretKey: secretKey! }),
     clockSkewInMs: 5000,
+    // Prevents token misuse across origins (CSRF / subdomain cookie leaking).
+    // Set AUTHORIZED_PARTIES for multiple origins, or FRONTEND_URL for a single origin.
+    ...(authorizedParties.length > 0 ? { authorizedParties } : {}),
   };
 }
 
