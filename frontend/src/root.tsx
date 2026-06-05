@@ -2,8 +2,9 @@
 // root.tsx — framework root: HTML shell, ClerkProvider, QueryClientProvider
 // =========================================================================
 import { ClerkProvider } from '@clerk/react-router';
+import { rootAuthLoader } from '@clerk/react-router/ssr.server';
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
-import type { LinkDescriptor } from 'react-router';
+import type { LinkDescriptor, LoaderFunctionArgs } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import './index.css';
@@ -16,9 +17,11 @@ if (!clerkPublishableKey) {
   );
 }
 
-export function loader() {
-  return null;
+export async function loader(args: LoaderFunctionArgs) {
+  return rootAuthLoader(args);
 }
+
+type RootLoaderData = Awaited<ReturnType<typeof loader>>;
 
 export const links = (): LinkDescriptor[] => [
   { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
@@ -61,9 +64,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function Root() {
+export default function Root({ loaderData }: { loaderData: RootLoaderData }) {
   return (
     <ClerkProvider
+      loaderData={loaderData}
       publishableKey={clerkPublishableKey}
       signInFallbackRedirectUrl="/"
       signUpFallbackRedirectUrl="/"
