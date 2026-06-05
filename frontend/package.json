@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && react-router build",
+    "dev": "react-router dev",
+    "build": "react-router build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
