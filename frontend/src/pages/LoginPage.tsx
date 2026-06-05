@@ -48,12 +48,20 @@ function GitHubGlyph() {
   );
 }
 
+const FEATURES = [
+  { icon: 'bolt', text: 'Live energy spot prices, updated hourly' },
+  { icon: 'partly_cloudy_day', text: 'Current weather from OpenWeatherMap' },
+  { icon: 'article', text: 'Top headline from your chosen news source' },
+  { icon: 'devices', text: 'Works with any ESP32 + 2.13″ e-ink display' },
+];
+
 export function LoginPage() {
   const app = useApp();
   const t = app.t;
   const { signIn, fetchStatus } = useSignIn();
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState(false);
+  const [showFeatures, setShowFeatures] = useState(false);
 
   async function go(provider: 'google' | 'apple' | 'github') {
     if (fetchStatus !== 'idle' || !signIn) return;
@@ -137,10 +145,27 @@ export function LoginPage() {
           </div>
           <div className="login__foot">{t.loginFoot}</div>
         </Card>
-        <div className="login__foot" style={{ marginTop: 'var(--space-4)' }}>
-          <a href="#" onClick={(e) => e.preventDefault()}>
-            {t.whatIsThis}
-          </a>
+
+        <div style={{ marginTop: 'var(--space-4)' }}>
+          <button
+            className="login__what-btn"
+            onClick={() => setShowFeatures((v) => !v)}
+            aria-expanded={showFeatures}
+          >
+            <span>{t.whatIsThis}</span>
+            <Icon name={showFeatures ? 'expand_less' : 'expand_more'} />
+          </button>
+
+          {showFeatures && (
+            <div className="login__features">
+              {FEATURES.map((f) => (
+                <div key={f.icon} className="login__feature-row">
+                  <Icon name={f.icon} />
+                  <span>{f.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

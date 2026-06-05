@@ -3,6 +3,7 @@
 // =========================================================================
 import React, { useState, ReactNode } from 'react';
 import { useApp } from '../../lib/appContext';
+import { useSavePreferences } from '../../hooks/usePreferences';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Field } from '../ui/Field';
@@ -44,35 +45,52 @@ export function DisplayCard({ loading }: { loading: boolean }) {
   const app = useApp();
   const t = app.t;
   const p = app.prefs;
-  const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
+  const { mutateAsync: savePrefs, isPending: saving } = useSavePreferences();
 
   const set = (patch: Partial<typeof p>) => app.setPrefs({ ...p, ...patch });
 
-  function save() {
-    setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-      if (!app.online) {
-        app.toast({
-          type: 'error',
-          title: t.saveFailed,
-          msg: t.saveFailedMsg,
-          persist: true,
-          action: { label: t.retry, onClick: save },
-        });
-      } else {
-        app.toast({ type: 'success', title: t.saved, msg: t.savedMsg });
-      }
-    }, 1300);
+  async function save() {
+    try {
+      await savePrefs({
+        show_energy_price: p.energy.on,
+        energy_price_location: p.energy.zone,
+        show_weather: p.weather.on,
+        weather_location: p.weather.location,
+        show_news: p.news.on,
+        news_language: p.news.lang,
+      });
+      app.toast({ type: 'success', title: t.saved, msg: t.savedMsg });
+    } catch {
+      app.toast({
+        type: 'error',
+        title: t.saveFailed,
+        msg: t.saveFailedMsg,
+        persist: true,
+        action: { label: t.retry, onClick: save },
+      });
+    }
   }
 
   function useLocation() {
+    if (!navigator.geolocation) {
+      app.toast({ type: 'error', title: t.saveFailed, msg: 'Geolocation is not supported by your browser.' });
+      return;
+    }
     setLocating(true);
-    setTimeout(() => {
-      setLocating(false);
-      set({ weather: { ...p.weather, location: '57.05, 9.92' } });
-    }, 1200);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude.toFixed(4);
+        const lng = pos.coords.longitude.toFixed(4);
+        set({ weather: { ...p.weather, location: `${lat}, ${lng}` } });
+        setLocating(false);
+      },
+      () => {
+        app.toast({ type: 'error', title: t.saveFailed, msg: 'Could not get your location. Check browser permissions.' });
+        setLocating(false);
+      },
+      { timeout: 8000 }
+    );
   }
 
   return (
@@ -151,7 +169,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
                   }
                 />
               </Field>
-              <Field label={' '}>
+              <Field label={' '}>
                 <Button
                   variant="outlined"
                   icon={locating ? undefined : 'my_location'}

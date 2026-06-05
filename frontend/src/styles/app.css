@@ -125,7 +125,10 @@ button { font-family: inherit; }
   color: var(--fg-3); font-weight: var(--fw-medium); padding: 6px 12px; }
 
 .main { flex: 1; min-width: 0; overflow-y: auto; }
-.page { max-width: 1180px; margin: 0 auto; padding: var(--space-6) var(--space-6) 80px; }
+.page {
+  max-width: 1180px; margin: 0 auto; padding: var(--space-6) var(--space-6) 80px;
+  animation: fadeUp var(--dur-base) var(--ease-decelerate);
+}
 .page__head { margin-bottom: var(--space-5); }
 .page__title { font-size: var(--fs-h2); font-weight: var(--fw-light); letter-spacing: var(--tracking-tight); margin: 0 0 6px; }
 .page__sub { color: var(--fg-2); font-size: var(--fs-body); margin: 0; }
@@ -319,13 +322,18 @@ button { font-family: inherit; }
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+@keyframes progressIndeterminate {
+  0%   { transform: translateX(-100%); }
+  60%  { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
+}
 
 .app-init {
   position: fixed; inset: 0;
   display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: var(--space-5);
+  align-items: center; justify-content: center; gap: var(--space-6);
   background: var(--color-bg); z-index: 100;
-  animation: appEntrance var(--dur-slow) var(--ease-decelerate);
+  animation: appEntrance 300ms var(--ease-decelerate);
 }
 .app-init__brand {
   display: flex; flex-direction: column; align-items: center; gap: var(--space-3);
@@ -339,9 +347,16 @@ button { font-family: inherit; }
 .app-init__sub {
   font-size: var(--fs-caption); color: var(--fg-3); margin: 0;
 }
-.app-init .spinner {
-  animation: fadeUp var(--dur-slow) var(--ease-decelerate) 180ms both, spin 0.7s linear 300ms infinite;
-  opacity: 0.6;
+.app-init__progress {
+  width: 160px; height: 3px;
+  background: rgba(128,128,128,0.15); border-radius: var(--radius-pill);
+  overflow: hidden;
+  animation: fadeUp var(--dur-slow) var(--ease-decelerate) 200ms both;
+}
+.app-init__progress-bar {
+  height: 100%; width: 50%;
+  background: var(--accent); border-radius: var(--radius-pill);
+  animation: progressIndeterminate 1.6s var(--ease-standard) 400ms infinite;
 }
 
 .app { animation: appEntrance var(--dur-slow) var(--ease-decelerate); }
@@ -432,6 +447,26 @@ esp-web-install-button { --esp-tools-button-color: var(--accent); --esp-tools-bu
 .login__divider::before, .login__divider::after { content: ""; flex: 1; height: 1px; background: var(--color-divider); }
 .login__foot { text-align: center; margin-top: var(--space-5); font-size: var(--fs-caption); color: var(--fg-3); }
 .login__corner { position: fixed; top: var(--space-4); right: var(--space-4); display: flex; gap: 8px; z-index: 10; }
+
+.login__what-btn {
+  display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%;
+  background: none; border: none; color: var(--fg-3); font-size: var(--fs-caption);
+  cursor: pointer; padding: var(--space-1) 0;
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+.login__what-btn:hover { color: var(--fg-2); }
+.login__what-btn .material-symbols-outlined { font-size: 16px; }
+
+.login__features {
+  margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2);
+  animation: fadeUp var(--dur-base) var(--ease-decelerate);
+}
+.login__feature-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  background: rgba(128,128,128,0.06); border-radius: var(--radius-md);
+  font-size: var(--fs-body-sm); color: var(--fg-2);
+}
+.login__feature-row .material-symbols-outlined { font-size: 18px; color: var(--accent); flex-shrink: 0; }
 
 /* logo mark */
 .logo { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 2px;

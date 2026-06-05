@@ -16,7 +16,9 @@ export function HydrateFallback() {
           <p className="app-init__sub">Real-time data for your e-ink display</p>
         </div>
       </div>
-      <span className="spinner spinner--lg" aria-hidden="true" />
+      <div className="app-init__progress" aria-hidden="true">
+        <div className="app-init__progress-bar" />
+      </div>
     </div>
   );
 }

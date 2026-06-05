@@ -1,8 +1,9 @@
 // =========================================================================
 // DashboardPage.tsx
 // =========================================================================
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useApp } from '../lib/appContext';
+import { usePreferences } from '../hooks/usePreferences';
 import { DisplayCard } from '../components/dashboard/DisplayCard';
 import { ApiKeysCard } from '../components/dashboard/ApiKeysCard';
 import { PreviewCard } from '../components/dashboard/PreviewCard';
@@ -10,12 +11,28 @@ import { PreviewCard } from '../components/dashboard/PreviewCard';
 export function DashboardPage() {
   const app = useApp();
   const t = app.t;
-  const [prefsLoading, setPrefsLoading] = useState(true);
+  const { isLoading: prefsLoading, data: serverPrefs } = usePreferences();
 
+  // Sync API prefs into app context when they arrive (without overwriting unsaved local edits)
   useEffect(() => {
-    const id = setTimeout(() => setPrefsLoading(false), 950);
-    return () => clearTimeout(id);
-  }, []);
+    if (!serverPrefs) return;
+    app.setPrefs({
+      energy: {
+        on: serverPrefs.show_energy_price,
+        zone: serverPrefs.energy_price_location || app.prefs.energy.zone,
+      },
+      weather: {
+        on: serverPrefs.show_weather,
+        location: serverPrefs.weather_location || app.prefs.weather.location,
+      },
+      news: {
+        on: serverPrefs.show_news,
+        lang: serverPrefs.news_language || app.prefs.news.lang,
+        source: app.prefs.news.source,
+      },
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverPrefs]);
 
   return (
     <div className="page">

@@ -109,11 +109,7 @@ export function PreviewCard() {
       setCountdown(30);
       return;
     }
-    setState('loading');
-    setTimeout(() => {
-      setState('ok');
-      setRefreshToken((x) => x + 1);
-    }, 750);
+    setRefreshToken((x) => x + 1);
     setCountdown(30);
   }
 
