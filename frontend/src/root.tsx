@@ -2,29 +2,22 @@
 // root.tsx — framework root: HTML shell, ClerkProvider, QueryClientProvider
 // =========================================================================
 import { ClerkProvider } from '@clerk/react-router';
-import { clerkMiddleware, rootAuthLoader } from '@clerk/react-router/server';
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
-import type { LoaderFunctionArgs, LinkDescriptor } from 'react-router';
+import type { LinkDescriptor } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import './index.css';
 
-// @clerk/react-router/server reads CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY at runtime.
-// Vercel projects set up before SSR migration may only have VITE_CLERK_PUBLISHABLE_KEY,
-// so we fall back to that name. CLERK_SECRET_KEY is server-only (process.env, never VITE_)
-// so it is never exposed to the client bundle.
 const clerkPublishableKey =
   import.meta.env.CLERK_PUBLISHABLE_KEY || import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 if (!clerkPublishableKey) {
   throw new Error(
-    'Missing required environment variable: CLERK_PUBLISHABLE_KEY (or VITE_CLERK_PUBLISHABLE_KEY)'
+    'Missing Clerk publishable key: set CLERK_PUBLISHABLE_KEY or VITE_CLERK_PUBLISHABLE_KEY'
   );
 }
 
-export const middleware = [clerkMiddleware({ publishableKey: clerkPublishableKey, secretKey: process.env.CLERK_SECRET_KEY })];
-
-export async function loader(args: LoaderFunctionArgs) {
-  return rootAuthLoader(args);
+export function loader() {
+  return null;
 }
 
 export const links = (): LinkDescriptor[] => [
@@ -68,10 +61,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function Root({ loaderData }: { loaderData?: unknown }) {
+export default function Root() {
   return (
     <ClerkProvider
-      loaderData={loaderData as Parameters<typeof ClerkProvider>[0]['loaderData']}
+      publishableKey={clerkPublishableKey}
       signInFallbackRedirectUrl="/"
       signUpFallbackRedirectUrl="/"
     >
