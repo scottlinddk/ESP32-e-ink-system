@@ -23,6 +23,46 @@ This guide explains how to flash the ESP32 firmware for the ESP32 Display projec
 | RST | GPIO 16 | Hardware reset |
 | BUSY | GPIO 4 | Busy indicator (active high) |
 
+## Web Browser Flashing (Easiest)
+
+Flash directly from Chrome or Edge — no IDE required.
+
+### Step 1: Install USB-to-Serial Driver (macOS / Windows)
+
+Most ESP32 boards use a CH340 or CP210x chip:
+
+| Chip | macOS driver | Windows |
+|------|-------------|---------|
+| CH340 / CH341 | [WCH CH34x driver](https://www.wch-ic.com/downloads/CH34XSER_MAC_ZIP.html) | Auto via Windows Update |
+| CP2102 / CP2104 | [Silicon Labs driver](https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers) | Auto via Windows Update |
+
+After installing, unplug and replug the ESP32 USB cable.
+
+**Linux:** Built-in kernel driver — no installation needed.
+
+### Step 2: Flash via the Dashboard
+
+1. Open the **Flash** page in the dashboard (`/flash`).
+2. Click **Install Firmware**.
+3. In the browser dialog, select the serial port (e.g. `/dev/cu.usbserial-...` on Mac, `COM3` on Windows) — not Bluetooth.
+4. Wait ~30 seconds for the flash to complete.
+
+> **Can't see a port?** The USB cable might be charge-only — try a different cable that supports data transfer.
+
+### Step 3: Full Setup After Flashing
+
+After the flash completes, the device reboots and broadcasts a WiFi hotspot:
+
+1. **Connect to the hotspot** — look for a network named `ESP32-Display-XXXXXX` on your phone or laptop.
+2. **Open the setup page** — a captive portal opens automatically (or navigate to `192.168.4.1`).
+3. **Enter WiFi credentials** — fill in your home WiFi SSID, password, and backend API URL, then save.
+4. **Claim your device** — in the dashboard under Devices, enter the device ID to link it to your account.
+5. **Add API keys** — get free keys from OpenWeatherMap and NewsAPI, then paste them on the Account page.
+
+The device will connect to WiFi, self-provision with the backend, and start displaying data within 60 seconds.
+
+---
+
 ## Software Setup
 
 ## Quick Start (Recommended)
