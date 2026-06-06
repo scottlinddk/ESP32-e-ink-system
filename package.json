@@ -18,7 +18,12 @@
     "flash:build": "bash firmware/scripts/flash.sh build",
     "flash:monitor": "bash firmware/scripts/flash.sh monitor",
     "flash:full": "bash firmware/scripts/flash.sh flash",
-    "flash:clean": "bash firmware/scripts/flash.sh clean"
+    "flash:clean": "bash firmware/scripts/flash.sh clean",
+    "flash:elecrow": "bash firmware/scripts/flash.sh upload --elecrow",
+    "flash:elecrow:build": "bash firmware/scripts/flash.sh build --elecrow",
+    "flash:elecrow:monitor": "bash firmware/scripts/flash.sh monitor --elecrow",
+    "flash:elecrow:full": "bash firmware/scripts/flash.sh flash --elecrow",
+    "flash:elecrow:clean": "bash firmware/scripts/flash.sh clean --elecrow"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

@@ -23,16 +23,32 @@
 // Display Refresh interval (minutes) — used when deep sleep is disabled
 #define REFRESH_MINUTES 30
 
-// GPIO Pin Configuration (Waveshare 2.13" e-Paper HAT V2)
+// GPIO Pin Configuration
+// Board is selected at build time via the PlatformIO environment:
+//   pio run -e esp32dev     → Waveshare 2.13" HAT on ESP32-WROOM-32
+//   pio run -e elecrow_213  → Elecrow CrowPanel 2.13" on ESP32-S3
+
+#ifdef ELECROW_EPAPER_213
+// Elecrow CrowPanel ESP32 2.13" E-Paper (ESP32-S3)
+// Pins are the Elecrow board defaults — do NOT change these
+// unless you have modified the EPD library's DEV_Config.h as well.
+#define PIN_CS   14   // Chip Select (SPI)
+#define PIN_DC   13   // Data/Command
+#define PIN_RST  10   // Hardware Reset
+#define PIN_BUSY 9    // Busy indicator (active high)
+#define PIN_MOSI 11   // SPI MOSI (DIN)
+#define PIN_CLK  12   // SPI Clock
+#define PIN_MISO -1   // Not used
+#else
+// Waveshare 2.13" e-Paper HAT V2 (ESP32-WROOM-32)
 #define PIN_CS   5    // Chip Select (SPI)
 #define PIN_DC   17   // Data/Command
 #define PIN_RST  16   // Hardware Reset
 #define PIN_BUSY 4    // Busy indicator (active high)
-
-// SPI pins (fixed on ESP32)
 #define PIN_MOSI 23   // SPI Data In (DIN)
 #define PIN_CLK  18   // SPI Clock (CLK)
 #define PIN_MISO 19   // SPI Data Out (not used but defined for completeness)
+#endif
 
 // Battery Monitoring
 #define PIN_BATTERY_ADC 35           // GPIO35 (ADC1_7)

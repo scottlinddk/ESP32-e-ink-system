@@ -1,199 +1,430 @@
 # Firmware Flashing Guide
 
-This guide explains how to flash the ESP32 firmware for the ESP32 Display project.
+This guide covers flashing firmware to the **Elecrow CrowPanel ESP32 2.13" E-Paper** and the **Waveshare 2.13" e-Paper HAT V2**. Jump to your board:
 
-## Hardware
-
-| Component | Model | Notes |
-|---|---|---|
-| Microcontroller | ESP32 (any variant) | ESP32-WROOM-32 recommended |
-| Display | Waveshare 2.13" e-Paper HAT V2 | 250×122px, black/white |
-| Connection | SPI | See wiring table below |
-
-## Wiring (ESP32 → Waveshare 2.13" HAT)
-
-| e-Paper Pin | ESP32 GPIO | Description |
-|---|---|---|
-| VCC | 3.3V | Power |
-| GND | GND | Ground |
-| DIN (MOSI) | GPIO 23 | SPI Data In |
-| CLK (SCK) | GPIO 18 | SPI Clock |
-| CS | GPIO 5 | Chip Select (active low) |
-| DC | GPIO 17 | Data/Command select |
-| RST | GPIO 16 | Hardware reset |
-| BUSY | GPIO 4 | Busy indicator (active high) |
-
-## Web Browser Flashing (Easiest)
-
-Flash directly from Chrome or Edge — no IDE or toolchain required.
-
-### Step 1: Install USB-to-Serial Driver (macOS / Windows)
-
-Most ESP32 boards use a CH340 or CP210x chip to expose the serial port over USB:
-
-| Chip | macOS driver | Windows | Linux |
-|------|-------------|---------|-------|
-| CH340 / CH341 | [WCH CH34x driver](https://www.wch-ic.com/downloads/CH34XSER_MAC_ZIP.html) | Auto via Windows Update | Built-in |
-| CP2102 / CP2104 | [Silicon Labs driver](https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers) | Auto via Windows Update | Built-in |
-
-After installing, unplug and replug the ESP32 USB cable.
-
-### Step 2: Flash via the Dashboard
-
-1. Open the **Flash** page in the dashboard (`/flash`).
-2. Click **Install Firmware**.
-3. In the browser dialog, select the serial port (e.g. `/dev/cu.usbserial-…` on Mac, `COM3` on Windows). Do not select a Bluetooth entry.
-4. Wait ~30 seconds for the flash to complete.
-
-> **Can't see a port?** The USB cable might be charge-only — try a different cable. Make sure the driver is installed (step 1).
-
-### Step 3: Full Setup After Flashing
-
-After a successful flash the device boots and broadcasts a WiFi hotspot:
-
-1. **Connect to the hotspot** — network name is `ESP32-Display-XXXXXX` (where XXXXXX is the device's MAC suffix).
-2. **Fill in the captive portal** — a setup page opens automatically (or navigate to `192.168.4.1`). Enter your home WiFi SSID, password, and backend API URL, then tap Save.
-3. **Claim the device** — in the dashboard, go to **Devices** and enter the device ID shown in the portal to link it to your account.
-4. **Add API keys** — get free keys from OpenWeatherMap and NewsAPI and paste them on the Account page.
-5. **Toggle sources** — enable Weather, News, or Energy on the Dashboard. The display updates within one refresh cycle.
+- [Elecrow CrowPanel — macOS](#elecrow-macos)
+- [Elecrow CrowPanel — Windows](#elecrow-windows)
+- [Waveshare HAT — quick reference](#waveshare-quick-reference)
 
 ---
 
-## Software Setup
+## Hardware Specs
 
-## Quick Start (Recommended)
+### Elecrow CrowPanel ESP32 2.13" E-Paper
 
-The easiest way to flash firmware is using npm from the project root:
+| Property | Value |
+|---|---|
+| MCU | ESP32-S3 (240 MHz, 8 MB Flash, 8 MB OPI PSRAM) |
+| Display | 250 × 122 px, black/white, SSD1680Z / JD79661 |
+| Interface | SPI (4-wire) |
+| USB | USB-C (data + charge) |
+| USB chip | CH340 / CH343 (WCH) |
+| Buttons | Boot, Reset, Menu, Back, Dial switch |
+
+**SPI Pin Mapping**
+
+| Signal | GPIO |
+|---|---|
+| CS (Chip Select) | 14 |
+| DC (Data/Command) | 13 |
+| RST (Reset) | 10 |
+| BUSY | 9 |
+| MOSI (DIN) | 11 |
+| SCK (Clock) | 12 |
+
+### Waveshare 2.13" e-Paper HAT V2
+
+| Property | Value |
+|---|---|
+| MCU | ESP32-WROOM-32 (240 MHz) |
+| Display | 250 × 122 px, black/white, SSD1680 |
+| USB chip | CH340 / CP2102 (varies by vendor) |
+
+---
+
+## Step 0 — Get the Elecrow EPD Library (Required for Elecrow board)
+
+The Elecrow EPD library is **not** in the PlatformIO or Arduino registry — it must be installed manually.
+
+1. Download or clone the Elecrow repo:
+
+   ```
+   https://github.com/Elecrow-RD/CrowPanel-ESP32-2.13-E-paper-HMI-Display-with-122-250
+   ```
+
+   Either `git clone` it or click **Code → Download ZIP** and extract it.
+
+2. Inside the downloaded folder, find the `EPD` library. It is inside `factory_sourcecode/` — typically at a path like:
+
+   ```
+   factory_sourcecode/.../libraries/EPD/
+   ```
+
+3. Copy that `EPD` folder into this project at:
+
+   ```
+   firmware/lib/EPD/
+   ```
+
+   The final structure should look like:
+
+   ```
+   firmware/
+   └── lib/
+       └── EPD/
+           ├── EPD.h
+           ├── EPD.cpp        (or EPD_2in13.h / EPD_2in13.cpp)
+           ├── GUI_Paint.h
+           ├── GUI_Paint.cpp
+           └── Fonts/
+               ├── fonts.h
+               ├── Font8.c
+               ├── Font12.c
+               └── ...
+   ```
+
+   PlatformIO picks up `firmware/lib/` automatically — no extra config needed.
+
+> **Note:** The EPD library pins are pre-configured for the Elecrow board (CS=14, DC=13, RST=10, BUSY=9). Do **not** change them unless you also edit `DEV_Config.h` inside the library.
+
+---
+
+## Elecrow — macOS {#elecrow-macos}
+
+### 1. Install USB Driver
+
+The Elecrow board uses a **WCH CH340 / CH343** USB-to-serial chip.
+
+1. Download the macOS WCH driver from the official source:
+   - **WCH CH34x driver for macOS:** https://www.wch-ic.com/downloads/CH34XSER_MAC_ZIP.html
+2. Extract the ZIP, open the `.pkg` installer, and follow the prompts.
+3. **Restart your Mac** after installation (required for kernel extension to load).
+4. Plug in the Elecrow board via USB-C.
+5. Verify the port appears:
+
+   ```bash
+   ls /dev/cu.*
+   ```
+
+   You should see something like `/dev/cu.usbserial-1410` or `/dev/cu.wchusbserial14120`.
+
+   > **No port?** Try a different USB-C cable — many are charge-only and carry no data lines.
+
+### 2. Install Python and PlatformIO
+
+PlatformIO requires Python 3.8 or newer.
+
+**Check if Python is already installed:**
+```bash
+python3 --version
+```
+
+**Install Python (if needed):**
+- Download from https://www.python.org/downloads/macos/ and run the installer, **or**
+- Install via Homebrew: `brew install python`
+
+**Install PlatformIO:**
+```bash
+pip3 install platformio
+```
+
+Verify:
+```bash
+pio --version
+```
+
+> **Alternative:** Install the [PlatformIO VS Code extension](https://platformio.org/platformio-ide) — it bundles everything and provides a GUI upload button.
+
+### 3. Clone the Project and Configure
 
 ```bash
-# 1. Install PlatformIO (one-time)
-pip install platformio
+git clone https://github.com/scottlinddk/esp32-e-ink-system.git
+cd esp32-e-ink-system
+```
 
-# 2. Configure firmware
+Copy the config template and set your API URL:
+```bash
+cp firmware/config.h.example firmware/config.h
+```
+
+Open `firmware/config.h` in a text editor. The only setting you must change before flashing is:
+```cpp
+#define PROVISION_DEFAULT_API_URL "https://your-api.vercel.app"
+```
+
+Replace `your-api.vercel.app` with your actual backend URL. WiFi credentials are entered at runtime via the captive portal on first boot — you do not need to hardcode them.
+
+### 4. Install the EPD Library
+
+Follow [Step 0](#step-0--get-the-elecrow-epd-library-required-for-elecrow-board) above, then verify:
+```bash
+ls firmware/lib/EPD/
+# Should list: EPD.h  GUI_Paint.h  Fonts/  ...
+```
+
+### 5. Flash the Firmware
+
+```bash
+npm run flash:elecrow
+```
+
+Or directly with PlatformIO:
+```bash
 cd firmware
-cp config.h.example config.h
-# Edit config.h: WiFi SSID, password, API URL, user ID, license key
+pio run -e elecrow_213 --target upload
+```
 
-# 3. Flash to ESP32
-cd ..
+PlatformIO auto-detects the serial port. Watch for:
+```
+Uploading .pio/build/elecrow_213/firmware.bin
+...
+Writing at 0x00001000... (100 %)
+Hard resetting via RTS pin...
+```
+
+> **Upload fails?** Hold the **BOOT** button on the Elecrow board, click Upload, then release BOOT once uploading starts.
+
+### 6. Verify — Serial Monitor
+
+```bash
+npm run flash:elecrow:monitor
+```
+
+Expected output on first boot:
+```
+[Main] ========================================
+[Main] ESP32 E-Ink Display Firmware v1.0.0
+[Main] ========================================
+[Main] Hardware initialized
+[Main] No credentials found — starting captive portal AP
+```
+
+The e-ink display should show "Loading... / Setup required".
+
+Press `Ctrl+C` to exit the monitor.
+
+### 7. First-Boot Setup
+
+After flashing, the device starts a WiFi hotspot:
+
+1. On your phone or laptop, connect to **`ESP32-Display-XXXXXX`** (where XXXXXX is the device's MAC suffix).
+2. A setup page opens automatically (or navigate to **192.168.4.1**).
+3. Enter your home WiFi SSID, password, and backend API URL, then tap **Save**.
+4. The device restarts and connects to your WiFi.
+5. In the web dashboard under **Devices**, enter the device ID shown in the portal to link it to your account.
+
+---
+
+## Elecrow — Windows {#elecrow-windows}
+
+### 1. Install USB Driver
+
+1. Plug the Elecrow board into your PC via USB-C.
+2. Open **Device Manager** (press `Win + X` → Device Manager).
+3. Look under **Ports (COM & LPT)** or **Other devices** for an unknown device.
+4. Download the **WCH CH340 / CH343 Windows driver**:
+   - https://www.wch-ic.com/downloads/CH341SER_EXE.html
+5. Run the `.exe` installer and click **Install**.
+6. Unplug and replug the board.
+7. In Device Manager, confirm a `COM` port now appears (e.g., **COM3** or **COM4**).
+
+   > **Still "Unknown device"?** Try a different USB-C cable — cables marketed as "charge-only" have no data lines.
+   >
+   > **Driver blocked by Windows?** Right-click the installer → "Run as administrator".
+
+### 2. Install Python and PlatformIO
+
+1. Download Python 3.10+ from https://www.python.org/downloads/windows/
+2. Run the installer — **check "Add Python to PATH"** before clicking Install.
+3. Open **PowerShell** or **Command Prompt** and install PlatformIO:
+
+   ```powershell
+   pip install platformio
+   ```
+
+4. Verify:
+   ```powershell
+   pio --version
+   ```
+
+> **Recommended alternative:** Install the [PlatformIO VS Code extension](https://platformio.org/platformio-ide) — it provides a one-click Upload button and handles everything.
+
+### 3. Clone the Project and Configure
+
+```powershell
+git clone https://github.com/scottlinddk/esp32-e-ink-system.git
+cd esp32-e-ink-system
+```
+
+Copy the config template:
+```powershell
+copy firmware\config.h.example firmware\config.h
+```
+
+Open `firmware\config.h` in Notepad (or VS Code) and update:
+```cpp
+#define PROVISION_DEFAULT_API_URL "https://your-api.vercel.app"
+```
+
+### 4. Install the EPD Library
+
+Follow [Step 0](#step-0--get-the-elecrow-epd-library-required-for-elecrow-board) above. On Windows, copy the EPD folder to:
+```
+firmware\lib\EPD\
+```
+
+Verify:
+```powershell
+dir firmware\lib\EPD\
+```
+
+### 5. Flash the Firmware
+
+Install Node.js from https://nodejs.org/en/download if you don't already have it, then:
+
+```powershell
+npm run flash:elecrow
+```
+
+Or directly with PlatformIO:
+```powershell
+cd firmware
+pio run -e elecrow_213 --target upload
+```
+
+PlatformIO automatically detects your COM port on Windows. If it asks you to select a port, choose the COM port you verified in Device Manager (e.g., COM3).
+
+> **Upload fails?** Hold the **BOOT** button on the Elecrow board while clicking Upload, then release once you see "Uploading..." in the console.
+>
+> **"Access is denied" on COM port?** Close any other program using the port (Arduino IDE Serial Monitor, PuTTY, etc.).
+
+### 6. Verify — Serial Monitor
+
+```powershell
+npm run flash:elecrow:monitor
+```
+
+Expected output:
+```
+[Main] ESP32 E-Ink Display Firmware v1.0.0
+[Main] Hardware initialized
+[Main] No credentials found — starting captive portal AP
+```
+
+Press `Ctrl+C` to exit.
+
+### 7. First-Boot Setup
+
+Same as macOS — connect to the `ESP32-Display-XXXXXX` hotspot and follow the captive portal setup.
+
+---
+
+## Arduino IDE Alternative (macOS + Windows)
+
+Use this if you prefer not to install PlatformIO. Both operating systems follow the same steps.
+
+### 1. Add ESP32-S3 Board Support
+
+1. Open Arduino IDE 2.x (download from https://www.arduino.cc/en/software).
+2. Open **File → Preferences** (macOS: **Arduino IDE → Preferences**).
+3. In **Additional boards manager URLs**, paste:
+   ```
+   https://espressif.github.io/arduino-esp32/package_esp32_index.json
+   ```
+4. Open **Tools → Board → Boards Manager**, search for **esp32**, and install **esp32 by Espressif Systems** — use version **2.0.15** (later versions may have breaking changes).
+
+### 2. Install the EPD Library
+
+1. Follow [Step 0](#step-0--get-the-elecrow-epd-library-required-for-elecrow-board) to download the Elecrow repo.
+2. Copy the `EPD` folder to your Arduino libraries directory:
+   - **macOS:** `~/Documents/Arduino/libraries/EPD/`
+   - **Windows:** `C:\Users\<YourName>\Documents\Arduino\libraries\EPD\`
+3. Restart Arduino IDE.
+
+### 3. Configure Board Settings
+
+Go to **Tools** and set:
+
+| Setting | Value |
+|---|---|
+| Board | ESP32 Arduino → **ESP32S3 Dev Module** |
+| Partition Scheme | **Huge APP (3MB No OTA/1MB SPIFFS)** |
+| PSRAM | **OPI PSRAM** |
+| Port | Your COM port (Windows) or `/dev/cu.*` (macOS) |
+
+### 4. Open and Upload
+
+1. Open `firmware/src/main.ino` in Arduino IDE.
+2. Make sure `firmware/config.h` exists (copy from `config.h.example`).
+3. Click **Upload** (the right-arrow button).
+4. If the upload fails, hold the **BOOT** button on the board and try again.
+
+---
+
+## Waveshare Quick Reference
+
+For the original Waveshare 2.13" HAT V2 on an ESP32-WROOM-32:
+
+```bash
+# Flash
 npm run flash
 
-# 4. View serial output
+# Monitor
 npm run flash:monitor
+
+# Full workflow
+npm run flash:full
 ```
 
-### npm Flash Commands
+**Driver:** Install [Silicon Labs CP210x](https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers) or [WCH CH340](https://www.wch-ic.com/downloads/CH341SER_EXE.html) depending on your ESP32 board vendor.
 
-| Command | Purpose |
-|---------|---------|
-| `npm run flash` | Build and upload firmware |
-| `npm run flash:build` | Build only (no upload) |
-| `npm run flash:monitor` | View serial output (115200 baud) |
-| `npm run flash:full` | Build, upload, and monitor |
-| `npm run flash:clean` | Clean build artifacts |
+**Board in Arduino IDE:** `ESP32 Dev Module` | Partition: `Default 4MB`
 
-## Alternative: Manual Flashing
+---
 
-```bash
-cd firmware
-bash scripts/flash.sh upload      # Build and upload
-bash scripts/flash.sh monitor     # View logs
-bash scripts/flash.sh help        # Show all commands
-```
+## Troubleshooting
 
-## Software Setup (Details)
+| Symptom | Fix |
+|---|---|
+| No COM port / no `/dev/cu.*` | Wrong USB cable (charge-only) — try another |
+| macOS: port appears then disappears | Driver not installed or not activated after reboot |
+| Windows: driver install fails | Run installer as Administrator |
+| Upload error: "connecting..." timeout | Hold BOOT button during upload |
+| Upload error: "esptool.py failed" | Lower `upload_speed` to `115200` in `platformio.ini` |
+| Display stays blank after flash | Built with wrong env — use `-e elecrow_213`, not `esp32dev` |
+| Compile error: "EPD.h not found" | `firmware/lib/EPD/` is missing — see Step 0 |
+| Compile error: "EPD_W undeclared" | EPD library header structure differs; check `EPD.h` for the exact constant name |
+| Captive portal doesn't appear | Wait 15–20 s; look for `ESP32-Display-XXXXXX` WiFi network |
+| Serial monitor shows garbage | Wrong baud rate — set to **115200** |
+| High battery drain | Set `DEEP_SLEEP_ENABLED 1` and `DEBUG_ENABLED 0` in `config.h` |
 
-### Option A: PlatformIO (recommended)
+### Holding BOOT to Enter Flash Mode (Elecrow)
 
-1. Install [VS Code](https://code.visualstudio.com/) and the PlatformIO extension
-2. Open the firmware folder in VS Code
-3. PlatformIO will automatically install dependencies
+The ESP32-S3 sometimes needs manual intervention to enter download mode:
 
-**platformio.ini:**
-```ini
-[env:esp32dev]
-platform = espressif32
-board = esp32dev
-framework = arduino
-monitor_speed = 115200
-lib_deps =
-    zinggjm/GxEPD2@^1.5.3
-    bblanchon/ArduinoJson@^7.0.0
-upload_speed = 921600
-```
+1. Hold the **BOOT** button (also labeled IO0).
+2. Press and release **RESET** (or plug in USB while holding BOOT).
+3. Release BOOT after 1–2 seconds.
+4. Start the upload — the board is now in download mode.
 
-### Option B: Arduino IDE
+---
 
-1. Install [Arduino IDE 2.x](https://www.arduino.cc/en/software)
-2. Add ESP32 board support:
-   - File → Preferences → Additional Board Manager URLs:
-   - `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json`
-3. Install libraries:
-   - GxEPD2 by ZinggJM
-   - ArduinoJson by Benoit Blanchon
-
-## Configuration
-
-Copy `config.h.example` to `config.h` and fill in your values:
-
-```cpp
-// config.h
-#pragma once
-
-// WiFi credentials
-#define WIFI_SSID     "YourNetworkName"
-#define WIFI_PASSWORD "YourNetworkPassword"
-
-// ESP32 Display API
-#define API_BASE_URL  "https://api.yourdomain.com"
-#define USER_ID       "your-supabase-user-uuid"
-#define LICENSE_KEY   "your-license-key"
-
-// Display refresh (in minutes — must match dashboard setting)
-#define REFRESH_MINUTES 30
-
-// Display GPIO pins
-#define PIN_CS   5
-#define PIN_DC   17
-#define PIN_RST  16
-#define PIN_BUSY 4
-```
-
-## Flashing
-
-### PlatformIO
-```bash
-# Build
-pio run
-
-# Upload
-pio run --target upload
-
-# Monitor serial output
-pio device monitor
-```
-
-### Arduino IDE
-1. Select board: **ESP32 Dev Module**
-2. Select the correct COM port
-3. Click **Upload**
-4. Open **Serial Monitor** at 115200 baud
-
-## Expected Serial Output
+## Expected Serial Output (After Setup)
 
 ```
-[Boot] ESP32 Display v1.0.0
-[WiFi] Connecting to YourNetworkName...
+[Main] ========================================
+[Main] ESP32 E-Ink Display Firmware v1.0.0
+[Main] ========================================
+[Main] Hardware initialized
+[Main] Credentials loaded — SSID: MyWiFi  userId: abc-123
+[WiFi] Connecting to MyWiFi...
 [WiFi] Connected! IP: 192.168.1.42
-[API] Fetching: https://api.yourdomain.com/api/display-data/abc...?licenseKey=xyz...
-[API] HTTP 200 OK (342 bytes)
-[Parse] Price: 142.5 øre/kWh (trend: up)
-[Parse] Weather: 12°C, cloudy, 6 m/s
-[Parse] Headlines: 3 items
-[Display] Starting full refresh...
-[Display] Render complete (2.4s)
-[Sleep] Entering deep sleep for 1800 seconds
+[API] Fetching image endpoint...
+[Display] Bitmap displayed: 250x122
+[Main] Entering deep sleep for 30 minutes
 ```
+
+---
 
 ## Power Consumption
 
@@ -201,34 +432,14 @@ pio device monitor
 |---|---|
 | Active (WiFi + rendering) | ~150 mA |
 | Deep sleep | ~10 µA |
-| Average (30 min refresh) | ~0.5 mA |
+| Average at 30-min refresh | ~0.5 mA |
 
-With a 1000 mAh LiPo battery, expected battery life is approximately **80+ days** on a 30-minute refresh cycle.
+With a 1000 mAh LiPo: approximately **80+ days** battery life on a 30-minute refresh cycle.
 
-## Troubleshooting
-
-### Display shows nothing / white screen
-
-### WiFi won't connect
-
-### API returns 401
-
-### Display updates but shows old data
-
-### USB/Serial Issues
-- **No COM port detected?** → Install CH340 driver: https://dlldownload.com/ch340-drivers/
-- **Gibberish in serial output?** → Verify baud rate is 115200
-- **Connection drops?** → Try a different USB cable (some are "charging only")
-- **Still not working?** → Run `pio device list` to see detected devices
-
-### High Battery Drain
-- Ensure `DEEP_SLEEP_ENABLED 1` in config.h
-- Increase `REFRESH_MINUTES` to reduce wake frequency
-- Disable `DEBUG_ENABLED` (serial debug consumes power)
-- Check WiFi for failed reconnection attempts in logs
+---
 
 ## Related Documentation
 
-- [firmware/README.md](../firmware/README.md) — Development guide & configuration reference
-- [API_REFERENCE.md](./API_REFERENCE.md) — Backend endpoint documentation
-- Serial logs: `npm run flash:monitor`
+- [firmware/README.md](../firmware/README.md) — Hardware specs and dev setup
+- [API_REFERENCE.md](./API_REFERENCE.md) — Backend endpoint docs
+- [Elecrow GitHub repo](https://github.com/Elecrow-RD/CrowPanel-ESP32-2.13-E-paper-HMI-Display-with-122-250) — Official Elecrow source
