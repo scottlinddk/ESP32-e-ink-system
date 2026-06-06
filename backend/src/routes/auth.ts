@@ -75,18 +75,6 @@ import { createClerkClient } from '@clerk/backend';
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
- *
- * /api/auth/oauth/apple/callback:
- *   post:
- *     summary: Apple OAuth callback (stub — use Clerk)
- *     tags: [Auth]
- *     responses:
- *       501:
- *         description: Not implemented
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 
 const router = Router();
@@ -176,11 +164,5 @@ router.post('/oauth/google/callback', (_req: Request, res: Response) => {
   res.status(501).json({ error: 'Google OAuth callback not implemented — use Clerk' });
 });
 
-/**
- * POST /api/oauth/apple/callback  (stub)
- */
-router.post('/oauth/apple/callback', (_req: Request, res: Response) => {
-  res.status(501).json({ error: 'Apple OAuth callback not implemented — use Clerk' });
-});
 
 export default router;

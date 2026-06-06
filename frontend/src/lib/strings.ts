@@ -10,7 +10,6 @@ export const STRINGS = {
     tagline: "Control what shows on your wall display",
     // login
     signInGoogle: "Continue with Google",
-    signInApple: "Continue with Apple",
     signInGithub: "Continue with GitHub",
     signingIn: "Signing in…",
     loginOr: "or",
@@ -262,7 +261,6 @@ export const STRINGS = {
     product: "ESP32 Display",
     tagline: "Bestem hvad der vises på dit vægdisplay",
     signInGoogle: "Fortsæt med Google",
-    signInApple: "Fortsæt med Apple",
     signInGithub: "Fortsæt med GitHub",
     signingIn: "Logger ind…",
     loginOr: "eller",
