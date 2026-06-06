@@ -86,7 +86,7 @@ export const STRINGS = {
     viewDevice: "Device",
     viewRaw: "Raw buffer",
     viewClear: "Clear",
-    viewServer: "Server",
+    viewIdeal: "Ideal",
     nothingOn: "Nothing selected",
     nothingOnMsg: "Turn on a source to see it here.",
     // devices
@@ -332,7 +332,7 @@ export const STRINGS = {
     viewDevice: "Enhed",
     viewRaw: "Rå buffer",
     viewClear: "Klar",
-    viewServer: "Server",
+    viewIdeal: "Ideel",
     nothingOn: "Intet valgt",
     nothingOnMsg: "Slå en kilde til for at se den her.",
     devTitle: "Mine enheder",

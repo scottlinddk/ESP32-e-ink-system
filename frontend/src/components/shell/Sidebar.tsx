@@ -5,6 +5,7 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { useApp } from '../../lib/appContext';
 import { Icon } from '../ui/Logo';
+import { LangToggle } from './AppBar';
 
 export function Sidebar({ open }: { open: boolean }) {
   const app = useApp();
@@ -21,7 +22,7 @@ export function Sidebar({ open }: { open: boolean }) {
   return (
     <aside
       className={cn(
-        'w-[248px] flex-shrink-0 p-4 px-3 border-r border-divider bg-surface',
+        'w-[248px] flex-shrink-0 flex flex-col p-4 px-3 border-r border-divider bg-surface',
         // mobile
         'max-[820px]:fixed max-[820px]:top-16 max-[820px]:bottom-0 max-[820px]:left-0 max-[820px]:z-[70]',
         'max-[820px]:shadow-3 max-[820px]:transition-transform max-[820px]:duration-[225ms]',
@@ -63,6 +64,12 @@ export function Sidebar({ open }: { open: boolean }) {
         <Icon name="help" />
         {t.nav.docs}
       </button>
+
+      {/* Language toggle — mobile only (hidden in AppBar on ≤820px, shown here instead) */}
+      <div className="mt-auto hidden max-[820px]:flex items-center gap-3 px-1 pt-3 border-t border-divider">
+        <span className="text-xs text-fg3 font-medium flex-1">{app.lang === 'da' ? 'Sprog' : 'Language'}</span>
+        <LangToggle />
+      </div>
     </aside>
   );
 }

@@ -1,7 +1,7 @@
 // =========================================================================
 // PreviewCard.tsx — live e-ink preview card
 // =========================================================================
-import React, { useState, useEffect, useRef, ReactNode } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../lib/appContext';
 import { useAuth } from '../../hooks/useAuth';
 import { Card } from '../ui/card';
@@ -12,8 +12,10 @@ import { EInk } from '../eink/EInk';
 import { einkContent } from '../../lib/mockData';
 import { fetchPreviewBmp } from '../../lib/api';
 
+const EINK_W = 250;
+
 type PreviewState = 'loading' | 'ok' | 'error';
-type ViewMode = 'device' | 'raw' | 'clear' | 'server';
+type ViewMode = 'device' | 'raw' | 'clear' | 'ideal';
 
 interface EinkSurfaceProps {
   state: PreviewState;
@@ -71,9 +73,9 @@ export function PreviewCard() {
   const [refreshToken, setRefreshToken] = useState(0);
   const [state, setState] = useState<PreviewState>('ok');
   const [countdown, setCountdown] = useState(30);
-  const [serverBmpSrc, setServerBmpSrc] = useState<string | null>(null);
-  const [serverLoading, setServerLoading] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
+  const [idealBmpSrc, setIdealBmpSrc] = useState<string | null>(null);
+  const [idealLoading, setIdealLoading] = useState(false);
+  const [idealError, setIdealError] = useState<string | null>(null);
   const prevBmpSrc = useRef<string | null>(null);
 
   const sources = { energy: p.energy.on, weather: p.weather.on, news: p.news.on };
@@ -96,7 +98,6 @@ export function PreviewCard() {
       setCountdown(30);
       return;
     }
-    // Canvas render is synchronous — no delay needed
     setState('ok');
     setRefreshToken((x) => x + 1);
     setCountdown(30);
@@ -120,27 +121,27 @@ export function PreviewCard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hardError, app.online]);
 
-  // Fetch server-rendered BMP when server tab is active or manually refreshed
+  // Fetch server-rendered BMP when ideal tab is active or manually refreshed
   useEffect(() => {
-    if (view !== 'server' || !isSignedIn) return;
+    if (view !== 'ideal' || !isSignedIn) return;
     let cancelled = false;
 
-    setServerLoading(true);
-    setServerError(null);
+    setIdealLoading(true);
+    setIdealError(null);
 
     getToken().then((token) => {
-      if (!token) { setServerError('Not authenticated'); setServerLoading(false); return; }
+      if (!token) { setIdealError('Not authenticated'); setIdealLoading(false); return; }
       return fetchPreviewBmp(token);
     }).then((blobUrl) => {
       if (cancelled || !blobUrl) return;
       if (prevBmpSrc.current) URL.revokeObjectURL(prevBmpSrc.current);
       prevBmpSrc.current = blobUrl;
-      setServerBmpSrc(blobUrl);
-      setServerLoading(false);
+      setIdealBmpSrc(blobUrl);
+      setIdealLoading(false);
     }).catch((err: unknown) => {
       if (cancelled) return;
-      setServerError(err instanceof Error ? err.message : 'Failed to load');
-      setServerLoading(false);
+      setIdealError(err instanceof Error ? err.message : 'Failed to load');
+      setIdealLoading(false);
     });
 
     return () => { cancelled = true; };
@@ -155,7 +156,7 @@ export function PreviewCard() {
     { id: 'device', label: t.viewDevice },
     { id: 'raw', label: t.viewRaw },
     { id: 'clear', label: t.viewClear },
-    { id: 'server', label: t.viewServer },
+    { id: 'ideal', label: t.viewIdeal },
   ];
 
   return (
@@ -163,9 +164,11 @@ export function PreviewCard() {
       icon="preview"
       title={t.previewTitle}
       desc={t.previewSub}
-      action={
+    >
+      <div className="flex flex-col gap-3">
+        {/* View mode tabs — below title to avoid crowding the header on mobile */}
         <div
-          className="inline-flex border border-border rounded-md overflow-hidden self-center"
+          className="inline-flex self-center border border-border rounded-md overflow-hidden"
           role="group"
           aria-label="View mode"
         >
@@ -173,8 +176,8 @@ export function PreviewCard() {
             <button
               key={v.id}
               className={[
-                'border-none text-xs font-medium px-3.5 py-1.5 cursor-pointer',
-                view === v.id ? 'bg-accent text-fg-on' : 'bg-transparent text-fg2',
+                'border-none text-xs font-medium px-3.5 py-1.5 cursor-pointer transition-[background,color] duration-[150ms]',
+                view === v.id ? 'bg-accent text-fg-on' : 'bg-transparent text-fg2 hover:bg-black/[0.05]',
               ].join(' ')}
               onClick={() => setView(v.id)}
             >
@@ -182,37 +185,47 @@ export function PreviewCard() {
             </button>
           ))}
         </div>
-      }
-    >
-      <div className="flex flex-col gap-3">
+
         <div className="flex flex-col items-center gap-1">
-          {view === 'server' ? (
-            <div
-              className="flex items-center justify-center bg-white border border-[#ccc]"
-              style={{ width: 250, height: 122 }}
-            >
-              {serverLoading && <Spinner />}
-              {serverError && (
-                <div className="p-2 text-center text-warning text-xs flex flex-col items-center gap-2 [&_.material-symbols-outlined]:text-[22px]">
-                  <Icon name="cloud_off" />
-                  <span>{serverError}</span>
-                  <Button variant="outlined" size="sm" icon="refresh" onClick={refresh}>
-                    {t.retry}
-                  </Button>
+          {view === 'ideal' ? (
+            <div className="eink-bezel w-full">
+              {idealLoading && (
+                <div className="eink-screen flex items-center justify-center" style={{ aspectRatio: '250 / 122' }}>
+                  <Spinner />
                 </div>
               )}
-              {!serverLoading && !serverError && serverBmpSrc && (
+              {idealError && (
+                <div
+                  className="eink-screen flex items-center justify-center bg-white"
+                  style={{ aspectRatio: '250 / 122' }}
+                >
+                  <div className="p-2 text-center text-warning text-xs flex flex-col items-center gap-2 [&_.material-symbols-outlined]:text-[22px]">
+                    <Icon name="cloud_off" />
+                    <span>{idealError}</span>
+                    <Button variant="outlined" size="sm" icon="refresh" onClick={refresh}>
+                      {t.retry}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {!idealLoading && !idealError && idealBmpSrc && (
                 <img
-                  src={serverBmpSrc}
-                  alt="Server-rendered e-ink display"
-                  width={250}
-                  height={122}
-                  style={{ imageRendering: 'pixelated', display: 'block' }}
+                  src={idealBmpSrc}
+                  alt="Ideal server-rendered e-ink display"
+                  style={{
+                    maxWidth: EINK_W * 3,
+                    width: '100%',
+                    imageRendering: 'pixelated',
+                    display: 'block',
+                  }}
                 />
               )}
+              <div className="absolute bottom-1.5 left-0 right-0 text-center text-[8px] tracking-[0.14em] uppercase text-black/40 font-mono [data-theme='dark']_&:text-white/35">
+                e-ink · 2.13″
+              </div>
             </div>
           ) : view === 'device' ? (
-            <div className="eink-bezel">
+            <div className="eink-bezel w-full">
               <EinkSurface
                 state={state}
                 t={t}

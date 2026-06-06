@@ -86,7 +86,7 @@ export function AppBar({
         onClick={() => app.nav('dashboard')}
       >
         <Logo />
-        <span className="font-medium text-base tracking-[-0.01em]">{t.product}</span>
+        <span className="font-medium text-base tracking-[-0.01em] max-[480px]:hidden">{t.product}</span>
       </div>
 
       {crumb && (
@@ -111,7 +111,7 @@ export function AppBar({
             });
           }}
         />
-        <LangToggle />
+        <span className="max-[820px]:hidden"><LangToggle /></span>
         <ThemeToggle />
 
         {/* User menu */}
