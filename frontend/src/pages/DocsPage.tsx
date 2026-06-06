@@ -2,6 +2,7 @@
 // DocsPage.tsx
 // =========================================================================
 import React from 'react';
+import { Link } from 'react-router';
 import { useApp } from '../lib/appContext';
 import { Card } from '../components/ui/card';
 import { Icon } from '../components/ui/Logo';
@@ -11,9 +12,13 @@ export function DocsPage() {
   const t = app.t;
 
   const steps = [
-    { icon: 'cast', title: t.docsStep1Title, body: t.docsStep1Body },
-    { icon: 'key', title: t.docsStep2Title, body: t.docsStep2Body },
-    { icon: 'tune', title: t.docsStep3Title, body: t.docsStep3Body },
+    { icon: 'usb',               title: t.docsStep1Title, body: t.docsStep1Body },
+    { icon: 'cast',              title: t.docsStep2Title, body: t.docsStep2Body, link: '/flash', linkLabel: t.docsStep2Link },
+    { icon: 'wifi',              title: t.docsStep3Title, body: t.docsStep3Body },
+    { icon: 'settings_ethernet', title: t.docsStep4Title, body: t.docsStep4Body },
+    { icon: 'key',               title: t.docsStep5Title, body: t.docsStep5Body },
+    { icon: 'vpn_key',           title: t.docsStep6Title, body: t.docsStep6Body },
+    { icon: 'tune',              title: t.docsStep7Title, body: t.docsStep7Body },
   ];
 
   return (
@@ -36,6 +41,14 @@ export function DocsPage() {
                 <p className="text-fg-2 text-sm m-0">
                   {s.body}
                 </p>
+                {s.link && s.linkLabel && (
+                  <Link
+                    to={s.link}
+                    className="inline-block mt-2 text-sm font-medium text-blue-600 hover:underline"
+                  >
+                    {s.linkLabel} →
+                  </Link>
+                )}
               </div>
             </div>
           </Card>

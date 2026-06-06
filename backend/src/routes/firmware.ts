@@ -136,6 +136,27 @@ router.post(
 );
 
 /**
+ * GET /api/firmware/public-manifest
+ * Returns esp-web-tools manifest for the latest firmware release.
+ * No authentication required — used by the public /flash page.
+ */
+router.get(
+  '/public-manifest',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const ghRelease = await fetchLatestFirmwareRelease().catch(() => null);
+      if (!ghRelease) {
+        res.status(503).json({ error: 'Firmware release not available. Try again later.' });
+        return;
+      }
+      res.json(buildManifestFromRelease(ghRelease));
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
  * GET /api/firmware/default/manifest
  * Returns esp-web-tools manifest for the backend-hosted default firmware binary.
  * Must be declared before /:id/manifest to take precedence.
