@@ -1,7 +1,8 @@
 // =========================================================================
-// select.tsx — native select element styled with design tokens (canonical)
+// select.tsx — native select element styled with design tokens
 // =========================================================================
 import React from 'react';
+import { cn } from '@/lib/utils';
 
 interface SelectOption {
   value: string;
@@ -14,11 +15,24 @@ interface SelectProps {
   options: SelectOption[];
   id?: string;
   disabled?: boolean;
+  className?: string;
 }
 
-export function Select({ value, onChange, options, id, ...rest }: SelectProps) {
+export function Select({ value, onChange, options, id, className, ...rest }: SelectProps) {
   return (
-    <select id={id} className="select-native" value={value} onChange={onChange} {...rest}>
+    <select
+      id={id}
+      className={cn(
+        'select-native font-sans text-sm text-fg1 px-3 py-2.5 min-h-[42px] rounded-sm',
+        'border border-border-strong bg-surface outline-none w-full',
+        'transition-[border-color,box-shadow] duration-[150ms]',
+        'focus:border-accent focus:shadow-[0_0_0_1px_var(--accent)]',
+        className
+      )}
+      value={value}
+      onChange={onChange}
+      {...rest}
+    >
       {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
@@ -28,8 +42,10 @@ export function Select({ value, onChange, options, id, ...rest }: SelectProps) {
   );
 }
 
-// Legacy shadcn Select API shim (for old DataSourceToggle etc.)
+// Legacy shadcn Select API shim
 export const SelectContent = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
-export const SelectItem = ({ value, children }: { value: string; children?: React.ReactNode }) => <option value={value}>{children}</option>;
+export const SelectItem = ({ value, children }: { value: string; children?: React.ReactNode }) => (
+  <option value={value}>{children}</option>
+);
 export const SelectTrigger = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
 export const SelectValue = ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>;

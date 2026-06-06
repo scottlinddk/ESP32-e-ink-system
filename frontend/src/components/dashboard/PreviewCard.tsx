@@ -32,17 +32,12 @@ function EinkSurface({ state, t, onRetry, ...einkProps }: EinkSurfaceProps) {
   if (state === 'loading') {
     return (
       <div
-        className="eink-screen"
-        style={{
-          aspectRatio: '250 / 122',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
+        className="eink-screen flex items-center justify-center"
+        style={{ aspectRatio: '250 / 122' }}
       >
-        <div className="loadbox" style={{ padding: 0, color: '#111' }}>
+        <div className="flex flex-col items-center gap-3 text-xs" style={{ color: '#111' }}>
           <Spinner />
-          <span style={{ fontSize: 12 }}>{t.previewLoading}</span>
+          <span>{t.previewLoading}</span>
         </div>
       </div>
     );
@@ -50,21 +45,13 @@ function EinkSurface({ state, t, onRetry, ...einkProps }: EinkSurfaceProps) {
   if (state === 'error') {
     return (
       <div
-        className="eink-screen"
-        style={{
-          aspectRatio: '250 / 122',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: '#fff',
-        }}
+        className="eink-screen flex items-center justify-center bg-white"
+        style={{ aspectRatio: '250 / 122' }}
       >
-        <div className="eink-error">
+        <div className="p-5 text-center text-warning text-sm flex flex-col items-center gap-2 [&_.material-symbols-outlined]:text-[28px]">
           <Icon name="cloud_off" />
-          <strong style={{ fontWeight: 500, fontSize: 13 }}>{t.previewError}</strong>
-          <span className="muted" style={{ fontSize: 12 }}>
-            {t.previewErrorMsg}
-          </span>
+          <strong className="font-medium text-[13px]">{t.previewError}</strong>
+          <span className="text-fg2 text-xs">{t.previewErrorMsg}</span>
           <Button variant="outlined" size="sm" icon="refresh" onClick={onRetry}>
             {t.retry}
           </Button>
@@ -109,11 +96,9 @@ export function PreviewCard() {
       setCountdown(30);
       return;
     }
-    setState('loading');
-    setTimeout(() => {
-      setState('ok');
-      setRefreshToken((x) => x + 1);
-    }, 750);
+    // Canvas render is synchronous — no delay needed
+    setState('ok');
+    setRefreshToken((x) => x + 1);
     setCountdown(30);
   }
 
@@ -135,7 +120,7 @@ export function PreviewCard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hardError, app.online]);
 
-  // Fetch the server-rendered BMP whenever the server tab is active or manually refreshed
+  // Fetch server-rendered BMP when server tab is active or manually refreshed
   useEffect(() => {
     if (view !== 'server' || !isSignedIn) return;
     let cancelled = false;
@@ -148,7 +133,6 @@ export function PreviewCard() {
       return fetchPreviewBmp(token);
     }).then((blobUrl) => {
       if (cancelled || !blobUrl) return;
-      // Revoke previous blob URL to avoid memory leaks
       if (prevBmpSrc.current) URL.revokeObjectURL(prevBmpSrc.current);
       prevBmpSrc.current = blobUrl;
       setServerBmpSrc(blobUrl);
@@ -163,12 +147,16 @@ export function PreviewCard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, refreshToken, isSignedIn]);
 
-  // Revoke blob URL on unmount
   useEffect(() => {
     return () => { if (prevBmpSrc.current) URL.revokeObjectURL(prevBmpSrc.current); };
   }, []);
 
-  const lastUpdated = t.justNow;
+  const views: { id: ViewMode; label: string }[] = [
+    { id: 'device', label: t.viewDevice },
+    { id: 'raw', label: t.viewRaw },
+    { id: 'clear', label: t.viewClear },
+    { id: 'server', label: t.viewServer },
+  ];
 
   return (
     <Card
@@ -176,54 +164,38 @@ export function PreviewCard() {
       title={t.previewTitle}
       desc={t.previewSub}
       action={
-        <div className="seg" role="group" aria-label="View mode">
-          <button
-            className={view === 'device' ? 'is-active' : ''}
-            onClick={() => setView('device')}
-          >
-            {t.viewDevice}
-          </button>
-          <button
-            className={view === 'raw' ? 'is-active' : ''}
-            onClick={() => setView('raw')}
-          >
-            {t.viewRaw}
-          </button>
-          <button
-            className={view === 'clear' ? 'is-active' : ''}
-            onClick={() => setView('clear')}
-          >
-            {t.viewClear}
-          </button>
-          <button
-            className={view === 'server' ? 'is-active' : ''}
-            onClick={() => setView('server')}
-          >
-            {t.viewServer}
-          </button>
+        <div
+          className="inline-flex border border-border rounded-md overflow-hidden self-center"
+          role="group"
+          aria-label="View mode"
+        >
+          {views.map((v) => (
+            <button
+              key={v.id}
+              className={[
+                'border-none text-xs font-medium px-3.5 py-1.5 cursor-pointer',
+                view === v.id ? 'bg-accent text-fg-on' : 'bg-transparent text-fg2',
+              ].join(' ')}
+              onClick={() => setView(v.id)}
+            >
+              {v.label}
+            </button>
+          ))}
         </div>
       }
     >
-      <div className="eink-panel">
-        <div className="eink-stage">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col items-center gap-1">
           {view === 'server' ? (
             <div
-              className="eink-screen"
-              style={{
-                width: 250,
-                height: 122,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: '#fff',
-                border: '1px solid #ccc',
-              }}
+              className="flex items-center justify-center bg-white border border-[#ccc]"
+              style={{ width: 250, height: 122 }}
             >
               {serverLoading && <Spinner />}
               {serverError && (
-                <div className="eink-error" style={{ padding: 8 }}>
+                <div className="p-2 text-center text-warning text-xs flex flex-col items-center gap-2 [&_.material-symbols-outlined]:text-[22px]">
                   <Icon name="cloud_off" />
-                  <span style={{ fontSize: 11 }}>{serverError}</span>
+                  <span>{serverError}</span>
                   <Button variant="outlined" size="sm" icon="refresh" onClick={refresh}>
                     {t.retry}
                   </Button>
@@ -253,7 +225,9 @@ export function PreviewCard() {
                 refreshToken={refreshToken}
                 view="device"
               />
-              <div className="eink-bezel__brand">e-ink · 2.13″</div>
+              <div className="absolute bottom-1.5 left-0 right-0 text-center text-[8px] tracking-[0.14em] uppercase text-black/40 font-mono [data-theme='dark']_&:text-white/35">
+                e-ink · 2.13″
+              </div>
             </div>
           ) : (
             <EinkSurface
@@ -271,27 +245,22 @@ export function PreviewCard() {
           )}
         </div>
 
-        <div className="eink-meta">
+        <div className="flex items-center justify-between text-xs text-fg3 font-mono [&_.material-symbols-outlined]:text-[14px] [&_.material-symbols-outlined]:align-[-2px]">
           <span>
-            <Icon name="history" /> {t.lastUpdated} {lastUpdated}
+            <Icon name="history" /> {t.lastUpdated} {t.justNow}
           </span>
           <span>
             <Icon name="autorenew" /> {t.nextRefresh} {countdown}s
           </span>
         </div>
 
-        <div className="row-between">
-          <span className="eink-note">
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-xs text-fg3 flex items-center gap-1.5 [&_.material-symbols-outlined]:text-[15px]">
             <Icon name="info" />
             {t.updateEvery}
           </span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button
-              variant="outlined"
-              size="sm"
-              icon="grid_view"
-              onClick={() => app.nav('layout')}
-            >
+          <div className="flex gap-2">
+            <Button variant="outlined" size="sm" icon="grid_view" onClick={() => app.nav('layout')}>
               {t.layoutEditLayout}
             </Button>
             <Button
@@ -307,8 +276,8 @@ export function PreviewCard() {
         </div>
 
         {enabledCount > 0 && availCount < enabledCount && !hardError && (
-          <div className="info-banner" style={{ background: 'rgba(211,151,10,0.10)' }}>
-            <Icon name="warning" style={{ color: 'var(--palette-warning-main)' }} />
+          <div className="flex gap-2.5 items-start px-3.5 py-3 rounded-sm bg-warning/[0.10] text-fg2 text-sm leading-snug [&_.material-symbols-outlined]:text-[19px] [&_.material-symbols-outlined]:text-warning [&_.material-symbols-outlined]:flex-shrink-0 [&_.material-symbols-outlined]:mt-[1px]">
+            <Icon name="warning" />
             <span>{t.missingApiKey}</span>
           </div>
         )}

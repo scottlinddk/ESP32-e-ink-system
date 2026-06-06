@@ -2,6 +2,7 @@
 // AppBar.tsx — sticky top bar: brand, crumb, lang/theme toggles, user menu
 // =========================================================================
 import React, { useState, useEffect, useRef } from 'react';
+import { cn } from '@/lib/utils';
 import { useApp } from '../../lib/appContext';
 import { Logo, Icon } from '../ui/Logo';
 import { IconButton } from '../ui/button';
@@ -9,21 +10,24 @@ import { IconButton } from '../ui/button';
 export function LangToggle() {
   const app = useApp();
   return (
-    <div className="langtoggle" role="group" aria-label="Language">
-      <button
-        className={app.lang === 'da' ? 'is-active' : ''}
-        onClick={() => app.setLang('da')}
-        aria-pressed={app.lang === 'da'}
-      >
-        DA
-      </button>
-      <button
-        className={app.lang === 'en' ? 'is-active' : ''}
-        onClick={() => app.setLang('en')}
-        aria-pressed={app.lang === 'en'}
-      >
-        EN
-      </button>
+    <div
+      className="inline-flex border border-border rounded-pill overflow-hidden h-[34px]"
+      role="group"
+      aria-label="Language"
+    >
+      {(['da', 'en'] as const).map((l) => (
+        <button
+          key={l}
+          className={cn(
+            'border-none text-xs font-medium tracking-[0.04em] px-3 cursor-pointer transition-all duration-[150ms]',
+            app.lang === l ? 'bg-accent text-fg-on' : 'bg-transparent text-fg2'
+          )}
+          onClick={() => app.setLang(l)}
+          aria-pressed={app.lang === l}
+        >
+          {l.toUpperCase()}
+        </button>
+      ))}
     </div>
   );
 }
@@ -68,26 +72,33 @@ export function AppBar({
   const crumb = t.crumbs[app.route];
 
   return (
-    <header className="appbar">
-      <button
-        className="iconbtn appbar__menu-btn"
+    <header className="sticky top-0 z-40 h-16 flex-shrink-0 flex items-center gap-4 px-5 bg-surface border-b border-divider">
+      {/* Mobile menu button */}
+      <IconButton
+        icon="menu"
+        label="Menu"
+        className="hidden max-[820px]:inline-flex"
         onClick={onMenu}
-        aria-label="Menu"
+      />
+
+      <div
+        className="flex items-center gap-2.5 cursor-pointer select-none"
+        onClick={() => app.nav('dashboard')}
       >
-        <Icon name="menu" />
-      </button>
-      <div className="appbar__brand" onClick={() => app.nav('dashboard')}>
         <Logo />
-        <span className="appbar__brand-name">{t.product}</span>
+        <span className="font-medium text-base tracking-[-0.01em]">{t.product}</span>
       </div>
+
       {crumb && (
-        <div className="appbar__crumb">
+        <div className="text-fg3 text-sm flex items-center gap-2 max-[820px]:hidden [&_.material-symbols-outlined]:text-[18px]">
           <Icon name="chevron_right" />
           {crumb}
         </div>
       )}
-      <div className="appbar__spacer" />
-      <div className="appbar__actions">
+
+      <div className="flex-1" />
+
+      <div className="flex items-center gap-2">
         <IconButton
           icon={app.online ? 'cloud_done' : 'cloud_off'}
           label={app.online ? t.connOnline : t.connOffline}
@@ -102,49 +113,54 @@ export function AppBar({
         />
         <LangToggle />
         <ThemeToggle />
-        <div className="usermenu" ref={ref}>
+
+        {/* User menu */}
+        <div className="relative" ref={ref}>
           <button
-            className="usermenu__btn"
+            className="flex items-center gap-2 py-1 pr-1.5 pl-1 border border-border bg-surface rounded-pill cursor-pointer text-fg1 transition-[background] duration-[150ms] hover:bg-black/[0.06] [&_.material-symbols-outlined]:text-[18px] [&_.material-symbols-outlined]:text-fg3"
             onClick={() => setMenuOpen((o) => !o)}
             aria-haspopup="true"
             aria-expanded={menuOpen}
           >
-            <span className="avatar">{initials}</span>
-            <span className="usermenu__email">{app.user.email}</span>
+            <span className="w-[30px] h-[30px] rounded-full flex-shrink-0 bg-accent text-fg-on flex items-center justify-center text-xs font-medium">
+              {initials}
+            </span>
+            <span className="text-sm max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap max-[820px]:hidden">
+              {app.user.email}
+            </span>
             <Icon name="expand_more" />
           </button>
+
           {menuOpen && (
-            <div className="menu" role="menu">
-              <div className="menu__head">
-                <div className="menu__name">{app.user.name}</div>
-                <div className="menu__sub">
+            <div
+              className="absolute right-0 top-[calc(100%+8px)] min-w-[200px] bg-surface border border-border rounded-md shadow-3 p-1.5 z-[60] animate-pop"
+              role="menu"
+            >
+              <div className="px-2.5 py-2 border-b border-divider mb-1">
+                <div className="text-sm font-medium">{app.user.name}</div>
+                <div className="text-xs text-fg3">
                   {t.signedInAs} {app.user.email}
                 </div>
               </div>
+              {[
+                { icon: 'person', label: t.menuProfile, route: 'account' },
+                { icon: 'settings', label: t.menuSettings, route: 'account' },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  className="flex items-center gap-2.5 w-full px-2.5 py-[9px] border-none bg-transparent text-fg1 text-sm text-left rounded-sm cursor-pointer hover:bg-black/[0.10] [&_.material-symbols-outlined]:text-[19px] [&_.material-symbols-outlined]:text-fg3"
+                  role="menuitem"
+                  onClick={() => {
+                    app.nav(item.route);
+                    setMenuOpen(false);
+                  }}
+                >
+                  <Icon name={item.icon} />
+                  {item.label}
+                </button>
+              ))}
               <button
-                className="menu__item"
-                role="menuitem"
-                onClick={() => {
-                  app.nav('account');
-                  setMenuOpen(false);
-                }}
-              >
-                <Icon name="person" />
-                {t.menuProfile}
-              </button>
-              <button
-                className="menu__item"
-                role="menuitem"
-                onClick={() => {
-                  app.nav('account');
-                  setMenuOpen(false);
-                }}
-              >
-                <Icon name="settings" />
-                {t.menuSettings}
-              </button>
-              <button
-                className="menu__item is-danger"
+                className="flex items-center gap-2.5 w-full px-2.5 py-[9px] border-none bg-transparent text-error text-sm text-left rounded-sm cursor-pointer hover:bg-black/[0.10] [&_.material-symbols-outlined]:text-[19px] [&_.material-symbols-outlined]:text-error"
                 role="menuitem"
                 onClick={onSignOut}
               >

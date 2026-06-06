@@ -2,7 +2,9 @@
 // DisplayCard.tsx — "What to display" source toggles
 // =========================================================================
 import React, { useState, ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 import { useApp } from '../../lib/appContext';
+import { useSavePreferences } from '../../hooks/usePreferences';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Field } from '../ui/Field';
@@ -24,18 +26,31 @@ interface SourceRowProps {
 function SourceRow({ icon, name, hint, checked, onToggle, children }: SourceRowProps) {
   const id = name.replace(/\s+/g, '-').toLowerCase();
   return (
-    <div className={'source' + (checked ? ' is-on' : '')}>
-      <label className="source__top" htmlFor={id}>
+    <div
+      className={cn(
+        'border rounded-md overflow-hidden transition-[border-color,background] duration-[225ms]',
+        checked ? 'border-border-strong' : 'border-border'
+      )}
+    >
+      <label
+        className="flex items-start gap-3.5 px-4 py-3.5 cursor-pointer select-none hover:bg-black/[0.03]"
+        htmlFor={id}
+      >
         <Checkbox id={id} checked={checked} onChange={onToggle} label={name} />
-        <span className="source__icon">
+        <span
+          className={cn(
+            'w-[38px] h-[38px] rounded-md flex-shrink-0 flex items-center justify-center [&_.material-symbols-outlined]:text-[21px]',
+            checked ? 'bg-accent text-fg-on' : 'bg-black/[0.10] text-fg2'
+          )}
+        >
           <Icon name={icon} />
         </span>
-        <span className="source__text">
-          <span className="source__name">{name}</span>
-          <span className="source__hint">{hint}</span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-body font-medium">{name}</span>
+          <span className="block text-sm text-fg2 mt-0.5">{hint}</span>
         </span>
       </label>
-      {checked && <div className="source__detail">{children}</div>}
+      {checked && <div className="px-4 pb-4 pl-[68px] grid gap-3.5">{children}</div>}
     </div>
   );
 }
@@ -44,36 +59,49 @@ export function DisplayCard({ loading }: { loading: boolean }) {
   const app = useApp();
   const t = app.t;
   const p = app.prefs;
-  const [saving, setSaving] = useState(false);
+  const savePrefs = useSavePreferences();
   const [locating, setLocating] = useState(false);
 
   const set = (patch: Partial<typeof p>) => app.setPrefs({ ...p, ...patch });
 
   function save() {
-    setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-      if (!app.online) {
-        app.toast({
-          type: 'error',
-          title: t.saveFailed,
-          msg: t.saveFailedMsg,
-          persist: true,
-          action: { label: t.retry, onClick: save },
-        });
-      } else {
+    savePrefs.mutate(p, {
+      onSuccess: () => {
         app.toast({ type: 'success', title: t.saved, msg: t.savedMsg });
-      }
-    }, 1300);
+      },
+      onError: () => {
+        if (!app.online) {
+          app.toast({
+            type: 'error',
+            title: t.saveFailed,
+            msg: t.saveFailedMsg,
+            persist: true,
+            action: { label: t.retry, onClick: save },
+          });
+        } else {
+          app.toast({ type: 'error', title: t.saveFailed, msg: t.saveFailedMsg });
+        }
+      },
+    });
   }
 
   function useLocation() {
     setLocating(true);
-    setTimeout(() => {
-      setLocating(false);
-      set({ weather: { ...p.weather, location: '57.05, 9.92' } });
-    }, 1200);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        set({ weather: { ...p.weather, location: `${latitude.toFixed(2)}, ${longitude.toFixed(2)}` } });
+        setLocating(false);
+      },
+      () => {
+        setLocating(false);
+        app.toast({ type: 'error', title: t.locationError ?? 'Location unavailable' });
+      },
+      { timeout: 8000 }
+    );
   }
+
+  const saving = savePrefs.isPending;
 
   return (
     <Card
@@ -87,15 +115,12 @@ export function DisplayCard({ loading }: { loading: boolean }) {
       }
     >
       {loading ? (
-        <div className="stack">
+        <div className="flex flex-col gap-4">
           {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '6px 0' }}
-            >
+            <div key={i} className="flex gap-3.5 items-center py-1.5">
               <Skeleton w={20} h={20} />
               <Skeleton w={38} h={38} style={{ borderRadius: 8 }} />
-              <div style={{ flex: 1 }}>
+              <div className="flex-1">
                 <Skeleton w="40%" h={14} />
                 <Skeleton w="70%" h={11} style={{ marginTop: 7 }} />
               </div>
@@ -103,7 +128,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
           ))}
         </div>
       ) : (
-        <>
+        <div className="flex flex-col gap-3">
           <SourceRow
             icon="bolt"
             name={t.srcEnergy}
@@ -111,14 +136,12 @@ export function DisplayCard({ loading }: { loading: boolean }) {
             checked={p.energy.on}
             onToggle={() => set({ energy: { ...p.energy, on: !p.energy.on } })}
           >
-            <div className="source__detail-grid">
+            <div className="grid grid-cols-2 gap-3.5 max-[820px]:grid-cols-1">
               <Field label={t.zone} htmlFor="zone">
                 <Select
                   id="zone"
                   value={p.energy.zone}
-                  onChange={(e) =>
-                    set({ energy: { ...p.energy, zone: e.target.value } })
-                  }
+                  onChange={(e) => set({ energy: { ...p.energy, zone: e.target.value } })}
                   options={[
                     { value: 'DK1', label: t.zoneDK1 },
                     { value: 'DK2', label: t.zoneDK2 },
@@ -126,7 +149,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
                 />
               </Field>
             </div>
-            <div className="helper">
+            <div className="text-xs text-fg3 flex items-center gap-[5px] [&_.material-symbols-outlined]:text-[15px]">
               <Icon name="schedule" />
               {t.updateEvery}
             </div>
@@ -139,19 +162,17 @@ export function DisplayCard({ loading }: { loading: boolean }) {
             checked={p.weather.on}
             onToggle={() => set({ weather: { ...p.weather, on: !p.weather.on } })}
           >
-            <div className="source__detail-grid">
+            <div className="grid grid-cols-2 gap-3.5 max-[820px]:grid-cols-1">
               <Field label={t.location} htmlFor="loc">
                 <Input
                   id="loc"
                   mono
                   value={p.weather.location}
                   placeholder={t.locationPh}
-                  onChange={(e) =>
-                    set({ weather: { ...p.weather, location: e.target.value } })
-                  }
+                  onChange={(e) => set({ weather: { ...p.weather, location: e.target.value } })}
                 />
               </Field>
-              <Field label={' '}>
+              <Field label={' '}>
                 <Button
                   variant="outlined"
                   icon={locating ? undefined : 'my_location'}
@@ -171,14 +192,12 @@ export function DisplayCard({ loading }: { loading: boolean }) {
             checked={p.news.on}
             onToggle={() => set({ news: { ...p.news, on: !p.news.on } })}
           >
-            <div className="source__detail-grid">
+            <div className="grid grid-cols-2 gap-3.5 max-[820px]:grid-cols-1">
               <Field label={t.contentLang} htmlFor="nl">
                 <Select
                   id="nl"
                   value={p.news.lang}
-                  onChange={(e) =>
-                    set({ news: { ...p.news, lang: e.target.value } })
-                  }
+                  onChange={(e) => set({ news: { ...p.news, lang: e.target.value } })}
                   options={[
                     { value: 'da', label: t.langDanish },
                     { value: 'en', label: t.langEnglish },
@@ -189,9 +208,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
                 <Select
                   id="ns"
                   value={p.news.source}
-                  onChange={(e) =>
-                    set({ news: { ...p.news, source: e.target.value } })
-                  }
+                  onChange={(e) => set({ news: { ...p.news, source: e.target.value } })}
                   options={[
                     { value: 'dr', label: t.newsSrcDR },
                     { value: 'pol', label: t.newsSrcPolitiken },
@@ -201,7 +218,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
               </Field>
             </div>
           </SourceRow>
-        </>
+        </div>
       )}
     </Card>
   );
