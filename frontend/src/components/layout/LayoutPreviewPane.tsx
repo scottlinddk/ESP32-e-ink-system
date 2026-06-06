@@ -24,7 +24,7 @@ export function LayoutPreviewPane({ layout }: LayoutPreviewPaneProps) {
   };
 
   return (
-    <div className="layout-preview-pane">
+    <div className="flex flex-col gap-2">
       <EInk
         sources={sources}
         keys={{ weather: true, news: true }}
@@ -34,7 +34,7 @@ export function LayoutPreviewPane({ layout }: LayoutPreviewPaneProps) {
         refreshToken={refreshToken}
         view="raw"
       />
-      <p className="layout-preview-note">
+      <p className="flex items-center gap-1 text-[11px] text-fg3 m-0 [&_.material-symbols-outlined]:text-[14px]">
         <Icon name="info" /> Live preview — updates after each change
       </p>
     </div>

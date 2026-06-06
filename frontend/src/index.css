@@ -87,17 +87,17 @@ button { font-family: inherit; }
       0deg,
       transparent,
       transparent calc(60px - 1px),
-      var(--c-divider) calc(60px - 1px),
-      var(--c-divider) 60px
+      var(--color-divider) calc(60px - 1px),
+      var(--color-divider) 60px
     ),
     repeating-linear-gradient(
       90deg,
       transparent,
       transparent calc(75px - 1px),
-      var(--c-divider) calc(75px - 1px),
-      var(--c-divider) 75px
+      var(--color-divider) calc(75px - 1px),
+      var(--color-divider) 75px
     );
-  border: 1px solid var(--c-divider);
+  border: 1px solid var(--color-divider);
   border-radius: var(--radius-md);
   overflow: hidden;
 }
