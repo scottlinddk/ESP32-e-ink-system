@@ -6,7 +6,15 @@
       "chipFamily": "ESP32",
       "parts": [
         {
-          "path": "https://github.com/scottlinddk/esp32-e-ink-system/releases/latest/download/firmware.bin",
+          "path": "https://github.com/scottlinddk/ESP32-e-ink-system/releases/download/dev-20260604-28438a7/bootloader.bin",
+          "offset": 4096
+        },
+        {
+          "path": "https://github.com/scottlinddk/ESP32-e-ink-system/releases/download/dev-20260604-28438a7/partitions.bin",
+          "offset": 32768
+        },
+        {
+          "path": "https://github.com/scottlinddk/ESP32-e-ink-system/releases/download/dev-20260604-28438a7/firmware.bin",
           "offset": 65536
         }
       ]
