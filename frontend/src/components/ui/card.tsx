@@ -1,7 +1,8 @@
 // =========================================================================
-// card.tsx — surface card with optional head / body / footer (canonical)
+// card.tsx — surface card with optional head / body / footer
 // =========================================================================
 import React, { ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 import { Icon } from './Logo';
 
 interface CardProps {
@@ -29,27 +30,35 @@ export function Card({
 }: CardProps) {
   return (
     <section
-      className={'card' + (flat ? ' card--flat' : '') + (className ? ' ' + className : '')}
+      className={cn(
+        'bg-surface rounded-md border border-border overflow-hidden',
+        !flat && 'shadow-1',
+        className
+      )}
       style={style}
     >
       {(title || icon) && (
-        <header className="card__head">
-          <div className="card__head-row">
+        <header className="px-5 py-4 border-b border-divider">
+          <div className="flex items-center gap-3">
             {icon && (
-              <span className="card__icon">
+              <span className="text-fg3 inline-flex [&_.material-symbols-outlined]:text-[22px]">
                 <Icon name={icon} />
               </span>
             )}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <h2 className="card__title">{title}</h2>
-              {desc && <p className="card__desc">{desc}</p>}
+            <div className="flex-1 min-w-0">
+              <h2 className="text-h6 font-medium m-0">{title}</h2>
+              {desc && <p className="text-sm text-fg2 mt-1 mb-0">{desc}</p>}
             </div>
             {action}
           </div>
         </header>
       )}
-      <div className="card__body">{children}</div>
-      {footer && <footer className="card__foot">{footer}</footer>}
+      <div className="p-5">{children}</div>
+      {footer && (
+        <footer className="px-5 py-4 border-t border-divider flex items-center gap-3 justify-end">
+          {footer}
+        </footer>
+      )}
     </section>
   );
 }

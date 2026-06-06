@@ -7,6 +7,7 @@ import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Field } from '../components/ui/Field';
 import { Input } from '../components/ui/input';
+import { Chip } from '../components/ui/Chip';
 import { LoadBox } from '../components/ui/Spinner';
 import { Empty } from '../components/ui/Empty';
 import { Icon } from '../components/ui/Logo';
@@ -20,7 +21,6 @@ export function FirmwarePage() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ version: '', downloadPath: '', checksum: '', notes: '' });
 
-  // Flash assistant state
   const [selectedFwId, setSelectedFwId] = useState('');
   const [manifestBlobUrl, setManifestBlobUrl] = useState<string | null>(null);
   const [manifestLoading, setManifestLoading] = useState(false);
@@ -42,7 +42,6 @@ export function FirmwarePage() {
   const defaultFw = firmwareVersions.find((fw) => fw.is_default);
   const userVersions = firmwareVersions.filter((fw) => !fw.is_default);
 
-  // Auto-select the active default firmware on first load so users can flash immediately.
   useEffect(() => {
     if (!hasAutoSelected.current && defaultFw?.active) {
       hasAutoSelected.current = true;
@@ -51,12 +50,7 @@ export function FirmwarePage() {
   }, [defaultFw?.active]);
 
   const createMutation = useMutation({
-    mutationFn: async (payload: {
-      version: string;
-      download_path: string;
-      checksum?: string;
-      release_notes?: string;
-    }) => {
+    mutationFn: async (payload: { version: string; download_path: string; checksum?: string; release_notes?: string }) => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
       return createFirmwareVersion(token, payload);
@@ -66,34 +60,23 @@ export function FirmwarePage() {
       setForm({ version: '', downloadPath: '', checksum: '', notes: '' });
       app.toast({ type: 'success', title: t.fwVersionCreated });
     },
-    onError: (err: Error) => {
-      app.toast({ type: 'error', title: err.message });
-    },
+    onError: (err: Error) => { app.toast({ type: 'error', title: err.message }); },
   });
 
-  // Fetch manifest and convert to blob URL when version is selected
   useEffect(() => {
-    if (!selectedFwId) {
-      setManifestBlobUrl(null);
-      return;
-    }
+    if (!selectedFwId) { setManifestBlobUrl(null); return; }
     let cancelled = false;
     setManifestLoading(true);
     setManifestError(null);
     setManifestBlobUrl(null);
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current);
-      blobUrlRef.current = null;
-    }
+    if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
     (async () => {
       try {
         const token = await getToken();
         if (!token) throw new Error('Not authenticated');
         const manifest = await getFirmwareManifest(token, selectedFwId);
         if (cancelled) return;
-        const url = URL.createObjectURL(
-          new Blob([JSON.stringify(manifest)], { type: 'application/json' })
-        );
+        const url = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
         blobUrlRef.current = url;
         setManifestBlobUrl(url);
       } catch (err) {
@@ -105,10 +88,7 @@ export function FirmwarePage() {
     return () => { cancelled = true; };
   }, [selectedFwId]);
 
-  // Revoke blob URL on unmount
-  useEffect(() => () => {
-    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-  }, []);
+  useEffect(() => () => { if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current); }, []);
 
   function submit() {
     createMutation.mutate({
@@ -121,47 +101,40 @@ export function FirmwarePage() {
 
   function renderFirmwareItem(item: FirmwareVersion) {
     return (
-      <div className="device" key={item.id}>
-        <div className="device__glyph">
+      <div
+        key={item.id}
+        className="grid grid-cols-[48px_1fr_auto] gap-4 px-5 py-4 items-center [&+&]:border-t [&+&]:border-divider max-[560px]:grid-cols-1 max-[560px]:gap-3"
+      >
+        <div className="w-12 h-12 rounded-md bg-black/[0.10] text-fg2 flex items-center justify-center [&_.material-symbols-outlined]:text-[24px]">
           <Icon name={item.is_default ? 'deployed_code' : 'download'} />
         </div>
-        <div style={{ minWidth: 0 }}>
-          <div className="device__name">
+        <div className="min-w-0">
+          <div className="text-body font-medium flex items-center gap-2.5 flex-wrap">
             {t.fwVersion} <b>{item.version}</b>
-            {item.is_default && (
-              <span className="chip chip--info">{t.fwDefaultBadge}</span>
-            )}
-            {item.is_default && item.active && (
-              <span className="chip chip--success">{t.fwDefaultReady}</span>
-            )}
-            {item.active && !item.is_default && (
-              <span className="chip chip--success">{t.fwActive}</span>
-            )}
-            {item.is_default && !item.active && (
-              <span className="chip chip--warning" title={t.fwDefaultNotBuilt}>
-                {t.fwDefaultNotBuilt}
-              </span>
-            )}
+            {item.is_default && <Chip variant="info">{t.fwDefaultBadge}</Chip>}
+            {item.is_default && item.active && <Chip variant="success">{t.fwDefaultReady}</Chip>}
+            {item.active && !item.is_default && <Chip variant="success">{t.fwActive}</Chip>}
+            {item.is_default && !item.active && <Chip variant="warning">{t.fwDefaultNotBuilt}</Chip>}
           </div>
-          <div className="device__rows">
-            <span className="device__kv">
+          <div className="flex flex-wrap gap-y-1 gap-x-[18px] mt-1.5">
+            <span className="text-xs text-fg2 flex items-center gap-1.5 [&_b]:font-mono [&_b]:text-fg1 [&_b]:font-normal">
               {t.fwDownloadPath} <b>{item.download_path}</b>
             </span>
             {!item.is_default && (
-              <span className="device__kv">
+              <span className="text-xs text-fg2 flex items-center gap-1.5 [&_b]:font-mono [&_b]:text-fg1 [&_b]:font-normal">
                 {t.fwChecksum} <b>{item.checksum || t.fwNone}</b>
               </span>
             )}
             {!item.is_default && (
-              <span className="device__kv">
+              <span className="text-xs text-fg2 flex items-center gap-1.5 [&_b]:font-mono [&_b]:text-fg1 [&_b]:font-normal">
                 {t.fwCreatedAt} <b>{new Date(item.created_at).toLocaleString(app.t.locale)}</b>
               </span>
             )}
-            {item.release_notes ? (
-              <span className="device__kv">
+            {item.release_notes && (
+              <span className="text-xs text-fg2 flex items-center gap-1.5 [&_b]:font-mono [&_b]:text-fg1 [&_b]:font-normal">
                 {t.fwNotes} <b>{item.release_notes}</b>
               </span>
-            ) : null}
+            )}
           </div>
         </div>
       </div>
@@ -169,15 +142,12 @@ export function FirmwarePage() {
   }
 
   return (
-    <div className="page">
-      <header className="page__head">
-        <div>
-          <h1 className="page__title">{t.fwTitle}</h1>
-          <p className="page__sub">{t.fwSub}</p>
-        </div>
+    <div className="max-w-[1180px] mx-auto px-6 pt-6 pb-20 animate-fade-up max-[820px]:px-4 max-[820px]:pt-5 max-[820px]:pb-16">
+      <header className="mb-5">
+        <h1 className="text-h2 font-light tracking-tight m-0 mb-1.5">{t.fwTitle}</h1>
+        <p className="text-fg2 text-body m-0">{t.fwSub}</p>
       </header>
 
-      {/* Firmware versions list */}
       <Card flat>
         {isLoading ? (
           <LoadBox text={t.loadingFirmware} />
@@ -186,11 +156,7 @@ export function FirmwarePage() {
             icon="wifi_off"
             title={t.fwFetchError}
             text={t.fwFetchErrorMsg}
-            action={
-              <Button icon="refresh" onClick={() => refetch()}>
-                {t.retry}
-              </Button>
-            }
+            action={<Button icon="refresh" onClick={() => refetch()}>{t.retry}</Button>}
           />
         ) : (
           <>
@@ -213,67 +179,43 @@ export function FirmwarePage() {
         )}
       </Card>
 
-      {/* Create release form */}
-      <Card flat style={{ marginTop: 24 }}>
-        <div className="stack">
+      <Card flat className="mt-6">
+        <div className="flex flex-col gap-4">
           <Field label={t.fwFormVersion} htmlFor="fw-version">
-            <Input
-              id="fw-version"
-              value={form.version}
-              placeholder="1.0.1"
-              onChange={(e) => setForm({ ...form, version: e.target.value })}
-            />
+            <Input id="fw-version" value={form.version} placeholder="1.0.1" onChange={(e) => setForm({ ...form, version: e.target.value })} />
           </Field>
           <Field label={t.fwFormDownloadPath} htmlFor="fw-download-path" helper={t.fwFormDownloadHint}>
-            <Input
-              id="fw-download-path"
-              value={form.downloadPath}
-              placeholder="https://cdn.example.com/firmware.bin"
-              onChange={(e) => setForm({ ...form, downloadPath: e.target.value })}
-            />
+            <Input id="fw-download-path" value={form.downloadPath} placeholder="https://cdn.example.com/firmware.bin" onChange={(e) => setForm({ ...form, downloadPath: e.target.value })} />
           </Field>
           <Field label={t.fwFormChecksum} htmlFor="fw-checksum">
-            <Input
-              id="fw-checksum"
-              value={form.checksum}
-              placeholder="Optional SHA256 checksum"
-              onChange={(e) => setForm({ ...form, checksum: e.target.value })}
-            />
+            <Input id="fw-checksum" value={form.checksum} placeholder="Optional SHA256 checksum" onChange={(e) => setForm({ ...form, checksum: e.target.value })} />
           </Field>
           <Field label={t.fwFormNotes} htmlFor="fw-notes">
-            <Input
-              id="fw-notes"
-              value={form.notes}
-              placeholder={t.fwFormNotesPh}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            />
+            <Input id="fw-notes" value={form.notes} placeholder={t.fwFormNotesPh} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </Field>
-          <Button onClick={submit} loading={createMutation.isPending}>
-            {t.fwCreateRelease}
-          </Button>
+          <Button onClick={submit} loading={createMutation.isPending}>{t.fwCreateRelease}</Button>
         </div>
       </Card>
 
-      {/* Flash device assistant */}
-      <Card flat style={{ marginTop: 24 }}>
-        <div className="stack">
+      <Card flat className="mt-6">
+        <div className="flex flex-col gap-4">
           <div>
-            <div className="section__title">{t.fwFlashTitle}</div>
-            <p className="muted" style={{ marginTop: 4 }}>{t.fwFlashSub}</p>
+            <div className="text-h6 font-medium">{t.fwFlashTitle}</div>
+            <p className="text-fg2 text-sm mt-1 mb-0">{t.fwFlashSub}</p>
           </div>
           {!supportsWebSerial && (
-            <div className="info-banner">
+            <div className="flex gap-2.5 items-start px-3.5 py-3 rounded-sm bg-info/[0.08] text-fg2 text-sm leading-snug [&_.material-symbols-outlined]:text-[19px] [&_.material-symbols-outlined]:text-info [&_.material-symbols-outlined]:flex-shrink-0 [&_.material-symbols-outlined]:mt-[1px]">
               <Icon name="warning" /> {t.fwFlashBrowserNote}
             </div>
           )}
           {!firmwareVersions.some((fw) => fw.active) ? (
-            <p className="muted">{t.fwFlashNoVersions}</p>
+            <p className="text-fg2 text-sm">{t.fwFlashNoVersions}</p>
           ) : (
             <>
               <Field label={t.fwFlashSelectVersion} htmlFor="flash-version">
                 <select
                   id="flash-version"
-                  className="input"
+                  className="select-native font-sans text-sm text-fg1 px-3 py-2.5 min-h-[42px] rounded-sm border border-border-strong bg-surface outline-none w-full focus:border-accent focus:shadow-[0_0_0_1px_var(--accent)]"
                   value={selectedFwId}
                   onChange={(e) => setSelectedFwId(e.target.value)}
                 >
@@ -287,26 +229,29 @@ export function FirmwarePage() {
                   ))}
                 </select>
               </Field>
-              <ol className="flash-steps">
+              <ol className="list-none m-0 p-0 flex flex-col gap-3">
                 {[t.fwFlashStep1, t.fwFlashStep2, t.fwFlashStep3].map((step, i) => (
-                  <li key={i} className="flash-step">
-                    <span className="flash-step__num">{i + 1}</span>
+                  <li key={i} className="flex items-start gap-3 text-sm text-fg2">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-accent text-fg-on flex items-center justify-center text-xs font-medium">
+                      {i + 1}
+                    </span>
                     <span>{step}</span>
                   </li>
                 ))}
               </ol>
               {selectedFwId && (
-                <div className="flash-action">
-                  {manifestLoading && (
-                    <span className="muted">{t.fwFlashManifestLoading}</span>
-                  )}
+                <div className="flex items-center gap-3 flex-wrap">
+                  {manifestLoading && <span className="text-fg2 text-sm">{t.fwFlashManifestLoading}</span>}
                   {manifestError && (
-                    <div className="info-banner">
+                    <div className="flex gap-2.5 items-start px-3.5 py-3 rounded-sm bg-error/[0.08] text-error text-sm [&_.material-symbols-outlined]:text-[19px]">
                       <Icon name="error" /> {t.fwFlashManifestError}
                     </div>
                   )}
                   {manifestBlobUrl && !manifestLoading && (
-                    <esp-web-install-button manifest={manifestBlobUrl} />
+                    <esp-web-install-button
+                      manifest={manifestBlobUrl}
+                      style={{ '--esp-tools-button-color': 'var(--accent)', '--esp-tools-button-text-color': 'var(--fg-on-primary)', '--esp-tools-button-border-radius': 'var(--radius-md)' }}
+                    />
                   )}
                 </div>
               )}

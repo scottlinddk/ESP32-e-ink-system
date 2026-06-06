@@ -14,7 +14,6 @@ import { Chip } from '../ui/Chip';
 import { Dialog } from '../ui/Dialog';
 import { Icon } from '../ui/Logo';
 
-// Maps frontend service id → backend provider name
 const PROVIDER_MAP: Record<string, string> = {
   openweather: 'openweathermap',
   newsapi: 'newsapi',
@@ -43,7 +42,6 @@ export function ApiKeysCard() {
     },
   });
 
-  // Sync backend keys into appContext so PreviewCard can check connection status
   useEffect(() => {
     if (!data) return;
     const updated: Record<string, { status: string; key: string }> = {
@@ -68,9 +66,7 @@ export function ApiKeysCard() {
       setDialog(null);
       app.toast({ type: 'success', title: t.keySaved, msg: t.keySavedMsg });
     },
-    onError: (e: Error) => {
-      setErr(e.message);
-    },
+    onError: (e: Error) => { setErr(e.message); },
   });
 
   const deleteMutation = useMutation({
@@ -83,22 +79,13 @@ export function ApiKeysCard() {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
       app.toast({ type: 'info', title: t.keyRemoved });
     },
-    onError: (e: Error) => {
-      app.toast({ type: 'error', title: e.message });
-    },
+    onError: (e: Error) => { app.toast({ type: 'error', title: e.message }); },
   });
 
-  function openDialog(id: string) {
-    setDialog(id);
-    setKeyInput('');
-    setErr('');
-  }
+  function openDialog(id: string) { setDialog(id); setKeyInput(''); setErr(''); }
 
   function saveKey() {
-    if (keyInput.trim().length < 16) {
-      setErr(t.keyInvalidLen);
-      return;
-    }
+    if (keyInput.trim().length < 16) { setErr(t.keyInvalidLen); return; }
     const backendProvider = PROVIDER_MAP[dialog!] ?? dialog!;
     saveMutation.mutate({ provider: backendProvider, key: keyInput.trim() });
   }
@@ -109,16 +96,14 @@ export function ApiKeysCard() {
   }
 
   const connectedProviders = new Set(
-    (data?.api_keys ?? []).map((k) =>
-      k.provider === 'openweathermap' ? 'openweather' : k.provider
-    )
+    (data?.api_keys ?? []).map((k) => k.provider === 'openweathermap' ? 'openweather' : k.provider)
   );
 
   const currentService = SERVICES.find((s) => s.id === dialog);
 
   return (
     <Card icon="key" title={t.apiTitle} desc={t.apiDesc}>
-      <div className="stack">
+      <div className="flex flex-col gap-4">
         {SERVICES.map((svc) => {
           const connected = connectedProviders.has(svc.id);
           const maskedKey = data?.api_keys.find(
@@ -126,61 +111,35 @@ export function ApiKeysCard() {
           )?.api_key ?? '';
 
           return (
-            <div
-              key={svc.id}
-              className="card card--flat"
-              style={{ borderColor: 'var(--color-border)' }}
-            >
-              <div className="card__body" style={{ padding: '14px 16px' }}>
-                <div className="row-between" style={{ marginBottom: 10 }}>
-                  <div style={{ fontWeight: 500 }}>{svc.name}</div>
-                  {connected ? (
-                    <Chip variant="success" dot>
-                      {t.statusConnected}
-                    </Chip>
-                  ) : (
-                    <Chip variant="error" dot>
-                      {t.statusNotConfigured}
-                    </Chip>
-                  )}
-                </div>
-                {connected ? (
-                  <div className="row-between">
-                    <code
-                      className="mono"
-                      style={{
-                        fontSize: 13,
-                        background: 'rgba(128,128,128,0.1)',
-                        padding: '6px 10px',
-                        borderRadius: 4,
-                      }}
-                    >
-                      {maskedKey}
-                    </code>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <Button variant="outlined" size="sm" onClick={() => openDialog(svc.id)}>
-                        {t.updateKey}
-                      </Button>
-                      <Button variant="text" size="sm" onClick={() => removeKey(svc.id)}>
-                        {t.removeKey}
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="row-between">
-                    <span className="helper">
-                      <Icon name="link" />
-                      {t.getKeyAt}{' '}
-                      <a href={'https://' + svc.url} target="_blank" rel="noreferrer">
-                        {svc.url}
-                      </a>
-                    </span>
-                    <Button variant="outlined" size="sm" icon="add" onClick={() => openDialog(svc.id)}>
-                      {t.addKey}
-                    </Button>
-                  </div>
-                )}
+            <div key={svc.id} className="bg-surface rounded-md border border-border px-4 py-3.5">
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="font-medium">{svc.name}</div>
+                <Chip variant={connected ? 'success' : 'error'} dot>
+                  {connected ? t.statusConnected : t.statusNotConfigured}
+                </Chip>
               </div>
+              {connected ? (
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <code className="text-[13px] bg-black/[0.10] px-2.5 py-1.5 rounded-sm font-mono text-fg1">
+                    {maskedKey}
+                  </code>
+                  <div className="flex gap-2">
+                    <Button variant="outlined" size="sm" onClick={() => openDialog(svc.id)}>{t.updateKey}</Button>
+                    <Button variant="text" size="sm" onClick={() => removeKey(svc.id)}>{t.removeKey}</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-xs text-fg3 flex items-center gap-[5px] [&_.material-symbols-outlined]:text-[15px]">
+                    <Icon name="link" />
+                    {t.getKeyAt}{' '}
+                    <a href={'https://' + svc.url} target="_blank" rel="noreferrer" className="text-info hover:underline">
+                      {svc.url}
+                    </a>
+                  </span>
+                  <Button variant="outlined" size="sm" icon="add" onClick={() => openDialog(svc.id)}>{t.addKey}</Button>
+                </div>
+              )}
             </div>
           );
         })}
@@ -193,24 +152,14 @@ export function ApiKeysCard() {
         icon="key"
         footer={
           <>
-            <Button variant="text" onClick={() => setDialog(null)}>
-              {t.cancel}
-            </Button>
-            <Button onClick={saveKey} loading={saveMutation.isPending}>
-              {t.saveKey}
-            </Button>
+            <Button variant="text" onClick={() => setDialog(null)}>{t.cancel}</Button>
+            <Button onClick={saveKey} loading={saveMutation.isPending}>{t.saveKey}</Button>
           </>
         }
       >
-        <p className="dialog__text" style={{ marginBottom: 16 }}>
-          {t.keyDialogText}
-        </p>
+        <p className="text-sm text-fg2 m-0 leading-[1.55] mb-4">{t.keyDialogText}</p>
         <Field
-          label={
-            currentService
-              ? currentService.name + ' ' + t.apiKeyLabel.toLowerCase()
-              : t.apiKeyLabel
-          }
+          label={currentService ? currentService.name + ' ' + t.apiKeyLabel.toLowerCase() : t.apiKeyLabel}
           htmlFor="keyin"
           error={err}
           helper={!err && currentService ? t.getKeyAt + ' ' + currentService.url : undefined}
@@ -220,10 +169,7 @@ export function ApiKeysCard() {
             value={keyInput}
             lang={app.lang}
             placeholder={t.keyPh}
-            onChange={(e) => {
-              setKeyInput(e.target.value);
-              if (err) setErr('');
-            }}
+            onChange={(e) => { setKeyInput(e.target.value); if (err) setErr(''); }}
           />
         </Field>
       </Dialog>

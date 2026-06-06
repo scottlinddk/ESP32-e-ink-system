@@ -17,13 +17,22 @@ export function LoadingSpinner({ className, size = 'md', label }: LoadingSpinner
     <div className={cn('flex flex-col items-center justify-center gap-2', className)}>
       <div
         className={cn(
-          'animate-spin rounded-full border-muted-foreground border-t-primary',
+          'animate-spin rounded-full border-fg3 border-t-accent',
           sizeClasses[size]
         )}
         role="status"
         aria-label={label ?? 'Loading'}
       />
-      {label && <p className="text-sm text-muted-foreground">{label}</p>}
+      {label && <p className="text-sm text-fg2">{label}</p>}
+    </div>
+  );
+}
+
+/** Narrow indeterminate progress bar that fades in after a short delay. */
+export function ProgressBar() {
+  return (
+    <div className="fixed top-0 inset-x-0 h-[3px] z-[100] overflow-hidden animate-progress-fade-in">
+      <div className="absolute h-full bg-accent rounded-full animate-progress" />
     </div>
   );
 }
