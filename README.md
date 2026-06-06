@@ -1,4 +1,4 @@
-# ESP32 Display SaaS
+# ESP32 Display System
 
 A web dashboard + API for connecting your ESP32 e-ink display to live energy prices, weather, and news headlines.
 
