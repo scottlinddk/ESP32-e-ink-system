@@ -18,7 +18,13 @@ interface SelectProps {
 
 export function Select({ value, onChange, options, id, ...rest }: SelectProps) {
   return (
-    <select id={id} className="select-native" value={value} onChange={onChange} {...rest}>
+    <select
+      id={id}
+      className="select-native font-sans text-sm text-fg-1 px-3 py-[10px] min-h-[42px] rounded border border-border-strong bg-surface outline-none w-full transition-colors focus:border-accent focus:ring-1 focus:ring-accent appearance-none cursor-pointer"
+      value={value}
+      onChange={onChange}
+      {...rest}
+    >
       {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}

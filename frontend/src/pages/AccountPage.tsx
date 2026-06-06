@@ -34,13 +34,13 @@ export function AccountPage() {
   const devPct = Math.round((app.devices.length / usage.deviceLimit) * 100);
 
   return (
-    <div className="page" style={{ maxWidth: 760 }}>
-      <header className="page__head">
-        <h1 className="page__title">{t.accTitle}</h1>
-        <p className="page__sub">{t.accSub}</p>
+    <div className="max-w-[760px] mx-auto px-6 pt-8 pb-20 animate-page-enter">
+      <header className="mb-5">
+        <h1 className="text-[2rem] font-light tracking-tight m-0 mb-1.5">{t.accTitle}</h1>
+        <p className="text-fg-2 text-base m-0">{t.accSub}</p>
       </header>
 
-      <div className="stack">
+      <div className="flex flex-col gap-4">
         <Card
           icon="person"
           title={t.profile}
@@ -85,33 +85,39 @@ export function AccountPage() {
           title={t.subscription}
           action={<Chip variant="default">{t.planFree}</Chip>}
         >
-          <div className="stack">
-            <div className="usage">
-              <div className="usage__row">
-                <span className="label">{t.apiCalls}</span>
-                <span className="val">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex justify-between text-sm">
+                <span className="text-fg-2">{t.apiCalls}</span>
+                <span className="tabular-nums font-medium">
                   {usage.apiCalls} / {usage.apiLimit}
                 </span>
               </div>
-              <div className="usage__track">
-                <div className="usage__fill" style={{ width: callsPct + '%' }} />
+              <div className="h-2 rounded-full bg-[rgba(128,128,128,0.16)] overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-accent transition-[width] duration-[375ms]"
+                  style={{ width: callsPct + '%' }}
+                />
               </div>
             </div>
-            <div className="usage">
-              <div className="usage__row">
-                <span className="label">{t.devicesUsed}</span>
-                <span className="val">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex justify-between text-sm">
+                <span className="text-fg-2">{t.devicesUsed}</span>
+                <span className="tabular-nums font-medium">
                   {app.devices.length} / {usage.deviceLimit}
                 </span>
               </div>
-              <div className="usage__track">
-                <div className="usage__fill" style={{ width: devPct + '%' }} />
+              <div className="h-2 rounded-full bg-[rgba(128,128,128,0.16)] overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-accent transition-[width] duration-[375ms]"
+                  style={{ width: devPct + '%' }}
+                />
               </div>
             </div>
-            <div className="row-between" style={{ marginTop: 4 }}>
-              <span className="muted">
+            <div className="flex items-center justify-between gap-4" style={{ marginTop: 4 }}>
+              <span className="text-fg-2 text-sm">
                 {t.plan}:{' '}
-                <b style={{ color: 'var(--fg-1)' }}>{t.planFree}</b>
+                <b style={{ color: 'var(--fg-1)', fontWeight: 500 }}>{t.planFree}</b>
               </span>
               <Button
                 variant="outlined"
@@ -124,9 +130,14 @@ export function AccountPage() {
           </div>
         </Card>
 
-        <Card className="danger-zone" flat icon="warning" title={t.dangerZone}>
-          <div className="row-between" style={{ gap: 16, flexWrap: 'wrap' }}>
-            <p className="dialog__text" style={{ flex: 1, minWidth: 220 }}>
+        <Card
+          className="border-error/40"
+          flat
+          icon="warning"
+          title={t.dangerZone}
+        >
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <p className="text-sm text-fg-2 m-0 leading-[1.55]" style={{ flex: 1, minWidth: 220 }}>
               {t.deleteAccountText}
             </p>
             <Button
@@ -167,7 +178,7 @@ export function AccountPage() {
           </>
         }
       >
-        <p className="dialog__text" style={{ marginBottom: 16 }}>
+        <p className="text-sm text-fg-2 m-0 leading-[1.55] mb-4">
           {t.deleteAccountText}
         </p>
         <Field label={t.typeToConfirm} htmlFor="del">

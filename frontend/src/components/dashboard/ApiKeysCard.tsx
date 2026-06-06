@@ -118,7 +118,7 @@ export function ApiKeysCard() {
 
   return (
     <Card icon="key" title={t.apiTitle} desc={t.apiDesc}>
-      <div className="stack">
+      <div className="flex flex-col gap-4">
         {SERVICES.map((svc) => {
           const connected = connectedProviders.has(svc.id);
           const maskedKey = data?.api_keys.find(
@@ -128,11 +128,10 @@ export function ApiKeysCard() {
           return (
             <div
               key={svc.id}
-              className="card card--flat"
-              style={{ borderColor: 'var(--color-border)' }}
+              className="bg-surface rounded-lg border border-[var(--color-border)] shadow-none overflow-hidden"
             >
-              <div className="card__body" style={{ padding: '14px 16px' }}>
-                <div className="row-between" style={{ marginBottom: 10 }}>
+              <div className="p-[14px_16px]" style={{ padding: '14px 16px' }}>
+                <div className="flex items-center justify-between gap-4 mb-[10px]">
                   <div style={{ fontWeight: 500 }}>{svc.name}</div>
                   {connected ? (
                     <Chip variant="success" dot>
@@ -145,9 +144,9 @@ export function ApiKeysCard() {
                   )}
                 </div>
                 {connected ? (
-                  <div className="row-between">
+                  <div className="flex items-center justify-between gap-4">
                     <code
-                      className="mono"
+                      className="font-mono"
                       style={{
                         fontSize: 13,
                         background: 'rgba(128,128,128,0.1)',
@@ -167,8 +166,8 @@ export function ApiKeysCard() {
                     </div>
                   </div>
                 ) : (
-                  <div className="row-between">
-                    <span className="helper">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-xs text-fg-3 flex items-center gap-[5px] [&_.material-symbols-outlined]:text-[15px]">
                       <Icon name="link" />
                       {t.getKeyAt}{' '}
                       <a href={'https://' + svc.url} target="_blank" rel="noreferrer">
@@ -202,7 +201,7 @@ export function ApiKeysCard() {
           </>
         }
       >
-        <p className="dialog__text" style={{ marginBottom: 16 }}>
+        <p className="text-sm text-fg-2 m-0 leading-[1.55] mb-4">
           {t.keyDialogText}
         </p>
         <Field

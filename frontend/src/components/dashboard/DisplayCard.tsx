@@ -3,6 +3,7 @@
 // =========================================================================
 import React, { useState, ReactNode } from 'react';
 import { useApp } from '../../lib/appContext';
+import { useSavePreferences } from '../../hooks/usePreferences';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Field } from '../ui/Field';
@@ -11,6 +12,7 @@ import { Select } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { Skeleton } from '../ui/Spinner';
 import { Icon } from '../ui/Logo';
+import { cn } from '../../lib/utils';
 
 interface SourceRowProps {
   icon: string;
@@ -24,18 +26,35 @@ interface SourceRowProps {
 function SourceRow({ icon, name, hint, checked, onToggle, children }: SourceRowProps) {
   const id = name.replace(/\s+/g, '-').toLowerCase();
   return (
-    <div className={'source' + (checked ? ' is-on' : '')}>
-      <label className="source__top" htmlFor={id}>
+    <div
+      className={cn(
+        'border border-[var(--color-border)] rounded-lg overflow-hidden transition-colors duration-[225ms] [&+&]:mt-3',
+        checked && 'border-border-strong',
+      )}
+    >
+      <label
+        className="flex items-start gap-[14px] px-4 py-[14px] cursor-pointer select-none hover:bg-[rgba(128,128,128,0.03)]"
+        htmlFor={id}
+      >
         <Checkbox id={id} checked={checked} onChange={onToggle} label={name} />
-        <span className="source__icon">
+        <span
+          className={cn(
+            'w-[38px] h-[38px] rounded-lg flex-shrink-0 flex items-center justify-center bg-[rgba(128,128,128,0.1)] text-fg-2 [&_.material-symbols-outlined]:text-[21px]',
+            checked && 'bg-accent text-fg-on',
+          )}
+        >
           <Icon name={icon} />
         </span>
-        <span className="source__text">
-          <span className="source__name">{name}</span>
-          <span className="source__hint">{hint}</span>
+        <span className="flex-1 min-w-0">
+          <span className="text-base font-medium block">{name}</span>
+          <span className="text-sm text-fg-2 mt-0.5 block">{hint}</span>
         </span>
       </label>
-      {checked && <div className="source__detail">{children}</div>}
+      {checked && (
+        <div className="px-4 pb-4 pl-[68px] grid gap-[14px] max-[820px]:pl-4">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -44,35 +63,52 @@ export function DisplayCard({ loading }: { loading: boolean }) {
   const app = useApp();
   const t = app.t;
   const p = app.prefs;
-  const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
+  const { mutateAsync: savePrefs, isPending: saving } = useSavePreferences();
 
   const set = (patch: Partial<typeof p>) => app.setPrefs({ ...p, ...patch });
 
-  function save() {
-    setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-      if (!app.online) {
-        app.toast({
-          type: 'error',
-          title: t.saveFailed,
-          msg: t.saveFailedMsg,
-          persist: true,
-          action: { label: t.retry, onClick: save },
-        });
-      } else {
-        app.toast({ type: 'success', title: t.saved, msg: t.savedMsg });
-      }
-    }, 1300);
+  async function save() {
+    try {
+      await savePrefs({
+        show_energy_price: p.energy.on,
+        energy_price_location: p.energy.zone,
+        show_weather: p.weather.on,
+        weather_location: p.weather.location,
+        show_news: p.news.on,
+        news_language: p.news.lang,
+      });
+      app.toast({ type: 'success', title: t.saved, msg: t.savedMsg });
+    } catch {
+      app.toast({
+        type: 'error',
+        title: t.saveFailed,
+        msg: t.saveFailedMsg,
+        persist: true,
+        action: { label: t.retry, onClick: save },
+      });
+    }
   }
 
   function useLocation() {
+    if (!navigator.geolocation) {
+      app.toast({ type: 'error', title: t.saveFailed, msg: 'Geolocation is not supported by your browser.' });
+      return;
+    }
     setLocating(true);
-    setTimeout(() => {
-      setLocating(false);
-      set({ weather: { ...p.weather, location: '57.05, 9.92' } });
-    }, 1200);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude.toFixed(4);
+        const lng = pos.coords.longitude.toFixed(4);
+        set({ weather: { ...p.weather, location: `${lat}, ${lng}` } });
+        setLocating(false);
+      },
+      () => {
+        app.toast({ type: 'error', title: t.saveFailed, msg: 'Could not get your location. Check browser permissions.' });
+        setLocating(false);
+      },
+      { timeout: 8000 }
+    );
   }
 
   return (
@@ -87,7 +123,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
       }
     >
       {loading ? (
-        <div className="stack">
+        <div className="flex flex-col gap-4">
           {[0, 1, 2].map((i) => (
             <div
               key={i}
@@ -111,7 +147,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
             checked={p.energy.on}
             onToggle={() => set({ energy: { ...p.energy, on: !p.energy.on } })}
           >
-            <div className="source__detail-grid">
+            <div className="grid grid-cols-2 gap-[14px] max-[820px]:grid-cols-1">
               <Field label={t.zone} htmlFor="zone">
                 <Select
                   id="zone"
@@ -126,7 +162,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
                 />
               </Field>
             </div>
-            <div className="helper">
+            <div className="text-xs text-fg-3 flex items-center gap-[5px] [&_.material-symbols-outlined]:text-[15px]">
               <Icon name="schedule" />
               {t.updateEvery}
             </div>
@@ -139,7 +175,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
             checked={p.weather.on}
             onToggle={() => set({ weather: { ...p.weather, on: !p.weather.on } })}
           >
-            <div className="source__detail-grid">
+            <div className="grid grid-cols-2 gap-[14px] max-[820px]:grid-cols-1">
               <Field label={t.location} htmlFor="loc">
                 <Input
                   id="loc"
@@ -151,7 +187,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
                   }
                 />
               </Field>
-              <Field label={' '}>
+              <Field label={' '}>
                 <Button
                   variant="outlined"
                   icon={locating ? undefined : 'my_location'}
@@ -171,7 +207,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
             checked={p.news.on}
             onToggle={() => set({ news: { ...p.news, on: !p.news.on } })}
           >
-            <div className="source__detail-grid">
+            <div className="grid grid-cols-2 gap-[14px] max-[820px]:grid-cols-1">
               <Field label={t.contentLang} htmlFor="nl">
                 <Select
                   id="nl"

@@ -8,15 +8,24 @@ import './index.css';
 
 export function HydrateFallback() {
   return (
-    <div className="app-init" role="status" aria-label="Loading">
-      <div className="app-init__brand">
+    <div
+      className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-bg z-[100] animate-app-enter"
+      role="status"
+      aria-label="Loading"
+    >
+      <div className="flex flex-col items-center gap-3 animate-fade-up">
         <Logo lg />
         <div style={{ textAlign: 'center' }}>
-          <p className="app-init__name">ESP32 Display</p>
-          <p className="app-init__sub">Real-time data for your e-ink display</p>
+          <p className="text-lg font-medium tracking-tight text-fg-1 m-0">ESP32 Display</p>
+          <p className="text-xs text-fg-3 m-0">Real-time data for your e-ink display</p>
         </div>
       </div>
-      <span className="spinner spinner--lg" aria-hidden="true" />
+      <div
+        className="w-40 h-[3px] bg-[rgba(128,128,128,0.15)] rounded-full overflow-hidden animate-fade-up"
+        aria-hidden="true"
+      >
+        <div className="h-full w-1/2 bg-accent rounded-full animate-progress" />
+      </div>
     </div>
   );
 }
@@ -70,7 +79,7 @@ export default function App() {
       signUpFallbackRedirectUrl="/"
     >
       <QueryClientProvider client={queryClient}>
-        <header style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: 'var(--space-3) var(--space-4)', gap: 'var(--space-2)' }}>
+        <header className="flex justify-end items-center p-3 gap-2">
           <Show when="signed-out">
             <SignInButton />
             <SignUpButton />
@@ -100,11 +109,11 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   }
 
   return (
-    <main className="loadbox" style={{ minHeight: '100vh' }}>
+    <main className="flex flex-col items-center justify-center gap-3 py-12 px-4 text-fg-2 text-sm min-h-screen">
       <h1 style={{ fontWeight: 500 }}>{message}</h1>
-      <p className="muted">{details}</p>
+      <p className="text-fg-2 text-sm m-0">{details}</p>
       {stack && (
-        <pre style={{ fontSize: 12, fontFamily: 'var(--font-mono)', overflowX: 'auto', maxWidth: '100%', padding: 'var(--space-4)' }}>
+        <pre className="text-xs font-mono overflow-x-auto max-w-full p-4">
           {stack}
         </pre>
       )}

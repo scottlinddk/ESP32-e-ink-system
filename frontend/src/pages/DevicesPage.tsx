@@ -42,7 +42,12 @@ function CopyField({ value }: { value: string }) {
     setTimeout(() => setDone(false), 1200);
   }
   return (
-    <button className="copybtn" onClick={copy} title={t.copy} aria-label={t.copy}>
+    <button
+      className="bg-transparent border-none text-fg-3 cursor-pointer inline-flex items-center p-0 hover:text-accent [&_.material-symbols-outlined]:text-[15px]"
+      onClick={copy}
+      title={t.copy}
+      aria-label={t.copy}
+    >
       <Icon name={done ? 'check' : 'content_copy'} />
     </button>
   );
@@ -151,12 +156,12 @@ export function DevicesPage() {
   const isBusy = addMutation.isPending || editMutation.isPending || deleteMutation.isPending;
 
   return (
-    <div className="page">
-      <header className="page__head">
-        <div className="row-between">
+    <div className="max-w-[1180px] mx-auto px-6 pt-8 pb-20 animate-page-enter">
+      <header className="mb-5">
+        <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="page__title">{t.devTitle}</h1>
-            <p className="page__sub">{t.devSub}</p>
+            <h1 className="text-[2rem] font-light tracking-tight m-0 mb-1.5">{t.devTitle}</h1>
+            <p className="text-fg-2 text-base m-0">{t.devSub}</p>
           </div>
           {!isLoading && !error && (
             <Button icon="add" onClick={openAdd}>
@@ -201,35 +206,38 @@ export function DevicesPage() {
             const min = lastSeenMin(d.last_seen_at);
             const st = deviceStatus(min, t);
             return (
-              <div className="device" key={d.id}>
-                <div className="device__glyph">
+              <div
+                className="grid grid-cols-[48px_1fr_auto] gap-4 px-5 py-4 items-center border-t border-divider first:border-t-0 max-[560px]:grid-cols-1"
+                key={d.id}
+              >
+                <div className="w-12 h-12 rounded-lg bg-[rgba(128,128,128,0.1)] text-fg-2 flex items-center justify-center [&_.material-symbols-outlined]:text-2xl">
                   <Icon name="cast" />
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <div className="device__name">
+                  <div className="text-base font-medium flex items-center gap-[10px]">
                     {d.device_name}
                     <Chip variant={st.variant} dot>
                       {st.label}
                     </Chip>
                   </div>
-                  <div className="device__rows">
-                    <span className="device__kv">
+                  <div className="flex flex-wrap gap-x-[18px] gap-y-1 mt-1.5">
+                    <span className="text-xs text-fg-2 flex items-center gap-1.5 [&_b]:font-normal [&_b]:text-fg-1 [&_b]:font-mono">
                       {t.deviceId} <b>{d.device_id}</b>
                       <CopyField value={d.device_id} />
                     </span>
-                    <span className="device__kv">
+                    <span className="text-xs text-fg-2 flex items-center gap-1.5 [&_b]:font-normal [&_b]:text-fg-1 [&_b]:font-mono">
                       {t.license} <b>••••••••{d.license_key.slice(-4)}</b>
                       <CopyField value={d.license_key} />
                     </span>
-                    <span className="device__kv">
+                    <span className="text-xs text-fg-2 flex items-center gap-1.5 [&_b]:font-normal [&_b]:text-fg-1 [&_b]:font-mono">
                       {t.firmware} <b>v{d.firmware_version}</b>
                     </span>
-                    <span className="device__kv">
+                    <span className="text-xs text-fg-2 flex items-center gap-1.5 [&_b]:font-normal [&_b]:text-fg-1 [&_b]:font-mono">
                       {t.lastSeen} <b>{fmtAgo(min, app.lang)}</b>
                     </span>
                   </div>
                 </div>
-                <div className="device__actions">
+                <div className="flex gap-2">
                   <Button variant="outlined" size="sm" icon="edit" onClick={() => openEdit(d)}>
                     {t.edit}
                   </Button>
@@ -272,11 +280,11 @@ export function DevicesPage() {
         }
       >
         {dialog && dialog.type === 'add' && (
-          <p className="dialog__text" style={{ marginBottom: 16 }}>
+          <p className="text-sm text-fg-2 m-0 leading-[1.55] mb-4">
             {t.addDeviceText}
           </p>
         )}
-        <div className="stack">
+        <div className="flex flex-col gap-4">
           <Field label={t.deviceName} htmlFor="dn">
             <Input
               id="dn"
@@ -317,7 +325,7 @@ export function DevicesPage() {
           </>
         }
       >
-        <p className="dialog__text">{t.removeDeviceText}</p>
+        <p className="text-sm text-fg-2 m-0 leading-[1.55]">{t.removeDeviceText}</p>
       </Dialog>
     </div>
   );
