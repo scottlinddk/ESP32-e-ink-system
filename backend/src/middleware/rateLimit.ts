@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
+import { logger } from '../lib/logger';
 
 type Window = `${number} ${'ms' | 's' | 'm' | 'h' | 'd'}`;
 
@@ -15,7 +16,7 @@ function getRedis(): Redis | null {
   try {
     redis = new Redis({ url, token });
   } catch (err) {
-    console.warn('[rateLimit] Failed to initialise Redis client — rate limiting disabled:', err);
+    logger.warn({ err }, 'Failed to initialise Redis client — rate limiting disabled');
     return null;
   }
   return redis;
@@ -42,8 +43,9 @@ export function createRateLimiter(
   const r = getRedis();
 
   if (!r) {
-    console.warn(
-      `[rateLimit] "${prefix}" limiter is disabled — set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN to enable it`
+    logger.warn(
+      { prefix },
+      'Rate limiter disabled — set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN to enable it'
     );
     return (_req: Request, _res: Response, next: NextFunction): void => next();
   }

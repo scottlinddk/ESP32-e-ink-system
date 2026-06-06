@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import app from './app';
+import { logger } from './lib/logger';
 
 // Fail fast if required secrets are absent
 const requiredEnv: string[] = [
@@ -17,24 +18,22 @@ if (!process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_KEY.length !== 64) {
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 
 const server = app.listen(PORT, () => {
-  console.log(`[server] ESP32 Display API running on port ${PORT}`);
-  console.log(`[server] Environment: ${process.env.NODE_ENV ?? 'development'}`);
-  console.log(`[server] Health check: http://localhost:${PORT}/health`);
+  logger.info({ port: PORT, env: process.env.NODE_ENV ?? 'development' }, 'ESP32 Display API started');
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('[server] SIGTERM received — shutting down gracefully');
+  logger.info('SIGTERM received — shutting down gracefully');
   server.close(() => {
-    console.log('[server] Server closed');
+    logger.info('Server closed');
     process.exit(0);
   });
 });
 
 process.on('SIGINT', () => {
-  console.log('[server] SIGINT received — shutting down gracefully');
+  logger.info('SIGINT received — shutting down gracefully');
   server.close(() => {
-    console.log('[server] Server closed');
+    logger.info('Server closed');
     process.exit(0);
   });
 });

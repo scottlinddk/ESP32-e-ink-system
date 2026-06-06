@@ -1,4 +1,5 @@
 import { NewsItem, NewsApiResponse, CacheEntry } from '../types/index';
+import { logger } from '../lib/logger';
 
 const NEWSAPI_BASE_URL = 'https://newsapi.org/v2/top-headlines';
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -32,7 +33,7 @@ export async function fetchNews(
 
   if (!key) {
     // Return placeholder headlines if no API key is configured
-    console.warn('No NEWS_API_KEY configured — returning placeholder headlines');
+    logger.warn('No NEWS_API_KEY configured — returning placeholder headlines');
     return getPlaceholderHeadlines(language);
   }
 
@@ -43,7 +44,7 @@ export async function fetchNews(
     const response = await fetch(url);
 
     if (!response.ok) {
-      console.warn(`NewsAPI error: ${response.status} — falling back to placeholders`);
+      logger.warn({ status: response.status }, 'NewsAPI error — falling back to placeholders');
       return getPlaceholderHeadlines(language);
     }
 
@@ -62,7 +63,7 @@ export async function fetchNews(
 
     return items;
   } catch (err) {
-    console.error('NewsAPI fetch failed:', err);
+    logger.error({ err }, 'NewsAPI fetch failed');
     return getPlaceholderHeadlines(language);
   }
 }

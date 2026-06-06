@@ -3,7 +3,8 @@
   "private": true,
   "workspaces": [
     "frontend",
-    "backend"
+    "backend",
+    "packages/*"
   ],
   "scripts": {
     "dev": "concurrently -n \"frontend,backend\" -c \"cyan,magenta\" \"npm run dev -w frontend\" \"npm run dev -w backend\"",

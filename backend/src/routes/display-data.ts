@@ -13,6 +13,7 @@ import { fetchWeather } from '../services/weather';
 import { fetchNews } from '../services/news';
 import { DisplayData, UserPreferences } from '../types/index';
 import { createClerkClient } from '@clerk/backend';
+import { logger } from '../lib/logger';
 
 /**
  * @swagger
@@ -136,7 +137,7 @@ async function buildDisplayData(
           result.price = price;
         })
         .catch((err: unknown) => {
-          console.error('Energy price fetch failed:', err);
+          logger.error({ err }, 'Energy price fetch failed');
         })
     );
   }
@@ -149,7 +150,7 @@ async function buildDisplayData(
           result.weather = weather;
         })
         .catch((err: unknown) => {
-          console.error('Weather fetch failed:', err);
+          logger.error({ err }, 'Weather fetch failed');
         })
     );
   }
@@ -162,7 +163,7 @@ async function buildDisplayData(
           result.news = news;
         })
         .catch((err: unknown) => {
-          console.error('News fetch failed:', err);
+          logger.error({ err }, 'News fetch failed');
         })
     );
   }
@@ -201,7 +202,7 @@ router.get(
 
       // Update last seen timestamp (fire and forget)
       updateDeviceLastSeen(device.id).catch((err: unknown) =>
-        console.error('Failed to update device last_seen:', err)
+        logger.error({ err }, 'Failed to update device last_seen')
       );
 
       // Log usage (fire and forget)
