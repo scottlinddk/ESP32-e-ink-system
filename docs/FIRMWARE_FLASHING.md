@@ -23,6 +23,42 @@ This guide explains how to flash the ESP32 firmware for the ESP32 Display projec
 | RST | GPIO 16 | Hardware reset |
 | BUSY | GPIO 4 | Busy indicator (active high) |
 
+## Web Browser Flashing (Easiest)
+
+Flash directly from Chrome or Edge — no IDE or toolchain required.
+
+### Step 1: Install USB-to-Serial Driver (macOS / Windows)
+
+Most ESP32 boards use a CH340 or CP210x chip to expose the serial port over USB:
+
+| Chip | macOS driver | Windows | Linux |
+|------|-------------|---------|-------|
+| CH340 / CH341 | [WCH CH34x driver](https://www.wch-ic.com/downloads/CH34XSER_MAC_ZIP.html) | Auto via Windows Update | Built-in |
+| CP2102 / CP2104 | [Silicon Labs driver](https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers) | Auto via Windows Update | Built-in |
+
+After installing, unplug and replug the ESP32 USB cable.
+
+### Step 2: Flash via the Dashboard
+
+1. Open the **Flash** page in the dashboard (`/flash`).
+2. Click **Install Firmware**.
+3. In the browser dialog, select the serial port (e.g. `/dev/cu.usbserial-…` on Mac, `COM3` on Windows). Do not select a Bluetooth entry.
+4. Wait ~30 seconds for the flash to complete.
+
+> **Can't see a port?** The USB cable might be charge-only — try a different cable. Make sure the driver is installed (step 1).
+
+### Step 3: Full Setup After Flashing
+
+After a successful flash the device boots and broadcasts a WiFi hotspot:
+
+1. **Connect to the hotspot** — network name is `ESP32-Display-XXXXXX` (where XXXXXX is the device's MAC suffix).
+2. **Fill in the captive portal** — a setup page opens automatically (or navigate to `192.168.4.1`). Enter your home WiFi SSID, password, and backend API URL, then tap Save.
+3. **Claim the device** — in the dashboard, go to **Devices** and enter the device ID shown in the portal to link it to your account.
+4. **Add API keys** — get free keys from OpenWeatherMap and NewsAPI and paste them on the Account page.
+5. **Toggle sources** — enable Weather, News, or Energy on the Dashboard. The display updates within one refresh cycle.
+
+---
+
 ## Software Setup
 
 ## Quick Start (Recommended)
