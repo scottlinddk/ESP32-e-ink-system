@@ -14,6 +14,7 @@ import { fetchNews } from '../services/news';
 import { renderDisplayData } from '../utils/bmpGenerator';
 import { DisplayData, UserPreferences, DisplayImageResponse, WeatherData } from '../types/index';
 import { requireAuth } from '../middleware/auth';
+import { logger } from '../lib/logger';
 
 // Mock weather shown in the dashboard preview when no API key is configured
 const MOCK_WEATHER: WeatherData = {
@@ -131,7 +132,7 @@ async function buildDisplayData(
     tasks.push(
       fetchEnergyPrice(prefs.energy_price_location)
         .then((price) => { result.price = price; })
-        .catch((err: unknown) => { console.error('Energy price fetch failed:', err); })
+        .catch((err: unknown) => { logger.error({ err }, 'Energy price fetch failed'); })
     );
   }
 
@@ -139,7 +140,7 @@ async function buildDisplayData(
     tasks.push(
       fetchWeather(prefs.weather_location, apiKeyMap['openweathermap'])
         .then((weather) => { result.weather = weather; })
-        .catch((err: unknown) => { console.error('Weather fetch failed:', err); })
+        .catch((err: unknown) => { logger.error({ err }, 'Weather fetch failed'); })
     );
   }
 
@@ -147,7 +148,7 @@ async function buildDisplayData(
     tasks.push(
       fetchNews(prefs.news_language, apiKeyMap['newsapi'])
         .then((news) => { result.news = news; })
-        .catch((err: unknown) => { console.error('News fetch failed:', err); })
+        .catch((err: unknown) => { logger.error({ err }, 'News fetch failed'); })
     );
   }
 
@@ -336,7 +337,7 @@ router.get(
 
       // Fire-and-forget bookkeeping
       updateDeviceLastSeen(device.id).catch((err: unknown) =>
-        console.error('Failed to update device last_seen:', err)
+        logger.error({ err }, 'Failed to update device last_seen')
       );
       logApiUsage(userId, '/api/image/bmp');
 

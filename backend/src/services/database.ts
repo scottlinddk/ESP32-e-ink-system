@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { User, UserPreferences, ApiKey, Device, FirmwareVersion } from '../types/index';
 import { encrypt, decrypt, isEncrypted } from '../utils/crypto';
+import { logger } from '../lib/logger';
 
 let supabase: SupabaseClient | null = null;
 
@@ -114,7 +115,7 @@ export async function getApiKeys(userId: string): Promise<ApiKey[]> {
       return { ...row, api_key: decrypt(row.api_key) } as ApiKey;
     }
     // Legacy plaintext row — return as-is until migrated
-    console.warn(`api_keys row ${row.id} for provider ${row.provider} is not encrypted`);
+    logger.warn({ rowId: row.id, provider: row.provider }, 'api_keys row is not encrypted — run the migration script');
     return row as ApiKey;
   });
 }
@@ -353,6 +354,6 @@ export async function logApiUsage(userId: string, endpoint: string): Promise<voi
   db.from('api_usage')
     .insert({ user_id: userId, endpoint, called_at: new Date().toISOString() })
     .then(({ error }) => {
-      if (error) console.error('Failed to log API usage:', error.message);
+      if (error) logger.error({ message: error.message }, 'Failed to log API usage');
     });
 }

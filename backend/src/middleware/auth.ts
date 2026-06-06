@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '@clerk/backend';
+import { logger } from '../lib/logger';
 
 function getSecretKey(): string {
   const secretKey = process.env.CLERK_SECRET_KEY;
@@ -35,7 +36,7 @@ export async function requireAuth(
   } catch (err) {
     const reason = (err as Record<string, unknown>)?.reason as string | undefined;
     const message = err instanceof Error ? err.message : String(err);
-    console.error('Auth verification failed:', { reason, message });
+    logger.warn({ reason, message }, 'Auth verification failed');
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
