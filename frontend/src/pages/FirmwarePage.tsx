@@ -248,7 +248,6 @@ export function FirmwarePage() {
                     </div>
                   )}
                   {manifestBlobUrl && !manifestLoading && (
-                    // @ts-expect-error — custom element from esp-web-tools
                     <esp-web-install-button
                       manifest={manifestBlobUrl}
                       style={{ '--esp-tools-button-color': 'var(--accent)', '--esp-tools-button-text-color': 'var(--fg-on-primary)', '--esp-tools-button-border-radius': 'var(--radius-md)' }}

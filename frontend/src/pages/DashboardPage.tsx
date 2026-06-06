@@ -15,9 +15,22 @@ export function DashboardPage() {
 
   // Sync server preferences into context on first successful load
   useEffect(() => {
-    if (serverPrefs) {
-      app.setPrefs(serverPrefs as typeof app.prefs);
-    }
+    if (!serverPrefs) return;
+    app.setPrefs({
+      energy: {
+        on: serverPrefs.show_energy_price,
+        zone: serverPrefs.energy_price_location || app.prefs.energy.zone,
+      },
+      weather: {
+        on: serverPrefs.show_weather,
+        location: serverPrefs.weather_location || app.prefs.weather.location,
+      },
+      news: {
+        on: serverPrefs.show_news,
+        lang: serverPrefs.news_language || app.prefs.news.lang,
+        source: app.prefs.news.source,
+      },
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverPrefs]);
 

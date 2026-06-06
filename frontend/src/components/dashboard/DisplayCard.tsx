@@ -5,6 +5,7 @@ import React, { useState, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { useApp } from '../../lib/appContext';
 import { useSavePreferences } from '../../hooks/usePreferences';
+import type { UserPreferences } from '../../types';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Field } from '../ui/Field';
@@ -64,8 +65,19 @@ export function DisplayCard({ loading }: { loading: boolean }) {
 
   const set = (patch: Partial<typeof p>) => app.setPrefs({ ...p, ...patch });
 
+  function prefsToApi(prefs: typeof p): Partial<UserPreferences> {
+    return {
+      show_energy_price: prefs.energy.on,
+      energy_price_location: prefs.energy.zone,
+      show_weather: prefs.weather.on,
+      weather_location: prefs.weather.location,
+      show_news: prefs.news.on,
+      news_language: prefs.news.lang,
+    };
+  }
+
   function save() {
-    savePrefs.mutate(p, {
+    savePrefs.mutate(prefsToApi(p), {
       onSuccess: () => {
         app.toast({ type: 'success', title: t.saved, msg: t.savedMsg });
       },
@@ -95,7 +107,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
       },
       () => {
         setLocating(false);
-        app.toast({ type: 'error', title: t.locationError ?? 'Location unavailable' });
+        app.toast({ type: 'error', title: 'Location unavailable' });
       },
       { timeout: 8000 }
     );
