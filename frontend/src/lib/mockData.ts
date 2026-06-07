@@ -43,6 +43,8 @@ export interface EinkContentData {
   rain: number;
   wind: number;
   news: string;
+  monta: { chargerStatus: string; session?: string };
+  zaptec: { chargerStatus: string; session?: string; installation?: string };
 }
 
 export function einkContent(lang: string): EinkContentData {
@@ -59,6 +61,8 @@ export function einkContent(lang: string): EinkContentData {
       lang === 'da'
         ? 'Danmark: afgørelse om elkompensation'
         : 'Denmark: ruling on power compensation',
+    monta: { chargerStatus: '2 avail / 1 charging', session: '3.2 kWh · 45 min' },
+    zaptec: { chargerStatus: '1 avail', session: '1.8 kWh · 12 min', installation: 'Home' },
   };
 }
 

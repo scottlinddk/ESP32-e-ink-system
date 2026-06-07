@@ -214,6 +214,8 @@ export const STRINGS = {
     weatherConnectKey: "Weather — connect API key",
     wind: "wind",
     newsConnectKey: "News — connect API key",
+    montaConnectCred: "Monta — add credentials in API Keys",
+    zaptecConnectCred: "Zaptec — add credentials in API Keys",
     // docs page
     docsSub: "Get up and running in seven steps.",
     docsStep1Title: "Install USB driver",
@@ -496,6 +498,8 @@ export const STRINGS = {
     weatherConnectKey: "Vejr — forbind API-nøgle",
     wind: "vind",
     newsConnectKey: "Nyheder — forbind API-nøgle",
+    montaConnectCred: "Monta — tilføj legitimationsoplysninger",
+    zaptecConnectCred: "Zaptec — tilføj legitimationsoplysninger",
     // docs page
     docsSub: "Kom i gang på syv trin.",
     docsStep1Title: "Installer USB-driver",

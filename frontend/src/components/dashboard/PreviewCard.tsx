@@ -2,6 +2,7 @@
 // PreviewCard.tsx — live e-ink preview card
 // =========================================================================
 import React, { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useApp } from '../../lib/appContext';
 import { useAuth } from '../../hooks/useAuth';
 import { Card } from '../ui/card';
@@ -9,8 +10,9 @@ import { Button } from '../ui/button';
 import { Spinner } from '../ui/Spinner';
 import { Icon } from '../ui/Logo';
 import { EInk } from '../eink/EInk';
+import type { SourceId } from '../eink/EInk';
 import { einkContent } from '../../lib/mockData';
-import { fetchPreviewBmp } from '../../lib/api';
+import { fetchPreviewBmp, getEvCredentialStatus } from '../../lib/api';
 
 const EINK_W = 250;
 
@@ -21,8 +23,8 @@ interface EinkSurfaceProps {
   state: PreviewState;
   t: ReturnType<typeof useApp>['t'];
   onRetry: () => void;
-  sources: { energy: boolean; weather: boolean; news: boolean };
-  keys: { weather: boolean; news: boolean };
+  sources: Record<SourceId, boolean>;
+  keys: { weather: boolean; news: boolean; monta: boolean; zaptec: boolean };
   data: ReturnType<typeof einkContent>;
   lang: string;
   strings: React.ComponentProps<typeof EInk>['strings'];
@@ -78,10 +80,38 @@ export function PreviewCard() {
   const [idealError, setIdealError] = useState<string | null>(null);
   const prevBmpSrc = useRef<string | null>(null);
 
-  const sources = { energy: p.energy.on, weather: p.weather.on, news: p.news.on };
+  const { data: montaCred } = useQuery({
+    queryKey: ['ev-credentials', 'monta'],
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return getEvCredentialStatus(token, 'monta');
+    },
+    enabled: isSignedIn,
+  });
+
+  const { data: zaptecCred } = useQuery({
+    queryKey: ['ev-credentials', 'zaptec'],
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return getEvCredentialStatus(token, 'zaptec');
+    },
+    enabled: isSignedIn,
+  });
+
+  const sources: Record<SourceId, boolean> = {
+    energy: p.energy.on,
+    weather: p.weather.on,
+    news: p.news.on,
+    monta: p.monta?.on ?? false,
+    zaptec: p.zaptec?.on ?? false,
+  };
   const keys = {
     weather: app.apiKeys.openweather?.status === 'connected',
     news: app.apiKeys.newsapi?.status === 'connected',
+    monta: montaCred?.configured ?? false,
+    zaptec: zaptecCred?.configured ?? false,
   };
   const data = einkContent(app.lang);
 
@@ -89,7 +119,9 @@ export function PreviewCard() {
   const availCount =
     (sources.energy ? 1 : 0) +
     (sources.weather && keys.weather ? 1 : 0) +
-    (sources.news && keys.news ? 1 : 0);
+    (sources.news && keys.news ? 1 : 0) +
+    (sources.monta && keys.monta ? 1 : 0) +
+    (sources.zaptec && keys.zaptec ? 1 : 0);
   const hardError = !app.online || (enabledCount > 0 && availCount === 0);
 
   function refresh() {
