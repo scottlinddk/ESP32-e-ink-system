@@ -96,9 +96,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [online, setOnlineState] = useState<boolean>(true);
   const [navOpen, setNavOpen] = useState<boolean>(false);
   const [user, setUserState] = useState<AppUser>(() => load<AppUser>('user', DEFAULT_USER));
-  const [prefs, setPrefsState] = useState<Preferences>(() =>
-    load<Preferences>('prefs', DEFAULT_PREFS)
-  );
+  const [prefs, setPrefsState] = useState<Preferences>(() => {
+    const stored = load<Partial<Preferences>>('prefs', {});
+    return { ...DEFAULT_PREFS, ...stored };
+  });
   const [apiKeys, setApiKeysState] = useState<Record<string, ApiKeyEntry>>(() =>
     load<Record<string, ApiKeyEntry>>('apiKeys', {})
   );

@@ -71,7 +71,13 @@ function SourceRow({ icon, name, hint, checked, onToggle, children }: SourceRowP
 export function DisplayCard({ loading }: { loading: boolean }) {
   const app = useApp();
   const t = app.t;
-  const p = app.prefs;
+  const rawPrefs = app.prefs;
+  // Ensure EV prefs always exist, even if loaded from stale localStorage
+  const p = {
+    ...rawPrefs,
+    monta: rawPrefs.monta ?? { on: false, fields: ['charger_status', 'active_session'] },
+    zaptec: rawPrefs.zaptec ?? { on: false, fields: ['charger_status', 'active_session'] },
+  };
   const savePrefs = useSavePreferences();
   const [locating, setLocating] = useState(false);
 
