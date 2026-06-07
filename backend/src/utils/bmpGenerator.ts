@@ -320,6 +320,88 @@ function renderNewsWidget(
   }
 }
 
+function renderMontaWidget(
+  canvas: BmpCanvas,
+  bounds: WidgetBounds,
+  data?: DisplayData['monta'],
+  fields: string[] = ['charger_status', 'active_session']
+): void {
+  const { x, y, width, height } = bounds;
+  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  const maxW = width - 4;
+  let textY = y + 2;
+
+  if (!data) {
+    canvas.drawText('Monta: unavailable', x + 2, textY, maxW);
+    return;
+  }
+
+  canvas.drawText('Monta', x + 2, textY, maxW);
+  textY += 10;
+
+  if (fields.includes('charger_status') && data.chargePoints.length > 0) {
+    const available = data.chargePoints.filter((cp) => cp.state === 'available').length;
+    const charging = data.chargePoints.filter((cp) => cp.state === 'charging').length;
+    canvas.drawText(`${available} avail  ${charging} charging`, x + 2, textY, maxW);
+    textY += 10;
+  }
+
+  if (fields.includes('active_session')) {
+    if (data.activeSessions.length > 0) {
+      const s = data.activeSessions[0];
+      canvas.drawText(
+        `${s.energyDeliveredKwh.toFixed(1)}kWh  ${s.durationMin}min`,
+        x + 2,
+        textY,
+        maxW
+      );
+      textY += 10;
+    }
+  }
+
+  if (fields.includes('today_stats') && data.todayKwh !== null && textY < y + height - 8) {
+    canvas.drawText(`Today: ${data.todayKwh.toFixed(1)} kWh`, x + 2, textY, maxW);
+  }
+}
+
+function renderZaptecWidget(
+  canvas: BmpCanvas,
+  bounds: WidgetBounds,
+  data?: DisplayData['zaptec'],
+  fields: string[] = ['charger_status', 'active_session']
+): void {
+  const { x, y, width, height } = bounds;
+  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  const maxW = width - 4;
+  let textY = y + 2;
+
+  if (!data) {
+    canvas.drawText('Zaptec: unavailable', x + 2, textY, maxW);
+    return;
+  }
+
+  const title = data.installationName ? `Zaptec - ${data.installationName}` : 'Zaptec';
+  canvas.drawText(title, x + 2, textY, maxW);
+  textY += 10;
+
+  if (fields.includes('charger_status') && data.chargers.length > 0) {
+    const available = data.chargers.filter((c) => c.operatingMode === 2 || c.operatingMode === 3).length;
+    const charging = data.chargers.filter((c) => c.operatingMode === 5).length;
+    canvas.drawText(`${available} avail  ${charging} charging`, x + 2, textY, maxW);
+    textY += 10;
+  }
+
+  if (fields.includes('active_session') && data.activeSession && textY < y + height - 8) {
+    const s = data.activeSession;
+    canvas.drawText(
+      `${s.energyDeliveredKwh.toFixed(1)}kWh  ${s.chargerName}`,
+      x + 2,
+      textY,
+      maxW
+    );
+  }
+}
+
 function renderStatusWidget(
   canvas: BmpCanvas,
   bounds: WidgetBounds,
@@ -351,6 +433,12 @@ export function renderDisplayData(data: DisplayData, layout?: DisplayLayout | nu
         break;
       case 'news':
         renderNewsWidget(canvas, bounds, data.news);
+        break;
+      case 'monta':
+        renderMontaWidget(canvas, bounds, data.monta);
+        break;
+      case 'zaptec':
+        renderZaptecWidget(canvas, bounds, data.zaptec);
         break;
       case 'status':
         renderStatusWidget(canvas, bounds, data.nextRefresh);

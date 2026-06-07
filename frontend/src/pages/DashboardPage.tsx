@@ -30,6 +30,14 @@ export function DashboardPage() {
         lang: serverPrefs.news_language || app.prefs.news.lang,
         source: app.prefs.news.source,
       },
+      monta: {
+        on: serverPrefs.show_monta ?? false,
+        fields: serverPrefs.monta_fields ?? app.prefs.monta.fields,
+      },
+      zaptec: {
+        on: serverPrefs.show_zaptec ?? false,
+        fields: serverPrefs.zaptec_fields ?? app.prefs.zaptec.fields,
+      },
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverPrefs]);

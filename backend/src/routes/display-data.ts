@@ -11,6 +11,8 @@ import {
 import { fetchEnergyPrice } from '../services/energinet';
 import { fetchWeather } from '../services/weather';
 import { fetchNews } from '../services/news';
+import { fetchMontaData } from '../services/monta';
+import { fetchZaptecData } from '../services/zaptec';
 import { DisplayData, UserPreferences } from '../types/index';
 import { createClerkClient } from '@clerk/backend';
 import { logger } from '../lib/logger';
@@ -113,14 +115,19 @@ const DEFAULT_PREFS: UserPreferences = {
   show_news: true,
   show_calendar: false,
   show_air_quality: false,
+  show_monta: false,
+  show_zaptec: false,
   energy_price_location: 'DK1',
   weather_location: '55.3,10.4',
   news_language: 'da',
   refresh_interval_minutes: 30,
   layout: null,
+  monta_fields: ['charger_status', 'active_session'],
+  zaptec_fields: ['charger_status', 'active_session'],
 };
 
 async function buildDisplayData(
+  userId: string,
   prefs: UserPreferences,
   apiKeyMap: Record<string, string>
 ): Promise<DisplayData> {
@@ -166,6 +173,40 @@ async function buildDisplayData(
           logger.error({ err }, 'News fetch failed');
         })
     );
+  }
+
+  if (prefs.show_monta) {
+    const raw = apiKeyMap['monta'];
+    if (raw) {
+      try {
+        const creds = JSON.parse(raw) as { clientId: string; clientSecret: string };
+        const fields = prefs.monta_fields ?? ['charger_status', 'active_session'];
+        tasks.push(
+          fetchMontaData(userId, creds, fields)
+            .then((monta) => { result.monta = monta; })
+            .catch((err: unknown) => { logger.error({ err }, 'Monta fetch failed'); })
+        );
+      } catch {
+        logger.warn('Monta credentials are not valid JSON — skipping');
+      }
+    }
+  }
+
+  if (prefs.show_zaptec) {
+    const raw = apiKeyMap['zaptec'];
+    if (raw) {
+      try {
+        const creds = JSON.parse(raw) as { username: string; password: string };
+        const fields = prefs.zaptec_fields ?? ['charger_status', 'active_session'];
+        tasks.push(
+          fetchZaptecData(userId, creds, fields)
+            .then((zaptec) => { result.zaptec = zaptec; })
+            .catch((err: unknown) => { logger.error({ err }, 'Zaptec fetch failed'); })
+        );
+      } catch {
+        logger.warn('Zaptec credentials are not valid JSON — skipping');
+      }
+    }
   }
 
   await Promise.all(tasks);
@@ -218,7 +259,7 @@ router.get(
         apiKeyMap[row.provider] = row.api_key;
       }
 
-      const data = await buildDisplayData(prefs, apiKeyMap);
+      const data = await buildDisplayData(userId, prefs, apiKeyMap);
       res.json(data);
     } catch (err) {
       next(err);
@@ -267,7 +308,7 @@ router.get(
         apiKeyMap[row.provider] = row.api_key;
       }
 
-      const data = await buildDisplayData(prefs, apiKeyMap);
+      const data = await buildDisplayData(user.id, prefs, apiKeyMap);
       res.json(data);
     } catch (err) {
       next(err);

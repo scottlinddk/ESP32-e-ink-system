@@ -15,6 +15,18 @@ import { Checkbox } from '../ui/checkbox';
 import { Skeleton } from '../ui/Spinner';
 import { Icon } from '../ui/Logo';
 
+const MONTA_FIELDS = [
+  { id: 'charger_status', labelKey: 'evFieldChargerStatus' as const },
+  { id: 'active_session', labelKey: 'evFieldActiveSession' as const },
+  { id: 'today_stats',   labelKey: 'evFieldTodayStats' as const },
+];
+
+const ZAPTEC_FIELDS = [
+  { id: 'charger_status',    labelKey: 'evFieldChargerStatus' as const },
+  { id: 'active_session',    labelKey: 'evFieldActiveSession' as const },
+  { id: 'installation_info', labelKey: 'evFieldInstallationInfo' as const },
+];
+
 interface SourceRowProps {
   icon: string;
   name: string;
@@ -73,7 +85,22 @@ export function DisplayCard({ loading }: { loading: boolean }) {
       weather_location: prefs.weather.location,
       show_news: prefs.news.on,
       news_language: prefs.news.lang,
+      show_monta: prefs.monta.on,
+      monta_fields: prefs.monta.fields,
+      show_zaptec: prefs.zaptec.on,
+      zaptec_fields: prefs.zaptec.fields,
     };
+  }
+
+  function toggleEvField(
+    provider: 'monta' | 'zaptec',
+    fieldId: string
+  ) {
+    const current = p[provider].fields;
+    const next = current.includes(fieldId)
+      ? current.filter((f) => f !== fieldId)
+      : [...current, fieldId];
+    set({ [provider]: { ...p[provider], fields: next } });
   }
 
   function save() {
@@ -228,6 +255,48 @@ export function DisplayCard({ loading }: { loading: boolean }) {
                   ]}
                 />
               </Field>
+            </div>
+          </SourceRow>
+
+          <SourceRow
+            icon="electric_car"
+            name={t.srcMonta}
+            hint={t.srcMontaHint}
+            checked={p.monta.on}
+            onToggle={() => set({ monta: { ...p.monta, on: !p.monta.on } })}
+          >
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-medium text-fg2">{t.evFieldsLabel}</span>
+              {MONTA_FIELDS.map((f) => (
+                <Checkbox
+                  key={f.id}
+                  id={`monta-${f.id}`}
+                  checked={p.monta.fields.includes(f.id)}
+                  onChange={() => toggleEvField('monta', f.id)}
+                  label={t[f.labelKey]}
+                />
+              ))}
+            </div>
+          </SourceRow>
+
+          <SourceRow
+            icon="electric_car"
+            name={t.srcZaptec}
+            hint={t.srcZaptecHint}
+            checked={p.zaptec.on}
+            onToggle={() => set({ zaptec: { ...p.zaptec, on: !p.zaptec.on } })}
+          >
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-medium text-fg2">{t.evFieldsLabel}</span>
+              {ZAPTEC_FIELDS.map((f) => (
+                <Checkbox
+                  key={f.id}
+                  id={`zaptec-${f.id}`}
+                  checked={p.zaptec.fields.includes(f.id)}
+                  onChange={() => toggleEvField('zaptec', f.id)}
+                  label={t[f.labelKey]}
+                />
+              ))}
             </div>
           </SourceRow>
         </div>

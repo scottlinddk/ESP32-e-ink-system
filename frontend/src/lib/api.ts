@@ -120,6 +120,38 @@ export async function deleteApiKey(token: string, provider: string): Promise<voi
   });
 }
 
+export async function saveEvCredentials(
+  token: string,
+  provider: 'monta' | 'zaptec',
+  credentials: Record<string, string>
+): Promise<{ provider: string; configured: boolean }> {
+  return request<{ provider: string; configured: boolean }>(
+    '/api/preferences/ev-credentials',
+    {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ provider, credentials }),
+    }
+  );
+}
+
+export async function getEvCredentialStatus(
+  token: string,
+  provider: 'monta' | 'zaptec'
+): Promise<{ provider: string; configured: boolean }> {
+  return request<{ provider: string; configured: boolean }>(
+    `/api/preferences/ev-credentials/${provider}`,
+    { token }
+  );
+}
+
+export async function deleteEvCredentials(token: string, provider: string): Promise<void> {
+  await request<void>(`/api/preferences/api-keys/${provider}`, {
+    method: 'DELETE',
+    token,
+  });
+}
+
 // ============================================================
 // Devices
 // ============================================================
