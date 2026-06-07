@@ -2,6 +2,7 @@
 // LayoutEditorPage.tsx — full-page drag-and-drop layout editor
 // =========================================================================
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../lib/appContext';
 import { useAuth } from '../hooks/useAuth';
 import { DisplayLayout, DEFAULT_LAYOUT, WidgetLayout } from '../types';
@@ -17,6 +18,7 @@ const ALL_WIDGET_IDS = ['energy', 'weather', 'news'] as const;
 
 export function LayoutEditorPage() {
   const app = useApp();
+  const navigate = useNavigate();
   const { getToken } = useAuth();
   const t = app.t;
 
@@ -67,7 +69,7 @@ export function LayoutEditorPage() {
     try {
       await saveLayout(token, layout);
       app.toast({ type: 'success', title: t.layoutSaved, msg: t.layoutSavedMsg });
-      app.nav('dashboard');
+      navigate('/dashboard');
     } catch {
       app.toast({ type: 'error', title: t.layoutSaveFailed });
     } finally {
@@ -93,7 +95,7 @@ export function LayoutEditorPage() {
         </div>
         <div className="flex gap-2 flex-shrink-0 flex-wrap">
           <Button variant="outlined" onClick={handleReset} icon="restart_alt">{t.layoutReset}</Button>
-          <Button variant="outlined" onClick={() => app.nav('dashboard')}>{t.layoutCancel}</Button>
+          <Button variant="outlined" onClick={() => navigate('/dashboard')}>{t.layoutCancel}</Button>
           <Button onClick={handleSave} disabled={saving} loading={saving}>
             {saving ? t.layoutSaving : t.layoutSave}
           </Button>
