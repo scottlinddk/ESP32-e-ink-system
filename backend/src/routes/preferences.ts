@@ -204,11 +204,15 @@ router.get(
         show_news: true,
         show_calendar: false,
         show_air_quality: false,
+        show_monta: false,
+        show_zaptec: false,
         energy_price_location: 'DK1',
         weather_location: '55.3,10.4',
         news_language: 'da',
         refresh_interval_minutes: 30,
         layout: null,
+        monta_fields: ['charger_status', 'active_session'],
+        zaptec_fields: ['charger_status', 'active_session'],
       };
 
       res.json({ preferences: prefs ?? defaultPrefs });
@@ -236,11 +240,15 @@ router.post(
         'show_news',
         'show_calendar',
         'show_air_quality',
+        'show_monta',
+        'show_zaptec',
         'energy_price_location',
         'weather_location',
         'news_language',
         'refresh_interval_minutes',
         'layout',
+        'monta_fields',
+        'zaptec_fields',
       ];
 
       const updates: Partial<UserPreferences> = {};
@@ -346,7 +354,7 @@ router.delete(
       const userId = await getOrCreateUserFromClerk(clerkUserId);
 
       const { provider } = req.params as { provider: string };
-      const validProviders = ['openweathermap', 'newsapi', 'openai'];
+      const validProviders = ['openweathermap', 'newsapi', 'openai', 'monta', 'zaptec'];
       if (!validProviders.includes(provider)) {
         res.status(400).json({ error: `provider must be one of: ${validProviders.join(', ')}` });
         return;
@@ -354,6 +362,90 @@ router.delete(
 
       await deleteApiKey(userId, provider);
       res.json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /api/preferences/ev-credentials
+ * Store multi-field OAuth credentials for Monta or Zaptec.
+ * Credentials are JSON-serialised and stored encrypted in api_keys table.
+ */
+router.post(
+  '/ev-credentials',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const clerkUserId = req.clerkUserId!;
+      const userId = await getOrCreateUserFromClerk(clerkUserId);
+
+      const { provider, credentials } = req.body as {
+        provider?: string;
+        credentials?: Record<string, string>;
+      };
+
+      const validEvProviders = ['monta', 'zaptec'];
+      if (!provider || !validEvProviders.includes(provider)) {
+        res.status(400).json({ error: `provider must be one of: ${validEvProviders.join(', ')}` });
+        return;
+      }
+
+      if (!credentials || typeof credentials !== 'object') {
+        res.status(400).json({ error: 'credentials must be an object' });
+        return;
+      }
+
+      if (provider === 'monta') {
+        if (!credentials.clientId || !credentials.clientSecret) {
+          res.status(400).json({ error: 'Monta credentials require clientId and clientSecret' });
+          return;
+        }
+      } else if (provider === 'zaptec') {
+        if (!credentials.username || !credentials.password) {
+          res.status(400).json({ error: 'Zaptec credentials require username and password' });
+          return;
+        }
+      }
+
+      const serialised = JSON.stringify(credentials);
+      const key = await upsertApiKey(userId, provider, serialised);
+
+      res.json({
+        provider: key.provider,
+        configured: true,
+        created_at: key.created_at,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * GET /api/preferences/ev-credentials/:provider
+ * Returns whether EV credentials are configured (never returns the actual credentials).
+ */
+router.get(
+  '/ev-credentials/:provider',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const clerkUserId = req.clerkUserId!;
+      const userId = await getOrCreateUserFromClerk(clerkUserId);
+
+      const { provider } = req.params as { provider: string };
+      const validEvProviders = ['monta', 'zaptec'];
+      if (!validEvProviders.includes(provider)) {
+        res.status(400).json({ error: `provider must be one of: ${validEvProviders.join(', ')}` });
+        return;
+      }
+
+      const keys = await getApiKeys(userId);
+      const found = keys.find((k) => k.provider === provider);
+
+      res.json({ provider, configured: !!found });
     } catch (err) {
       next(err);
     }

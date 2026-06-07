@@ -114,11 +114,15 @@ const DEFAULT_PREFS: UserPreferences = {
   show_news: true,
   show_calendar: false,
   show_air_quality: false,
+  show_monta: false,
+  show_zaptec: false,
   energy_price_location: 'DK1',
   weather_location: '55.3,10.4',
   news_language: 'da',
   refresh_interval_minutes: 30,
   layout: null,
+  monta_fields: ['charger_status', 'active_session'],
+  zaptec_fields: ['charger_status', 'active_session'],
 };
 
 async function buildDisplayData(

@@ -5,11 +5,11 @@ import React, { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../../lib/appContext';
 import { useAuth } from '../../hooks/useAuth';
-import { getApiKeys, saveApiKey, deleteApiKey } from '../../lib/api';
+import { getApiKeys, saveApiKey, deleteApiKey, saveEvCredentials, getEvCredentialStatus, deleteEvCredentials } from '../../lib/api';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Field } from '../ui/Field';
-import { PasswordInput } from '../ui/input';
+import { Input, PasswordInput } from '../ui/input';
 import { Chip } from '../ui/Chip';
 import { Dialog } from '../ui/Dialog';
 import { Icon } from '../ui/Logo';
@@ -23,6 +23,173 @@ const SERVICES = [
   { id: 'openweather', name: 'OpenWeatherMap', url: 'openweathermap.org/api' },
   { id: 'newsapi', name: 'NewsAPI', url: 'newsapi.org' },
 ] as const;
+
+interface EvCredentialsSectionProps {
+  provider: 'monta' | 'zaptec';
+}
+
+function EvCredentialsSection({ provider }: EvCredentialsSectionProps) {
+  const app = useApp();
+  const t = app.t;
+  const { getToken } = useAuth();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [fields, setFields] = useState<Record<string, string>>({});
+  const [err, setErr] = useState('');
+
+  const statusKey = ['ev-credentials', provider];
+  const { data: status } = useQuery({
+    queryKey: statusKey,
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return getEvCredentialStatus(token, provider);
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return saveEvCredentials(token, provider, fields);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: statusKey });
+      setOpen(false);
+      app.toast({ type: 'success', title: t.evCredSaved, msg: t.evCredSavedMsg });
+    },
+    onError: (e: Error) => { setErr(e.message); },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return deleteEvCredentials(token, provider);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: statusKey });
+      app.toast({ type: 'info', title: t.keyRemoved });
+    },
+  });
+
+  function openDialog() {
+    setFields({});
+    setErr('');
+    setOpen(true);
+  }
+
+  function validate(): boolean {
+    if (provider === 'monta') {
+      if (!fields.clientId?.trim() || !fields.clientSecret?.trim()) {
+        setErr('Both Client ID and Client Secret are required.');
+        return false;
+      }
+    } else {
+      if (!fields.username?.trim() || !fields.password?.trim()) {
+        setErr('Both username and password are required.');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function save() {
+    if (!validate()) return;
+    saveMutation.mutate();
+  }
+
+  const configured = status?.configured ?? false;
+  const isMonta = provider === 'monta';
+  const title = isMonta ? t.montaCredTitle : t.zaptecCredTitle;
+  const desc = isMonta ? t.montaCredDesc : t.zaptecCredDesc;
+
+  return (
+    <div className="bg-surface rounded-md border border-border px-4 py-3.5">
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="font-medium">{title}</div>
+        <Chip variant={configured ? 'success' : 'error'} dot>
+          {configured ? t.evCredConfigured : t.evCredNotConfigured}
+        </Chip>
+      </div>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <span className="text-xs text-fg3">{desc}</span>
+        <div className="flex gap-2">
+          <Button variant="outlined" size="sm" icon="edit" onClick={openDialog}>
+            {configured ? t.updateKey : t.addKey}
+          </Button>
+          {configured && (
+            <Button
+              variant="text"
+              size="sm"
+              onClick={() => removeMutation.mutate()}
+              loading={removeMutation.isPending}
+            >
+              {t.evCredRemove}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={title}
+        icon="key"
+        footer={
+          <>
+            <Button variant="text" onClick={() => setOpen(false)}>{t.cancel}</Button>
+            <Button onClick={save} loading={saveMutation.isPending}>{t.evCredSave}</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-fg2 m-0 leading-[1.55] mb-4">{desc}</p>
+        {isMonta ? (
+          <>
+            <Field label={t.montaClientId} htmlFor="monta-cid" error={err}>
+              <Input
+                id="monta-cid"
+                mono
+                value={fields.clientId ?? ''}
+                placeholder="client_xxxxxxxxxxxxxxxx"
+                onChange={(e) => { setFields((f) => ({ ...f, clientId: e.target.value })); setErr(''); }}
+              />
+            </Field>
+            <Field label={t.montaClientSecret} htmlFor="monta-cs">
+              <PasswordInput
+                id="monta-cs"
+                lang={app.lang}
+                value={fields.clientSecret ?? ''}
+                placeholder="secret_xxxxxxxxxxxxxxxx"
+                onChange={(e) => { setFields((f) => ({ ...f, clientSecret: e.target.value })); setErr(''); }}
+              />
+            </Field>
+          </>
+        ) : (
+          <>
+            <Field label={t.zaptecUsername} htmlFor="zaptec-user" error={err}>
+              <Input
+                id="zaptec-user"
+                value={fields.username ?? ''}
+                placeholder="you@example.com"
+                onChange={(e) => { setFields((f) => ({ ...f, username: e.target.value })); setErr(''); }}
+              />
+            </Field>
+            <Field label={t.zaptecPassword} htmlFor="zaptec-pw">
+              <PasswordInput
+                id="zaptec-pw"
+                lang={app.lang}
+                value={fields.password ?? ''}
+                placeholder="••••••••"
+                onChange={(e) => { setFields((f) => ({ ...f, password: e.target.value })); setErr(''); }}
+              />
+            </Field>
+          </>
+        )}
+      </Dialog>
+    </div>
+  );
+}
 
 export function ApiKeysCard() {
   const app = useApp();
@@ -104,6 +271,8 @@ export function ApiKeysCard() {
   return (
     <Card icon="key" title={t.apiTitle} desc={t.apiDesc}>
       <div className="flex flex-col gap-4">
+        <EvCredentialsSection provider="monta" />
+        <EvCredentialsSection provider="zaptec" />
         {SERVICES.map((svc) => {
           const connected = connectedProviders.has(svc.id);
           const maskedKey = data?.api_keys.find(

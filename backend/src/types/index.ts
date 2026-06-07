@@ -20,11 +20,15 @@ export interface UserPreferences {
   show_news: boolean;
   show_calendar: boolean;
   show_air_quality: boolean;
+  show_monta: boolean;
+  show_zaptec: boolean;
   energy_price_location: string; // 'DK1' | 'DK2'
   weather_location: string; // 'lat,lng'
   news_language: string; // 'da' | 'en'
   refresh_interval_minutes: number;
   layout: DisplayLayout | null;
+  monta_fields: string[]; // e.g. ['charger_status', 'active_session', 'today_stats']
+  zaptec_fields: string[]; // e.g. ['charger_status', 'active_session', 'installation_info']
 }
 
 export interface EnergyPrice {
@@ -45,10 +49,50 @@ export interface NewsItem {
   url: string;
 }
 
+export interface MontaChargePoint {
+  id: string;
+  state: string; // 'available' | 'charging' | 'busy' | 'offline' | 'unknown'
+  name: string;
+}
+
+export interface MontaSession {
+  id: string;
+  energyDeliveredKwh: number;
+  startedAt: string;
+  durationMin: number;
+}
+
+export interface MontaData {
+  chargePoints: MontaChargePoint[];
+  activeSessions: MontaSession[];
+  todayKwh: number | null;
+}
+
+export interface ZaptecCharger {
+  id: string;
+  name: string;
+  operatingMode: number; // 1=Unknown, 2=Disconnected, 3=Connected/Requesting, 5=Charging, 6=Completed
+}
+
+export interface ZaptecSession {
+  id: string;
+  energyDeliveredKwh: number;
+  startDateTime: string;
+  chargerName: string;
+}
+
+export interface ZaptecData {
+  chargers: ZaptecCharger[];
+  activeSession: ZaptecSession | null;
+  installationName: string | null;
+}
+
 export interface DisplayData {
   price?: EnergyPrice;
   weather?: WeatherData;
   news?: NewsItem[];
+  monta?: MontaData;
+  zaptec?: ZaptecData;
   nextRefresh: number;
 }
 

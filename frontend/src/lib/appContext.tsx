@@ -76,6 +76,8 @@ const DEFAULT_PREFS: Preferences = {
   energy: { on: true, zone: 'DK1' },
   weather: { on: true, location: '57.05, 9.92' },
   news: { on: false, lang: 'da', source: 'dr' },
+  monta: { on: false, fields: ['charger_status', 'active_session'] },
+  zaptec: { on: false, fields: ['charger_status', 'active_session'] },
 };
 
 const DEFAULT_USER: AppUser = {

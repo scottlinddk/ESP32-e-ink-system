@@ -34,11 +34,15 @@ export interface UserPreferences {
   show_news: boolean;
   show_calendar: boolean;
   show_air_quality: boolean;
+  show_monta: boolean;
+  show_zaptec: boolean;
   energy_price_location: string; // 'DK1' | 'DK2'
   weather_location: string; // 'lat,lng'
   news_language: string; // 'da' | 'en'
   refresh_interval_minutes: number;
   layout: DisplayLayout | null;
+  monta_fields: string[];
+  zaptec_fields: string[];
 }
 
 export interface EnergyPrice {
@@ -84,6 +88,8 @@ export interface Preferences {
   energy: { on: boolean; zone: string };
   weather: { on: boolean; location: string };
   news: { on: boolean; lang: string; source: string };
+  monta: { on: boolean; fields: string[] };
+  zaptec: { on: boolean; fields: string[] };
 }
 
 export interface AppDevice {
