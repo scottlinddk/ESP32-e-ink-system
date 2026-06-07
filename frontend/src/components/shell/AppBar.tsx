@@ -2,6 +2,7 @@
 // AppBar.tsx — sticky top bar: brand, crumb, lang/theme toggles, user menu
 // =========================================================================
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useApp } from '../../lib/appContext';
 import { Logo, Icon } from '../ui/Logo';
@@ -52,6 +53,8 @@ export function AppBar({
 }) {
   const app = useApp();
   const t = app.t;
+  const navigate = useNavigate();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -69,7 +72,8 @@ export function AppBar({
     ? app.user.name.split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase()
     : '?';
 
-  const crumb = t.crumbs[app.route];
+  const crumbKey = location.pathname.slice(1) || 'dashboard';
+  const crumb = t.crumbs[crumbKey];
 
   return (
     <header className="sticky top-0 z-40 h-16 flex-shrink-0 flex items-center gap-4 px-5 bg-surface border-b border-divider">
@@ -83,7 +87,7 @@ export function AppBar({
 
       <div
         className="flex items-center gap-2.5 cursor-pointer select-none"
-        onClick={() => app.nav('dashboard')}
+        onClick={() => navigate('/dashboard')}
       >
         <Logo />
         <span className="font-medium text-base tracking-[-0.01em] max-[480px]:hidden">{t.product}</span>
@@ -151,7 +155,7 @@ export function AppBar({
                   className="flex items-center gap-2.5 w-full px-2.5 py-[9px] border-none bg-transparent text-fg1 text-sm text-left rounded-sm cursor-pointer hover:bg-black/[0.10] [&_.material-symbols-outlined]:text-[19px] [&_.material-symbols-outlined]:text-fg3"
                   role="menuitem"
                   onClick={() => {
-                    app.nav(item.route);
+                    navigate('/' + item.route);
                     setMenuOpen(false);
                   }}
                 >

@@ -2,6 +2,7 @@
 // PreviewCard.tsx — live e-ink preview card
 // =========================================================================
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useApp } from '../../lib/appContext';
 import { useAuth } from '../../hooks/useAuth';
@@ -68,6 +69,7 @@ function EinkSurface({ state, t, onRetry, ...einkProps }: EinkSurfaceProps) {
 
 export function PreviewCard() {
   const app = useApp();
+  const navigate = useNavigate();
   const { getToken, isSignedIn } = useAuth();
   const t = app.t;
   const p = app.prefs;
@@ -305,7 +307,7 @@ export function PreviewCard() {
             {t.updateEvery}
           </span>
           <div className="flex gap-2">
-            <Button variant="outlined" size="sm" icon="grid_view" onClick={() => app.nav('layout')}>
+            <Button variant="outlined" size="sm" icon="grid_view" onClick={() => navigate('/layout')}>
               {t.layoutEditLayout}
             </Button>
             <Button

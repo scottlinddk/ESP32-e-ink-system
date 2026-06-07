@@ -40,7 +40,6 @@ function save<T>(key: string, val: T): void {
 export interface AppState {
   theme: 'light' | 'dark';
   lang: Lang;
-  route: string;
   online: boolean;
   navOpen: boolean;
   user: AppUser;
@@ -58,7 +57,6 @@ export interface AppState {
   setApiKeys: (k: Record<string, ApiKeyEntry>) => void;
   setDevices: (d: AppDevice[]) => void;
   setOnline: (v: boolean) => void;
-  nav: (r: string) => void;
   setNavOpen: (open: boolean) => void;
   toast: (obj: ToastData) => void;
   dismiss: (id: number) => void;
@@ -92,7 +90,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     load<'light' | 'dark'>('theme', 'light')
   );
   const [lang, setLangState] = useState<Lang>(() => load<Lang>('lang', 'en'));
-  const [route, setRoute] = useState<string>(() => load<string>('route', 'dashboard'));
   const [online, setOnlineState] = useState<boolean>(true);
   const [navOpen, setNavOpen] = useState<boolean>(false);
   const [user, setUserState] = useState<AppUser>(() => load<AppUser>('user', DEFAULT_USER));
@@ -112,7 +109,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Persist to localStorage
   useEffect(() => { save('theme', theme); }, [theme]);
   useEffect(() => { save('lang', lang); }, [lang]);
-  useEffect(() => { save('route', route); }, [route]);
   useEffect(() => { save('user', user); }, [user]);
   useEffect(() => { save('prefs', prefs); }, [prefs]);
   useEffect(() => { save('apiKeys', apiKeys); }, [apiKeys]);
@@ -141,7 +137,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value: AppState = {
     theme,
     lang,
-    route,
     online,
     navOpen,
     user,
@@ -158,7 +153,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setApiKeys: (k: Record<string, ApiKeyEntry>) => setApiKeysState(k),
     setDevices: (d: AppDevice[]) => setDevicesState(d),
     setOnline: (v: boolean) => setOnlineState(v),
-    nav: (r: string) => { setRoute(r); setNavOpen(false); },
     setNavOpen,
     toast,
     dismiss,

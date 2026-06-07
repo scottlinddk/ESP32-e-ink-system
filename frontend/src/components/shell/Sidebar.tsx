@@ -2,6 +2,7 @@
 // Sidebar.tsx — left nav panel (mobile: offcanvas)
 // =========================================================================
 import React from 'react';
+import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useApp } from '../../lib/appContext';
 import { Icon } from '../ui/Logo';
@@ -19,6 +20,16 @@ export function Sidebar({ open }: { open: boolean }) {
     { id: 'account', icon: 'person', label: t.nav.account },
   ];
 
+  const linkClass = ({ isActive }: { isActive: boolean }) =>
+    cn(
+      'flex items-center gap-3 w-full px-3 py-2.5 border-none rounded-md cursor-pointer mb-0.5 no-underline',
+      'text-sm font-medium text-left transition-[background,color] duration-[150ms]',
+      '[&_.material-symbols-outlined]:text-[21px]',
+      isActive
+        ? 'bg-accent text-fg-on [&_.material-symbols-outlined]:text-fg-on'
+        : 'bg-transparent text-fg2 hover:bg-black/[0.08] hover:text-fg1'
+    );
+
   return (
     <aside
       className={cn(
@@ -33,37 +44,25 @@ export function Sidebar({ open }: { open: boolean }) {
         {t.navConfig}
       </div>
       {items.map((it) => (
-        <button
+        <NavLink
           key={it.id}
-          className={cn(
-            'flex items-center gap-3 w-full px-3 py-2.5 border-none rounded-md cursor-pointer mb-0.5',
-            'text-sm font-medium text-left transition-[background,color] duration-[150ms]',
-            '[&_.material-symbols-outlined]:text-[21px]',
-            app.route === it.id
-              ? 'bg-accent text-fg-on [&_.material-symbols-outlined]:text-fg-on'
-              : 'bg-transparent text-fg2 hover:bg-black/[0.08] hover:text-fg1'
-          )}
-          onClick={() => app.nav(it.id)}
+          to={`/${it.id}`}
+          className={linkClass}
+          onClick={() => app.setNavOpen(false)}
         >
           <Icon name={it.icon} />
           {it.label}
-        </button>
+        </NavLink>
       ))}
       <div className="h-px bg-divider my-2.5 mx-1.5" />
-      <button
-        className={cn(
-          'flex items-center gap-3 w-full px-3 py-2.5 border-none rounded-md cursor-pointer mb-0.5',
-          'text-sm font-medium text-left transition-[background,color] duration-[150ms]',
-          '[&_.material-symbols-outlined]:text-[21px]',
-          app.route === 'docs'
-            ? 'bg-accent text-fg-on [&_.material-symbols-outlined]:text-fg-on'
-            : 'bg-transparent text-fg2 hover:bg-black/[0.08] hover:text-fg1'
-        )}
-        onClick={() => app.nav('docs')}
+      <NavLink
+        to="/docs"
+        className={linkClass}
+        onClick={() => app.setNavOpen(false)}
       >
         <Icon name="help" />
         {t.nav.docs}
-      </button>
+      </NavLink>
 
       {/* Language toggle — mobile only (hidden in AppBar on ≤820px, shown here instead) */}
       <div className="mt-auto hidden max-[820px]:flex items-center gap-3 px-1 pt-3 border-t border-divider">

@@ -1,7 +1,8 @@
 // =========================================================================
-// App.tsx — application root: AppProvider, Clerk auth gate, shell
+// App.tsx — layout route: AppProvider, Clerk auth gate, shell + Outlet
 // =========================================================================
-import React, { ReactNode, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { Outlet } from 'react-router-dom';
 import { useAuth, useUser, useClerk } from '@clerk/clerk-react';
 import { AppProvider, useApp } from './lib/appContext';
 import { AppBar } from './components/shell/AppBar';
@@ -9,12 +10,6 @@ import { Sidebar } from './components/shell/Sidebar';
 import { ToastStack } from './components/ui/Toast';
 import { ProgressBar } from './components/common/LoadingSpinner';
 import { LoginPage } from './pages/LoginPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { DevicesPage } from './pages/DevicesPage';
-import { FirmwarePage } from './pages/FirmwarePage';
-import { AccountPage } from './pages/AccountPage';
-import { DocsPage } from './pages/DocsPage';
-import { LayoutEditorPage } from './pages/LayoutEditorPage';
 
 function AppShell() {
   const app = useApp();
@@ -44,15 +39,6 @@ function AppShell() {
     );
   }
 
-  const pages: Record<string, ReactNode> = {
-    dashboard: <DashboardPage />,
-    devices: <DevicesPage />,
-    firmware: <FirmwarePage />,
-    account: <AccountPage />,
-    docs: <DocsPage />,
-    layout: <LayoutEditorPage />,
-  };
-
   return (
     <div className="min-h-full flex flex-col bg-bg text-fg1">
       <AppBar onMenu={() => app.setNavOpen(!app.navOpen)} onSignOut={signOut} />
@@ -66,7 +52,7 @@ function AppShell() {
         )}
         <Sidebar open={app.navOpen} />
         <main className="flex-1 min-w-0 overflow-y-auto">
-          {pages[app.route] ?? pages.dashboard}
+          <Outlet />
         </main>
       </div>
       <ToastStack toasts={app.toasts} dismiss={app.dismiss} />
