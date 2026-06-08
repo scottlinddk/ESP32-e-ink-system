@@ -91,16 +91,44 @@ The Elecrow EPD library is **not** in the PlatformIO or Arduino registry — it 
 
 ## Elecrow — macOS {#elecrow-macos}
 
+> **Before you start — macOS checklist**
+>
+> - **USB-C data cable** — not a charge-only cable. Many USB-C cables carry power only and have no data lines. If you are unsure, use the cable that came in the box or one you know works for file transfer. A charge-only cable means the board will never appear in `/dev/cu.*`, regardless of driver status.
+> - **macOS 10.15 Catalina or later.** Users on macOS 13 Ventura, 14 Sonoma, or 15 Sequoia must complete an extra Privacy & Security approval step after driver install (covered in Step 1b below).
+> - **WCH CH34x driver** — download link and install steps are in Step 1.
+> - **Python 3.8+** and **PlatformIO** — covered in Step 2.
+
 ### 1. Install USB Driver
 
-The Elecrow board uses a **WCH CH340 / CH343** USB-to-serial chip.
+The Elecrow board uses a **WCH CH340 / CH343** USB-to-serial chip. macOS does not include this driver — it must be installed manually.
+
+#### 1a — Download and run the installer
 
 1. Download the macOS WCH driver from the official source:
    - **WCH CH34x driver for macOS:** https://www.wch-ic.com/downloads/CH34XSER_MAC_ZIP.html
-2. Extract the ZIP, open the `.pkg` installer, and follow the prompts.
-3. **Restart your Mac** after installation (required for kernel extension to load).
-4. Plug in the Elecrow board via USB-C.
-5. Verify the port appears:
+2. Extract the ZIP. Inside you will find a `.pkg` installer file.
+3. **Do not double-click the `.pkg`.** macOS Gatekeeper will block it with a _"developer cannot be verified"_ error. Instead: **right-click** (or Control-click) the `.pkg` → choose **Open** → click **Open** in the dialog that appears.
+4. Follow the installer prompts and enter your Mac password when asked.
+
+#### 1b — Approve the kernel extension (macOS 13 Ventura / 14 Sonoma / 15 Sequoia)
+
+After the installer finishes, macOS silently blocks the driver's kernel extension. You must approve it manually or the port will never appear — even after a reboot.
+
+1. Open **System Settings** (gear icon in the Dock or Apple menu).
+2. Click **Privacy & Security**.
+3. Scroll down to the **Security** section near the bottom.
+4. You should see: _"System software from 'Qinheng Microelectronics' was blocked from loading."_ Click **Allow**.
+5. Enter your Mac password to confirm.
+
+> **macOS 12 Monterey or earlier:** Open **System Preferences → Security & Privacy → General** tab. Look for a similar "Allow" button and click it if present.
+
+> **No "Allow" message?** The extension may already be approved, or the installer did not complete correctly. Continue to the next step and check if the port appears after restarting.
+
+#### 1c — Restart and verify
+
+1. **Restart your Mac** (required — the kernel extension does not load until after a reboot).
+2. Connect the Elecrow board using a **USB-C data cable** (see the checklist above).
+3. Verify the port appears:
 
    ```bash
    ls /dev/cu.*
@@ -108,7 +136,11 @@ The Elecrow board uses a **WCH CH340 / CH343** USB-to-serial chip.
 
    You should see something like `/dev/cu.usbserial-1410` or `/dev/cu.wchusbserial14120`.
 
-   > **No port?** Try a different USB-C cable — many are charge-only and carry no data lines.
+> **No port after restart?** Work through this checklist in order:
+> 1. **Try a different USB-C cable.** Charge-only cables have no data lines — the board will never appear regardless of driver status. This is the most common cause.
+> 2. **Confirm you completed Step 1b.** If you skipped or dismissed the Privacy & Security prompt, the driver silently fails to load even after rebooting. Go back and check — the Allow button may still be there.
+> 3. Unplug and replug the board.
+> 4. Open **Apple menu → About This Mac → System Report → USB** and check if the board appears in the USB device tree. If it does not appear there, the problem is the cable or board, not the driver.
 
 ### 2. Install Python and PlatformIO
 
@@ -218,6 +250,8 @@ After flashing, the device starts a WiFi hotspot:
 ## Elecrow — Windows {#elecrow-windows}
 
 ### 1. Install USB Driver
+
+> **Important — use a data cable, not a charge-only cable.** Many USB-C cables are designed for charging only and carry no data lines. If you plug in with one of these, Windows will never detect the board regardless of which driver you install. Use the cable that came in the box, or one you know works for data (e.g. it also transfers files to a phone).
 
 1. Plug the Elecrow board into your PC via USB-C.
 2. Open **Device Manager** (press `Win + X` → Device Manager).
@@ -331,7 +365,7 @@ Use this if you prefer not to install PlatformIO. Both operating systems follow 
    ```
    https://espressif.github.io/arduino-esp32/package_esp32_index.json
    ```
-4. Open **Tools → Board → Boards Manager**, search for **esp32**, and install **esp32 by Espressif Systems** — use version **2.0.15** (later versions may have breaking changes).
+4. Open **Tools → Board → Boards Manager**, search for **esp32**, and install **esp32 by Espressif Systems** — use version **2.0.15** specifically. Versions newer than 2.0.15 changed the default USB upload mode for ESP32-S3, which causes uploads to time out or fail silently on this board. If you already have a newer version, downgrade it using the version dropdown in Boards Manager.
 
 ### 2. Install the EPD Library
 
@@ -388,6 +422,8 @@ npm run flash:full
 |---|---|
 | No COM port / no `/dev/cu.*` | Wrong USB cable (charge-only) — try another |
 | macOS: port appears then disappears | Driver not installed or not activated after reboot |
+| macOS: port never appears after driver install and reboot | Kernel extension blocked — open System Settings → Privacy & Security → scroll to Security → click Allow next to the Qinheng/WCH message |
+| macOS: "developer cannot be verified" when opening .pkg | Right-click (Control-click) the .pkg → Open — do not double-click |
 | Windows: driver install fails | Run installer as Administrator |
 | Upload error: "connecting..." timeout | Hold BOOT button during upload |
 | Upload error: "esptool.py failed" | Lower `upload_speed` to `115200` in `platformio.ini` |
