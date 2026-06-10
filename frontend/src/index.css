@@ -73,7 +73,8 @@ button { font-family: inherit; }
   box-shadow: var(--shadow-2), inset 0 1px 0 rgba(255,255,255,0.7);
   border: 1px solid rgba(0,0,0,0.12);
   position: relative;
-  width: 100%;
+  max-width: 255px;
+  width: 255px;
 }
 [data-theme="dark"] .eink-bezel {
   background: linear-gradient(180deg, #2a2c2f, #17191b);
