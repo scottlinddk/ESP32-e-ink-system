@@ -32,14 +32,13 @@ export async function getOAuthConnection(
   provider: string
 ): Promise<OAuthConnectionRow | null> {
   const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('oauth_connections')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('provider', provider)
-    .maybeSingle();
+  const { data, error } = await db.rpc('get_oauth_connection', {
+    p_user_id: userId,
+    p_provider: provider,
+  });
   if (error) throw new Error(error.message);
-  return data;
+  const rows = data as OAuthConnectionRow[] | null;
+  return rows?.[0] ?? null;
 }
 
 export async function upsertOAuthConnection(
@@ -51,28 +50,23 @@ export async function upsertOAuthConnection(
   providerAccountId?: string
 ): Promise<void> {
   const db = getSupabaseClient();
-  const { error } = await db.from('oauth_connections').upsert(
-    {
-      user_id: userId,
-      provider,
-      access_token: encrypt(accessToken),
-      refresh_token: refreshToken ? encrypt(refreshToken) : null,
-      expires_at: expiresAt?.toISOString() ?? null,
-      provider_account_id: providerAccountId ?? null,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'user_id,provider' }
-  );
+  const { error } = await db.rpc('upsert_oauth_connection', {
+    p_user_id: userId,
+    p_provider: provider,
+    p_access_token: encrypt(accessToken),
+    p_refresh_token: refreshToken ? encrypt(refreshToken) : null,
+    p_expires_at: expiresAt?.toISOString() ?? null,
+    p_provider_account_id: providerAccountId ?? null,
+  });
   if (error) throw new Error(error.message);
 }
 
 export async function deleteOAuthConnection(userId: string, provider: string): Promise<void> {
   const db = getSupabaseClient();
-  const { error } = await db
-    .from('oauth_connections')
-    .delete()
-    .eq('user_id', userId)
-    .eq('provider', provider);
+  const { error } = await db.rpc('delete_oauth_connection', {
+    p_user_id: userId,
+    p_provider: provider,
+  });
   if (error) throw new Error(error.message);
 }
 
