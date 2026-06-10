@@ -51,6 +51,11 @@ export function DashboardPage() {
         rideGoalKm: serverPrefs.strava_ride_goal_km ?? null,
         elevGoalM: serverPrefs.strava_elevation_goal_m ?? null,
       },
+      gcal: {
+        on: serverPrefs.show_gcal ?? false,
+        calendarId: serverPrefs.gcal_calendar_id ?? 'primary',
+        label: serverPrefs.gcal_label ?? 'Calendar',
+      },
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverPrefs]);

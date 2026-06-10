@@ -80,6 +80,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
     calendar: rawPrefs.calendar ?? { on: false, url: '' },
     notion: rawPrefs.notion ?? { on: false },
     strava: rawPrefs.strava ?? { on: false, runGoalKm: null, rideGoalKm: null, elevGoalM: null },
+    gcal: rawPrefs.gcal ?? { on: false, calendarId: 'primary', label: 'Calendar' },
   };
   const savePrefs = useSavePreferences();
   const [locating, setLocating] = useState(false);
@@ -105,6 +106,9 @@ export function DisplayCard({ loading }: { loading: boolean }) {
       strava_run_goal_km: prefs.strava.runGoalKm,
       strava_ride_goal_km: prefs.strava.rideGoalKm,
       strava_elevation_goal_m: prefs.strava.elevGoalM,
+      show_gcal: prefs.gcal.on,
+      gcal_calendar_id: prefs.gcal.calendarId || undefined,
+      gcal_label: prefs.gcal.label || undefined,
     };
   }
 
@@ -333,6 +337,35 @@ export function DisplayCard({ loading }: { loading: boolean }) {
               </Field>
             </div>
             <p className="text-xs text-fg3">{t.stravaConnectHint}</p>
+          </SourceRow>
+
+          <SourceRow
+            icon="calendar_month"
+            name={t.srcGcal}
+            hint={t.srcGcalHint}
+            checked={p.gcal.on}
+            onToggle={() => set({ gcal: { ...p.gcal, on: !p.gcal.on } })}
+          >
+            <div className="grid grid-cols-2 gap-3.5 max-[820px]:grid-cols-1">
+              <Field label={t.gcalLabel} htmlFor="gcal-label">
+                <Input
+                  id="gcal-label"
+                  value={p.gcal.label}
+                  placeholder={t.gcalLabelPh}
+                  onChange={(e) => set({ gcal: { ...p.gcal, label: e.target.value } })}
+                />
+              </Field>
+              <Field label={t.gcalCalendarId} htmlFor="gcal-cal-id">
+                <Input
+                  id="gcal-cal-id"
+                  mono
+                  value={p.gcal.calendarId}
+                  placeholder={t.gcalCalendarIdPh}
+                  onChange={(e) => set({ gcal: { ...p.gcal, calendarId: e.target.value } })}
+                />
+              </Field>
+            </div>
+            <p className="text-xs text-fg3">{t.gcalConnectHint}</p>
           </SourceRow>
 
           <SourceRow

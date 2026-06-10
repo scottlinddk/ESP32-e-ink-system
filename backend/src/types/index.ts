@@ -35,6 +35,9 @@ export interface UserPreferences {
   strava_run_goal_km?: number | null;
   strava_ride_goal_km?: number | null;
   strava_elevation_goal_m?: number | null;
+  show_gcal: boolean;
+  gcal_calendar_id?: string | null;
+  gcal_label?: string | null;
 }
 
 export interface EnergyPrice {
@@ -137,6 +140,7 @@ export interface DisplayData {
   calendar?: IcsCalendarData;
   notion?: NotionData;
   strava?: StravaData;
+  gcal?: IcsCalendarData;
   nextRefresh: number;
 }
 

@@ -408,6 +408,12 @@ export function ApiKeysCard() {
           icon="directions_run"
           connectHint={t.stravaConnectHint}
         />
+        <OAuthConnectCard
+          provider="google_calendar"
+          name="Google Calendar"
+          icon="calendar_month"
+          connectHint={t.gcalConnectHint}
+        />
         <EvCredentialsSection provider="monta" />
         <EvCredentialsSection provider="zaptec" />
         <NotionCredentialsSection />

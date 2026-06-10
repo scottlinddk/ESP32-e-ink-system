@@ -171,4 +171,144 @@ router.delete(
   }
 );
 
+// ────────────────────────────────────────────────────────────────────────────────
+// Google Calendar OAuth
+// ────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/oauth/google_calendar/authorize
+ * Returns the Google OAuth authorization URL.
+ */
+router.get(
+  '/google_calendar/authorize',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = await getOrCreateUserFromClerk(req.clerkUserId!);
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+      const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+      const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+
+      if (!clientId || !clientSecret || !redirectUri) {
+        res.status(503).json({ error: 'Google Calendar integration is not configured on this server' });
+        return;
+      }
+
+      const { google } = await import('googleapis');
+      const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+
+      const state = createOAuthState(userId);
+      const url = oauth2Client.generateAuthUrl({
+        access_type: 'offline',
+        prompt: 'consent',
+        scope: ['https://www.googleapis.com/auth/calendar.readonly'],
+        state,
+      });
+
+      res.json({ url });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * GET /api/oauth/google_calendar/callback
+ * No Clerk auth — Google redirects here after consent.
+ */
+router.get(
+  '/google_calendar/callback',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const frontendBase = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    try {
+      const { code, state, error: oauthError } = req.query as Record<string, string>;
+
+      if (oauthError) {
+        res.redirect(`${frontendBase}/?gcal=denied`);
+        return;
+      }
+
+      if (!code || !state) {
+        res.redirect(`${frontendBase}/?gcal=error&reason=missing_params`);
+        return;
+      }
+
+      let userId: string;
+      try {
+        userId = verifyOAuthState(state);
+      } catch {
+        res.redirect(`${frontendBase}/?gcal=error&reason=invalid_state`);
+        return;
+      }
+
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+      const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+      const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+
+      if (!clientId || !clientSecret || !redirectUri) {
+        res.redirect(`${frontendBase}/?gcal=error&reason=not_configured`);
+        return;
+      }
+
+      const { google } = await import('googleapis');
+      const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+      const { tokens } = await oauth2Client.getToken(code);
+
+      const email = tokens.id_token
+        ? JSON.parse(Buffer.from(tokens.id_token.split('.')[1], 'base64url').toString()).email as string
+        : undefined;
+
+      await upsertOAuthConnection(
+        userId,
+        'google_calendar',
+        tokens.access_token!,
+        tokens.refresh_token ?? null,
+        tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+        email
+      );
+
+      res.redirect(`${frontendBase}/?gcal=connected`);
+    } catch (err) {
+      logger.error({ err }, 'Google Calendar OAuth callback error');
+      const fb = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+      res.redirect(`${fb}/?gcal=error&reason=server_error`);
+      next(err);
+    }
+  }
+);
+
+/**
+ * GET /api/oauth/google_calendar/status
+ */
+router.get(
+  '/google_calendar/status',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = await getOrCreateUserFromClerk(req.clerkUserId!);
+      const conn = await getOAuthConnection(userId, 'google_calendar');
+      res.json({ connected: !!conn, athleteId: conn?.provider_account_id ?? null });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * DELETE /api/oauth/google_calendar
+ */
+router.delete(
+  '/google_calendar',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = await getOrCreateUserFromClerk(req.clerkUserId!);
+      await deleteOAuthConnection(userId, 'google_calendar');
+      res.json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 export default router;

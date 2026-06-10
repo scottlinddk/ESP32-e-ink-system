@@ -553,6 +553,9 @@ export function renderDisplayData(data: DisplayData, layout?: DisplayLayout | nu
       case 'strava':
         renderStravaWidget(canvas, bounds, data.strava);
         break;
+      case 'gcal':
+        renderIcsCalendarWidget(canvas, bounds, data.gcal);
+        break;
       case 'status':
         renderStatusWidget(canvas, bounds, data.nextRefresh);
         break;

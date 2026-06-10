@@ -301,6 +301,14 @@ export const STRINGS = {
     stravaDisconnect: "Disconnect",
     stravaNotConnected: "Not connected",
     stravaConnectHint: "Connect your Strava account to show your year-to-date training progress.",
+    // Google Calendar
+    srcGcal: "Google Calendar",
+    srcGcalHint: "Upcoming events from your Google Calendar",
+    gcalCalendarId: "Calendar ID (optional)",
+    gcalCalendarIdPh: "primary",
+    gcalLabel: "Display label (optional)",
+    gcalLabelPh: "Calendar",
+    gcalConnectHint: "Connect your Google account to show upcoming calendar events. Requires calendar.readonly scope.",
     // EV integrations — display card
     srcMonta: "Monta EV Charging",
     srcMontaHint: "Live charger status and session data from Monta",
@@ -616,6 +624,14 @@ export const STRINGS = {
     stravaDisconnect: "Afbryd",
     stravaNotConnected: "Ikke forbundet",
     stravaConnectHint: "Forbind din Strava-konto for at vise dit træningsfremskridt.",
+    // Google Calendar
+    srcGcal: "Google Kalender",
+    srcGcalHint: "Kommende begivenheder fra din Google Kalender",
+    gcalCalendarId: "Kalender-ID (valgfrit)",
+    gcalCalendarIdPh: "primary",
+    gcalLabel: "Visningsnavn (valgfrit)",
+    gcalLabelPh: "Kalender",
+    gcalConnectHint: "Forbind din Google-konto for at vise kommende kalenderbegivenheder. Kræver calendar.readonly-tilladelse.",
     // EV integrations — display card
     srcMonta: "Monta EV-opladning",
     srcMontaHint: "Live opladerstatus og sessionsdata fra Monta",

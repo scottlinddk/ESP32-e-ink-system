@@ -79,6 +79,7 @@ const DEFAULT_PREFS: Preferences = {
   calendar: { on: false, url: '' },
   notion: { on: false },
   strava: { on: false, runGoalKm: null, rideGoalKm: null, elevGoalM: null },
+  gcal: { on: false, calendarId: 'primary', label: 'Calendar' },
 };
 
 const DEFAULT_USER: AppUser = {

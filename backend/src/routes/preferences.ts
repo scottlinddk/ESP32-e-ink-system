@@ -187,6 +187,7 @@ router.get(
         show_zaptec: false,
         show_notion: false,
         show_strava: false,
+        show_gcal: false,
         energy_price_location: 'DK1',
         weather_location: '55.3,10.4',
         news_language: 'da',
@@ -237,6 +238,9 @@ router.post(
         'strava_run_goal_km',
         'strava_ride_goal_km',
         'strava_elevation_goal_m',
+        'show_gcal',
+        'gcal_calendar_id',
+        'gcal_label',
       ];
 
       const updates: Partial<UserPreferences> = {};
