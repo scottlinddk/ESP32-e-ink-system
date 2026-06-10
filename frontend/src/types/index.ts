@@ -43,6 +43,15 @@ export interface UserPreferences {
   layout: DisplayLayout | null;
   monta_fields: string[];
   zaptec_fields: string[];
+  ics_calendar_url?: string;
+  show_notion: boolean;
+  show_strava: boolean;
+  strava_run_goal_km?: number | null;
+  strava_ride_goal_km?: number | null;
+  strava_elevation_goal_m?: number | null;
+  show_gcal: boolean;
+  gcal_calendar_id?: string | null;
+  gcal_label?: string | null;
 }
 
 export interface EnergyPrice {
@@ -90,6 +99,10 @@ export interface Preferences {
   news: { on: boolean; lang: string; source: string };
   monta: { on: boolean; fields: string[] };
   zaptec: { on: boolean; fields: string[] };
+  calendar: { on: boolean; url: string };
+  notion: { on: boolean };
+  strava: { on: boolean; runGoalKm: number | null; rideGoalKm: number | null; elevGoalM: number | null };
+  gcal: { on: boolean; calendarId: string; label: string };
 }
 
 export interface AppDevice {

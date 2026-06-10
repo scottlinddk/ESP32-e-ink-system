@@ -29,6 +29,15 @@ export interface UserPreferences {
   layout: DisplayLayout | null;
   monta_fields: string[]; // e.g. ['charger_status', 'active_session', 'today_stats']
   zaptec_fields: string[]; // e.g. ['charger_status', 'active_session', 'installation_info']
+  ics_calendar_url?: string;
+  show_notion: boolean;
+  show_strava: boolean;
+  strava_run_goal_km?: number | null;
+  strava_ride_goal_km?: number | null;
+  strava_elevation_goal_m?: number | null;
+  show_gcal: boolean;
+  gcal_calendar_id?: string | null;
+  gcal_label?: string | null;
 }
 
 export interface EnergyPrice {
@@ -87,12 +96,51 @@ export interface ZaptecData {
   installationName: string | null;
 }
 
+export interface IcsCalendarEvent {
+  summary: string;
+  timeLabel: string; // "HH:MM" or "All day"
+  isToday: boolean;
+}
+
+export interface IcsCalendarData {
+  label: string;
+  today: string;
+  events: IcsCalendarEvent[];
+}
+
+export interface NotionRow {
+  id: string;
+  title: string;
+  subtitle?: string;
+}
+
+export interface NotionData {
+  rows: NotionRow[];
+  databaseName?: string;
+}
+
+export interface StravaGoalStat {
+  sport: 'Run' | 'Ride';
+  ytdDistanceKm: number;
+  ytdElevationM: number;
+  goalKm?: number;
+}
+
+export interface StravaData {
+  athleteName: string;
+  stats: StravaGoalStat[];
+}
+
 export interface DisplayData {
   price?: EnergyPrice;
   weather?: WeatherData;
   news?: NewsItem[];
   monta?: MontaData;
   zaptec?: ZaptecData;
+  calendar?: IcsCalendarData;
+  notion?: NotionData;
+  strava?: StravaData;
+  gcal?: IcsCalendarData;
   nextRefresh: number;
 }
 

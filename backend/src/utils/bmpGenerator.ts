@@ -402,6 +402,110 @@ function renderZaptecWidget(
   }
 }
 
+function renderNotionWidget(
+  canvas: BmpCanvas,
+  bounds: WidgetBounds,
+  data?: DisplayData['notion']
+): void {
+  const { x, y, width, height } = bounds;
+  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  const maxW = width - 4;
+  let textY = y + 2;
+
+  if (!data) {
+    canvas.drawText('Notion: unavailable', x + 2, textY, maxW);
+    return;
+  }
+
+  const title = data.databaseName ?? 'Notion';
+  canvas.drawText(title, x + 2, textY, maxW);
+  textY += 10;
+
+  if (textY < y + height - 8) {
+    canvas.drawHLine(x, textY, width);
+    textY += 3;
+  }
+
+  if (data.rows.length === 0) {
+    canvas.drawText('No items', x + 2, textY, maxW);
+    return;
+  }
+
+  for (const row of data.rows) {
+    if (textY + 9 > y + height) break;
+    const line = row.subtitle ? `${row.title}  ${row.subtitle}` : row.title;
+    canvas.drawText(line, x + 2, textY, maxW);
+    textY += 10;
+  }
+}
+
+function renderIcsCalendarWidget(
+  canvas: BmpCanvas,
+  bounds: WidgetBounds,
+  data?: DisplayData['calendar']
+): void {
+  const { x, y, width, height } = bounds;
+  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  const maxW = width - 4;
+  let textY = y + 2;
+
+  if (!data) {
+    canvas.drawText('Calendar: unavailable', x + 2, textY, maxW);
+    return;
+  }
+
+  canvas.drawText(`${data.label}  ${data.today}`, x + 2, textY, maxW);
+  textY += 10;
+
+  if (textY < y + height - 8) {
+    canvas.drawHLine(x, textY, width);
+    textY += 3;
+  }
+
+  if (data.events.length === 0) {
+    canvas.drawText('No upcoming events', x + 2, textY, maxW);
+    return;
+  }
+
+  for (const ev of data.events) {
+    if (textY + 9 > y + height) break;
+    canvas.drawText(`${ev.timeLabel}  ${ev.summary}`, x + 2, textY, maxW);
+    textY += 10;
+  }
+}
+
+function renderStravaWidget(
+  canvas: BmpCanvas,
+  bounds: WidgetBounds,
+  data?: DisplayData['strava']
+): void {
+  const { x, y, width, height } = bounds;
+  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  const maxW = width - 4;
+  let textY = y + 2;
+
+  if (!data) {
+    canvas.drawText('Strava: not connected', x + 2, textY, maxW);
+    return;
+  }
+
+  canvas.drawText(`Strava  ${data.athleteName}`, x + 2, textY, maxW);
+  textY += 10;
+
+  if (textY < y + height - 8) {
+    canvas.drawHLine(x, textY, width);
+    textY += 3;
+  }
+
+  for (const stat of data.stats) {
+    if (textY + 9 > y + height) break;
+    const dist = `${stat.sport}  ${Math.round(stat.ytdDistanceKm)}`;
+    const goal = stat.goalKm ? `/${stat.goalKm}km` : 'km';
+    canvas.drawText(dist + goal, x + 2, textY, maxW);
+    textY += 10;
+  }
+}
+
 function renderStatusWidget(
   canvas: BmpCanvas,
   bounds: WidgetBounds,
@@ -439,6 +543,18 @@ export function renderDisplayData(data: DisplayData, layout?: DisplayLayout | nu
         break;
       case 'zaptec':
         renderZaptecWidget(canvas, bounds, data.zaptec);
+        break;
+      case 'calendar':
+        renderIcsCalendarWidget(canvas, bounds, data.calendar);
+        break;
+      case 'notion':
+        renderNotionWidget(canvas, bounds, data.notion);
+        break;
+      case 'strava':
+        renderStravaWidget(canvas, bounds, data.strava);
+        break;
+      case 'gcal':
+        renderIcsCalendarWidget(canvas, bounds, data.gcal);
         break;
       case 'status':
         renderStatusWidget(canvas, bounds, data.nextRefresh);

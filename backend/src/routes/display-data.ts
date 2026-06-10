@@ -13,6 +13,10 @@ import { fetchWeather } from '../services/weather';
 import { fetchNews } from '../services/news';
 import { fetchMontaData } from '../services/monta';
 import { fetchZaptecData } from '../services/zaptec';
+import { fetchIcsCalendarData } from '../services/ics';
+import { fetchNotionData, NotionCredentials } from '../services/notion';
+import { fetchStravaData, StravaGoalsConfig } from '../services/strava';
+import { fetchGoogleCalendarData } from '../services/google-calendar';
 import { DisplayData, UserPreferences } from '../types/index';
 import { createClerkClient } from '@clerk/backend';
 import { logger } from '../lib/logger';
@@ -117,6 +121,9 @@ const DEFAULT_PREFS: UserPreferences = {
   show_air_quality: false,
   show_monta: false,
   show_zaptec: false,
+  show_notion: false,
+  show_strava: false,
+  show_gcal: false,
   energy_price_location: 'DK1',
   weather_location: '55.3,10.4',
   news_language: 'da',
@@ -124,6 +131,7 @@ const DEFAULT_PREFS: UserPreferences = {
   layout: null,
   monta_fields: ['charger_status', 'active_session'],
   zaptec_fields: ['charger_status', 'active_session'],
+  ics_calendar_url: undefined,
 };
 
 async function buildDisplayData(
@@ -207,6 +215,54 @@ async function buildDisplayData(
         logger.warn('Zaptec credentials are not valid JSON — skipping');
       }
     }
+  }
+
+  if (prefs.show_calendar && prefs.ics_calendar_url) {
+    tasks.push(
+      fetchIcsCalendarData(prefs.ics_calendar_url)
+        .then((calendar) => { result.calendar = calendar; })
+        .catch((err: unknown) => { logger.error({ err }, 'ICS calendar fetch failed'); })
+    );
+  }
+
+  if (prefs.show_notion) {
+    const raw = apiKeyMap['notion'];
+    if (raw) {
+      try {
+        const creds = JSON.parse(raw) as NotionCredentials;
+        tasks.push(
+          fetchNotionData(userId, creds)
+            .then((notion) => { result.notion = notion; })
+            .catch((err: unknown) => { logger.error({ err }, 'Notion fetch failed'); })
+        );
+      } catch {
+        logger.warn('Notion credentials are not valid JSON — skipping');
+      }
+    }
+  }
+
+  if (prefs.show_strava) {
+    const goalsConfig: StravaGoalsConfig = {
+      run_km: prefs.strava_run_goal_km ?? undefined,
+      ride_km: prefs.strava_ride_goal_km ?? undefined,
+      elevation_m: prefs.strava_elevation_goal_m ?? undefined,
+    };
+    tasks.push(
+      fetchStravaData(userId, goalsConfig)
+        .then((strava) => { result.strava = strava; })
+        .catch((err: unknown) => { logger.error({ err }, 'Strava fetch failed'); })
+    );
+  }
+
+  if (prefs.show_gcal) {
+    tasks.push(
+      fetchGoogleCalendarData(userId, {
+        calendarId: prefs.gcal_calendar_id ?? undefined,
+        label: prefs.gcal_label ?? undefined,
+      })
+        .then((gcal) => { result.gcal = gcal; })
+        .catch((err: unknown) => { logger.error({ err }, 'Google Calendar fetch failed'); })
+    );
   }
 
   await Promise.all(tasks);

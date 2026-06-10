@@ -76,6 +76,10 @@ const DEFAULT_PREFS: Preferences = {
   news: { on: false, lang: 'da', source: 'dr' },
   monta: { on: false, fields: ['charger_status', 'active_session'] },
   zaptec: { on: false, fields: ['charger_status', 'active_session'] },
+  calendar: { on: false, url: '' },
+  notion: { on: false },
+  strava: { on: false, runGoalKm: null, rideGoalKm: null, elevGoalM: null },
+  gcal: { on: false, calendarId: 'primary', label: 'Calendar' },
 };
 
 const DEFAULT_USER: AppUser = {

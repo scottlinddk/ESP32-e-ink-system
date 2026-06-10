@@ -13,6 +13,7 @@ import { Input, PasswordInput } from '../ui/input';
 import { Chip } from '../ui/Chip';
 import { Dialog } from '../ui/Dialog';
 import { Icon } from '../ui/Logo';
+import { OAuthConnectCard } from './OAuthConnectCard';
 
 const PROVIDER_MAP: Record<string, string> = {
   openweather: 'openweathermap',
@@ -191,6 +192,136 @@ function EvCredentialsSection({ provider }: EvCredentialsSectionProps) {
   );
 }
 
+function NotionCredentialsSection() {
+  const app = useApp();
+  const t = app.t;
+  const { getToken } = useAuth();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [fields, setFields] = useState<Record<string, string>>({});
+  const [err, setErr] = useState('');
+
+  const statusKey = ['ev-credentials', 'notion'];
+  const { data: status } = useQuery({
+    queryKey: statusKey,
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return getEvCredentialStatus(token, 'notion');
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return saveEvCredentials(token, 'notion', fields);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: statusKey });
+      setOpen(false);
+      app.toast({ type: 'success', title: t.evCredSaved, msg: t.evCredSavedMsg });
+    },
+    onError: (e: Error) => { setErr(e.message); },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return deleteEvCredentials(token, 'notion');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: statusKey });
+      app.toast({ type: 'info', title: t.keyRemoved });
+    },
+  });
+
+  function validate(): boolean {
+    if (!fields.token?.trim()) { setErr('Integration token is required.'); return false; }
+    if (!fields.token.startsWith('secret_')) { setErr('Token must start with "secret_".'); return false; }
+    if (!fields.databaseId?.trim()) { setErr('Database ID is required.'); return false; }
+    return true;
+  }
+
+  function openDialog() { setFields({}); setErr(''); setOpen(true); }
+
+  const configured = status?.configured ?? false;
+
+  return (
+    <div className="bg-surface rounded-md border border-border px-4 py-3.5">
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="font-medium">{t.notionCredTitle}</div>
+        <Chip variant={configured ? 'success' : 'error'} dot>
+          {configured ? t.evCredConfigured : t.evCredNotConfigured}
+        </Chip>
+      </div>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <span className="text-xs text-fg3">{t.notionCredDesc}</span>
+        <div className="flex gap-2">
+          <Button variant="outlined" size="sm" icon="edit" onClick={openDialog}>
+            {configured ? t.updateKey : t.addKey}
+          </Button>
+          {configured && (
+            <Button variant="text" size="sm" onClick={() => removeMutation.mutate()} loading={removeMutation.isPending}>
+              {t.evCredRemove}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={t.notionCredTitle}
+        icon="auto_stories"
+        footer={
+          <>
+            <Button variant="text" onClick={() => setOpen(false)}>{t.cancel}</Button>
+            <Button onClick={() => { if (validate()) saveMutation.mutate(); }} loading={saveMutation.isPending}>{t.evCredSave}</Button>
+          </>
+        }
+      >
+        <p className="text-xs text-fg3 mb-4">{t.notionTokenWarning}</p>
+        <Field label={t.notionToken} htmlFor="notion-token" error={err}>
+          <PasswordInput
+            id="notion-token"
+            lang={app.lang}
+            value={fields.token ?? ''}
+            placeholder={t.notionTokenPh}
+            onChange={(e) => { setFields((f) => ({ ...f, token: e.target.value })); setErr(''); }}
+          />
+        </Field>
+        <Field label={t.notionDatabaseId} htmlFor="notion-dbid">
+          <Input
+            id="notion-dbid"
+            mono
+            value={fields.databaseId ?? ''}
+            placeholder={t.notionDatabaseIdPh}
+            onChange={(e) => { setFields((f) => ({ ...f, databaseId: e.target.value })); }}
+          />
+        </Field>
+        <Field label={t.notionStatusProp} htmlFor="notion-status-prop">
+          <Input
+            id="notion-status-prop"
+            value={fields.statusProperty ?? ''}
+            placeholder={t.notionStatusPropPh}
+            onChange={(e) => { setFields((f) => ({ ...f, statusProperty: e.target.value })); }}
+          />
+        </Field>
+        <Field label={t.notionFilterStatus} htmlFor="notion-filter">
+          <Input
+            id="notion-filter"
+            value={fields.filterStatus ?? ''}
+            placeholder={t.notionFilterStatusPh}
+            onChange={(e) => { setFields((f) => ({ ...f, filterStatus: e.target.value })); }}
+          />
+        </Field>
+      </Dialog>
+    </div>
+  );
+}
+
 export function ApiKeysCard() {
   const app = useApp();
   const t = app.t;
@@ -271,8 +402,21 @@ export function ApiKeysCard() {
   return (
     <Card icon="key" title={t.apiTitle} desc={t.apiDesc}>
       <div className="flex flex-col gap-4">
+        <OAuthConnectCard
+          provider="strava"
+          name="Strava"
+          icon="directions_run"
+          connectHint={t.stravaConnectHint}
+        />
+        <OAuthConnectCard
+          provider="google_calendar"
+          name="Google Calendar"
+          icon="calendar_month"
+          connectHint={t.gcalConnectHint}
+        />
         <EvCredentialsSection provider="monta" />
         <EvCredentialsSection provider="zaptec" />
+        <NotionCredentialsSection />
         {SERVICES.map((svc) => {
           const connected = connectedProviders.has(svc.id);
           const maskedKey = data?.api_keys.find(
