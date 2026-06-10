@@ -348,19 +348,6 @@ export async function updateDeviceLastSeen(deviceId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function getOAuthAppCreds(
-  userId: string,
-  provider: 'strava' | 'google'
-): Promise<{ clientId: string; clientSecret: string } | null> {
-  const keys = await getApiKeys(userId);
-  const find = (p: string) => keys.find((k) => k.provider === p)?.api_key;
-  const envPrefix = provider === 'strava' ? 'STRAVA' : 'GOOGLE';
-  const clientId = find(`${provider}_client_id`) ?? process.env[`${envPrefix}_CLIENT_ID`];
-  const clientSecret = find(`${provider}_client_secret`) ?? process.env[`${envPrefix}_CLIENT_SECRET`];
-  if (!clientId || !clientSecret) return null;
-  return { clientId, clientSecret };
-}
-
 export async function logApiUsage(userId: string, endpoint: string): Promise<void> {
   const db = getSupabaseClient();
   // Fire-and-forget — don't let logging failures break requests
