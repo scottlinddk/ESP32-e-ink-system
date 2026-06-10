@@ -213,6 +213,7 @@ router.get(
         layout: null,
         monta_fields: ['charger_status', 'active_session'],
         zaptec_fields: ['charger_status', 'active_session'],
+        ics_calendar_url: undefined,
       };
 
       res.json({ preferences: prefs ?? defaultPrefs });
@@ -249,6 +250,7 @@ router.post(
         'layout',
         'monta_fields',
         'zaptec_fields',
+        'ics_calendar_url',
       ];
 
       const updates: Partial<UserPreferences> = {};

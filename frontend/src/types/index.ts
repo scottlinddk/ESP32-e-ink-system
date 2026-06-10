@@ -43,6 +43,7 @@ export interface UserPreferences {
   layout: DisplayLayout | null;
   monta_fields: string[];
   zaptec_fields: string[];
+  ics_calendar_url?: string;
 }
 
 export interface EnergyPrice {
@@ -90,6 +91,7 @@ export interface Preferences {
   news: { on: boolean; lang: string; source: string };
   monta: { on: boolean; fields: string[] };
   zaptec: { on: boolean; fields: string[] };
+  calendar: { on: boolean; url: string };
 }
 
 export interface AppDevice {

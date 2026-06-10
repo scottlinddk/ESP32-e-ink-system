@@ -270,6 +270,12 @@ export const STRINGS = {
     layoutAvailable: "Available widgets",
     layoutAddWidget: "Add to layout",
     layoutLocked: "Locked",
+    // ICS Calendar — display card
+    srcCalendar: "ICS Calendar",
+    srcCalendarHint: "Upcoming events from any .ics calendar feed",
+    calendarUrl: "Calendar feed URL (.ics)",
+    calendarUrlPh: "https://example.com/calendar.ics",
+    calendarUrlHint: "Paste the .ics URL from iCloud, Google Calendar, Outlook, or any public feed.",
     // EV integrations — display card
     srcMonta: "Monta EV Charging",
     srcMontaHint: "Live charger status and session data from Monta",
@@ -554,6 +560,12 @@ export const STRINGS = {
     layoutAvailable: "Tilgængelige widgets",
     layoutAddWidget: "Tilføj til layout",
     layoutLocked: "Låst",
+    // ICS Calendar — display card
+    srcCalendar: "ICS-kalender",
+    srcCalendarHint: "Kommende begivenheder fra et .ics-kalender-feed",
+    calendarUrl: "Kalender-feed URL (.ics)",
+    calendarUrlPh: "https://eksempel.com/kalender.ics",
+    calendarUrlHint: "Indsæt .ics-URL'en fra iCloud, Google Kalender, Outlook eller et offentligt feed.",
     // EV integrations — display card
     srcMonta: "Monta EV-opladning",
     srcMontaHint: "Live opladerstatus og sessionsdata fra Monta",

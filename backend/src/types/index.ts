@@ -29,6 +29,7 @@ export interface UserPreferences {
   layout: DisplayLayout | null;
   monta_fields: string[]; // e.g. ['charger_status', 'active_session', 'today_stats']
   zaptec_fields: string[]; // e.g. ['charger_status', 'active_session', 'installation_info']
+  ics_calendar_url?: string;
 }
 
 export interface EnergyPrice {
@@ -87,12 +88,25 @@ export interface ZaptecData {
   installationName: string | null;
 }
 
+export interface IcsCalendarEvent {
+  summary: string;
+  timeLabel: string; // "HH:MM" or "All day"
+  isToday: boolean;
+}
+
+export interface IcsCalendarData {
+  label: string;
+  today: string;
+  events: IcsCalendarEvent[];
+}
+
 export interface DisplayData {
   price?: EnergyPrice;
   weather?: WeatherData;
   news?: NewsItem[];
   monta?: MontaData;
   zaptec?: ZaptecData;
+  calendar?: IcsCalendarData;
   nextRefresh: number;
 }
 

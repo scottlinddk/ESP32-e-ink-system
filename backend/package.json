@@ -21,6 +21,7 @@
     "express": "^4.19.2",
     "helmet": "^7.1.0",
     "node-cron": "^3.0.3",
+    "node-ical": "^0.26.1",
     "pino": "^9.0.0",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1"
