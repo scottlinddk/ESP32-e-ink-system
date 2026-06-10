@@ -1,6 +1,6 @@
 import { createHmac, randomBytes } from 'crypto';
 import { encrypt, decrypt } from '../utils/crypto';
-import { getSupabaseClient } from './database';
+import { getSupabaseClient, getOAuthAppCreds } from './database';
 import { CacheEntry, StravaData, StravaGoalStat } from '../types/index';
 import { logger } from '../lib/logger';
 
@@ -113,9 +113,9 @@ async function refreshStravaToken(
 ): Promise<string> {
   if (!conn.refresh_token) throw new Error('No Strava refresh token stored');
   const refreshToken = decrypt(conn.refresh_token);
-  const clientId = process.env.STRAVA_CLIENT_ID;
-  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
-  if (!clientId || !clientSecret) throw new Error('Strava credentials not configured');
+  const appCreds = await getOAuthAppCreds(userId, 'strava');
+  if (!appCreds) throw new Error('Strava OAuth app credentials not configured');
+  const { clientId, clientSecret } = appCreds;
 
   const resp = await fetch('https://www.strava.com/oauth/token', {
     method: 'POST',

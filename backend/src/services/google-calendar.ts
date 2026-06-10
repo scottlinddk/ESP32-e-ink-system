@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { getOAuthConnection, upsertOAuthConnection } from './strava';
+import { getOAuthAppCreds } from './database';
 import { decrypt } from '../utils/crypto';
 import { IcsCalendarData, IcsCalendarEvent, CacheEntry } from '../types/index';
 import { logger } from '../lib/logger';
@@ -43,9 +44,12 @@ export async function fetchGoogleCalendarData(
   const conn = await getOAuthConnection(userId, 'google_calendar');
   if (!conn) throw new Error('Google Calendar not connected. Please authorise via the dashboard.');
 
+  const appCreds = await getOAuthAppCreds(userId, 'google');
+  if (!appCreds) throw new Error('Google Calendar OAuth app credentials not configured');
+
   const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
+    appCreds.clientId,
+    appCreds.clientSecret,
     process.env.GOOGLE_REDIRECT_URI
   );
 
