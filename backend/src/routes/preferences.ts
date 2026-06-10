@@ -3,12 +3,11 @@ import { requireAuth } from '../middleware/auth';
 import {
   getPreferences,
   upsertPreferences,
-  upsertUser,
   getApiKeys,
   upsertApiKey,
   deleteApiKey,
 } from '../services/database';
-import { createClerkClient } from '@clerk/backend';
+import { getOrCreateUserFromClerk } from './preferences-helpers';
 import { UserPreferences } from '../types/index';
 
 /**
@@ -164,26 +163,6 @@ import { UserPreferences } from '../types/index';
 
 const router = Router();
 
-async function getOrCreateUserFromClerk(clerkUserId: string): Promise<string> {
-  const secretKey = process.env.CLERK_SECRET_KEY;
-  if (!secretKey) throw new Error('CLERK_SECRET_KEY not set');
-
-  const clerk = createClerkClient({ secretKey });
-  const clerkUser = await clerk.users.getUser(clerkUserId);
-
-  const email =
-    clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId)
-      ?.emailAddress ?? clerkUser.emailAddresses[0]?.emailAddress;
-
-  if (!email) throw new Error('Clerk user has no email address');
-
-  const displayName =
-    [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') || undefined;
-
-  const user = await upsertUser(email, displayName);
-  return user.id;
-}
-
 /**
  * GET /api/preferences
  * Returns authenticated user's preferences
@@ -207,6 +186,7 @@ router.get(
         show_monta: false,
         show_zaptec: false,
         show_notion: false,
+        show_strava: false,
         energy_price_location: 'DK1',
         weather_location: '55.3,10.4',
         news_language: 'da',
@@ -253,6 +233,10 @@ router.post(
         'zaptec_fields',
         'ics_calendar_url',
         'show_notion',
+        'show_strava',
+        'strava_run_goal_km',
+        'strava_ride_goal_km',
+        'strava_elevation_goal_m',
       ];
 
       const updates: Partial<UserPreferences> = {};
@@ -358,7 +342,7 @@ router.delete(
       const userId = await getOrCreateUserFromClerk(clerkUserId);
 
       const { provider } = req.params as { provider: string };
-      const validProviders = ['openweathermap', 'newsapi', 'openai', 'monta', 'zaptec'];
+      const validProviders = ['openweathermap', 'newsapi', 'openai', 'monta', 'zaptec', 'notion'];
       if (!validProviders.includes(provider)) {
         res.status(400).json({ error: `provider must be one of: ${validProviders.join(', ')}` });
         return;

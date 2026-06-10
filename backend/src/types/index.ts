@@ -31,6 +31,10 @@ export interface UserPreferences {
   zaptec_fields: string[]; // e.g. ['charger_status', 'active_session', 'installation_info']
   ics_calendar_url?: string;
   show_notion: boolean;
+  show_strava: boolean;
+  strava_run_goal_km?: number | null;
+  strava_ride_goal_km?: number | null;
+  strava_elevation_goal_m?: number | null;
 }
 
 export interface EnergyPrice {
@@ -112,6 +116,18 @@ export interface NotionData {
   databaseName?: string;
 }
 
+export interface StravaGoalStat {
+  sport: 'Run' | 'Ride';
+  ytdDistanceKm: number;
+  ytdElevationM: number;
+  goalKm?: number;
+}
+
+export interface StravaData {
+  athleteName: string;
+  stats: StravaGoalStat[];
+}
+
 export interface DisplayData {
   price?: EnergyPrice;
   weather?: WeatherData;
@@ -120,6 +136,7 @@ export interface DisplayData {
   zaptec?: ZaptecData;
   calendar?: IcsCalendarData;
   notion?: NotionData;
+  strava?: StravaData;
   nextRefresh: number;
 }
 

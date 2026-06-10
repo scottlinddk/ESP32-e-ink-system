@@ -474,6 +474,38 @@ function renderIcsCalendarWidget(
   }
 }
 
+function renderStravaWidget(
+  canvas: BmpCanvas,
+  bounds: WidgetBounds,
+  data?: DisplayData['strava']
+): void {
+  const { x, y, width, height } = bounds;
+  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  const maxW = width - 4;
+  let textY = y + 2;
+
+  if (!data) {
+    canvas.drawText('Strava: not connected', x + 2, textY, maxW);
+    return;
+  }
+
+  canvas.drawText(`Strava  ${data.athleteName}`, x + 2, textY, maxW);
+  textY += 10;
+
+  if (textY < y + height - 8) {
+    canvas.drawHLine(x, textY, width);
+    textY += 3;
+  }
+
+  for (const stat of data.stats) {
+    if (textY + 9 > y + height) break;
+    const dist = `${stat.sport}  ${Math.round(stat.ytdDistanceKm)}`;
+    const goal = stat.goalKm ? `/${stat.goalKm}km` : 'km';
+    canvas.drawText(dist + goal, x + 2, textY, maxW);
+    textY += 10;
+  }
+}
+
 function renderStatusWidget(
   canvas: BmpCanvas,
   bounds: WidgetBounds,
@@ -517,6 +549,9 @@ export function renderDisplayData(data: DisplayData, layout?: DisplayLayout | nu
         break;
       case 'notion':
         renderNotionWidget(canvas, bounds, data.notion);
+        break;
+      case 'strava':
+        renderStravaWidget(canvas, bounds, data.strava);
         break;
       case 'status':
         renderStatusWidget(canvas, bounds, data.nextRefresh);

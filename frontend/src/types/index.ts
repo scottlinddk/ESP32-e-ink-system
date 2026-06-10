@@ -45,6 +45,10 @@ export interface UserPreferences {
   zaptec_fields: string[];
   ics_calendar_url?: string;
   show_notion: boolean;
+  show_strava: boolean;
+  strava_run_goal_km?: number | null;
+  strava_ride_goal_km?: number | null;
+  strava_elevation_goal_m?: number | null;
 }
 
 export interface EnergyPrice {
@@ -94,6 +98,7 @@ export interface Preferences {
   zaptec: { on: boolean; fields: string[] };
   calendar: { on: boolean; url: string };
   notion: { on: boolean };
+  strava: { on: boolean; runGoalKm: number | null; rideGoalKm: number | null; elevGoalM: number | null };
 }
 
 export interface AppDevice {

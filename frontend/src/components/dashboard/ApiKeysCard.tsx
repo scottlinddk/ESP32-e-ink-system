@@ -13,6 +13,7 @@ import { Input, PasswordInput } from '../ui/input';
 import { Chip } from '../ui/Chip';
 import { Dialog } from '../ui/Dialog';
 import { Icon } from '../ui/Logo';
+import { OAuthConnectCard } from './OAuthConnectCard';
 
 const PROVIDER_MAP: Record<string, string> = {
   openweather: 'openweathermap',
@@ -401,6 +402,12 @@ export function ApiKeysCard() {
   return (
     <Card icon="key" title={t.apiTitle} desc={t.apiDesc}>
       <div className="flex flex-col gap-4">
+        <OAuthConnectCard
+          provider="strava"
+          name="Strava"
+          icon="directions_run"
+          connectHint={t.stravaConnectHint}
+        />
         <EvCredentialsSection provider="monta" />
         <EvCredentialsSection provider="zaptec" />
         <NotionCredentialsSection />

@@ -15,6 +15,7 @@ import { fetchMontaData } from '../services/monta';
 import { fetchZaptecData } from '../services/zaptec';
 import { fetchIcsCalendarData } from '../services/ics';
 import { fetchNotionData, NotionCredentials } from '../services/notion';
+import { fetchStravaData, StravaGoalsConfig } from '../services/strava';
 import { DisplayData, UserPreferences } from '../types/index';
 import { createClerkClient } from '@clerk/backend';
 import { logger } from '../lib/logger';
@@ -120,6 +121,7 @@ const DEFAULT_PREFS: UserPreferences = {
   show_monta: false,
   show_zaptec: false,
   show_notion: false,
+  show_strava: false,
   energy_price_location: 'DK1',
   weather_location: '55.3,10.4',
   news_language: 'da',
@@ -235,6 +237,19 @@ async function buildDisplayData(
         logger.warn('Notion credentials are not valid JSON — skipping');
       }
     }
+  }
+
+  if (prefs.show_strava) {
+    const goalsConfig: StravaGoalsConfig = {
+      run_km: prefs.strava_run_goal_km ?? undefined,
+      ride_km: prefs.strava_ride_goal_km ?? undefined,
+      elevation_m: prefs.strava_elevation_goal_m ?? undefined,
+    };
+    tasks.push(
+      fetchStravaData(userId, goalsConfig)
+        .then((strava) => { result.strava = strava; })
+        .catch((err: unknown) => { logger.error({ err }, 'Strava fetch failed'); })
+    );
   }
 
   await Promise.all(tasks);

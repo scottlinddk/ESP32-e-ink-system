@@ -122,7 +122,7 @@ export async function deleteApiKey(token: string, provider: string): Promise<voi
 
 export async function saveEvCredentials(
   token: string,
-  provider: 'monta' | 'zaptec',
+  provider: string,
   credentials: Record<string, string>
 ): Promise<{ provider: string; configured: boolean }> {
   return request<{ provider: string; configured: boolean }>(
@@ -137,12 +137,40 @@ export async function saveEvCredentials(
 
 export async function getEvCredentialStatus(
   token: string,
-  provider: 'monta' | 'zaptec'
+  provider: string
 ): Promise<{ provider: string; configured: boolean }> {
   return request<{ provider: string; configured: boolean }>(
     `/api/preferences/ev-credentials/${provider}`,
     { token }
   );
+}
+
+// ============================================================
+// OAuth (Strava, Google Calendar)
+// ============================================================
+
+export async function getOAuthAuthorizeUrl(
+  token: string,
+  provider: 'strava' | 'google_calendar'
+): Promise<{ url: string }> {
+  return request<{ url: string }>(`/api/oauth/${provider}/authorize`, { token });
+}
+
+export async function getOAuthStatus(
+  token: string,
+  provider: 'strava' | 'google_calendar'
+): Promise<{ connected: boolean; athleteId?: string | null }> {
+  return request<{ connected: boolean; athleteId?: string | null }>(
+    `/api/oauth/${provider}/status`,
+    { token }
+  );
+}
+
+export async function disconnectOAuth(
+  token: string,
+  provider: 'strava' | 'google_calendar'
+): Promise<void> {
+  await request<void>(`/api/oauth/${provider}`, { method: 'DELETE', token });
 }
 
 export async function deleteEvCredentials(token: string, provider: string): Promise<void> {

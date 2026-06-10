@@ -15,6 +15,7 @@ import devicesRouter from './routes/devices';
 import displayDataRouter from './routes/display-data';
 import firmwareRouter from './routes/firmware';
 import imageRouter from './routes/image';
+import oauthRouter from './routes/oauth';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { swaggerSpec } from './swagger';
 
@@ -136,6 +137,7 @@ app.get('/firmware/default.bin', async (_req: Request, res: Response, next: Next
 // Routes
 app.use('/health', healthRouter);
 app.use('/auth', authRouter);
+app.use('/oauth', oauthRouter);
 app.use('/preferences', preferencesRouter);
 app.use('/devices', devicesRouter);
 app.use('/firmware', firmwareRouter);

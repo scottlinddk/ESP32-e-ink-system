@@ -79,6 +79,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
     zaptec: rawPrefs.zaptec ?? { on: false, fields: ['charger_status', 'active_session'] },
     calendar: rawPrefs.calendar ?? { on: false, url: '' },
     notion: rawPrefs.notion ?? { on: false },
+    strava: rawPrefs.strava ?? { on: false, runGoalKm: null, rideGoalKm: null, elevGoalM: null },
   };
   const savePrefs = useSavePreferences();
   const [locating, setLocating] = useState(false);
@@ -100,6 +101,10 @@ export function DisplayCard({ loading }: { loading: boolean }) {
       show_calendar: prefs.calendar.on,
       ics_calendar_url: prefs.calendar.url || undefined,
       show_notion: prefs.notion.on,
+      show_strava: prefs.strava.on,
+      strava_run_goal_km: prefs.strava.runGoalKm,
+      strava_ride_goal_km: prefs.strava.rideGoalKm,
+      strava_elevation_goal_m: prefs.strava.elevGoalM,
     };
   }
 
@@ -298,6 +303,36 @@ export function DisplayCard({ loading }: { loading: boolean }) {
             onToggle={() => set({ notion: { ...p.notion, on: !p.notion.on } })}
           >
             <p className="text-xs text-fg3">{t.notionCredDesc}</p>
+          </SourceRow>
+
+          <SourceRow
+            icon="directions_run"
+            name={t.srcStrava}
+            hint={t.srcStravaHint}
+            checked={p.strava.on}
+            onToggle={() => set({ strava: { ...p.strava, on: !p.strava.on } })}
+          >
+            <div className="grid grid-cols-2 gap-3.5 max-[820px]:grid-cols-1">
+              <Field label={t.stravaRunGoal} htmlFor="strava-run">
+                <Input
+                  id="strava-run"
+                  mono
+                  value={p.strava.runGoalKm ?? ''}
+                  placeholder="500"
+                  onChange={(e) => set({ strava: { ...p.strava, runGoalKm: e.target.value ? Number(e.target.value) : null } })}
+                />
+              </Field>
+              <Field label={t.stravaRideGoal} htmlFor="strava-ride">
+                <Input
+                  id="strava-ride"
+                  mono
+                  value={p.strava.rideGoalKm ?? ''}
+                  placeholder="3000"
+                  onChange={(e) => set({ strava: { ...p.strava, rideGoalKm: e.target.value ? Number(e.target.value) : null } })}
+                />
+              </Field>
+            </div>
+            <p className="text-xs text-fg3">{t.stravaConnectHint}</p>
           </SourceRow>
 
           <SourceRow
