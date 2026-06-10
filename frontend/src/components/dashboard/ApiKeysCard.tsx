@@ -14,6 +14,7 @@ import { Chip } from '../ui/Chip';
 import { Dialog } from '../ui/Dialog';
 import { Icon } from '../ui/Logo';
 import { OAuthConnectCard } from './OAuthConnectCard';
+import { FEATURES } from '../../lib/featureFlags';
 
 const PROVIDER_MAP: Record<string, string> = {
   openweather: 'openweathermap',
@@ -562,20 +563,28 @@ export function ApiKeysCard() {
   return (
     <Card icon="key" title={t.apiTitle} desc={t.apiDesc}>
       <div className="flex flex-col gap-4">
-        <OAuthAppSection provider="strava" />
-        <OAuthConnectCard
-          provider="strava"
-          name="Strava"
-          icon="directions_run"
-          connectHint={t.stravaConnectHint}
-        />
-        <OAuthAppSection provider="google" />
-        <OAuthConnectCard
-          provider="google_calendar"
-          name="Google Calendar"
-          icon="calendar_month"
-          connectHint={t.gcalConnectHint}
-        />
+        {FEATURES.strava && (
+          <>
+            <OAuthAppSection provider="strava" />
+            <OAuthConnectCard
+              provider="strava"
+              name="Strava"
+              icon="directions_run"
+              connectHint={t.stravaConnectHint}
+            />
+          </>
+        )}
+        {FEATURES.googleCalendar && (
+          <>
+            <OAuthAppSection provider="google" />
+            <OAuthConnectCard
+              provider="google_calendar"
+              name="Google Calendar"
+              icon="calendar_month"
+              connectHint={t.gcalConnectHint}
+            />
+          </>
+        )}
         <EvCredentialsSection provider="monta" />
         <EvCredentialsSection provider="zaptec" />
         <NotionCredentialsSection />
