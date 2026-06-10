@@ -15,11 +15,8 @@ import { fetchMontaData } from '../services/monta';
 import { fetchZaptecData } from '../services/zaptec';
 import { fetchIcsCalendarData } from '../services/ics';
 import { fetchNotionData, NotionCredentials } from '../services/notion';
-import { fetchStravaData, StravaGoalsConfig } from '../services/strava';
-import { fetchGoogleCalendarData } from '../services/google-calendar';
 import { DisplayData, UserPreferences } from '../types/index';
 import { createClerkClient } from '@clerk/backend';
-import { FEATURES } from '../config/features';
 import { logger } from '../lib/logger';
 
 /**
@@ -123,8 +120,6 @@ const DEFAULT_PREFS: UserPreferences = {
   show_monta: false,
   show_zaptec: false,
   show_notion: false,
-  show_strava: false,
-  show_gcal: false,
   energy_price_location: 'DK1',
   weather_location: '55.3,10.4',
   news_language: 'da',
@@ -240,30 +235,6 @@ async function buildDisplayData(
         logger.warn('Notion credentials are not valid JSON — skipping');
       }
     }
-  }
-
-  if (FEATURES.strava && prefs.show_strava) {
-    const goalsConfig: StravaGoalsConfig = {
-      run_km: prefs.strava_run_goal_km ?? undefined,
-      ride_km: prefs.strava_ride_goal_km ?? undefined,
-      elevation_m: prefs.strava_elevation_goal_m ?? undefined,
-    };
-    tasks.push(
-      fetchStravaData(userId, goalsConfig)
-        .then((strava) => { result.strava = strava; })
-        .catch((err: unknown) => { logger.error({ err }, 'Strava fetch failed'); })
-    );
-  }
-
-  if (FEATURES.googleCalendar && prefs.show_gcal) {
-    tasks.push(
-      fetchGoogleCalendarData(userId, {
-        calendarId: prefs.gcal_calendar_id ?? undefined,
-        label: prefs.gcal_label ?? undefined,
-      })
-        .then((gcal) => { result.gcal = gcal; })
-        .catch((err: unknown) => { logger.error({ err }, 'Google Calendar fetch failed'); })
-    );
   }
 
   await Promise.all(tasks);

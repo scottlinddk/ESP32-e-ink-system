@@ -186,8 +186,6 @@ router.get(
         show_monta: false,
         show_zaptec: false,
         show_notion: false,
-        show_strava: false,
-        show_gcal: false,
         energy_price_location: 'DK1',
         weather_location: '55.3,10.4',
         news_language: 'da',
@@ -234,13 +232,6 @@ router.post(
         'zaptec_fields',
         'ics_calendar_url',
         'show_notion',
-        'show_strava',
-        'strava_run_goal_km',
-        'strava_ride_goal_km',
-        'strava_elevation_goal_m',
-        'show_gcal',
-        'gcal_calendar_id',
-        'gcal_label',
       ];
 
       const updates: Partial<UserPreferences> = {};
@@ -311,11 +302,7 @@ router.post(
         return;
       }
 
-      const validProviders = [
-        'openweathermap', 'newsapi', 'openai',
-        'strava_client_id', 'strava_client_secret',
-        'google_client_id', 'google_client_secret',
-      ];
+      const validProviders = ['openweathermap', 'newsapi', 'openai'];
       if (!validProviders.includes(provider)) {
         res.status(400).json({ error: `provider must be one of: ${validProviders.join(', ')}` });
         return;
@@ -350,11 +337,7 @@ router.delete(
       const userId = await getOrCreateUserFromClerk(clerkUserId);
 
       const { provider } = req.params as { provider: string };
-      const validProviders = [
-        'openweathermap', 'newsapi', 'openai', 'monta', 'zaptec', 'notion',
-        'strava_client_id', 'strava_client_secret',
-        'google_client_id', 'google_client_secret',
-      ];
+      const validProviders = ['openweathermap', 'newsapi', 'openai', 'monta', 'zaptec', 'notion'];
       if (!validProviders.includes(provider)) {
         res.status(400).json({ error: `provider must be one of: ${validProviders.join(', ')}` });
         return;

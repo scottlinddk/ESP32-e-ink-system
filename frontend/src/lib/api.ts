@@ -145,34 +145,6 @@ export async function getEvCredentialStatus(
   );
 }
 
-// ============================================================
-// OAuth (Strava, Google Calendar)
-// ============================================================
-
-export async function getOAuthAuthorizeUrl(
-  token: string,
-  provider: 'strava' | 'google_calendar'
-): Promise<{ url: string }> {
-  return request<{ url: string }>(`/api/oauth/${provider}/authorize`, { token });
-}
-
-export async function getOAuthStatus(
-  token: string,
-  provider: 'strava' | 'google_calendar'
-): Promise<{ connected: boolean; athleteId?: string | null }> {
-  return request<{ connected: boolean; athleteId?: string | null }>(
-    `/api/oauth/${provider}/status`,
-    { token }
-  );
-}
-
-export async function disconnectOAuth(
-  token: string,
-  provider: 'strava' | 'google_calendar'
-): Promise<void> {
-  await request<void>(`/api/oauth/${provider}`, { method: 'DELETE', token });
-}
-
 export async function deleteEvCredentials(token: string, provider: string): Promise<void> {
   await request<void>(`/api/preferences/api-keys/${provider}`, {
     method: 'DELETE',
