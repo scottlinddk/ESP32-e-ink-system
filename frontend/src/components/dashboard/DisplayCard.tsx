@@ -71,12 +71,11 @@ export function DisplayCard({ loading }: { loading: boolean }) {
   const app = useApp();
   const t = app.t;
   const rawPrefs = app.prefs;
-  // Ensure EV and calendar prefs always exist, even if loaded from stale localStorage
+  // Ensure EV prefs always exist, even if loaded from stale localStorage
   const p = {
     ...rawPrefs,
     monta: rawPrefs.monta ?? { on: false, fields: ['charger_status', 'active_session'] },
     zaptec: rawPrefs.zaptec ?? { on: false, fields: ['charger_status', 'active_session'] },
-    calendar: rawPrefs.calendar ?? { on: false, url: '' },
     notion: rawPrefs.notion ?? { on: false },
   };
   const savePrefs = useSavePreferences();
@@ -96,8 +95,6 @@ export function DisplayCard({ loading }: { loading: boolean }) {
       monta_fields: prefs.monta.fields,
       show_zaptec: prefs.zaptec.on,
       zaptec_fields: prefs.zaptec.fields,
-      show_calendar: prefs.calendar.on,
-      ics_calendar_url: prefs.calendar.url || undefined,
       show_notion: prefs.notion.on,
     };
   }
@@ -265,27 +262,6 @@ export function DisplayCard({ loading }: { loading: boolean }) {
                   ]}
                 />
               </Field>
-            </div>
-          </SourceRow>
-
-          <SourceRow
-            icon="calendar_month"
-            name={t.srcCalendar}
-            hint={t.srcCalendarHint}
-            checked={p.calendar.on}
-            onToggle={() => set({ calendar: { ...p.calendar, on: !p.calendar.on } })}
-          >
-            <div className="flex flex-col gap-2">
-              <Field label={t.calendarUrl} htmlFor="ics-url">
-                <Input
-                  id="ics-url"
-                  mono
-                  value={p.calendar.url}
-                  placeholder={t.calendarUrlPh}
-                  onChange={(e) => set({ calendar: { ...p.calendar, url: e.target.value } })}
-                />
-              </Field>
-              <p className="text-xs text-fg3">{t.calendarUrlHint}</p>
             </div>
           </SourceRow>
 

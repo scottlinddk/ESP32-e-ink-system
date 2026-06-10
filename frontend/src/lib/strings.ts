@@ -270,12 +270,6 @@ export const STRINGS = {
     layoutAvailable: "Available widgets",
     layoutAddWidget: "Add to layout",
     layoutLocked: "Locked",
-    // ICS Calendar — display card
-    srcCalendar: "ICS Calendar",
-    srcCalendarHint: "Upcoming events from any .ics calendar feed",
-    calendarUrl: "Calendar feed URL (.ics)",
-    calendarUrlPh: "https://example.com/calendar.ics",
-    calendarUrlHint: "Paste the .ics URL from iCloud, Google Calendar, Outlook, or any public feed.",
     // Notion — display card + credentials
     srcNotion: "Notion Database",
     srcNotionHint: "Task list, reading list, or any Notion database",
@@ -574,12 +568,6 @@ export const STRINGS = {
     layoutAvailable: "Tilgængelige widgets",
     layoutAddWidget: "Tilføj til layout",
     layoutLocked: "Låst",
-    // ICS Calendar — display card
-    srcCalendar: "ICS-kalender",
-    srcCalendarHint: "Kommende begivenheder fra et .ics-kalender-feed",
-    calendarUrl: "Kalender-feed URL (.ics)",
-    calendarUrlPh: "https://eksempel.com/kalender.ics",
-    calendarUrlHint: "Indsæt .ics-URL'en fra iCloud, Google Kalender, Outlook eller et offentligt feed.",
     // Notion — display card + credentials
     srcNotion: "Notion-database",
     srcNotionHint: "Opgaveliste, læseliste eller en hvilken som helst Notion-database",

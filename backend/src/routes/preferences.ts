@@ -181,7 +181,6 @@ router.get(
         show_energy_price: true,
         show_weather: true,
         show_news: true,
-        show_calendar: false,
         show_air_quality: false,
         show_monta: false,
         show_zaptec: false,
@@ -193,7 +192,6 @@ router.get(
         layout: null,
         monta_fields: ['charger_status', 'active_session'],
         zaptec_fields: ['charger_status', 'active_session'],
-        ics_calendar_url: undefined,
       };
 
       res.json({ preferences: prefs ?? defaultPrefs });
@@ -219,7 +217,6 @@ router.post(
         'show_energy_price',
         'show_weather',
         'show_news',
-        'show_calendar',
         'show_air_quality',
         'show_monta',
         'show_zaptec',
@@ -230,7 +227,6 @@ router.post(
         'layout',
         'monta_fields',
         'zaptec_fields',
-        'ics_calendar_url',
         'show_notion',
       ];
 

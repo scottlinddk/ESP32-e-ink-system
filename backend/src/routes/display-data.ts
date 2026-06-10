@@ -13,7 +13,6 @@ import { fetchWeather } from '../services/weather';
 import { fetchNews } from '../services/news';
 import { fetchMontaData } from '../services/monta';
 import { fetchZaptecData } from '../services/zaptec';
-import { fetchIcsCalendarData } from '../services/ics';
 import { fetchNotionData, NotionCredentials } from '../services/notion';
 import { DisplayData, UserPreferences } from '../types/index';
 import { createClerkClient } from '@clerk/backend';
@@ -115,7 +114,6 @@ const DEFAULT_PREFS: UserPreferences = {
   show_energy_price: true,
   show_weather: true,
   show_news: true,
-  show_calendar: false,
   show_air_quality: false,
   show_monta: false,
   show_zaptec: false,
@@ -127,7 +125,6 @@ const DEFAULT_PREFS: UserPreferences = {
   layout: null,
   monta_fields: ['charger_status', 'active_session'],
   zaptec_fields: ['charger_status', 'active_session'],
-  ics_calendar_url: undefined,
 };
 
 async function buildDisplayData(
@@ -211,14 +208,6 @@ async function buildDisplayData(
         logger.warn('Zaptec credentials are not valid JSON — skipping');
       }
     }
-  }
-
-  if (prefs.show_calendar && prefs.ics_calendar_url) {
-    tasks.push(
-      fetchIcsCalendarData(prefs.ics_calendar_url)
-        .then((calendar) => { result.calendar = calendar; })
-        .catch((err: unknown) => { logger.error({ err }, 'ICS calendar fetch failed'); })
-    );
   }
 
   if (prefs.show_notion) {

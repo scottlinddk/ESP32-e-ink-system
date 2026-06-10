@@ -76,7 +76,6 @@ const DEFAULT_PREFS: Preferences = {
   news: { on: false, lang: 'da', source: 'dr' },
   monta: { on: false, fields: ['charger_status', 'active_session'] },
   zaptec: { on: false, fields: ['charger_status', 'active_session'] },
-  calendar: { on: false, url: '' },
   notion: { on: false },
 };
 

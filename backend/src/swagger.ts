@@ -53,7 +53,6 @@ const options: swaggerJsdoc.Options = {
             show_energy_price: { type: 'boolean' },
             show_weather: { type: 'boolean' },
             show_news: { type: 'boolean' },
-            show_calendar: { type: 'boolean' },
             show_air_quality: { type: 'boolean' },
             energy_price_location: {
               type: 'string',

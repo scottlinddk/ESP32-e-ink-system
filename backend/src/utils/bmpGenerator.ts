@@ -439,41 +439,6 @@ function renderNotionWidget(
   }
 }
 
-function renderIcsCalendarWidget(
-  canvas: BmpCanvas,
-  bounds: WidgetBounds,
-  data?: DisplayData['calendar']
-): void {
-  const { x, y, width, height } = bounds;
-  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
-  const maxW = width - 4;
-  let textY = y + 2;
-
-  if (!data) {
-    canvas.drawText('Calendar: unavailable', x + 2, textY, maxW);
-    return;
-  }
-
-  canvas.drawText(`${data.label}  ${data.today}`, x + 2, textY, maxW);
-  textY += 10;
-
-  if (textY < y + height - 8) {
-    canvas.drawHLine(x, textY, width);
-    textY += 3;
-  }
-
-  if (data.events.length === 0) {
-    canvas.drawText('No upcoming events', x + 2, textY, maxW);
-    return;
-  }
-
-  for (const ev of data.events) {
-    if (textY + 9 > y + height) break;
-    canvas.drawText(`${ev.timeLabel}  ${ev.summary}`, x + 2, textY, maxW);
-    textY += 10;
-  }
-}
-
 function renderStatusWidget(
   canvas: BmpCanvas,
   bounds: WidgetBounds,
@@ -511,9 +476,6 @@ export function renderDisplayData(data: DisplayData, layout?: DisplayLayout | nu
         break;
       case 'zaptec':
         renderZaptecWidget(canvas, bounds, data.zaptec);
-        break;
-      case 'calendar':
-        renderIcsCalendarWidget(canvas, bounds, data.calendar);
         break;
       case 'notion':
         renderNotionWidget(canvas, bounds, data.notion);
