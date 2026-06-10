@@ -21,6 +21,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    emptyOutDir: true,
     sourcemap: process.env.VITE_SOURCEMAP === 'true',
     rollupOptions: {
       output: {
