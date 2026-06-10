@@ -78,6 +78,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
     monta: rawPrefs.monta ?? { on: false, fields: ['charger_status', 'active_session'] },
     zaptec: rawPrefs.zaptec ?? { on: false, fields: ['charger_status', 'active_session'] },
     calendar: rawPrefs.calendar ?? { on: false, url: '' },
+    notion: rawPrefs.notion ?? { on: false },
   };
   const savePrefs = useSavePreferences();
   const [locating, setLocating] = useState(false);
@@ -98,6 +99,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
       zaptec_fields: prefs.zaptec.fields,
       show_calendar: prefs.calendar.on,
       ics_calendar_url: prefs.calendar.url || undefined,
+      show_notion: prefs.notion.on,
     };
   }
 
@@ -286,6 +288,16 @@ export function DisplayCard({ loading }: { loading: boolean }) {
               </Field>
               <p className="text-xs text-fg3">{t.calendarUrlHint}</p>
             </div>
+          </SourceRow>
+
+          <SourceRow
+            icon="auto_stories"
+            name={t.srcNotion}
+            hint={t.srcNotionHint}
+            checked={p.notion.on}
+            onToggle={() => set({ notion: { ...p.notion, on: !p.notion.on } })}
+          >
+            <p className="text-xs text-fg3">{t.notionCredDesc}</p>
           </SourceRow>
 
           <SourceRow

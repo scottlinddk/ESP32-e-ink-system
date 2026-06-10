@@ -206,6 +206,7 @@ router.get(
         show_air_quality: false,
         show_monta: false,
         show_zaptec: false,
+        show_notion: false,
         energy_price_location: 'DK1',
         weather_location: '55.3,10.4',
         news_language: 'da',
@@ -251,6 +252,7 @@ router.post(
         'monta_fields',
         'zaptec_fields',
         'ics_calendar_url',
+        'show_notion',
       ];
 
       const updates: Partial<UserPreferences> = {};
@@ -388,7 +390,7 @@ router.post(
         credentials?: Record<string, string>;
       };
 
-      const validEvProviders = ['monta', 'zaptec'];
+      const validEvProviders = ['monta', 'zaptec', 'notion'];
       if (!provider || !validEvProviders.includes(provider)) {
         res.status(400).json({ error: `provider must be one of: ${validEvProviders.join(', ')}` });
         return;
@@ -407,6 +409,15 @@ router.post(
       } else if (provider === 'zaptec') {
         if (!credentials.username || !credentials.password) {
           res.status(400).json({ error: 'Zaptec credentials require username and password' });
+          return;
+        }
+      } else if (provider === 'notion') {
+        if (!credentials.token || !credentials.databaseId) {
+          res.status(400).json({ error: 'Notion credentials require token and databaseId' });
+          return;
+        }
+        if (!credentials.token.startsWith('secret_')) {
+          res.status(400).json({ error: 'Notion integration token must start with "secret_"' });
           return;
         }
       }
@@ -438,7 +449,7 @@ router.get(
       const userId = await getOrCreateUserFromClerk(clerkUserId);
 
       const { provider } = req.params as { provider: string };
-      const validEvProviders = ['monta', 'zaptec'];
+      const validEvProviders = ['monta', 'zaptec', 'notion'];
       if (!validEvProviders.includes(provider)) {
         res.status(400).json({ error: `provider must be one of: ${validEvProviders.join(', ')}` });
         return;

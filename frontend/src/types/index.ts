@@ -44,6 +44,7 @@ export interface UserPreferences {
   monta_fields: string[];
   zaptec_fields: string[];
   ics_calendar_url?: string;
+  show_notion: boolean;
 }
 
 export interface EnergyPrice {
@@ -92,6 +93,7 @@ export interface Preferences {
   monta: { on: boolean; fields: string[] };
   zaptec: { on: boolean; fields: string[] };
   calendar: { on: boolean; url: string };
+  notion: { on: boolean };
 }
 
 export interface AppDevice {

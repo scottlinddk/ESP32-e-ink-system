@@ -14,6 +14,7 @@ import { fetchNews } from '../services/news';
 import { fetchMontaData } from '../services/monta';
 import { fetchZaptecData } from '../services/zaptec';
 import { fetchIcsCalendarData } from '../services/ics';
+import { fetchNotionData, NotionCredentials } from '../services/notion';
 import { DisplayData, UserPreferences } from '../types/index';
 import { createClerkClient } from '@clerk/backend';
 import { logger } from '../lib/logger';
@@ -118,6 +119,7 @@ const DEFAULT_PREFS: UserPreferences = {
   show_air_quality: false,
   show_monta: false,
   show_zaptec: false,
+  show_notion: false,
   energy_price_location: 'DK1',
   weather_location: '55.3,10.4',
   news_language: 'da',
@@ -217,6 +219,22 @@ async function buildDisplayData(
         .then((calendar) => { result.calendar = calendar; })
         .catch((err: unknown) => { logger.error({ err }, 'ICS calendar fetch failed'); })
     );
+  }
+
+  if (prefs.show_notion) {
+    const raw = apiKeyMap['notion'];
+    if (raw) {
+      try {
+        const creds = JSON.parse(raw) as NotionCredentials;
+        tasks.push(
+          fetchNotionData(userId, creds)
+            .then((notion) => { result.notion = notion; })
+            .catch((err: unknown) => { logger.error({ err }, 'Notion fetch failed'); })
+        );
+      } catch {
+        logger.warn('Notion credentials are not valid JSON — skipping');
+      }
+    }
   }
 
   await Promise.all(tasks);

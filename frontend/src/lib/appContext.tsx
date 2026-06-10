@@ -77,6 +77,7 @@ const DEFAULT_PREFS: Preferences = {
   monta: { on: false, fields: ['charger_status', 'active_session'] },
   zaptec: { on: false, fields: ['charger_status', 'active_session'] },
   calendar: { on: false, url: '' },
+  notion: { on: false },
 };
 
 const DEFAULT_USER: AppUser = {

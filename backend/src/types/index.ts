@@ -30,6 +30,7 @@ export interface UserPreferences {
   monta_fields: string[]; // e.g. ['charger_status', 'active_session', 'today_stats']
   zaptec_fields: string[]; // e.g. ['charger_status', 'active_session', 'installation_info']
   ics_calendar_url?: string;
+  show_notion: boolean;
 }
 
 export interface EnergyPrice {
@@ -100,6 +101,17 @@ export interface IcsCalendarData {
   events: IcsCalendarEvent[];
 }
 
+export interface NotionRow {
+  id: string;
+  title: string;
+  subtitle?: string;
+}
+
+export interface NotionData {
+  rows: NotionRow[];
+  databaseName?: string;
+}
+
 export interface DisplayData {
   price?: EnergyPrice;
   weather?: WeatherData;
@@ -107,6 +119,7 @@ export interface DisplayData {
   monta?: MontaData;
   zaptec?: ZaptecData;
   calendar?: IcsCalendarData;
+  notion?: NotionData;
   nextRefresh: number;
 }
 
