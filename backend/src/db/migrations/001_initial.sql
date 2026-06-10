@@ -26,7 +26,6 @@ CREATE TABLE IF NOT EXISTS user_preferences (
   show_energy_price BOOLEAN DEFAULT true,
   show_weather BOOLEAN DEFAULT true,
   show_news BOOLEAN DEFAULT true,
-  show_calendar BOOLEAN DEFAULT false,
   show_air_quality BOOLEAN DEFAULT false,
   energy_price_location TEXT DEFAULT 'DK1',
   weather_location TEXT DEFAULT '55.3,10.4',

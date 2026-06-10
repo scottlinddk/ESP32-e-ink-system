@@ -112,7 +112,6 @@ const DEFAULT_PREFS: UserPreferences = {
   show_energy_price: true,
   show_weather: true,
   show_news: true,
-  show_calendar: false,
   show_air_quality: false,
   show_monta: false,
   show_zaptec: false,

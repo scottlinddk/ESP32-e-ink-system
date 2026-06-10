@@ -38,10 +38,6 @@ export function DashboardPage() {
         on: serverPrefs.show_zaptec ?? false,
         fields: serverPrefs.zaptec_fields ?? app.prefs.zaptec.fields,
       },
-      calendar: {
-        on: serverPrefs.show_calendar ?? false,
-        url: serverPrefs.ics_calendar_url ?? app.prefs.calendar.url,
-      },
       notion: {
         on: serverPrefs.show_notion ?? false,
       },

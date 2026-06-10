@@ -18,7 +18,6 @@ export interface UserPreferences {
   show_energy_price: boolean;
   show_weather: boolean;
   show_news: boolean;
-  show_calendar: boolean;
   show_air_quality: boolean;
   show_monta: boolean;
   show_zaptec: boolean;
@@ -29,7 +28,6 @@ export interface UserPreferences {
   layout: DisplayLayout | null;
   monta_fields: string[]; // e.g. ['charger_status', 'active_session', 'today_stats']
   zaptec_fields: string[]; // e.g. ['charger_status', 'active_session', 'installation_info']
-  ics_calendar_url?: string;
   show_notion: boolean;
 }
 
@@ -89,18 +87,6 @@ export interface ZaptecData {
   installationName: string | null;
 }
 
-export interface IcsCalendarEvent {
-  summary: string;
-  timeLabel: string; // "HH:MM" or "All day"
-  isToday: boolean;
-}
-
-export interface IcsCalendarData {
-  label: string;
-  today: string;
-  events: IcsCalendarEvent[];
-}
-
 export interface NotionRow {
   id: string;
   title: string;
@@ -118,7 +104,6 @@ export interface DisplayData {
   news?: NewsItem[];
   monta?: MontaData;
   zaptec?: ZaptecData;
-  calendar?: IcsCalendarData;
   notion?: NotionData;
   nextRefresh: number;
 }

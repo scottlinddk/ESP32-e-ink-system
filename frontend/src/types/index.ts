@@ -32,7 +32,6 @@ export interface UserPreferences {
   show_energy_price: boolean;
   show_weather: boolean;
   show_news: boolean;
-  show_calendar: boolean;
   show_air_quality: boolean;
   show_monta: boolean;
   show_zaptec: boolean;
@@ -43,7 +42,6 @@ export interface UserPreferences {
   layout: DisplayLayout | null;
   monta_fields: string[];
   zaptec_fields: string[];
-  ics_calendar_url?: string;
   show_notion: boolean;
 }
 
@@ -92,7 +90,6 @@ export interface Preferences {
   news: { on: boolean; lang: string; source: string };
   monta: { on: boolean; fields: string[] };
   zaptec: { on: boolean; fields: string[] };
-  calendar: { on: boolean; url: string };
   notion: { on: boolean };
 }
 

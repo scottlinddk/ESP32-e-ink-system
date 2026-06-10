@@ -70,7 +70,6 @@ Get the authenticated user's display preferences.
     "show_energy_price": true,
     "show_weather": true,
     "show_news": true,
-    "show_calendar": false,
     "show_air_quality": false,
     "energy_price_location": "DK1",
     "weather_location": "55.3,10.4",
