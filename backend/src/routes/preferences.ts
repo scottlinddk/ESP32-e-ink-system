@@ -186,8 +186,6 @@ router.get(
         show_monta: false,
         show_zaptec: false,
         show_notion: false,
-        show_strava: false,
-        show_gcal: false,
         energy_price_location: 'DK1',
         weather_location: '55.3,10.4',
         news_language: 'da',
