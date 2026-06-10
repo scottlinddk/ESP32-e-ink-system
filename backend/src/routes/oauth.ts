@@ -8,6 +8,7 @@ import {
   getOAuthConnection,
   deleteOAuthConnection,
 } from '../services/strava';
+import { getOAuthAppCreds } from '../services/database';
 import { logger } from '../lib/logger';
 
 const router = Router();
@@ -26,17 +27,17 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = await getOrCreateUserFromClerk(req.clerkUserId!);
-      const clientId = process.env.STRAVA_CLIENT_ID;
+      const creds = await getOAuthAppCreds(userId, 'strava');
       const redirectUri = process.env.STRAVA_REDIRECT_URI;
 
-      if (!clientId || !redirectUri) {
-        res.status(503).json({ error: 'Strava integration is not configured on this server' });
+      if (!creds || !redirectUri) {
+        res.status(503).json({ error: 'Strava integration is not configured. Add your Strava Client ID and Secret in the dashboard.' });
         return;
       }
 
       const state = createOAuthState(userId);
       const params = new URLSearchParams({
-        client_id: clientId,
+        client_id: creds.clientId,
         redirect_uri: redirectUri,
         response_type: 'code',
         approval_prompt: 'auto',
@@ -82,11 +83,10 @@ router.get(
         return;
       }
 
-      const clientId = process.env.STRAVA_CLIENT_ID;
-      const clientSecret = process.env.STRAVA_CLIENT_SECRET;
+      const creds = await getOAuthAppCreds(userId, 'strava');
       const redirectUri = process.env.STRAVA_REDIRECT_URI;
 
-      if (!clientId || !clientSecret || !redirectUri) {
+      if (!creds || !redirectUri) {
         res.redirect(`${frontendBase}/?strava=error&reason=not_configured`);
         return;
       }
@@ -95,8 +95,8 @@ router.get(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          client_id: clientId,
-          client_secret: clientSecret,
+          client_id: creds.clientId,
+          client_secret: creds.clientSecret,
           code,
           grant_type: 'authorization_code',
         }),
@@ -185,17 +185,16 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = await getOrCreateUserFromClerk(req.clerkUserId!);
-      const clientId = process.env.GOOGLE_CLIENT_ID;
-      const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+      const creds = await getOAuthAppCreds(userId, 'google');
       const redirectUri = process.env.GOOGLE_REDIRECT_URI;
 
-      if (!clientId || !clientSecret || !redirectUri) {
-        res.status(503).json({ error: 'Google Calendar integration is not configured on this server' });
+      if (!creds || !redirectUri) {
+        res.status(503).json({ error: 'Google Calendar integration is not configured. Add your Google Client ID and Secret in the dashboard.' });
         return;
       }
 
       const { google } = await import('googleapis');
-      const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+      const oauth2Client = new google.auth.OAuth2(creds.clientId, creds.clientSecret, redirectUri);
 
       const state = createOAuthState(userId);
       const url = oauth2Client.generateAuthUrl({
@@ -241,17 +240,16 @@ router.get(
         return;
       }
 
-      const clientId = process.env.GOOGLE_CLIENT_ID;
-      const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+      const creds = await getOAuthAppCreds(userId, 'google');
       const redirectUri = process.env.GOOGLE_REDIRECT_URI;
 
-      if (!clientId || !clientSecret || !redirectUri) {
+      if (!creds || !redirectUri) {
         res.redirect(`${frontendBase}/?gcal=error&reason=not_configured`);
         return;
       }
 
       const { google } = await import('googleapis');
-      const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+      const oauth2Client = new google.auth.OAuth2(creds.clientId, creds.clientSecret, redirectUri);
       const { tokens } = await oauth2Client.getToken(code);
 
       const email = tokens.id_token
