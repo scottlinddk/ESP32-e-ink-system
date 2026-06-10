@@ -14,6 +14,7 @@ import { Select } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { Skeleton } from '../ui/Spinner';
 import { Icon } from '../ui/Logo';
+import { FEATURES } from '../../lib/featureFlags';
 
 const MONTA_FIELDS = [
   { id: 'charger_status', labelKey: 'evFieldChargerStatus' as const },
@@ -309,6 +310,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
             <p className="text-xs text-fg3">{t.notionCredDesc}</p>
           </SourceRow>
 
+          {FEATURES.strava && (
           <SourceRow
             icon="directions_run"
             name={t.srcStrava}
@@ -338,7 +340,9 @@ export function DisplayCard({ loading }: { loading: boolean }) {
             </div>
             <p className="text-xs text-fg3">{t.stravaConnectHint}</p>
           </SourceRow>
+          )}
 
+          {FEATURES.googleCalendar && (
           <SourceRow
             icon="calendar_month"
             name={t.srcGcal}
@@ -367,6 +371,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
             </div>
             <p className="text-xs text-fg3">{t.gcalConnectHint}</p>
           </SourceRow>
+          )}
 
           <SourceRow
             icon="electric_car"

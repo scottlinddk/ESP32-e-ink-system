@@ -9,9 +9,27 @@ import {
   deleteOAuthConnection,
 } from '../services/strava';
 import { getOAuthAppCreds } from '../services/database';
+import { FEATURES } from '../config/features';
 import { logger } from '../lib/logger';
 
 const router = Router();
+
+// Feature-flag guards — flip the flags in config/features.ts to re-enable.
+function requireStravaEnabled(_req: Request, res: Response, next: NextFunction): void {
+  if (!FEATURES.strava) {
+    res.status(503).json({ error: 'Strava integration is currently disabled' });
+    return;
+  }
+  next();
+}
+
+function requireGcalEnabled(_req: Request, res: Response, next: NextFunction): void {
+  if (!FEATURES.googleCalendar) {
+    res.status(503).json({ error: 'Google Calendar integration is currently disabled' });
+    return;
+  }
+  next();
+}
 
 // ────────────────────────────────────────────────────────────────────────────────
 // Strava OAuth
@@ -23,6 +41,7 @@ const router = Router();
  */
 router.get(
   '/strava/authorize',
+  requireStravaEnabled,
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -58,6 +77,7 @@ router.get(
  */
 router.get(
   '/strava/callback',
+  requireStravaEnabled,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const frontendBase = process.env.FRONTEND_URL ?? 'http://localhost:5173';
     try {
@@ -141,6 +161,7 @@ router.get(
  */
 router.get(
   '/strava/status',
+  requireStravaEnabled,
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -159,6 +180,7 @@ router.get(
  */
 router.delete(
   '/strava',
+  requireStravaEnabled,
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -181,6 +203,7 @@ router.delete(
  */
 router.get(
   '/google_calendar/authorize',
+  requireGcalEnabled,
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -217,6 +240,7 @@ router.get(
  */
 router.get(
   '/google_calendar/callback',
+  requireGcalEnabled,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const frontendBase = process.env.FRONTEND_URL ?? 'http://localhost:5173';
     try {
@@ -280,6 +304,7 @@ router.get(
  */
 router.get(
   '/google_calendar/status',
+  requireGcalEnabled,
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -297,6 +322,7 @@ router.get(
  */
 router.delete(
   '/google_calendar',
+  requireGcalEnabled,
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {

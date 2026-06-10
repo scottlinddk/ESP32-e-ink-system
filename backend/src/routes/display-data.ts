@@ -19,6 +19,7 @@ import { fetchStravaData, StravaGoalsConfig } from '../services/strava';
 import { fetchGoogleCalendarData } from '../services/google-calendar';
 import { DisplayData, UserPreferences } from '../types/index';
 import { createClerkClient } from '@clerk/backend';
+import { FEATURES } from '../config/features';
 import { logger } from '../lib/logger';
 
 /**
@@ -241,7 +242,7 @@ async function buildDisplayData(
     }
   }
 
-  if (prefs.show_strava) {
+  if (FEATURES.strava && prefs.show_strava) {
     const goalsConfig: StravaGoalsConfig = {
       run_km: prefs.strava_run_goal_km ?? undefined,
       ride_km: prefs.strava_ride_goal_km ?? undefined,
@@ -254,7 +255,7 @@ async function buildDisplayData(
     );
   }
 
-  if (prefs.show_gcal) {
+  if (FEATURES.googleCalendar && prefs.show_gcal) {
     tasks.push(
       fetchGoogleCalendarData(userId, {
         calendarId: prefs.gcal_calendar_id ?? undefined,
