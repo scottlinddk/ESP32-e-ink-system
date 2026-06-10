@@ -311,7 +311,11 @@ router.post(
         return;
       }
 
-      const validProviders = ['openweathermap', 'newsapi', 'openai'];
+      const validProviders = [
+        'openweathermap', 'newsapi', 'openai',
+        'strava_client_id', 'strava_client_secret',
+        'google_client_id', 'google_client_secret',
+      ];
       if (!validProviders.includes(provider)) {
         res.status(400).json({ error: `provider must be one of: ${validProviders.join(', ')}` });
         return;
@@ -346,7 +350,11 @@ router.delete(
       const userId = await getOrCreateUserFromClerk(clerkUserId);
 
       const { provider } = req.params as { provider: string };
-      const validProviders = ['openweathermap', 'newsapi', 'openai', 'monta', 'zaptec', 'notion'];
+      const validProviders = [
+        'openweathermap', 'newsapi', 'openai', 'monta', 'zaptec', 'notion',
+        'strava_client_id', 'strava_client_secret',
+        'google_client_id', 'google_client_secret',
+      ];
       if (!validProviders.includes(provider)) {
         res.status(400).json({ error: `provider must be one of: ${validProviders.join(', ')}` });
         return;

@@ -44,12 +44,13 @@ export async function fetchGoogleCalendarData(
   const conn = await getOAuthConnection(userId, 'google_calendar');
   if (!conn) throw new Error('Google Calendar not connected. Please authorise via the dashboard.');
 
+  // App credentials are needed for token refresh; fall back to env vars then empty
+  // strings so requests using a still-valid access token succeed without them set.
   const appCreds = await getOAuthAppCreds(userId, 'google');
-  if (!appCreds) throw new Error('Google Calendar OAuth app credentials not configured');
 
   const oauth2Client = new google.auth.OAuth2(
-    appCreds.clientId,
-    appCreds.clientSecret,
+    appCreds?.clientId ?? '',
+    appCreds?.clientSecret ?? '',
     process.env.GOOGLE_REDIRECT_URI
   );
 
