@@ -101,6 +101,10 @@ jobs:
           cp -r "$EPD_DIR" lib/EPD
           echo "Copied EPD library from: $EPD_DIR"
           ls lib/EPD/
+          # Fix case-sensitivity: the library uses #include <arduino.h> (lowercase)
+          # which fails on Linux. Rewrite to the correct capitalised form.
+          find lib/EPD -type f \( -name "*.h" -o -name "*.c" -o -name "*.cpp" \) \
+            -exec sed -i 's/#include <arduino\.h>/#include <Arduino.h>/g' {} \;
 
       - name: Build Elecrow firmware (ESP32-S3)
         working-directory: firmware
