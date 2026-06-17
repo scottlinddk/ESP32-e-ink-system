@@ -74,12 +74,12 @@ jobs:
           # Inject version
           sed -i "s|#define FIRMWARE_VERSION \"1.0.0\"|#define FIRMWARE_VERSION \"${VERSION}\"|" src/config.h
 
-      - name: Build firmware
+      - name: Build Waveshare firmware (ESP32)
         working-directory: firmware
         run: |
           pio run -e esp32dev
 
-      - name: Copy firmware binaries
+      - name: Copy Waveshare firmware binaries
         run: |
           cp firmware/.pio/build/esp32dev/firmware.bin    firmware.bin
           cp firmware/.pio/build/esp32dev/bootloader.bin  bootloader.bin
@@ -88,20 +88,58 @@ jobs:
           echo "Bootloader:  $(du -sh bootloader.bin)"
           echo "Partitions:  $(du -sh partitions.bin)"
 
+      - name: Fetch Elecrow EPD library
+        working-directory: firmware
+        run: |
+          git clone --depth=1 https://github.com/Elecrow-RD/CrowPanel-ESP32-2.13-E-paper-HMI-Display-with-122-250 /tmp/elecrow-repo
+          EPD_DIR=$(find /tmp/elecrow-repo -type d -name "EPD" | head -1)
+          if [ -z "$EPD_DIR" ]; then
+            echo "ERROR: Could not find EPD directory in Elecrow repo"
+            exit 1
+          fi
+          mkdir -p lib
+          cp -r "$EPD_DIR" lib/EPD
+          echo "Copied EPD library from: $EPD_DIR"
+          ls lib/EPD/
+
+      - name: Build Elecrow firmware (ESP32-S3)
+        working-directory: firmware
+        run: |
+          pio run -e elecrow_213
+
+      - name: Copy Elecrow firmware binaries
+        run: |
+          cp firmware/.pio/build/elecrow_213/firmware.bin    firmware-elecrow.bin
+          cp firmware/.pio/build/elecrow_213/bootloader.bin  bootloader-elecrow.bin
+          cp firmware/.pio/build/elecrow_213/partitions.bin  partitions-elecrow.bin
+          echo "Elecrow App:        $(du -sh firmware-elecrow.bin)"
+          echo "Elecrow Bootloader: $(du -sh bootloader-elecrow.bin)"
+          echo "Elecrow Partitions: $(du -sh partitions-elecrow.bin)"
+
       - name: Generate flash manifest
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
           cat > manifest.json <<EOF
           {
             "name": "ESP32 Display v${VERSION}",
-            "builds": [{
-              "chipFamily": "ESP32",
-              "parts": [
-                { "path": "bootloader.bin", "offset": 4096 },
-                { "path": "partitions.bin", "offset": 32768 },
-                { "path": "firmware.bin",   "offset": 65536 }
-              ]
-            }]
+            "builds": [
+              {
+                "chipFamily": "ESP32",
+                "parts": [
+                  { "path": "bootloader.bin", "offset": 4096 },
+                  { "path": "partitions.bin", "offset": 32768 },
+                  { "path": "firmware.bin",   "offset": 65536 }
+                ]
+              },
+              {
+                "chipFamily": "ESP32-S3",
+                "parts": [
+                  { "path": "bootloader-elecrow.bin", "offset": 0 },
+                  { "path": "partitions-elecrow.bin", "offset": 32768 },
+                  { "path": "firmware-elecrow.bin",   "offset": 65536 }
+                ]
+              }
+            ]
           }
           EOF
 
@@ -120,13 +158,19 @@ jobs:
             firmware.bin
             bootloader.bin
             partitions.bin
+            firmware-elecrow.bin
+            bootloader-elecrow.bin
+            partitions-elecrow.bin
             manifest.json
           body: |
             ## Flashing
 
             **Browser (USB):** Use the Firmware page — the default firmware is updated automatically.
+            Both the Waveshare (ESP32) and Elecrow CrowPanel (ESP32-S3) boards are supported.
 
-            **CLI:** `cd firmware && pio run -e esp32dev --target upload`
+            **CLI (Waveshare):** `cd firmware && pio run -e esp32dev --target upload`
+
+            **CLI (Elecrow):** `cd firmware && pio run -e elecrow_213 --target upload`
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -139,5 +183,8 @@ jobs:
             firmware.bin
             bootloader.bin
             partitions.bin
+            firmware-elecrow.bin
+            bootloader-elecrow.bin
+            partitions-elecrow.bin
             manifest.json
           retention-days: 30
