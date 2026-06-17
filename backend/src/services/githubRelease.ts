@@ -4,6 +4,9 @@ interface ResolvedRelease {
   firmwareUrl: string;
   bootloaderUrl: string | null;
   partitionsUrl: string | null;
+  firmwareElecrowUrl: string | null;
+  bootloaderElecrowUrl: string | null;
+  partitionsElecrowUrl: string | null;
   fetchedAt: number;
 }
 
@@ -15,6 +18,9 @@ export interface FirmwareRelease {
   firmwareUrl: string;
   bootloaderUrl: string | null;
   partitionsUrl: string | null;
+  firmwareElecrowUrl: string | null;
+  bootloaderElecrowUrl: string | null;
+  partitionsElecrowUrl: string | null;
 }
 
 export async function fetchLatestFirmwareRelease(): Promise<FirmwareRelease | null> {
@@ -28,6 +34,9 @@ export async function fetchLatestFirmwareRelease(): Promise<FirmwareRelease | nu
       firmwareUrl: cache.firmwareUrl,
       bootloaderUrl: cache.bootloaderUrl,
       partitionsUrl: cache.partitionsUrl,
+      firmwareElecrowUrl: cache.firmwareElecrowUrl,
+      bootloaderElecrowUrl: cache.bootloaderElecrowUrl,
+      partitionsElecrowUrl: cache.partitionsElecrowUrl,
     };
   }
 
@@ -55,6 +64,9 @@ export async function fetchLatestFirmwareRelease(): Promise<FirmwareRelease | nu
     firmwareUrl: asset.browser_download_url,
     bootloaderUrl: release.assets.find(a => a.name === 'bootloader.bin')?.browser_download_url ?? null,
     partitionsUrl: release.assets.find(a => a.name === 'partitions.bin')?.browser_download_url ?? null,
+    firmwareElecrowUrl: release.assets.find(a => a.name === 'firmware-elecrow.bin')?.browser_download_url ?? null,
+    bootloaderElecrowUrl: release.assets.find(a => a.name === 'bootloader-elecrow.bin')?.browser_download_url ?? null,
+    partitionsElecrowUrl: release.assets.find(a => a.name === 'partitions-elecrow.bin')?.browser_download_url ?? null,
     fetchedAt: now,
   };
   return {
@@ -62,16 +74,29 @@ export async function fetchLatestFirmwareRelease(): Promise<FirmwareRelease | nu
     firmwareUrl: cache.firmwareUrl,
     bootloaderUrl: cache.bootloaderUrl,
     partitionsUrl: cache.partitionsUrl,
+    firmwareElecrowUrl: cache.firmwareElecrowUrl,
+    bootloaderElecrowUrl: cache.bootloaderElecrowUrl,
+    partitionsElecrowUrl: cache.partitionsElecrowUrl,
   };
 }
 
 export function buildManifestFromRelease(release: FirmwareRelease): object {
-  const parts: Array<{ path: string; offset: number }> = [];
-  if (release.bootloaderUrl) parts.push({ path: release.bootloaderUrl, offset: 4096 });
-  if (release.partitionsUrl) parts.push({ path: release.partitionsUrl, offset: 32768 });
-  parts.push({ path: release.firmwareUrl, offset: 65536 });
-  return {
-    name: `ESP32 Display v${release.version}`,
-    builds: [{ chipFamily: 'ESP32', parts }],
-  };
+  const esp32Parts: Array<{ path: string; offset: number }> = [];
+  if (release.bootloaderUrl) esp32Parts.push({ path: release.bootloaderUrl, offset: 4096 });
+  if (release.partitionsUrl) esp32Parts.push({ path: release.partitionsUrl, offset: 32768 });
+  esp32Parts.push({ path: release.firmwareUrl, offset: 65536 });
+
+  const builds: Array<{ chipFamily: string; parts: Array<{ path: string; offset: number }> }> = [
+    { chipFamily: 'ESP32', parts: esp32Parts },
+  ];
+
+  if (release.firmwareElecrowUrl) {
+    const esp32s3Parts: Array<{ path: string; offset: number }> = [];
+    if (release.bootloaderElecrowUrl) esp32s3Parts.push({ path: release.bootloaderElecrowUrl, offset: 0 });
+    if (release.partitionsElecrowUrl) esp32s3Parts.push({ path: release.partitionsElecrowUrl, offset: 32768 });
+    esp32s3Parts.push({ path: release.firmwareElecrowUrl, offset: 65536 });
+    builds.push({ chipFamily: 'ESP32-S3', parts: esp32s3Parts });
+  }
+
+  return { name: `ESP32 Display v${release.version}`, builds };
 }
