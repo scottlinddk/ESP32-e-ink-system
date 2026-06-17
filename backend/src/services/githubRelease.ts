@@ -34,6 +34,9 @@ export async function fetchLatestFirmwareRelease(): Promise<FirmwareRelease | nu
       firmwareUrl: cache.firmwareUrl,
       bootloaderUrl: cache.bootloaderUrl,
       partitionsUrl: cache.partitionsUrl,
+      firmwareElecrowUrl: cache.firmwareElecrowUrl,
+      bootloaderElecrowUrl: cache.bootloaderElecrowUrl,
+      partitionsElecrowUrl: cache.partitionsElecrowUrl,
     };
   }
 
