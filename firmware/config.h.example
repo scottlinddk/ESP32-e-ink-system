@@ -26,7 +26,7 @@
 #endif
 
 // Firmware version (used for OTA checks and build metadata)
-#define FIRMWARE_VERSION "1.0.0"
+#define FIRMWARE_VERSION "1.1.0"
 
 // Display Refresh interval (minutes) — used when deep sleep is disabled
 #define REFRESH_MINUTES 30
