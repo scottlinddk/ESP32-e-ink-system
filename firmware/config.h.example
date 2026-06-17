@@ -11,6 +11,14 @@
 // boot.  The defines below control hardware pins, feature flags, and timeouts.
 // ============================================================================
 
+// ── Arduino IDE Board Selection ──────────────────────────────────────────────
+// When using Arduino IDE (not PlatformIO), uncomment the define for your board.
+// PlatformIO selects the board automatically via -e esp32dev or -e elecrow_213.
+//
+// #define ELECROW_EPAPER_213   // Elecrow CrowPanel 2.13" (ESP32-S3)
+//                              // Leave commented for Waveshare 2.13" HAT (ESP32-WROOM-32)
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Default API URL pre-filled in the captive-portal setup page.
 // Override via build flag: -D PROVISION_DEFAULT_API_URL=\"https://...\"
 #ifndef PROVISION_DEFAULT_API_URL
