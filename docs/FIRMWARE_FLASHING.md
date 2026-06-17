@@ -357,7 +357,27 @@ Same as macOS — connect to the `ESP32-Display-XXXXXX` hotspot and follow the c
 
 Use this if you prefer not to install PlatformIO. Both operating systems follow the same steps.
 
-### 1. Add ESP32-S3 Board Support
+### Step 0 — Run the Setup Script (Recommended)
+
+The setup script handles `config.h` creation, the Elecrow EPD library copy, and optional `arduino-cli` installs in one go. Run it from the project root:
+
+```bash
+# Waveshare board (default)
+./firmware/scripts/setup_arduino_ide.sh
+
+# Elecrow CrowPanel board
+./firmware/scripts/setup_arduino_ide.sh --elecrow
+```
+
+Or via npm:
+```bash
+npm run arduino:setup            # Waveshare
+npm run arduino:setup:elecrow    # Elecrow
+```
+
+The script prints a summary of what it did and lists any remaining manual steps. If you prefer to do everything by hand, skip this step and follow Steps 1–6 below.
+
+### 1. Add ESP32 Board Support
 
 1. Open Arduino IDE 2.x (download from https://www.arduino.cc/en/software).
 2. Open **File → Preferences** (macOS: **Arduino IDE → Preferences**).
@@ -365,33 +385,102 @@ Use this if you prefer not to install PlatformIO. Both operating systems follow 
    ```
    https://espressif.github.io/arduino-esp32/package_esp32_index.json
    ```
-4. Open **Tools → Board → Boards Manager**, search for **esp32**, and install **esp32 by Espressif Systems** — use version **2.0.15** specifically. Versions newer than 2.0.15 changed the default USB upload mode for ESP32-S3, which causes uploads to time out or fail silently on this board. If you already have a newer version, downgrade it using the version dropdown in Boards Manager.
+4. Open **Tools → Board → Boards Manager**, search for **esp32**, and install **esp32 by Espressif Systems**.
 
-### 2. Install the EPD Library
+   > **Elecrow users:** Install version **2.0.15** specifically. Versions newer than 2.0.15 changed the default USB upload mode for ESP32-S3, which causes uploads to time out or fail silently on this board. Use the version dropdown in Boards Manager to select 2.0.15, or downgrade if you have a newer version.
 
-1. Follow [Step 0](#step-0--get-the-elecrow-epd-library-required-for-elecrow-board) to download the Elecrow repo.
+### 2. Install Required Libraries
+
+All four libraries below are required for both boards. The EPD library is Elecrow-only.
+
+#### 2a — ArduinoJson (both boards) — Library Manager
+
+1. Open **Tools → Manage Libraries** (or **Sketch → Include Library → Manage Libraries**).
+2. Search for **ArduinoJson**.
+3. Install **ArduinoJson by Benoit Blanchon** — version **7.x**.
+
+#### 2b — GxEPD2 (Waveshare only) — Library Manager
+
+1. In Library Manager, search for **GxEPD2**.
+2. Install **GxEPD2 by ZinggJM** — version **1.5.3** or newer.
+
+> Skip this step for Elecrow — the EPD library replaces GxEPD2.
+
+#### 2c — ESPAsyncWebServer-esphome (both boards) — ZIP install
+
+The esphome variant is not in the standard Library Manager.
+
+1. Download the ZIP:
+   ```
+   https://github.com/esphome/ESPAsyncWebServer/archive/refs/heads/master.zip
+   ```
+2. In Arduino IDE: **Sketch → Include Library → Add .ZIP Library...** → select the downloaded ZIP.
+
+#### 2d — AsyncTCP-esphome (both boards) — ZIP install
+
+1. Download the ZIP:
+   ```
+   https://github.com/esphome/AsyncTCP/archive/refs/heads/master.zip
+   ```
+2. **Sketch → Include Library → Add .ZIP Library...** → select the downloaded ZIP.
+
+#### 2e — EPD Library (Elecrow only) — manual copy
+
+1. Follow [Step 0 in the PlatformIO section](#step-0--get-the-elecrow-epd-library-required-for-elecrow-board) to download the Elecrow repo.
 2. Copy the `EPD` folder to your Arduino libraries directory:
    - **macOS:** `~/Documents/Arduino/libraries/EPD/`
    - **Windows:** `C:\Users\<YourName>\Documents\Arduino\libraries\EPD\`
 3. Restart Arduino IDE.
 
-### 3. Configure Board Settings
+### 3. Configure config.h
 
-Go to **Tools** and set:
+If you did not run the setup script:
 
-| Setting | Value |
-|---|---|
-| Board | ESP32 Arduino → **ESP32S3 Dev Module** |
-| Partition Scheme | **Huge APP (3MB No OTA/1MB SPIFFS)** |
-| PSRAM | **OPI PSRAM** |
-| Port | Your COM port (Windows) or `/dev/cu.*` (macOS) |
+```bash
+# macOS / Linux
+cp firmware/config.h.example firmware/config.h
 
-### 4. Open and Upload
+# Windows
+copy firmware\config.h.example firmware\config.h
+```
+
+Open `firmware/config.h` and set your backend URL:
+```cpp
+#define PROVISION_DEFAULT_API_URL "https://your-api.vercel.app"
+```
+
+**Elecrow users:** Uncomment this line near the top of `config.h`:
+```cpp
+#define ELECROW_EPAPER_213   // Elecrow CrowPanel 2.13" (ESP32-S3)
+```
+
+This sets the correct SPI pin mapping for the Elecrow board. PlatformIO sets this flag automatically — Arduino IDE users must uncomment it manually (or let the setup script do it).
+
+### 4. Configure Board Settings
+
+Go to **Tools** in Arduino IDE and set the following. The two boards have different requirements:
+
+| Setting | Waveshare 2.13" HAT | Elecrow CrowPanel |
+|---|---|---|
+| Board | ESP32 Arduino → **ESP32 Dev Module** | ESP32 Arduino → **ESP32S3 Dev Module** |
+| Partition Scheme | Default 4MB | **Huge APP (3MB No OTA/1MB SPIFFS)** |
+| PSRAM | _(not needed)_ | **OPI PSRAM** |
+| USB CDC On Boot | _(not applicable)_ | **Enabled** |
+| Upload Mode | _(not applicable)_ | **UART0 / Hardware CDC** |
+| Port | `/dev/cu.*` (macOS) or COM port | `/dev/cu.*` (macOS) or COM port |
+
+> **Why USB CDC On Boot and Upload Mode matter for Elecrow:** PlatformIO automatically injects `-D ARDUINO_USB_MODE=1 -D ARDUINO_USB_CDC_ON_BOOT=1` as build flags for the Elecrow environment. In Arduino IDE these must be set manually via the Tools menu, or uploads will time out or fail silently.
+
+### 5. Open and Upload
 
 1. Open `firmware/src/main.ino` in Arduino IDE.
-2. Make sure `firmware/config.h` exists (copy from `config.h.example`).
-3. Click **Upload** (the right-arrow button).
+2. Confirm `firmware/config.h` exists with your API URL set.
+3. Click **Upload** (→ button).
 4. If the upload fails, hold the **BOOT** button on the board and try again.
+
+### 6. First-Boot Setup
+
+After flashing, follow the same first-boot steps as PlatformIO — see [Step 7 above](#7-first-boot-setup).
 
 ---
 

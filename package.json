@@ -23,7 +23,9 @@
     "flash:elecrow:build": "bash firmware/scripts/flash.sh build --elecrow",
     "flash:elecrow:monitor": "bash firmware/scripts/flash.sh monitor --elecrow",
     "flash:elecrow:full": "bash firmware/scripts/flash.sh flash --elecrow",
-    "flash:elecrow:clean": "bash firmware/scripts/flash.sh clean --elecrow"
+    "flash:elecrow:clean": "bash firmware/scripts/flash.sh clean --elecrow",
+    "arduino:setup": "bash firmware/scripts/setup_arduino_ide.sh",
+    "arduino:setup:elecrow": "bash firmware/scripts/setup_arduino_ide.sh --elecrow"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
