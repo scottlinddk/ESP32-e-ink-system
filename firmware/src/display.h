@@ -5,8 +5,7 @@
 // Source: firmware/lib/EPD/ (copy from Elecrow GitHub repo factory_sourcecode)
 extern "C" {
   #include "EPD.h"       // EPD_GPIOInit, EPD_Init, EPD_Display, EPD_Update, etc.
-  #include "GUI_Paint.h" // Paint_NewImage, Paint_Clear, Paint_DrawString_EN, etc.
-  #include "Fonts/fonts.h" // Font8, Font12, Font16, Font20, Font24
+  #include "GUI_Paint.h" // Paint_NewImage, Paint_Clear, Paint_DrawString_EN, Font8/12/16/20/24, etc.
 }
 #else
 // Waveshare 2.13" e-Paper HAT V2 — uses GxEPD2 (Arduino library)
