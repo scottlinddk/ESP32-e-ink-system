@@ -75,10 +75,6 @@ public:
 
 private:
 #ifdef ELECROW_EPAPER_213
-  // 250 wide x 122 tall, 1 bpp: ceil(250/8)=32 bytes/row x 122 rows
-  static const int EPD_BUF_SIZE = 32 * 122;
-  uint8_t _imgBuf[EPD_BUF_SIZE];
-
   void elecrowFlush();
   void drawText(uint16_t x, uint16_t y, const char* text, sFONT* font);
   void drawCenteredText(uint16_t y, const char* text, sFONT* font);
