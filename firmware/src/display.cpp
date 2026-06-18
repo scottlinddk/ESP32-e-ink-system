@@ -14,29 +14,36 @@
 // ============================================================================
 #ifdef ELECROW_EPAPER_213
 
+// Fallback dimension constants in case the library version omits them
+#ifndef EPD_W
+#  define EPD_W 250
+#endif
+#ifndef EPD_H
+#  define EPD_H 122
+#endif
+#ifndef ROTATE_0
+#  define ROTATE_0 0
+#endif
+
 DisplayManager::DisplayManager() {}
 
 void DisplayManager::begin() {
-  EPD_GPIOInit();
-  EPD_Init();
+  EPD_7IN5_Init();
   Paint_NewImage(_imgBuf, EPD_W, EPD_H, ROTATE_0, WHITE);
   Paint_Clear(WHITE);
-  EPD_Display(_imgBuf);
-  EPD_Update();
+  EPD_7IN5_Display(_imgBuf);
   LOG_D("Elecrow EPD initialized: %d x %d", EPD_W, EPD_H);
 }
 
 void DisplayManager::clear() {
   Paint_Clear(WHITE);
-  EPD_Display(_imgBuf);
-  EPD_Update();
+  EPD_7IN5_Display(_imgBuf);
   LOG_D("Display cleared");
 }
 
 // Send current image buffer to display
 void DisplayManager::elecrowFlush() {
-  EPD_Display(_imgBuf);
-  EPD_Update();
+  EPD_7IN5_Display(_imgBuf);
 }
 
 void DisplayManager::drawText(uint16_t x, uint16_t y, const char* text, sFONT* font) {
@@ -50,7 +57,7 @@ void DisplayManager::drawCenteredText(uint16_t y, const char* text, sFONT* font)
 }
 
 void DisplayManager::drawLine(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
-  Paint_DrawLine(x0, y0, x1, y1, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);
+  Paint_DrawLine(x0, y0, x1, y1, BLACK, LINE_STYLE_SOLID, DOT_PIXEL_1X1);
 }
 
 void DisplayManager::showLoading(const char* message) {
@@ -306,7 +313,7 @@ void DisplayManager::showBitmap(const uint8_t* bmpData, size_t len) {
   LOG_D("Bitmap displayed: %dx%d (1-bit BMP)", (int)drawW, (int)drawH);
 }
 
-// ── Waveshare helpers ────────────────────────────────────────────────────────
+// -- Waveshare helpers -------------------------------------------------------
 
 void DisplayManager::drawCenteredText(const char* text, int16_t y, const GFXfont* font) {
   if (font) display->setFont(font);
