@@ -101,18 +101,18 @@ jobs:
           cp -r "$EPD_DIR" lib/EPD
           echo "Copied EPD library from: $EPD_DIR"
 
-          # Fonts/ is NOT inside the EPD directory in the Elecrow repo — it lives
-          # at a different path in the repo tree. Find it wherever it is.
-          FONTS_DIR=$(find /tmp/elecrow-repo -type d -name "Fonts" | head -1)
+          # Fonts/ may live outside the EPD directory and may be lowercase on some
+          # repo versions. Use case-insensitive search across the full repo tree.
+          FONTS_DIR=$(find /tmp/elecrow-repo -type d -iname "Fonts" | head -1)
           if [ -z "$FONTS_DIR" ]; then
-            echo "ERROR: Could not find Fonts directory in Elecrow repo"
-            exit 1
+            echo "WARNING: No Fonts directory found in Elecrow repo — font declarations come from GUI_Paint.h"
+          else
+            # Copy into lib/EPD/ so "-I lib/EPD" makes #include "Fonts/fonts.h" resolvable.
+            cp -r "$FONTS_DIR" lib/EPD/Fonts
+            # Mirror into src/ as well for any header resolved via "-I lib/EPD/src".
+            cp -r "$FONTS_DIR" lib/EPD/src/Fonts
+            echo "Copied Fonts from: $FONTS_DIR"
           fi
-          # Copy into lib/EPD/ so "-I lib/EPD" makes #include "Fonts/fonts.h" resolvable.
-          cp -r "$FONTS_DIR" lib/EPD/Fonts
-          # Mirror into src/ as well for any header resolved via "-I lib/EPD/src".
-          cp -r "$FONTS_DIR" lib/EPD/src/Fonts
-          echo "Copied Fonts from: $FONTS_DIR"
 
           # Fix the malformed include guard in EPD.h — "#ifndef __utility/EPD_H_"
           # contains a slash which is not a valid preprocessor token character.
