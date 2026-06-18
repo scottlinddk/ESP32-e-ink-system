@@ -100,7 +100,14 @@ jobs:
           mkdir -p lib
           cp -r "$EPD_DIR" lib/EPD
           echo "Copied EPD library from: $EPD_DIR"
-          ls lib/EPD/
+          echo "EPD library structure:"
+          find lib/EPD -type f | sort
+          # If Fonts lives outside src/, mirror it inside src/ so PlatformIO's
+          # default include path (lib/EPD/src) can resolve "Fonts/fonts.h".
+          if [ -d "lib/EPD/Fonts" ] && [ ! -d "lib/EPD/src/Fonts" ]; then
+            cp -r "lib/EPD/Fonts" "lib/EPD/src/Fonts"
+            echo "Mirrored lib/EPD/Fonts into lib/EPD/src/Fonts"
+          fi
 
       - name: Build Elecrow firmware (ESP32-S3)
         working-directory: firmware
