@@ -29,21 +29,21 @@ DisplayManager::DisplayManager() {}
 
 void DisplayManager::begin() {
   EPD_7IN5_Init();
-  Paint_NewImage(_imgBuf, EPD_W, EPD_H, ROTATE_0, WHITE);
+  Paint_NewImage(0, EPD_W, EPD_H, ROTATE_0, WHITE);
   Paint_Clear(WHITE);
-  EPD_7IN5_Display(_imgBuf);
+  EPD_7IN5_Display();
   LOG_D("Elecrow EPD initialized: %d x %d", EPD_W, EPD_H);
 }
 
 void DisplayManager::clear() {
   Paint_Clear(WHITE);
-  EPD_7IN5_Display(_imgBuf);
+  EPD_7IN5_Display();
   LOG_D("Display cleared");
 }
 
-// Send current image buffer to display
+// Flush internal image buffer to display
 void DisplayManager::elecrowFlush() {
-  EPD_7IN5_Display(_imgBuf);
+  EPD_7IN5_Display();
 }
 
 void DisplayManager::drawText(uint16_t x, uint16_t y, const char* text, sFONT* font) {
