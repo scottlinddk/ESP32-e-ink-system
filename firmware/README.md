@@ -1,6 +1,6 @@
 # ESP32 E-Ink Display Firmware
 
-Arduino firmware for the ESP32 + Waveshare 2.13" e-Paper display. Fetches energy prices, weather, and news from the backend API and displays them on an e-ink display with optimized power consumption.
+Arduino firmware for the ESP32 + Waveshare 2.13" e-Paper display. Fetches energy prices, weather, and news from the backend API and displays them on an e-ink display with optimized power consumption
 
 ## Hardware
 
