@@ -1,12 +1,10 @@
 #pragma once
 
 #ifdef ELECROW_EPAPER_213
-// Elecrow CrowPanel ESP32 2.13" — uses bundled C-style EPD library
+// Elecrow CrowPanel ESP32 2.13" — uses bundled EPD library
 // Source: firmware/lib/EPD/ (copy from Elecrow GitHub repo factory_sourcecode)
-extern "C" {
-  #include "EPD.h"       // EPD_GPIOInit, EPD_Init, EPD_Display, EPD_Update, etc.
-  #include "GUI_Paint.h" // Paint_NewImage, Paint_Clear, Paint_DrawString_EN, Font8/12/16/20/24, etc.
-}
+#include "EPD.h"
+#include "GUI_Paint.h"
 #else
 // Waveshare 2.13" e-Paper HAT V2 — uses GxEPD2 (Arduino library)
 #include <GxEPD2_BW.h>
@@ -77,7 +75,7 @@ public:
 
 private:
 #ifdef ELECROW_EPAPER_213
-  // 250 wide × 122 tall, 1 bpp: ceil(250/8)=32 bytes/row × 122 rows
+  // 250 wide x 122 tall, 1 bpp: ceil(250/8)=32 bytes/row x 122 rows
   static const int EPD_BUF_SIZE = 32 * 122;
   uint8_t _imgBuf[EPD_BUF_SIZE];
 
