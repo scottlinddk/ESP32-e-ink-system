@@ -3,6 +3,14 @@
 #include <stdint.h>
 #include "Fonts/fonts.h"
 
+// Monochrome color values (1-bit display: 0x00 = black pixel, 0xFF = white)
+#ifndef WHITE
+#define WHITE 0xFF
+#endif
+#ifndef BLACK
+#define BLACK 0x00
+#endif
+
 typedef uint32_t UDOUBLE;
 typedef uint16_t UWORD;
 typedef uint8_t  UBYTE;
