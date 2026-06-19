@@ -52,6 +52,40 @@ const EPD_LIB_STEP: FlashStep = {
   ),
 };
 
+const ARDUINO_EPD_LIB_STEP: FlashStep = {
+  icon: 'folder_zip',
+  title: 'Get the Elecrow EPD library',
+  body: (
+    <>
+      The Elecrow display driver is not in the Arduino registry — copy it manually.
+      <ol className="mt-2 mb-0 pl-4 flex flex-col gap-1 list-decimal">
+        <li>
+          Download the{' '}
+          <a
+            href="https://github.com/Elecrow-RD/CrowPanel-ESP32-2.13-E-paper-HMI-Display-with-122-250"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent font-medium no-underline hover:underline"
+          >
+            Elecrow GitHub repo ZIP
+          </a>{' '}
+          (Code → Download ZIP) and extract it.
+        </li>
+        <li>
+          Inside, find the <code className="font-mono bg-black/[0.07] dark:bg-white/10 px-1 rounded-sm">EPD</code> folder under{' '}
+          <code className="font-mono bg-black/[0.07] dark:bg-white/10 px-1 rounded-sm">factory_sourcecode/…/libraries/EPD/</code>
+        </li>
+        <li>
+          Copy the <code className="font-mono bg-black/[0.07] dark:bg-white/10 px-1 rounded-sm">EPD</code> folder to your Arduino libraries directory:
+          <pre className="mt-1.5 mb-0 p-3 rounded-sm bg-black/[0.07] dark:bg-white/10 text-xs font-mono leading-relaxed overflow-x-auto">{'macOS:   ~/Documents/Arduino/libraries/EPD/\nWindows: C:\\Users\\<name>\\Documents\\Arduino\\libraries\\EPD/'}</pre>
+        </li>
+        <li>Restart Arduino IDE.</li>
+      </ol>
+      <p className="mt-2 mb-0 text-xs text-fg2">Note: GxEPD2 is <strong>not</strong> used for Elecrow — the EPD library replaces it.</p>
+    </>
+  ),
+};
+
 function macSteps(): FlashStep[] {
   return [
     EPD_LIB_STEP,
@@ -217,8 +251,190 @@ function windowsSteps(): FlashStep[] {
 
 function arduinoSteps(board: Board): FlashStep[] {
   const isElecrow = board === 'elecrow';
+
+  if (isElecrow) {
+    return [
+      {
+        icon: 'download',
+        title: 'Install Arduino IDE 2',
+        body: (
+          <>
+            Download <strong>Arduino IDE 2.x</strong> from{' '}
+            <a href="https://www.arduino.cc/en/software" target="_blank" rel="noopener noreferrer" className="text-accent font-medium no-underline hover:underline">
+              arduino.cc/en/software
+            </a>{' '}
+            and install it for your OS (macOS, Windows, or Linux).
+          </>
+        ),
+      },
+      {
+        icon: 'developer_board',
+        title: 'Add ESP32 board support — version 2.0.15',
+        body: (
+          <>
+            <ol className="mt-0 mb-0 pl-4 flex flex-col gap-1 list-decimal">
+              <li>Open <strong>File → Preferences</strong> (macOS: <strong>Arduino IDE → Preferences</strong>).</li>
+              <li>
+                Paste into "Additional boards manager URLs":
+                <pre className="mt-1.5 mb-0 p-3 rounded-sm bg-black/[0.07] dark:bg-white/10 text-xs font-mono leading-relaxed overflow-x-auto">https://espressif.github.io/arduino-esp32/package_esp32_index.json</pre>
+              </li>
+              <li>Open <strong>Tools → Board → Boards Manager</strong>, search <strong>esp32</strong>, open the version dropdown, and install <strong>esp32 by Espressif Systems version 2.0.15</strong>.</li>
+            </ol>
+            <p className="mt-2 mb-0 text-xs text-fg2">Versions newer than 2.0.15 changed USB upload mode for ESP32-S3 and cause silent upload failures on this board. Use 2.0.15 specifically.</p>
+          </>
+        ),
+      },
+      {
+        icon: 'tune',
+        title: 'Configure board settings',
+        body: (
+          <>
+            Go to <strong>Tools</strong> and set all of the following. Wrong settings here are the most common cause of upload failures.
+            <table className="mt-2 mb-0 w-full text-xs border-collapse">
+              <tbody>
+                <tr className="border-b border-divider">
+                  <td className="py-1.5 pr-4 text-fg2 whitespace-nowrap">Board</td>
+                  <td className="py-1.5 font-mono">ESP32 Arduino → ESP32S3 Dev Module</td>
+                </tr>
+                <tr className="border-b border-divider">
+                  <td className="py-1.5 pr-4 text-fg2 whitespace-nowrap">Partition Scheme</td>
+                  <td className="py-1.5 font-mono">Huge APP (3MB No OTA/1MB SPIFFS)</td>
+                </tr>
+                <tr className="border-b border-divider">
+                  <td className="py-1.5 pr-4 text-fg2 whitespace-nowrap">PSRAM</td>
+                  <td className="py-1.5 font-mono">OPI PSRAM</td>
+                </tr>
+                <tr className="border-b border-divider">
+                  <td className="py-1.5 pr-4 text-fg2 whitespace-nowrap">USB CDC On Boot</td>
+                  <td className="py-1.5 font-mono">Enabled</td>
+                </tr>
+                <tr className="border-b border-divider">
+                  <td className="py-1.5 pr-4 text-fg2 whitespace-nowrap">Upload Mode</td>
+                  <td className="py-1.5 font-mono">UART0 / Hardware CDC</td>
+                </tr>
+                <tr>
+                  <td className="py-1.5 pr-4 text-fg2 whitespace-nowrap">Port</td>
+                  <td className="py-1.5 font-mono">/dev/cu.* (macOS) or COM port (Windows)</td>
+                </tr>
+              </tbody>
+            </table>
+          </>
+        ),
+      },
+      {
+        icon: 'library_books',
+        title: 'Install required libraries',
+        body: (
+          <>
+            Four libraries are required. Install them in order:
+            <ol className="mt-2 mb-0 pl-4 flex flex-col gap-2 list-decimal">
+              <li>
+                <strong>ArduinoJson v7.x</strong> — <strong>Tools → Manage Libraries</strong>, search "ArduinoJson", install <em>ArduinoJson by Benoit Blanchon</em> version 7.x.
+              </li>
+              <li>
+                <strong>ESPAsyncWebServer-esphome</strong> — download the{' '}
+                <a href="https://github.com/esphome/ESPAsyncWebServer/archive/refs/heads/master.zip" target="_blank" rel="noopener noreferrer" className="text-accent font-medium no-underline hover:underline">
+                  esphome fork ZIP
+                </a>
+                , then <strong>Sketch → Include Library → Add .ZIP Library…</strong>
+              </li>
+              <li>
+                <strong>AsyncTCP-esphome</strong> — download the{' '}
+                <a href="https://github.com/esphome/AsyncTCP/archive/refs/heads/master.zip" target="_blank" rel="noopener noreferrer" className="text-accent font-medium no-underline hover:underline">
+                  esphome AsyncTCP ZIP
+                </a>
+                , then <strong>Sketch → Include Library → Add .ZIP Library…</strong>
+              </li>
+              <li>
+                <strong>EPD library (Elecrow)</strong> — see the step below.
+              </li>
+            </ol>
+          </>
+        ),
+      },
+      ARDUINO_EPD_LIB_STEP,
+      {
+        icon: 'usb',
+        title: 'Install the USB driver',
+        body: (
+          <>
+            The Elecrow board uses a <strong>WCH CH340 / CH343</strong> USB chip.
+            <ul className="mt-2 mb-0 pl-4 flex flex-col gap-1 list-disc">
+              <li>
+                <strong>macOS:</strong>{' '}
+                <a href="https://www.wch-ic.com/downloads/CH34XSER_MAC_ZIP.html" target="_blank" rel="noopener noreferrer" className="text-accent font-medium no-underline hover:underline">
+                  WCH CH34x driver
+                </a>
+                {' '}— right-click the .pkg → Open (do not double-click). Restart your Mac after install. On macOS 13 Ventura or later, also go to <strong>System Settings → Privacy & Security → Security</strong> and click <strong>Allow</strong> next to the Qinheng/WCH message.
+              </li>
+              <li>
+                <strong>Windows:</strong>{' '}
+                <a href="https://www.wch-ic.com/downloads/CH341SER_EXE.html" target="_blank" rel="noopener noreferrer" className="text-accent font-medium no-underline hover:underline">
+                  WCH CH340 driver
+                </a>
+                {' '}— run the .exe installer (right-click → Run as administrator if blocked). Unplug and replug the board; a COM port should appear in Device Manager.
+              </li>
+              <li><strong>Linux:</strong> CH340 is built into the kernel — no install needed. Check <code className="font-mono bg-black/[0.07] dark:bg-white/10 px-1 rounded-sm">ls /dev/ttyUSB*</code></li>
+            </ul>
+          </>
+        ),
+      },
+      {
+        icon: 'settings',
+        title: 'Configure config.h',
+        body: (
+          <>
+            Copy the template and open the file:
+            <pre className="mt-2 mb-2 p-3 rounded-sm bg-black/[0.07] dark:bg-white/10 text-xs font-mono leading-relaxed overflow-x-auto">cp firmware/config.h.example firmware/config.h</pre>
+            Make two changes:
+            <ol className="mt-2 mb-0 pl-4 flex flex-col gap-1 list-decimal">
+              <li>
+                Set your backend API URL:
+                <pre className="mt-1.5 mb-0 p-3 rounded-sm bg-black/[0.07] dark:bg-white/10 text-xs font-mono leading-relaxed overflow-x-auto">#define PROVISION_DEFAULT_API_URL "https://your-api.vercel.app"</pre>
+              </li>
+              <li>
+                Uncomment the Elecrow board define (remove the <code className="font-mono bg-black/[0.07] dark:bg-white/10 px-1 rounded-sm">//</code>):
+                <pre className="mt-1.5 mb-0 p-3 rounded-sm bg-black/[0.07] dark:bg-white/10 text-xs font-mono leading-relaxed overflow-x-auto">#define ELECROW_EPAPER_213</pre>
+                PlatformIO sets this automatically — Arduino IDE users must uncomment it manually or the display will not work.
+              </li>
+            </ol>
+          </>
+        ),
+      },
+      {
+        icon: 'upload',
+        title: 'Open and upload',
+        body: (
+          <>
+            <ol className="mt-0 mb-0 pl-4 flex flex-col gap-1 list-decimal">
+              <li>In Arduino IDE: <strong>File → Open</strong> → navigate to <code className="font-mono bg-black/[0.07] dark:bg-white/10 px-1 rounded-sm">firmware/src/main.ino</code>.</li>
+              <li>Confirm board settings and port are set (Steps 3 and 6).</li>
+              <li>Click <strong>Upload</strong> (→ arrow).</li>
+            </ol>
+            <p className="mt-2 mb-0">
+              If upload stalls at "Connecting…": hold the <strong>BOOT</strong> button, click Upload, release BOOT once "Uploading…" appears. For persistent failures: hold BOOT → press and release RESET → release BOOT → click Upload.
+            </p>
+          </>
+        ),
+      },
+      {
+        icon: 'monitor',
+        title: 'Verify with Serial Monitor',
+        body: (
+          <>
+            Open <strong>Tools → Serial Monitor</strong> and set baud to <strong>115200</strong>. Press RESET on the board. Expected output:
+            <pre className="mt-2 mb-0 p-3 rounded-sm bg-black/[0.07] dark:bg-white/10 text-xs font-mono leading-relaxed overflow-x-auto">[Main] ESP32 E-Ink Display Firmware v1.0.0
+[Main] Hardware initialized
+[Main] No credentials found — starting captive portal AP</pre>
+            The display should show a loading or setup screen. You're ready for first-boot WiFi setup.
+          </>
+        ),
+      },
+    ];
+  }
+
+  // Waveshare Arduino steps
   return [
-    ...(isElecrow ? [EPD_LIB_STEP] : []),
     {
       icon: 'download',
       title: 'Install Arduino IDE 2',
@@ -243,7 +459,7 @@ function arduinoSteps(board: Board): FlashStep[] {
               In "Additional boards manager URLs" paste:
               <pre className="mt-1.5 mb-0 p-3 rounded-sm bg-black/[0.07] dark:bg-white/10 text-xs font-mono leading-relaxed overflow-x-auto">https://espressif.github.io/arduino-esp32/package_esp32_index.json</pre>
             </li>
-            <li>Open <strong>Tools → Board → Boards Manager</strong>, search <strong>esp32</strong>, and install <strong>esp32 by Espressif</strong> version <strong>2.0.15</strong>.</li>
+            <li>Open <strong>Tools → Board → Boards Manager</strong>, search <strong>esp32</strong>, and install <strong>esp32 by Espressif</strong>.</li>
           </ol>
         </>
       ),
@@ -256,55 +472,19 @@ function arduinoSteps(board: Board): FlashStep[] {
           Go to <strong>Tools</strong> and set:
           <table className="mt-2 mb-0 w-full text-xs border-collapse">
             <tbody>
-              {isElecrow ? (
-                <>
-                  <tr className="border-b border-divider">
-                    <td className="py-1.5 pr-4 text-fg2 whitespace-nowrap">Board</td>
-                    <td className="py-1.5 font-mono">ESP32 Arduino → ESP32S3 Dev Module</td>
-                  </tr>
-                  <tr className="border-b border-divider">
-                    <td className="py-1.5 pr-4 text-fg2 whitespace-nowrap">Partition Scheme</td>
-                    <td className="py-1.5 font-mono">Huge APP (3MB No OTA/1MB SPIFFS)</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1.5 pr-4 text-fg2 whitespace-nowrap">PSRAM</td>
-                    <td className="py-1.5 font-mono">OPI PSRAM</td>
-                  </tr>
-                </>
-              ) : (
-                <tr>
-                  <td className="py-1.5 pr-4 text-fg2 whitespace-nowrap">Board</td>
-                  <td className="py-1.5 font-mono">ESP32 Arduino → ESP32 Dev Module</td>
-                </tr>
-              )}
+              <tr>
+                <td className="py-1.5 pr-4 text-fg2 whitespace-nowrap">Board</td>
+                <td className="py-1.5 font-mono">ESP32 Arduino → ESP32 Dev Module</td>
+              </tr>
             </tbody>
           </table>
-          {isElecrow && (
-            <>
-              <br />
-              Install the EPD library: copy the <code className="font-mono bg-black/[0.07] dark:bg-white/10 px-1 rounded-sm">EPD</code> folder from the Elecrow repo to:
-              <pre className="mt-1.5 mb-0 p-3 rounded-sm bg-black/[0.07] dark:bg-white/10 text-xs font-mono leading-relaxed overflow-x-auto">
-                {'macOS:   ~/Documents/Arduino/libraries/EPD/\nWindows: C:\\Users\\<name>\\Documents\\Arduino\\libraries\\EPD\\'}
-              </pre>
-            </>
-          )}
         </>
       ),
     },
     {
       icon: 'usb',
       title: 'Install USB driver (if needed)',
-      body: isElecrow ? (
-        <>
-          <strong>macOS:</strong>{' '}
-          <a href="https://www.wch-ic.com/downloads/CH34XSER_MAC_ZIP.html" target="_blank" rel="noopener noreferrer" className="text-accent font-medium no-underline hover:underline">WCH CH34x driver</a>
-          {' '}— restart after install.
-          <br />
-          <strong>Windows:</strong>{' '}
-          <a href="https://www.wch-ic.com/downloads/CH341SER_EXE.html" target="_blank" rel="noopener noreferrer" className="text-accent font-medium no-underline hover:underline">WCH CH340 driver</a>
-          {' '}— installs in seconds.
-        </>
-      ) : (
+      body: (
         <>
           <strong>macOS:</strong>{' '}
           <a href="https://www.wch-ic.com/downloads/CH34XSER_MAC_ZIP.html" target="_blank" rel="noopener noreferrer" className="text-accent font-medium no-underline hover:underline">WCH CH34x driver</a>
@@ -327,7 +507,6 @@ function arduinoSteps(board: Board): FlashStep[] {
             <li>Select your port under <strong>Tools → Port</strong>.</li>
             <li>Click <strong>Upload</strong> (→ arrow button).</li>
           </ol>
-          If upload times out, hold the <strong>BOOT</strong> button on the board and try again.
         </>
       ),
     },
