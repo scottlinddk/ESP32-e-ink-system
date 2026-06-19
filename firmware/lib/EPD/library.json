@@ -1,0 +1,10 @@
+{
+  "name": "EPD",
+  "version": "1.0.0",
+  "description": "Elecrow CrowPanel 2.13\" E-Paper driver (SSD1680/JD79661)",
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"],
+  "dependencies": [
+    { "name": "SPI" }
+  ]
+}

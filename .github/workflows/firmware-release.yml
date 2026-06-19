@@ -98,6 +98,7 @@ jobs:
             exit 1
           fi
           mkdir -p lib
+          rm -rf lib/EPD
           cp -r "$EPD_DIR" lib/EPD
           echo "Copied EPD library from: $EPD_DIR"
 
