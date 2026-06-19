@@ -88,49 +88,6 @@ jobs:
           echo "Bootloader:  $(du -sh bootloader.bin)"
           echo "Partitions:  $(du -sh partitions.bin)"
 
-      - name: Fetch Elecrow EPD library
-        working-directory: firmware
-        run: |
-          git clone --depth=1 https://github.com/Elecrow-RD/CrowPanel-ESP32-2.13-E-paper-HMI-Display-with-122-250 /tmp/elecrow-repo
-          EPD_DIR=$(find /tmp/elecrow-repo -type d -name "EPD" | head -1)
-          if [ -z "$EPD_DIR" ]; then
-            echo "ERROR: Could not find EPD directory in Elecrow repo"
-            exit 1
-          fi
-          mkdir -p lib
-          rm -rf lib/EPD
-          cp -r "$EPD_DIR" lib/EPD
-          echo "Copied EPD library from: $EPD_DIR"
-
-          # Fonts/ may live outside the EPD directory and may be lowercase on some
-          # repo versions. Use case-insensitive search across the full repo tree.
-          FONTS_DIR=$(find /tmp/elecrow-repo -type d -iname "Fonts" | head -1)
-          if [ -z "$FONTS_DIR" ]; then
-            echo "WARNING: No Fonts directory found in Elecrow repo — font declarations come from GUI_Paint.h"
-          else
-            # Copy into lib/EPD/ so "-I lib/EPD" makes #include "Fonts/fonts.h" resolvable.
-            cp -r "$FONTS_DIR" lib/EPD/Fonts
-            # Mirror into src/ as well for any header resolved via "-I lib/EPD/src".
-            # The Elecrow EPD library puts files directly in its root (no src/ subdir),
-            # so we must create the directory before copying.
-            mkdir -p lib/EPD/src
-            cp -r "$FONTS_DIR" lib/EPD/src/Fonts
-            echo "Copied Fonts from: $FONTS_DIR"
-          fi
-
-          # Fix the malformed include guard in EPD.h — "#ifndef __utility/EPD_H_"
-          # contains a slash which is not a valid preprocessor token character.
-          # Replace it with a conventional guard name to eliminate the warnings.
-          EPD_H="lib/EPD/src/EPD.h"
-          if [ -f "$EPD_H" ]; then
-            sed -i 's|#ifndef __utility/EPD_H_|#ifndef __UTILITY_EPD_H_|g' "$EPD_H"
-            sed -i 's|#define __utility/EPD_H_|#define __UTILITY_EPD_H_|g' "$EPD_H"
-            echo "Patched include guard in $EPD_H"
-          fi
-
-          echo "EPD library structure:"
-          find lib/EPD -type f | sort
-
       - name: Build Elecrow firmware (ESP32-S3)
         working-directory: firmware
         run: |
