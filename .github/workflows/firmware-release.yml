@@ -70,7 +70,7 @@ jobs:
           # before any identically-named headers from the ESP32 framework (e.g. mbedTLS).
           cp config.h.example src/config.h
           # Inject runtime API URL (overrides the default placeholder)
-          sed -i "s|https://your-api.vercel.app|${PRODUCTION_API_URL}|g" src/config.h
+          sed -i "s|https://esp32.scottlind.dk/api|${PRODUCTION_API_URL}|g" src/config.h
           # Inject version
           sed -i "s|#define FIRMWARE_VERSION \"1.0.0\"|#define FIRMWARE_VERSION \"${VERSION}\"|" src/config.h
 
