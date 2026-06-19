@@ -355,6 +355,8 @@ Same as macOS — connect to the `ESP32-Display-XXXXXX` hotspot and follow the c
 
 ## Arduino IDE Alternative (macOS + Windows)
 
+> **Elecrow CrowPanel users:** A full standalone Arduino IDE guide is available at [ARDUINO_IDE_ELECROW_SETUP.md](./ARDUINO_IDE_ELECROW_SETUP.md). It covers the complete setup from zero in one place without any PlatformIO references.
+
 Use this if you prefer not to install PlatformIO. Both operating systems follow the same steps.
 
 ### Step 0 — Run the Setup Script (Recommended)

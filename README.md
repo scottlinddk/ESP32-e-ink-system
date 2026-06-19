@@ -71,5 +71,6 @@ Run `backend/src/db/migrations/001_initial.sql` in your Supabase SQL editor.
 ## Docs
 
 - [Setup Guide](docs/SETUP_TRACK_A.md) — local development setup
-- [Firmware Flashing](docs/FIRMWARE_FLASHING.md) — ESP32 hardware setup
+- [Firmware Flashing](docs/FIRMWARE_FLASHING.md) — ESP32 hardware setup (PlatformIO + Arduino IDE)
+- [Elecrow Arduino IDE Setup](docs/ARDUINO_IDE_ELECROW_SETUP.md) — standalone guide for Elecrow CrowPanel using Arduino IDE
 - [API Reference](docs/API_REFERENCE.md) — full endpoint documentation
