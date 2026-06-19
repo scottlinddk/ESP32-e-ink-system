@@ -110,6 +110,9 @@ jobs:
             # Copy into lib/EPD/ so "-I lib/EPD" makes #include "Fonts/fonts.h" resolvable.
             cp -r "$FONTS_DIR" lib/EPD/Fonts
             # Mirror into src/ as well for any header resolved via "-I lib/EPD/src".
+            # The Elecrow EPD library puts files directly in its root (no src/ subdir),
+            # so we must create the directory before copying.
+            mkdir -p lib/EPD/src
             cp -r "$FONTS_DIR" lib/EPD/src/Fonts
             echo "Copied Fonts from: $FONTS_DIR"
           fi
