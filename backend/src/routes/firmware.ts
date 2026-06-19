@@ -150,7 +150,8 @@ router.get(
         res.status(503).json({ error: 'Firmware release not currently available. Try again later.' });
         return;
       }
-      res.json(buildManifestFromRelease(ghRelease));
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      res.json(buildManifestFromRelease(ghRelease, baseUrl));
     } catch (err) {
       next(err);
     }
@@ -174,7 +175,8 @@ router.get(
         return;
       }
       if (ghRelease) {
-        res.json(buildManifestFromRelease(ghRelease));
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        res.json(buildManifestFromRelease(ghRelease, baseUrl));
         return;
       }
       const version = process.env.DEFAULT_FIRMWARE_VERSION ?? '1.0.0';

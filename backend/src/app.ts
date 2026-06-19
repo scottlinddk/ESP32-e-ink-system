@@ -85,14 +85,44 @@ app.use(
   express.static(firmwareBuildsDir)
 );
 
-// Public manifest for FlashPage: resolves GitHub release assets into a complete multi-part manifest.
-app.get('/firmware/manifest.json', async (_req: Request, res: Response, next: NextFunction) => {
+// Helper: fetch a GitHub release binary and stream it to the browser with CORS headers.
+// Falls through to the next handler (→ 404) when the URL cannot be resolved.
+async function proxyFirmwareBinary(
+  urlGetter: (r: NonNullable<Awaited<ReturnType<typeof fetchLatestFirmwareRelease>>>) => string | null | undefined,
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  let url: string | undefined;
+  try {
+    const release = await fetchLatestFirmwareRelease();
+    if (release) url = urlGetter(release) ?? undefined;
+  } catch { /* ignore */ }
+  if (!url) return next();
+  try {
+    const upstream = await fetch(url, { redirect: 'follow' });
+    if (!upstream.ok) return next();
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    const cl = upstream.headers.get('content-length');
+    if (cl) res.setHeader('Content-Length', cl);
+    Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]).pipe(res);
+  } catch {
+    next();
+  }
+}
+
+// Public manifest: generates proxy URLs pointing back to this server so esp-web-tools never
+// fetches GitHub assets directly (avoids CORS failures on GitHub's redirect chain).
+app.get('/firmware/manifest.json', async (req: Request, res: Response, next: NextFunction) => {
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
   try {
     const ghRelease = await fetchLatestFirmwareRelease();
     if (ghRelease) {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Content-Type', 'application/json');
-      res.json(buildManifestFromRelease(ghRelease));
+      res.json(buildManifestFromRelease(ghRelease, baseUrl));
       return;
     }
     const externalUrl = process.env.DEFAULT_FIRMWARE_URL?.trim();
@@ -110,28 +140,13 @@ app.get('/firmware/manifest.json', async (_req: Request, res: Response, next: Ne
   next();
 });
 
-// Proxy fallback: resolve the firmware URL dynamically from GitHub releases (preferred)
-// or fall back to DEFAULT_FIRMWARE_URL env var, then stream to the browser to avoid CORS issues.
-app.get('/firmware/default.bin', async (_req: Request, res: Response, next: NextFunction) => {
-  let url: string | undefined;
-  try {
-    const ghRelease = await fetchLatestFirmwareRelease();
-    url = ghRelease?.firmwareUrl;
-  } catch { /* ignore */ }
-  if (!url) url = process.env.DEFAULT_FIRMWARE_URL?.trim();
-  if (!url) return next();
-  try {
-    const upstream = await fetch(url, { redirect: 'follow' });
-    if (!upstream.ok) return next();
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'application/octet-stream');
-    const cl = upstream.headers.get('content-length');
-    if (cl) res.setHeader('Content-Length', cl);
-    Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]).pipe(res);
-  } catch {
-    next();
-  }
-});
+// Proxy routes for each firmware binary — browser fetches these instead of GitHub directly.
+app.get('/firmware/bootloader.bin',        (req, res, next) => proxyFirmwareBinary(r => r.bootloaderUrl,        req, res, next));
+app.get('/firmware/partitions.bin',        (req, res, next) => proxyFirmwareBinary(r => r.partitionsUrl,        req, res, next));
+app.get('/firmware/default.bin',           (req, res, next) => proxyFirmwareBinary(r => r.firmwareUrl,          req, res, next));
+app.get('/firmware/firmware-elecrow.bin',  (req, res, next) => proxyFirmwareBinary(r => r.firmwareElecrowUrl,   req, res, next));
+app.get('/firmware/bootloader-elecrow.bin',(req, res, next) => proxyFirmwareBinary(r => r.bootloaderElecrowUrl, req, res, next));
+app.get('/firmware/partitions-elecrow.bin',(req, res, next) => proxyFirmwareBinary(r => r.partitionsElecrowUrl, req, res, next));
 
 // Routes
 app.use('/health', healthRouter);
