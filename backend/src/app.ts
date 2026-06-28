@@ -79,13 +79,14 @@ app.use(
 );
 
 // Public manifest for FlashPage: resolves GitHub release assets into a complete multi-part manifest.
-app.get('/firmware/manifest.json', async (_req: Request, res: Response, next: NextFunction) => {
+// Binary paths are rewritten to same-origin proxy URLs to avoid CORS issues in the browser.
+app.get('/firmware/manifest.json', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const ghRelease = await fetchLatestFirmwareRelease();
     if (ghRelease) {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Content-Type', 'application/json');
-      res.json(buildManifestFromRelease(ghRelease));
+      res.json(buildManifestFromRelease(ghRelease, firmwareProxyBase(req)));
       return;
     }
     const externalUrl = process.env.DEFAULT_FIRMWARE_URL?.trim();
@@ -95,6 +96,7 @@ app.get('/firmware/manifest.json', async (_req: Request, res: Response, next: Ne
       res.setHeader('Content-Type', 'application/json');
       res.json({
         name: `ESP32 Display v${version}`,
+        new_install_prompt_erase: true,
         builds: [{ chipFamily: 'ESP32', parts: [{ path: externalUrl, offset: 65536 }] }],
       });
       return;
@@ -103,15 +105,38 @@ app.get('/firmware/manifest.json', async (_req: Request, res: Response, next: Ne
   next();
 });
 
-// Proxy fallback: resolve the firmware URL dynamically from GitHub releases (preferred)
-// or fall back to DEFAULT_FIRMWARE_URL env var, then stream to the browser to avoid CORS issues.
-app.get('/firmware/default.bin', async (_req: Request, res: Response, next: NextFunction) => {
-  let url: string | undefined;
+// Returns the public-facing base URL for this backend, including any reverse-proxy
+// path prefix (e.g. "/api" when served behind Vercel).  Set BACKEND_PUBLIC_BASE_URL
+// in the environment to the full public URL, e.g. "https://esp32.scottlind.dk/api".
+function firmwareProxyBase(req: Request): string {
+  return process.env.BACKEND_PUBLIC_BASE_URL?.trim()
+    || `${req.protocol}://${req.get('host')}`;
+}
+
+// Generic proxy: streams a named GitHub release binary to the browser.
+// This keeps binary fetches same-origin for esp-web-tools, avoiding CORS issues
+// with direct github.com / objects.githubusercontent.com URLs.
+async function proxyFirmwareBinary(
+  name: string,
+  fallbackEnvUrl: string | undefined,
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  const urlMap: Record<string, string | null | undefined> = {};
   try {
     const ghRelease = await fetchLatestFirmwareRelease();
-    url = ghRelease?.firmwareUrl;
+    if (ghRelease) {
+      urlMap['bootloader.bin'] = ghRelease.bootloaderUrl;
+      urlMap['partitions.bin'] = ghRelease.partitionsUrl;
+      urlMap['firmware.bin'] = ghRelease.firmwareUrl;
+      urlMap['bootloader-elecrow.bin'] = ghRelease.bootloaderElecrowUrl;
+      urlMap['partitions-elecrow.bin'] = ghRelease.partitionsElecrowUrl;
+      urlMap['firmware-elecrow.bin'] = ghRelease.firmwareElecrowUrl;
+    }
   } catch { /* ignore */ }
-  if (!url) url = process.env.DEFAULT_FIRMWARE_URL?.trim();
+
+  const url = urlMap[name] ?? fallbackEnvUrl;
   if (!url) return next();
   try {
     const upstream = await fetch(url, { redirect: 'follow' });
@@ -124,7 +149,19 @@ app.get('/firmware/default.bin', async (_req: Request, res: Response, next: Next
   } catch {
     next();
   }
-});
+}
+
+const defaultFirmwareUrl = () => process.env.DEFAULT_FIRMWARE_URL?.trim();
+
+// Proxy routes for all release binaries — same-origin for the browser, no CORS.
+app.get('/firmware/bootloader.bin',         (req, res, next) => proxyFirmwareBinary('bootloader.bin',         undefined,           req, res, next));
+app.get('/firmware/partitions.bin',         (req, res, next) => proxyFirmwareBinary('partitions.bin',         undefined,           req, res, next));
+app.get('/firmware/firmware.bin',           (req, res, next) => proxyFirmwareBinary('firmware.bin',           defaultFirmwareUrl(), req, res, next));
+app.get('/firmware/bootloader-elecrow.bin', (req, res, next) => proxyFirmwareBinary('bootloader-elecrow.bin', undefined,           req, res, next));
+app.get('/firmware/partitions-elecrow.bin', (req, res, next) => proxyFirmwareBinary('partitions-elecrow.bin', undefined,           req, res, next));
+app.get('/firmware/firmware-elecrow.bin',   (req, res, next) => proxyFirmwareBinary('firmware-elecrow.bin',   undefined,           req, res, next));
+// Keep /firmware/default.bin as a backward-compatible alias for firmware.bin.
+app.get('/firmware/default.bin',            (req, res, next) => proxyFirmwareBinary('firmware.bin',           defaultFirmwareUrl(), req, res, next));
 
 // Routes
 app.use('/health', healthRouter);

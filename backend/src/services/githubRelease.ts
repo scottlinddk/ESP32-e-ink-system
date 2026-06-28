@@ -80,11 +80,26 @@ export async function fetchLatestFirmwareRelease(): Promise<FirmwareRelease | nu
   };
 }
 
-export function buildManifestFromRelease(release: FirmwareRelease): object {
+/**
+ * Build an esp-web-tools manifest from a GitHub release.
+ *
+ * When proxyBase is provided (e.g. "https://example.com/api") binary paths
+ * are rewritten to same-origin proxy endpoints instead of direct GitHub CDN
+ * URLs.  This eliminates cross-origin fetch issues in the browser when
+ * esp-web-tools downloads the firmware parts.
+ *
+ * Set the BACKEND_PUBLIC_BASE_URL environment variable in production so the
+ * backend knows its own public-facing base URL (including any path prefix
+ * added by a reverse proxy, e.g. "/api").
+ */
+export function buildManifestFromRelease(release: FirmwareRelease, proxyBase?: string): object {
+  const bin = (ghUrl: string, name: string) =>
+    proxyBase ? `${proxyBase}/firmware/${name}` : ghUrl;
+
   const esp32Parts: Array<{ path: string; offset: number }> = [];
-  if (release.bootloaderUrl) esp32Parts.push({ path: release.bootloaderUrl, offset: 4096 });
-  if (release.partitionsUrl) esp32Parts.push({ path: release.partitionsUrl, offset: 32768 });
-  esp32Parts.push({ path: release.firmwareUrl, offset: 65536 });
+  if (release.bootloaderUrl) esp32Parts.push({ path: bin(release.bootloaderUrl, 'bootloader.bin'), offset: 4096 });
+  if (release.partitionsUrl) esp32Parts.push({ path: bin(release.partitionsUrl, 'partitions.bin'), offset: 32768 });
+  esp32Parts.push({ path: bin(release.firmwareUrl, 'firmware.bin'), offset: 65536 });
 
   const builds: Array<{ chipFamily: string; parts: Array<{ path: string; offset: number }> }> = [
     { chipFamily: 'ESP32', parts: esp32Parts },
@@ -92,11 +107,11 @@ export function buildManifestFromRelease(release: FirmwareRelease): object {
 
   if (release.firmwareElecrowUrl) {
     const esp32s3Parts: Array<{ path: string; offset: number }> = [];
-    if (release.bootloaderElecrowUrl) esp32s3Parts.push({ path: release.bootloaderElecrowUrl, offset: 0 });
-    if (release.partitionsElecrowUrl) esp32s3Parts.push({ path: release.partitionsElecrowUrl, offset: 32768 });
-    esp32s3Parts.push({ path: release.firmwareElecrowUrl, offset: 65536 });
+    if (release.bootloaderElecrowUrl) esp32s3Parts.push({ path: bin(release.bootloaderElecrowUrl, 'bootloader-elecrow.bin'), offset: 0 });
+    if (release.partitionsElecrowUrl) esp32s3Parts.push({ path: bin(release.partitionsElecrowUrl, 'partitions-elecrow.bin'), offset: 32768 });
+    esp32s3Parts.push({ path: bin(release.firmwareElecrowUrl, 'firmware-elecrow.bin'), offset: 65536 });
     builds.push({ chipFamily: 'ESP32-S3', parts: esp32s3Parts });
   }
 
-  return { name: `ESP32 Display v${release.version}`, builds };
+  return { name: `ESP32 Display v${release.version}`, new_install_prompt_erase: true, builds };
 }

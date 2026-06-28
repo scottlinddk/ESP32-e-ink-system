@@ -150,7 +150,9 @@ router.get(
         res.status(503).json({ error: 'Firmware release not currently available. Try again later.' });
         return;
       }
-      res.json(buildManifestFromRelease(ghRelease));
+      const proxyBase = process.env.BACKEND_PUBLIC_BASE_URL?.trim()
+        || `${req.protocol}://${req.get('host')}`;
+      res.json(buildManifestFromRelease(ghRelease, proxyBase));
     } catch (err) {
       next(err);
     }
@@ -173,15 +175,17 @@ router.get(
         res.status(404).json({ error: 'Default firmware binary not available. Set GITHUB_REPO, DEFAULT_FIRMWARE_URL, or build firmware/builds/default.bin.' });
         return;
       }
+      const proxyBase = process.env.BACKEND_PUBLIC_BASE_URL?.trim()
+        || `${req.protocol}://${req.get('host')}`;
       if (ghRelease) {
-        res.json(buildManifestFromRelease(ghRelease));
+        res.json(buildManifestFromRelease(ghRelease, proxyBase));
         return;
       }
       const version = process.env.DEFAULT_FIRMWARE_VERSION ?? '1.0.0';
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-      const binaryUrl = externalUrl || `${baseUrl}/firmware/default.bin`;
+      const binaryUrl = externalUrl || `${proxyBase}/firmware/default.bin`;
       res.json({
         name: `ESP32 Display v${version}`,
+        new_install_prompt_erase: true,
         builds: [{ chipFamily: 'ESP32', parts: [{ path: binaryUrl, offset: 65536 }] }],
       });
     } catch (err) {
