@@ -150,6 +150,12 @@ router.get(
         res.status(503).json({ error: 'Firmware release not currently available. Try again later.' });
         return;
       }
+      if (!ghRelease.firmwareElecrowUrl) {
+        // The current release is missing the ESP32-S3 build. Return 503 so the
+        // browser falls back to the static manifest (which pins a known-good release).
+        res.status(503).json({ error: 'ESP32-S3 firmware not available in current release.' });
+        return;
+      }
       const proxyBase = process.env.BACKEND_PUBLIC_BASE_URL?.trim()
         || `${req.protocol}://${req.get('host')}`;
       res.json(buildManifestFromRelease(ghRelease, proxyBase));

@@ -36,6 +36,11 @@ export function FlashPage() {
         const res = await fetch('/api/firmware/public-manifest');
         if (!res.ok) throw new Error('Not available');
         const manifest = await res.json();
+        // Only use the dynamic manifest if it covers ESP32-S3; otherwise the
+        // static fallback (which pins a known-good release with both chips) is safer.
+        const hasS3 = Array.isArray(manifest.builds) &&
+          manifest.builds.some((b: { chipFamily?: string }) => b.chipFamily === 'ESP32-S3');
+        if (!hasS3) throw new Error('ESP32-S3 build missing from dynamic manifest');
         if (cancelled) return;
         const url = URL.createObjectURL(
           new Blob([JSON.stringify(manifest)], { type: 'application/json' })
