@@ -78,7 +78,7 @@ export function DevicesPage() {
     mutationFn: async ({ name, id }: { name: string; id: string }) => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      return addDevice(token, id, name);
+      return addDevice(token, id, name); // id = ble_name e.g. "OD4A2B3C"
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['devices'] }); setDialog(null); app.toast({ type: 'success', title: t.devicePaired }); },
     onError: (err: Error) => { app.toast({ type: 'error', title: err.message }); },
@@ -174,14 +174,13 @@ export function DevicesPage() {
                   </div>
                   <div className="flex flex-wrap gap-y-1 gap-x-[18px] mt-1.5">
                     {[
-                      { label: t.deviceId, value: d.device_id, copy: true },
-                      { label: t.license, value: `••••••••${d.license_key.slice(-4)}`, copyVal: d.license_key },
+                      { label: t.deviceId, value: d.ble_name ?? d.device_id, copy: true },
                       { label: t.firmware, value: `v${d.firmware_version}` },
                       { label: t.lastSeen, value: fmtAgo(min, app.lang) },
                     ].map((kv) => (
                       <span key={kv.label} className="text-xs text-fg2 flex items-center gap-1.5 [&_b]:font-normal [&_b]:text-fg1 [&_b]:font-mono">
                         {kv.label} <b>{kv.value}</b>
-                        {(kv.copy || kv.copyVal) && <CopyField value={kv.copyVal ?? kv.value} />}
+                        {kv.copy && <CopyField value={kv.value} />}
                       </span>
                     ))}
                   </div>
@@ -221,8 +220,8 @@ export function DevicesPage() {
             <Input id="dn" value={form.name} placeholder={t.deviceNamePh} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </Field>
           {dialog && dialog.type === 'add' && (
-            <Field label={t.deviceId} htmlFor="di" helper={t.deviceIdHint}>
-              <Input id="di" mono value={form.id} placeholder={t.deviceIdPh} onChange={(e) => setForm({ ...form, id: e.target.value })} />
+            <Field label="BLE Name" htmlFor="di" helper="The Bluetooth name shown during pairing, e.g. OD4A2B3C">
+              <Input id="di" mono value={form.id} placeholder="OD4A2B3C" onChange={(e) => setForm({ ...form, id: e.target.value })} />
             </Field>
           )}
         </div>

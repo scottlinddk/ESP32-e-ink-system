@@ -162,13 +162,13 @@ export async function getDevices(token: string): Promise<{ devices: Device[] }> 
 
 export async function addDevice(
   token: string,
-  device_id: string,
+  ble_name: string,
   device_name: string
 ): Promise<{ device: Device }> {
   return request<{ device: Device }>('/api/devices', {
     method: 'POST',
     token,
-    body: JSON.stringify({ device_id, device_name }),
+    body: JSON.stringify({ device_id: ble_name, ble_name, device_name }),
   });
 }
 
@@ -237,6 +237,18 @@ export async function fetchPreviewBmp(token: string): Promise<string> {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const blob = await response.blob();
   return URL.createObjectURL(blob);
+}
+
+/**
+ * Fetches raw 1-bit pixel bytes (no BMP header) for OpenDisplay BLE direct write.
+ * 32 bytes/row × 122 rows = 3,904 bytes.
+ */
+export async function fetchPreviewRaw(token: string): Promise<Uint8Array> {
+  const response = await fetch(`${BASE_URL}/api/image/preview/raw`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return new Uint8Array(await response.arrayBuffer());
 }
 
 // ============================================================

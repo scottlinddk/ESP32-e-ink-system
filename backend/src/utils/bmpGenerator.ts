@@ -223,6 +223,13 @@ export class BmpCanvas {
 
     return buf;
   }
+
+  // Raw 1-bit pixel bytes without BMP header, for OpenDisplay BLE direct write.
+  // Format: MSB-first, 32 bytes/row × 122 rows = 3,904 bytes.
+  // Bit convention: 1=white, 0=black (matches SSD1680 and BMP convention).
+  toRawPixels(): Buffer {
+    return Buffer.from(this.pixels);
+  }
 }
 
 // ── Grid constants ───────────────────────────────────────────────────────────
@@ -455,36 +462,32 @@ function renderStatusWidget(
 
 // ── Main render entry point ───────────────────────────────────────────────────
 
-export function renderDisplayData(data: DisplayData, layout?: DisplayLayout | null): Buffer {
-  const canvas = new BmpCanvas();
+function populateCanvas(canvas: BmpCanvas, data: DisplayData, layout?: DisplayLayout | null): void {
   const effectiveLayout = layout ?? DEFAULT_LAYOUT;
-
   for (const widget of effectiveLayout.widgets) {
     const bounds = getWidgetBounds(widget);
     switch (widget.i) {
-      case 'energy':
-        renderEnergyWidget(canvas, bounds, data.price);
-        break;
-      case 'weather':
-        renderWeatherWidget(canvas, bounds, data.weather);
-        break;
-      case 'news':
-        renderNewsWidget(canvas, bounds, data.news);
-        break;
-      case 'monta':
-        renderMontaWidget(canvas, bounds, data.monta);
-        break;
-      case 'zaptec':
-        renderZaptecWidget(canvas, bounds, data.zaptec);
-        break;
-      case 'notion':
-        renderNotionWidget(canvas, bounds, data.notion);
-        break;
-      case 'status':
-        renderStatusWidget(canvas, bounds, data.nextRefresh);
-        break;
+      case 'energy':  renderEnergyWidget(canvas, bounds, data.price); break;
+      case 'weather': renderWeatherWidget(canvas, bounds, data.weather); break;
+      case 'news':    renderNewsWidget(canvas, bounds, data.news); break;
+      case 'monta':   renderMontaWidget(canvas, bounds, data.monta); break;
+      case 'zaptec':  renderZaptecWidget(canvas, bounds, data.zaptec); break;
+      case 'notion':  renderNotionWidget(canvas, bounds, data.notion); break;
+      case 'status':  renderStatusWidget(canvas, bounds, data.nextRefresh); break;
     }
   }
+}
 
+export function renderDisplayData(data: DisplayData, layout?: DisplayLayout | null): Buffer {
+  const canvas = new BmpCanvas();
+  populateCanvas(canvas, data, layout);
   return canvas.toBmp();
+}
+
+// Returns raw 1-bit pixel bytes (no BMP header) for OpenDisplay BLE direct write.
+// 32 bytes/row × 122 rows = 3,904 bytes. Bit convention: 1=white, 0=black.
+export function renderDisplayDataRaw(data: DisplayData, layout?: DisplayLayout | null): Buffer {
+  const canvas = new BmpCanvas();
+  populateCanvas(canvas, data, layout);
+  return canvas.toRawPixels();
 }

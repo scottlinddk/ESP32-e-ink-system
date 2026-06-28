@@ -156,7 +156,7 @@ export async function createDevice(
   userId: string,
   deviceId: string,
   deviceName: string,
-  licenseKey: string
+  bleName: string | null
 ): Promise<Device> {
   const db = getSupabaseClient();
   const { data, error } = await db
@@ -165,7 +165,7 @@ export async function createDevice(
       user_id: userId,
       device_id: deviceId,
       device_name: deviceName,
-      license_key: licenseKey,
+      ble_name: bleName,
       firmware_version: '1.0.0',
     })
     .select()
