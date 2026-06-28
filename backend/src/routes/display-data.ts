@@ -1,8 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { requireAuth } from '../middleware/auth';
 import {
-  getDeviceByLicenseKey,
-  updateDeviceLastSeen,
   getPreferences,
   getApiKeys,
   logApiUsage,
@@ -20,54 +18,6 @@ import { logger } from '../lib/logger';
 
 /**
  * @swagger
- * tags:
- *   - name: Display Data
- *     description: Aggregated data for e-ink display rendering
- *   - name: Billing
- *     description: Subscription and payment stubs
- *
- * /api/display-data/{userId}:
- *   get:
- *     summary: Get display data for an ESP32 device
- *     description: >
- *       Device-facing endpoint. Authenticated via `licenseKey` query parameter —
- *       no JWT is required. The ESP32 polls this endpoint on its configured refresh interval.
- *     tags: [Display Data]
- *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: Supabase user ID that owns the device
- *       - in: query
- *         name: licenseKey
- *         required: true
- *         schema:
- *           type: string
- *           example: DSPL-A1B2-C3D4-E5F6
- *         description: License key printed on the device registration
- *     responses:
- *       200:
- *         description: Aggregated display data
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/DisplayData'
- *       401:
- *         description: Missing or invalid license key
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       403:
- *         description: License key does not belong to this user
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *
  * /api/preview:
  *   get:
  *     summary: Preview display data for the authenticated user
@@ -229,60 +179,6 @@ async function buildDisplayData(
   await Promise.all(tasks);
   return result;
 }
-
-/**
- * GET /api/display-data/:userId
- * Device-facing endpoint — authenticated via licenseKey query param (no JWT required)
- */
-router.get(
-  '/:userId',
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { userId } = req.params as { userId: string };
-      const { licenseKey } = req.query as { licenseKey?: string };
-
-      if (!licenseKey) {
-        res.status(401).json({ error: 'licenseKey query parameter is required' });
-        return;
-      }
-
-      // Validate license key
-      const device = await getDeviceByLicenseKey(licenseKey);
-      if (!device) {
-        res.status(401).json({ error: 'Invalid license key' });
-        return;
-      }
-
-      if (device.user_id !== userId) {
-        res.status(403).json({ error: 'License key does not belong to this user' });
-        return;
-      }
-
-      // Update last seen timestamp (fire and forget)
-      updateDeviceLastSeen(device.id).catch((err: unknown) =>
-        logger.error({ err }, 'Failed to update device last_seen')
-      );
-
-      // Log usage (fire and forget)
-      logApiUsage(userId, '/api/display-data');
-
-      // Get preferences
-      const prefs = (await getPreferences(userId)) ?? DEFAULT_PREFS;
-
-      // Get API keys
-      const apiKeyRows = await getApiKeys(userId);
-      const apiKeyMap: Record<string, string> = {};
-      for (const row of apiKeyRows) {
-        apiKeyMap[row.provider] = row.api_key;
-      }
-
-      const data = await buildDisplayData(userId, prefs, apiKeyMap);
-      res.json(data);
-    } catch (err) {
-      next(err);
-    }
-  }
-);
 
 /**
  * GET /api/preview
