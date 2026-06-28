@@ -6,15 +6,15 @@
       "chipFamily": "ESP32",
       "parts": [
         {
-          "path": "https://github.com/scottlinddk/ESP32-e-ink-system/releases/download/dev-20260619-eb4db2b/bootloader.bin",
+          "path": "https://github.com/scottlinddk/ESP32-e-ink-system/releases/download/dev-20260628-7b5a5db/bootloader.bin",
           "offset": 4096
         },
         {
-          "path": "https://github.com/scottlinddk/ESP32-e-ink-system/releases/download/dev-20260619-eb4db2b/partitions.bin",
+          "path": "https://github.com/scottlinddk/ESP32-e-ink-system/releases/download/dev-20260628-7b5a5db/partitions.bin",
           "offset": 32768
         },
         {
-          "path": "https://github.com/scottlinddk/ESP32-e-ink-system/releases/download/dev-20260619-eb4db2b/firmware.bin",
+          "path": "https://github.com/scottlinddk/ESP32-e-ink-system/releases/download/dev-20260628-7b5a5db/firmware.bin",
           "offset": 65536
         }
       ]
@@ -23,15 +23,15 @@
       "chipFamily": "ESP32-S3",
       "parts": [
         {
-          "path": "https://github.com/scottlinddk/ESP32-e-ink-system/releases/download/dev-20260619-eb4db2b/bootloader-elecrow.bin",
+          "path": "https://github.com/scottlinddk/ESP32-e-ink-system/releases/download/dev-20260628-7b5a5db/bootloader-elecrow.bin",
           "offset": 0
         },
         {
-          "path": "https://github.com/scottlinddk/ESP32-e-ink-system/releases/download/dev-20260619-eb4db2b/partitions-elecrow.bin",
+          "path": "https://github.com/scottlinddk/ESP32-e-ink-system/releases/download/dev-20260628-7b5a5db/partitions-elecrow.bin",
           "offset": 32768
         },
         {
-          "path": "https://github.com/scottlinddk/ESP32-e-ink-system/releases/download/dev-20260619-eb4db2b/firmware-elecrow.bin",
+          "path": "https://github.com/scottlinddk/ESP32-e-ink-system/releases/download/dev-20260628-7b5a5db/firmware-elecrow.bin",
           "offset": 65536
         }
       ]
