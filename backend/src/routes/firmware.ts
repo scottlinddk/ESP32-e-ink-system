@@ -170,24 +170,15 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const ghRelease = await fetchLatestFirmwareRelease().catch(() => null);
-      const externalUrl = process.env.DEFAULT_FIRMWARE_URL?.trim();
-      if (!ghRelease && !externalUrl && !existsSync(DEFAULT_BIN)) {
-        res.status(404).json({ error: 'Default firmware binary not available. Set GITHUB_REPO, DEFAULT_FIRMWARE_URL, or build firmware/builds/default.bin.' });
+      if (!ghRelease) {
+        // Cannot produce a multi-chip manifest without the GitHub release — return
+        // 503 rather than an ESP32-only fallback that would reject ESP32-S3 devices.
+        res.status(503).json({ error: 'Firmware release not currently available. Try again later.' });
         return;
       }
       const proxyBase = process.env.BACKEND_PUBLIC_BASE_URL?.trim()
         || `${req.protocol}://${req.get('host')}`;
-      if (ghRelease) {
-        res.json(buildManifestFromRelease(ghRelease, proxyBase));
-        return;
-      }
-      const version = process.env.DEFAULT_FIRMWARE_VERSION ?? '1.0.0';
-      const binaryUrl = externalUrl || `${proxyBase}/firmware/default.bin`;
-      res.json({
-        name: `ESP32 Display v${version}`,
-        new_install_prompt_erase: true,
-        builds: [{ chipFamily: 'ESP32', parts: [{ path: binaryUrl, offset: 65536 }] }],
-      });
+      res.json(buildManifestFromRelease(ghRelease, proxyBase));
     } catch (err) {
       next(err);
     }
