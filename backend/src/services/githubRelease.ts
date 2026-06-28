@@ -83,18 +83,16 @@ export async function fetchLatestFirmwareRelease(): Promise<FirmwareRelease | nu
 /**
  * Build an esp-web-tools manifest from a GitHub release.
  *
- * When proxyBase is provided (e.g. "https://example.com/api") binary paths
- * are rewritten to same-origin proxy endpoints instead of direct GitHub CDN
- * URLs.  This eliminates cross-origin fetch issues in the browser when
- * esp-web-tools downloads the firmware parts.
- *
- * Set the BACKEND_PUBLIC_BASE_URL environment variable in production so the
- * backend knows its own public-facing base URL (including any path prefix
- * added by a reverse proxy, e.g. "/api").
+ * When proxyBase is provided binary paths are rewritten to /api/firmware/<name>
+ * so browsers download via the same-origin backend proxy instead of direct
+ * GitHub CDN URLs.  The absolute-path form (/api/…) works in both dev (Vite
+ * proxy rewrites /api → backend) and production (Vercel routes /api/* to the
+ * backend service), avoiding the BACKEND_PUBLIC_BASE_URL misconfiguration that
+ * caused downloads to land on the frontend instead of the backend.
  */
 export function buildManifestFromRelease(release: FirmwareRelease, proxyBase?: string): object {
   const bin = (ghUrl: string, name: string) =>
-    proxyBase ? `${proxyBase}/firmware/${name}` : ghUrl;
+    proxyBase ? `/api/firmware/${name}` : ghUrl;
 
   const esp32Parts: Array<{ path: string; offset: number }> = [];
   if (release.bootloaderUrl) esp32Parts.push({ path: bin(release.bootloaderUrl, 'bootloader.bin'), offset: 4096 });
