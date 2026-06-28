@@ -127,12 +127,12 @@ export interface UsageData {
   deviceLimit: number;
 }
 
-// Legacy Device type kept for existing hooks
 export interface Device {
   id: string;
   device_id: string;
   device_name: string;
-  license_key: string;
+  ble_name: string | null;
+  license_key: string | null;
   firmware_version: string;
   last_seen_at: string | null;
 }

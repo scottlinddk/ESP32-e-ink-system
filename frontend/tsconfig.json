@@ -18,7 +18,7 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["vite/client"],
+    "types": ["vite/client", "web-bluetooth"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]

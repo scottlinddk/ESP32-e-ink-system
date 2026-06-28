@@ -1,18 +1,15 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createClerkClient } from '@clerk/backend';
 import {
-  getDeviceByLicenseKey,
-  updateDeviceLastSeen,
   getPreferences,
   getApiKeys,
-  logApiUsage,
   upsertUser,
 } from '../services/database';
 import { fetchEnergyPrice } from '../services/energinet';
 import { fetchWeather } from '../services/weather';
 import { fetchNews } from '../services/news';
-import { renderDisplayData } from '../utils/bmpGenerator';
-import { DisplayData, UserPreferences, DisplayImageResponse, WeatherData } from '../types/index';
+import { renderDisplayData, renderDisplayDataRaw } from '../utils/bmpGenerator';
+import { DisplayData, UserPreferences, WeatherData } from '../types/index';
 import { requireAuth } from '../middleware/auth';
 import { logger } from '../lib/logger';
 
@@ -125,41 +122,6 @@ const DEFAULT_PREFS: UserPreferences = {
   zaptec_fields: ['charger_status', 'active_session'],
 };
 
-async function buildDisplayData(
-  prefs: UserPreferences,
-  apiKeyMap: Record<string, string>
-): Promise<DisplayData> {
-  const result: DisplayData = { nextRefresh: prefs.refresh_interval_minutes * 60 * 1000 };
-  const tasks: Promise<void>[] = [];
-
-  if (prefs.show_energy_price) {
-    tasks.push(
-      fetchEnergyPrice(prefs.energy_price_location)
-        .then((price) => { result.price = price; })
-        .catch((err: unknown) => { logger.error({ err }, 'Energy price fetch failed'); })
-    );
-  }
-
-  if (prefs.show_weather) {
-    tasks.push(
-      fetchWeather(prefs.weather_location, apiKeyMap['openweathermap'])
-        .then((weather) => { result.weather = weather; })
-        .catch((err: unknown) => { logger.error({ err }, 'Weather fetch failed'); })
-    );
-  }
-
-  if (prefs.show_news) {
-    tasks.push(
-      fetchNews(prefs.news_language, apiKeyMap['newsapi'])
-        .then((news) => { result.news = news; })
-        .catch((err: unknown) => { logger.error({ err }, 'News fetch failed'); })
-    );
-  }
-
-  await Promise.all(tasks);
-  return result;
-}
-
 // Preview variant: uses mock data for any source that fails (e.g. missing API key),
 // so the dashboard layout editor always shows realistic content.
 async function buildDisplayDataForPreview(
@@ -197,29 +159,6 @@ async function buildDisplayDataForPreview(
   return result;
 }
 
-async function resolveDevice(req: Request, res: Response, userId: string) {
-  const licenseKey =
-    (req.header('X-License-Key') ?? req.query.licenseKey) as string | undefined;
-
-  if (!licenseKey) {
-    res.status(401).json({ error: 'X-License-Key header or licenseKey query param required' });
-    return null;
-  }
-
-  const device = await getDeviceByLicenseKey(licenseKey);
-  if (!device) {
-    res.status(401).json({ error: 'Invalid license key' });
-    return null;
-  }
-
-  if (device.user_id !== userId) {
-    res.status(403).json({ error: 'License key does not belong to this user' });
-    return null;
-  }
-
-  return device;
-}
-
 /**
  * GET /api/image/preview
  * JWT-protected preview for the dashboard — returns a 1-bit BMP for the
@@ -247,6 +186,47 @@ async function resolveDevice(req: Request, res: Response, userId: string) {
  *       401:
  *         description: Unauthorized
  */
+/**
+ * GET /api/image/preview/raw
+ * Returns raw 1-bit pixel bytes (no BMP header) for OpenDisplay BLE direct write.
+ * 32 bytes/row × 122 rows = 3,904 bytes. Bit convention: 1=white, 0=black.
+ * Requires Clerk JWT Bearer token.
+ */
+router.get(
+  '/preview/raw',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const clerkUserId = req.clerkUserId!;
+      const secretKey = process.env.CLERK_SECRET_KEY;
+      if (!secretKey) { res.status(500).json({ error: 'Server misconfiguration' }); return; }
+
+      const clerk = createClerkClient({ secretKey });
+      const clerkUser = await clerk.users.getUser(clerkUserId);
+      const email =
+        clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId)
+          ?.emailAddress ?? clerkUser.emailAddresses[0]?.emailAddress;
+      if (!email) { res.status(400).json({ error: 'No email on Clerk user' }); return; }
+
+      const user = await upsertUser(email);
+      const prefs = (await getPreferences(user.id)) ?? DEFAULT_PREFS;
+      const apiKeyRows = await getApiKeys(user.id);
+      const apiKeyMap: Record<string, string> = {};
+      for (const row of apiKeyRows) apiKeyMap[row.provider] = row.api_key;
+
+      const displayData = await buildDisplayDataForPreview(prefs, apiKeyMap);
+      const rawBuf = renderDisplayDataRaw(displayData, prefs.layout ?? null);
+
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Length', rawBuf.length);
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(rawBuf);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 router.get(
   '/preview',
   requireAuth,
@@ -272,7 +252,6 @@ router.get(
       }
 
       const user = await upsertUser(email);
-      logApiUsage(user.id, '/api/image/preview');
 
       const prefs = (await getPreferences(user.id)) ?? DEFAULT_PREFS;
       const apiKeyRows = await getApiKeys(user.id);
@@ -282,77 +261,6 @@ router.get(
       }
 
       const displayData = await buildDisplayDataForPreview(prefs, apiKeyMap);
-      const bmpBuffer = renderDisplayData(displayData, prefs.layout ?? null);
-
-      res.setHeader('Content-Type', 'image/bmp');
-      res.setHeader('Content-Length', bmpBuffer.length);
-      res.setHeader('Cache-Control', 'no-store');
-      res.send(bmpBuffer);
-    } catch (err) {
-      next(err);
-    }
-  }
-);
-
-/**
- * GET /api/image/:userId
- * TRMNL-style JSON response with image_url and refresh_rate
- */
-router.get(
-  '/:userId',
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { userId } = req.params as { userId: string };
-      const device = await resolveDevice(req, res, userId);
-      if (!device) return;
-
-      const licenseKey =
-        (req.header('X-License-Key') ?? req.query.licenseKey) as string;
-      const prefs = (await getPreferences(userId)) ?? DEFAULT_PREFS;
-
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-      const imageUrl = `${baseUrl}/api/image/${encodeURIComponent(userId)}/bmp?licenseKey=${encodeURIComponent(licenseKey)}`;
-
-      const body: DisplayImageResponse = {
-        image_url: imageUrl,
-        filename: 'display.bmp',
-        refresh_rate: prefs.refresh_interval_minutes * 60,
-        status: 0,
-      };
-
-      res.json(body);
-    } catch (err) {
-      next(err);
-    }
-  }
-);
-
-/**
- * GET /api/image/:userId/bmp
- * Returns the raw 1-bit BMP binary
- */
-router.get(
-  '/:userId/bmp',
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { userId } = req.params as { userId: string };
-      const device = await resolveDevice(req, res, userId);
-      if (!device) return;
-
-      // Fire-and-forget bookkeeping
-      updateDeviceLastSeen(device.id).catch((err: unknown) =>
-        logger.error({ err }, 'Failed to update device last_seen')
-      );
-      logApiUsage(userId, '/api/image/bmp');
-
-      const prefs = (await getPreferences(userId)) ?? DEFAULT_PREFS;
-      const apiKeyRows = await getApiKeys(userId);
-      const apiKeyMap: Record<string, string> = {};
-      for (const row of apiKeyRows) {
-        apiKeyMap[row.provider] = row.api_key;
-      }
-
-      const displayData = await buildDisplayData(prefs, apiKeyMap);
       const bmpBuffer = renderDisplayData(displayData, prefs.layout ?? null);
 
       res.setHeader('Content-Type', 'image/bmp');

@@ -13,7 +13,8 @@ import { Icon } from '../ui/Logo';
 import { EInk } from '../eink/EInk';
 import type { SourceId } from '../eink/EInk';
 import { einkContent } from '../../lib/mockData';
-import { fetchPreviewBmp, getEvCredentialStatus } from '../../lib/api';
+import { fetchPreviewBmp, fetchPreviewRaw, getEvCredentialStatus } from '../../lib/api';
+import { bleImagePush } from '../../lib/bleImagePush';
 
 const EINK_W = 250;
 
@@ -80,6 +81,8 @@ export function PreviewCard() {
   const [idealBmpSrc, setIdealBmpSrc] = useState<string | null>(null);
   const [idealLoading, setIdealLoading] = useState(false);
   const [idealError, setIdealError] = useState<string | null>(null);
+  const [pushState, setPushState] = useState<'idle' | 'fetching' | 'pushing' | 'done' | 'error'>('idle');
+  const [pushProgress, setPushProgress] = useState(0);
   const prevBmpSrc = useRef<string | null>(null);
 
   const { data: montaCred } = useQuery({
@@ -135,6 +138,26 @@ export function PreviewCard() {
     setState('ok');
     setRefreshToken((x) => x + 1);
     setCountdown(30);
+  }
+
+  async function pushToDisplay() {
+    const token = await getToken();
+    if (!token) return;
+    try {
+      setPushState('fetching');
+      const pixels = await fetchPreviewRaw(token);
+      setPushState('pushing');
+      await bleImagePush({
+        pixels,
+        onProgress: ({ sent, total }) => setPushProgress(Math.round((sent / total) * 100)),
+      });
+      setPushState('done');
+      setTimeout(() => setPushState('idle'), 3000);
+    } catch (err) {
+      console.error('BLE push failed:', err);
+      setPushState('error');
+      setTimeout(() => setPushState('idle'), 4000);
+    }
   }
 
   useEffect(() => {
@@ -318,6 +341,20 @@ export function PreviewCard() {
               disabled={state === 'loading'}
             >
               {t.refreshNow}
+            </Button>
+            <Button
+              variant="outlined"
+              size="sm"
+              icon={pushState === 'done' ? 'check' : pushState === 'error' ? 'error' : 'bluetooth'}
+              onClick={pushToDisplay}
+              disabled={pushState === 'fetching' || pushState === 'pushing'}
+              loading={pushState === 'fetching' || pushState === 'pushing'}
+            >
+              {pushState === 'fetching' ? 'Fetching…'
+                : pushState === 'pushing' ? `${pushProgress}%`
+                : pushState === 'done' ? 'Sent!'
+                : pushState === 'error' ? 'Failed'
+                : 'Push to Display'}
             </Button>
           </div>
         </div>
