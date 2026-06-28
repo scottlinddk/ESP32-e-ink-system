@@ -113,7 +113,8 @@ export interface Device {
   user_id: string;
   device_id: string;
   device_name: string;
-  license_key: string;
+  license_key: string | null;
+  ble_name: string | null;
   firmware_version: string;
   last_seen_at: string | null;
 }

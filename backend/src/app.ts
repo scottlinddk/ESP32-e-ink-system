@@ -58,16 +58,9 @@ const displayLimiter = createRateLimiter(
   'Rate limit exceeded for display data endpoint.',
   'display-data'
 );
-const pairingLimiter = createRateLimiter(
-  10, '1 m',
-  'Too many pairing requests, please try again later.',
-  'device-pair'
-);
 
 app.use('/', globalLimiter);
-app.use('/display-data', displayLimiter);
 app.use('/image', displayLimiter);
-app.use('/devices/pair', pairingLimiter);
 
 // Body parsing
 app.use(express.json({ limit: '10kb' }));
@@ -139,7 +132,6 @@ app.use('/auth', authRouter);
 app.use('/preferences', preferencesRouter);
 app.use('/devices', devicesRouter);
 app.use('/firmware', firmwareRouter);
-app.use('/display-data', displayDataRouter);
 app.use('/preview', displayDataRouter);
 app.use('/image', imageRouter);
 
