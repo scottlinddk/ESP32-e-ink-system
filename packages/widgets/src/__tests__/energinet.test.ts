@@ -1,29 +1,35 @@
-import { describe, it, expect, afterEach, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, beforeAll, afterAll, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { energinetPricesWidget } from '../widgets/energinet/index';
 
-const FAKE_RECORDS = Array.from({ length: 24 }, (_, i) => ({
-  HourDK: `2024-01-01T${String(i).padStart(2, '0')}:00:00`,
-  HourUTC: `2024-01-01T${String(i).padStart(2, '0')}:00:00`,
+const FAKE_RECORDS = Array.from({ length: 96 }, (_, i) => ({
+  TimeDK: new Date(Date.UTC(2026, 8, 26, 0, i * 15)).toISOString().slice(0, -1),
+  TimeUTC: new Date(Date.UTC(2026, 8, 25, 22, i * 15)).toISOString().slice(0, -1),
   PriceArea: 'DK2',
-  SpotPriceDKK: 500 + i * 10, // varies 500–730 DKK/MWh
-  SpotPriceEUR: 70 + i,
+  DayAheadPriceDKK: 500 + i * 10,
+  DayAheadPriceEUR: 70 + i,
 })).reverse(); // newest first
 
 const server = setupServer(
-  http.get('https://api.energidataservice.dk/dataset/Elspotprices', ({ request }) => {
+  http.get('https://api.energidataservice.dk/dataset/DayAheadPrices', ({ request }) => {
     const url = new URL(request.url);
-    const filter = JSON.parse(decodeURIComponent(url.searchParams.get('filter') ?? '{}')) as Record<string, string>;
+    const filter = JSON.parse(url.searchParams.get('filter') ?? '{}') as Record<string, string[]>;
+    expect(url.searchParams.get('start')).toBe('StartOfDay');
+    expect(url.searchParams.get('end')).toBe('StartOfDay+P1D');
     const records = FAKE_RECORDS.filter(
-      (r) => !filter.PriceArea || r.PriceArea === filter.PriceArea
+      (r) => !filter.PriceArea || filter.PriceArea.includes(r.PriceArea)
     );
-    return HttpResponse.json({ total: records.length, limit: 24, dataset: 'Elspotprices', records });
+    return HttpResponse.json({ total: records.length, limit: 100, dataset: 'DayAheadPrices', records });
   })
 );
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
-afterEach(() => server.resetHandlers());
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-09-26T10:07:00Z'));
+});
+afterEach(() => { server.resetHandlers(); vi.useRealTimers(); });
 afterAll(() => server.close());
 
 describe('energinetPricesWidget', () => {
@@ -38,15 +44,16 @@ describe('energinetPricesWidget', () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.data.nowOre).toBeGreaterThan(0);
-    expect(result.data.averageOre).toBeGreaterThan(0);
-    expect(['up', 'down', 'stable']).toContain(result.data.trend);
-    expect(result.data.hourlyPrices).toHaveLength(24);
+    expect(result.data.nowOre).toBe(98); // 12:00 Danish time, interval 48
+    expect(result.data.averageOre).toBe(97.5);
+    expect(result.data.trend).toBe('stable');
+    expect(result.data.hourlyPrices).toHaveLength(96);
+    expect(result.data.hourlyPrices[0].hourDK).toBe('2026-09-26T00:00:00.000');
   });
 
   it('fetch returns ok:false on API error', async () => {
     server.use(
-      http.get('https://api.energidataservice.dk/dataset/Elspotprices', () =>
+      http.get('https://api.energidataservice.dk/dataset/DayAheadPrices', () =>
         HttpResponse.json({ error: 'server error' }, { status: 500 })
       )
     );

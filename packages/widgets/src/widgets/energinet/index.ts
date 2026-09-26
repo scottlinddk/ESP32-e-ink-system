@@ -2,7 +2,11 @@ import { z } from 'zod';
 import type { Widget, PixelRegion, TypographyScale, RenderedWidget, WidgetResult } from '@esp32-eink/types';
 import type { EnergyPriceConfig, EnergyPriceData, EnergidataResponse } from './types';
 
-const ENERGINET_BASE_URL = 'https://api.energidataservice.dk/dataset/Elspotprices';
+const ENERGINET_BASE_URL = 'https://api.energidataservice.dk/dataset/DayAheadPrices';
+const INTERVAL_MS = 15 * 60 * 1000;
+const danishDate = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Copenhagen', year: 'numeric', month: '2-digit', day: '2-digit',
+});
 
 export const configSchema = z.object({
   priceArea: z.enum(['DK1', 'DK2']).default('DK2'),
@@ -13,34 +17,49 @@ function dkkMwhToOreKwh(dkkPerMwh: number): number {
 }
 
 async function fetchPrices(priceArea: string): Promise<EnergyPriceData> {
-  const filter = JSON.stringify({ PriceArea: priceArea });
-  const url = `${ENERGINET_BASE_URL}?limit=24&filter=${encodeURIComponent(filter)}&sort=HourDK%20desc`;
+  const params = new URLSearchParams({
+    start: 'StartOfDay', end: 'StartOfDay+P1D', limit: '100',
+    filter: JSON.stringify({ PriceArea: [priceArea] }), sort: 'TimeUTC asc',
+  });
+  const url = `${ENERGINET_BASE_URL}?${params}`;
 
-  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  const response = await fetch(url, {
+    headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000),
+  });
   if (!response.ok) {
     throw new Error(`Energinet API error: ${response.status} ${response.statusText}`);
   }
 
   const json = (await response.json()) as EnergidataResponse;
-  const records = json.records ?? [];
+  const now = Date.now();
+  const today = danishDate.format(now);
+  const records = (Array.isArray(json.records) ? json.records : [])
+    .filter((r) => r && r.PriceArea === priceArea
+      && typeof r.TimeUTC === 'string' && Number.isFinite(r.DayAheadPriceDKK))
+    .map((r) => ({
+      ...r,
+      start: Date.parse(/[zZ]|[+-]\d{2}:\d{2}$/.test(r.TimeUTC) ? r.TimeUTC : `${r.TimeUTC}Z`),
+    }))
+    .filter((r) => Number.isFinite(r.start) && danishDate.format(r.start) === today)
+    .sort((a, b) => a.start - b.start);
 
-  if (records.length === 0) {
-    throw new Error('No energy price data returned from Energinet');
+  const current = records.find((r) => r.start <= now && now < r.start + INTERVAL_MS);
+  if (!current) {
+    throw new Error('No energy price available for the current 15-minute interval');
   }
 
-  const nowOre = dkkMwhToOreKwh(records[0].SpotPriceDKK);
-  const averageOre =
-    Math.round(
-      (records.reduce((sum, r) => sum + dkkMwhToOreKwh(r.SpotPriceDKK), 0) / records.length) * 100
-    ) / 100;
+  const currentOre = current.DayAheadPriceDKK / 10;
+  const average = records.reduce((sum, r) => sum + r.DayAheadPriceDKK / 10, 0) / records.length;
+  const nowOre = dkkMwhToOreKwh(current.DayAheadPriceDKK);
+  const averageOre = Math.round(average * 100) / 100;
 
-  const diffPct = averageOre === 0 ? 0 : Math.abs((nowOre - averageOre) / averageOre);
   const trend: 'up' | 'down' | 'stable' =
-    diffPct < 0.05 ? 'stable' : nowOre > averageOre ? 'up' : 'down';
+    Math.abs(currentOre - average) <= Math.max(Math.abs(average) * 0.05, 0.01)
+      ? 'stable' : currentOre > average ? 'up' : 'down';
 
   const hourlyPrices = records.map((r) => ({
-    hourDK: r.HourDK,
-    priceOre: dkkMwhToOreKwh(r.SpotPriceDKK),
+    hourDK: r.TimeDK,
+    priceOre: dkkMwhToOreKwh(r.DayAheadPriceDKK),
   }));
 
   return { nowOre, averageOre, trend, hourlyPrices };
@@ -50,7 +69,7 @@ export const energinetPricesWidget: Widget<EnergyPriceConfig, EnergyPriceData> =
   meta: {
     id: 'energinet-prices',
     name: 'Danish Energy Prices',
-    description: 'Spot electricity prices from Energinet (Elspot), updated every 15 minutes.',
+    description: 'Danish day-ahead spot prices in 15-minute intervals, excluding taxes and tariffs.',
     category: 'energy',
   },
 

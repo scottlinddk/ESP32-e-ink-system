@@ -1,7 +1,8 @@
-import { DisplayData, DisplayLayout, WidgetLayout } from '../types/index';
+import { DisplayData, DisplayLayout, UserPreferences, WidgetLayout } from '../types/index';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
-// Each entry = 8 bytes, one byte per row, MSB = leftmost pixel
+// Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
+// Output pixels remain MSB-first, as required by BMP and the display protocol.
 const FONT8X8: readonly number[][] = [
   [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00], // 32 space
   [0x18,0x3C,0x3C,0x18,0x18,0x00,0x18,0x00], // 33 !
@@ -109,6 +110,7 @@ const ROW_STRIDE = Math.ceil(DISPLAY_WIDTH / 32) * 4; // = 32 bytes
 
 export class BmpCanvas {
   private pixels: Uint8Array;
+  private clip = { left: 0, top: 0, right: DISPLAY_WIDTH, bottom: DISPLAY_HEIGHT };
 
   constructor() {
     // 1 bit per pixel; initialise to all white (0xFF = all bits set = white)
@@ -116,13 +118,29 @@ export class BmpCanvas {
   }
 
   setPixel(x: number, y: number, black: boolean): void {
-    if (x < 0 || x >= DISPLAY_WIDTH || y < 0 || y >= DISPLAY_HEIGHT) return;
+    if (x < this.clip.left || x >= this.clip.right || y < this.clip.top || y >= this.clip.bottom) return;
     const byteIdx = y * ROW_STRIDE + Math.floor(x / 8);
     const bitMask = 0x80 >> (x % 8);
     if (black) {
       this.pixels[byteIdx] &= ~bitMask;
     } else {
       this.pixels[byteIdx] |= bitMask;
+    }
+  }
+
+  // Every drawing primitive uses setPixel, so a widget cannot paint over its neighbours.
+  withClip(bounds: WidgetBounds, draw: () => void): void {
+    const previous = this.clip;
+    this.clip = {
+      left: Math.max(previous.left, bounds.x),
+      top: Math.max(previous.top, bounds.y),
+      right: Math.min(previous.right, bounds.x + bounds.width),
+      bottom: Math.min(previous.bottom, bounds.y + bounds.height),
+    };
+    try {
+      if (this.clip.left < this.clip.right && this.clip.top < this.clip.bottom) draw();
+    } finally {
+      this.clip = previous;
     }
   }
 
@@ -144,7 +162,7 @@ export class BmpCanvas {
     for (let row = 0; row < 8; row++) {
       const byte = glyph[row];
       for (let col = 0; col < 8; col++) {
-        if (byte & (0x80 >> col)) this.setPixel(x + col, y + row, true);
+        if (byte & (1 << col)) this.setPixel(x + col, y + row, true);
       }
     }
   }
@@ -163,6 +181,7 @@ export class BmpCanvas {
   // Word-wrap text within a box; returns the y position after the last line
   drawWrappedText(text: string, x: number, y: number, w: number, lineH = 10): number {
     const maxChars = Math.floor(w / 8);
+    if (maxChars < 1 || y + 8 > this.clip.bottom) return y;
     const words = text.split(' ');
     let line = '';
     let cy = y;
@@ -175,13 +194,13 @@ export class BmpCanvas {
         if (line) {
           this.drawText(line, x, cy, w);
           cy += lineH;
-          if (cy + 8 > DISPLAY_HEIGHT) break;
+          if (cy + 8 > this.clip.bottom) break;
         }
         // word longer than line — truncate
         line = word.length > maxChars ? word.slice(0, maxChars) : word;
       }
     }
-    if (line && cy + 8 <= DISPLAY_HEIGHT) {
+    if (line && cy + 8 <= this.clip.bottom) {
       this.drawText(line, x, cy, w);
       cy += lineH;
     }
@@ -276,7 +295,7 @@ function renderEnergyWidget(
   price?: DisplayData['price']
 ): void {
   const { x, y, width, height } = bounds;
-  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  if (y > 0) canvas.drawHLine(x, y, width);
   const textY = y + 2;
   const maxW = width - 4;
   if (price) {
@@ -297,7 +316,7 @@ function renderWeatherWidget(
   weather?: DisplayData['weather']
 ): void {
   const { x, y, width, height } = bounds;
-  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  if (y > 0) canvas.drawHLine(x, y, width);
   const textY = y + 2;
   const maxW = width - 4;
   if (weather) {
@@ -316,8 +335,8 @@ function renderNewsWidget(
   bounds: WidgetBounds,
   news?: DisplayData['news']
 ): void {
-  const { x, y, width, height } = bounds;
-  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  const { x, y, width } = bounds;
+  if (y > 0) canvas.drawHLine(x, y, width);
   const textY = y + 2;
   const maxW = width - 4;
   if (news && news.length > 0) {
@@ -334,7 +353,7 @@ function renderMontaWidget(
   fields: string[] = ['charger_status', 'active_session']
 ): void {
   const { x, y, width, height } = bounds;
-  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  if (y > 0) canvas.drawHLine(x, y, width);
   const maxW = width - 4;
   let textY = y + 2;
 
@@ -375,10 +394,10 @@ function renderZaptecWidget(
   canvas: BmpCanvas,
   bounds: WidgetBounds,
   data?: DisplayData['zaptec'],
-  fields: string[] = ['charger_status', 'active_session']
+  fields: string[] = ['charger_status', 'active_session', 'installation_info']
 ): void {
   const { x, y, width, height } = bounds;
-  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  if (y > 0) canvas.drawHLine(x, y, width);
   const maxW = width - 4;
   let textY = y + 2;
 
@@ -387,7 +406,9 @@ function renderZaptecWidget(
     return;
   }
 
-  const title = data.installationName ? `Zaptec - ${data.installationName}` : 'Zaptec';
+  const title = fields.includes('installation_info') && data.installationName
+    ? `Zaptec - ${data.installationName}`
+    : 'Zaptec';
   canvas.drawText(title, x + 2, textY, maxW);
   textY += 10;
 
@@ -415,7 +436,7 @@ function renderNotionWidget(
   data?: DisplayData['notion']
 ): void {
   const { x, y, width, height } = bounds;
-  if (y > 0) canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  if (y > 0) canvas.drawHLine(x, y, width);
   const maxW = width - 4;
   let textY = y + 2;
 
@@ -452,7 +473,7 @@ function renderStatusWidget(
   nextRefresh: number
 ): void {
   const { x, y, width } = bounds;
-  canvas.drawHLine(0, y, DISPLAY_WIDTH);
+  canvas.drawHLine(x, y, width);
   const statusY = y + 2;
   const now = new Date();
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -462,32 +483,49 @@ function renderStatusWidget(
 
 // ── Main render entry point ───────────────────────────────────────────────────
 
-function populateCanvas(canvas: BmpCanvas, data: DisplayData, layout?: DisplayLayout | null): void {
+type RenderPreferences = Pick<UserPreferences, 'monta_fields' | 'zaptec_fields'>;
+
+function populateCanvas(
+  canvas: BmpCanvas,
+  data: DisplayData,
+  layout?: DisplayLayout | null,
+  preferences?: RenderPreferences
+): void {
   const effectiveLayout = layout ?? DEFAULT_LAYOUT;
   for (const widget of effectiveLayout.widgets) {
     const bounds = getWidgetBounds(widget);
-    switch (widget.i) {
-      case 'energy':  renderEnergyWidget(canvas, bounds, data.price); break;
-      case 'weather': renderWeatherWidget(canvas, bounds, data.weather); break;
-      case 'news':    renderNewsWidget(canvas, bounds, data.news); break;
-      case 'monta':   renderMontaWidget(canvas, bounds, data.monta); break;
-      case 'zaptec':  renderZaptecWidget(canvas, bounds, data.zaptec); break;
-      case 'notion':  renderNotionWidget(canvas, bounds, data.notion); break;
-      case 'status':  renderStatusWidget(canvas, bounds, data.nextRefresh); break;
-    }
+    canvas.withClip(bounds, () => {
+      switch (widget.i) {
+        case 'energy':  renderEnergyWidget(canvas, bounds, data.price); break;
+        case 'weather': renderWeatherWidget(canvas, bounds, data.weather); break;
+        case 'news':    renderNewsWidget(canvas, bounds, data.news); break;
+        case 'monta':   renderMontaWidget(canvas, bounds, data.monta, preferences?.monta_fields ?? undefined); break;
+        case 'zaptec':  renderZaptecWidget(canvas, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined); break;
+        case 'notion':  renderNotionWidget(canvas, bounds, data.notion); break;
+        case 'status':  renderStatusWidget(canvas, bounds, data.nextRefresh); break;
+      }
+    });
   }
 }
 
-export function renderDisplayData(data: DisplayData, layout?: DisplayLayout | null): Buffer {
+export function renderDisplayData(
+  data: DisplayData,
+  layout?: DisplayLayout | null,
+  preferences?: RenderPreferences
+): Buffer {
   const canvas = new BmpCanvas();
-  populateCanvas(canvas, data, layout);
+  populateCanvas(canvas, data, layout, preferences);
   return canvas.toBmp();
 }
 
 // Returns raw 1-bit pixel bytes (no BMP header) for OpenDisplay BLE direct write.
 // 32 bytes/row × 122 rows = 3,904 bytes. Bit convention: 1=white, 0=black.
-export function renderDisplayDataRaw(data: DisplayData, layout?: DisplayLayout | null): Buffer {
+export function renderDisplayDataRaw(
+  data: DisplayData,
+  layout?: DisplayLayout | null,
+  preferences?: RenderPreferences
+): Buffer {
   const canvas = new BmpCanvas();
-  populateCanvas(canvas, data, layout);
+  populateCanvas(canvas, data, layout, preferences);
   return canvas.toRawPixels();
 }

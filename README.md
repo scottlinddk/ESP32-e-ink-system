@@ -1,76 +1,83 @@
-# ESP32 Display SaaS
+# ESP32 E-Ink Home Display
 
-A web dashboard + API for connecting your ESP32 e-ink display to live energy prices, weather, and news headlines.
+A quiet, glanceable home dashboard for Danish electricity prices, weather, news, EV charging and Notion lists. Choose the information and layout in a web app, then send a monochrome image to an ESP32 e-ink display over Bluetooth.
 
-## Stack
+## How it works
 
-| Layer | Tech |
+1. Sign in and choose your data sources on the Dashboard.
+2. Add the API credentials required by your chosen sources.
+3. Arrange widgets in the layout editor and save. Its sample illustration is not a pixel-accurate draft preview; the Dashboard shows the actual saved display image.
+4. Use **Push to Display** to select a compatible OpenDisplay device and transfer a fresh image. Transfers are manual; refreshing the browser preview does not update the physical display.
+
+The JSON preview, BMP preview and Bluetooth payload share one live-data pipeline. Unavailable sources are shown as unavailable, without invented weather or headlines. Widget drawing is clipped to its assigned area so long content cannot overwrite neighboring widgets.
+
+The current image renderer and Bluetooth payload target **250 × 122 monochrome pixels** (3,904 raw bytes). The firmware folders also contain work for other boards, but flashing another board does not make this renderer adapt to its panel size.
+
+## Data sources
+
+| Source | Data | Credentials |
+|---|---|---|
+| Energinet | DK1/DK2 day-ahead spot electricity prices | None |
+| OpenWeatherMap | Temperature, conditions and wind | API key |
+| NewsAPI | Headlines | API key |
+| Monta | Charger status, active sessions and daily energy | Client ID and secret |
+| Zaptec | Charger status, active session and installation | Account credentials |
+| Notion | Database items | Integration token and database ID |
+
+Electricity uses Energinet's [DayAheadPrices dataset](https://www.energidataservice.dk/tso-electricity/DayAheadPrices). It selects the current **15-minute interval by UTC**, compares it with the average of available intervals for the Danish calendar day, and expires cached prices at the next interval boundary. Zero and negative prices are supported. Values are **spot prices, excluding VAT, taxes and grid/supplier tariffs**, not the final household electricity cost. The former Elspotprices feed contains historical hourly data only.
+
+## Development
+
+Requires Node.js 20+ and npm, a Supabase project and a Clerk application. Browser Bluetooth requires a supported browser and a secure context (HTTPS or localhost).
+
+Install from the repository root; this is an npm workspace:
+
+```sh
+npm ci
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+```
+
+On PowerShell, use `Copy-Item` in place of `cp` if preferred. Fill in Clerk and Supabase settings, plus a 64-character hexadecimal `ENCRYPTION_KEY`. Leave `VITE_API_BASE_URL` empty for local development: Vite proxies `/api/*` to the backend and removes the prefix.
+
+For a new database, apply all SQL files in `backend/src/db/migrations/` in filename order, including both `002_*.sql` files. Existing installations should apply only missing migrations; these files are not all safe to rerun.
+
+```sh
+npm run dev         # frontend http://localhost:5173; backend http://localhost:3001
+npm run typecheck   # all workspace TypeScript projects
+npm test           # backend, frontend Bluetooth, widgets and rendering tests
+npm run build      # frontend and backend production builds
+```
+
+Tests use mocked external services and do not require account credentials or hardware. The application-check workflow runs type checks, tests and builds for pull requests.
+
+## Structure
+
+| Directory | Purpose |
 |---|---|
-| Frontend | React 19, Vite, TypeScript, TanStack Query v5, shadcn/ui, Tailwind CSS 3, Clerk |
-| Backend | Node.js 20, Express, TypeScript, Supabase, Clerk |
-| Database | Supabase (PostgreSQL) |
-| Auth | Clerk |
-| Hardware | ESP32 + Waveshare 2.13" e-Paper |
+| `frontend/` | React 19, Vite, TanStack Query, Clerk, dashboard and browser Bluetooth |
+| `backend/` | Express API, Supabase persistence, source integrations, BMP/raw rendering |
+| `packages/widgets/` | Reusable widget definitions and provider adapters |
+| `packages/rendering/` | Layout and typography utilities |
+| `packages/types/` | Shared widget contracts |
+| `firmware/` | Legacy custom Wi-Fi firmware and board tooling |
+| `docs/` | Setup, API and hardware reference material |
 
-## Project Structure
+## API and hardware status
 
-```
-energy-display-saas/
-├── frontend/          React dashboard app
-├── backend/           Express API server
-└── docs/              Setup and reference docs
-```
+Browser-facing paths below include `/api`; direct requests to the local Express server omit that prefix.
 
-## Quick Start
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/health` | Public health check |
+| POST | `/api/auth/login` | Synchronize authenticated user |
+| GET / POST | `/api/preferences` | Read/save source preferences and layout |
+| GET | `/api/preview` | Live display data as JSON |
+| GET | `/api/image/preview` | Actual saved-layout BMP preview |
+| GET | `/api/image/preview/raw` | Raw pixels for Bluetooth transfer |
 
-### Prerequisites
-- Node.js 20+
-- Supabase project
-- Clerk application
+All listed endpoints except health require a Clerk bearer token.
 
-### Install & run
+The active dashboard flow uses OpenDisplay and Bluetooth. The bundled custom Wi-Fi firmware still calls legacy license-key pairing, image/data and status endpoints that the current backend no longer exposes. It is not an end-to-end alternative to the Bluetooth flow yet. See [the improvement notes](docs/PROJECT_DIRECTION.md) for remaining work and validation limits.
 
-```bash
-# Backend
-cd backend
-cp .env.example .env   # fill in your keys
-npm install
-npm run dev            # http://localhost:3001
-
-# Frontend
-cd frontend
-cp .env.example .env   # fill in your Clerk publishable key
-npm install
-npm run dev            # http://localhost:5173
-```
-
-### Database
-
-Run `backend/src/db/migrations/001_initial.sql` in your Supabase SQL editor.
-
-## API Endpoints
-
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| GET | `/health` | None | Health check |
-| POST | `/api/auth/login` | Clerk JWT | Sync user to DB |
-| GET | `/api/auth/user` | Clerk JWT | Get current user |
-| GET | `/api/preferences` | Clerk JWT | Get display preferences |
-| POST | `/api/preferences` | Clerk JWT | Update preferences |
-| GET | `/api/preferences/api-keys` | Clerk JWT | List stored API keys |
-| POST | `/api/preferences/api-keys` | Clerk JWT | Save API key |
-| GET | `/api/display-data/:userId` | License Key | Device data endpoint |
-| GET | `/api/preview` | Clerk JWT | Dashboard preview |
-
-## Data Sources
-
-- **Energy prices**: [Energinet](https://www.energidataservice.dk/) — free, no key required
-- **Weather**: [OpenWeatherMap](https://openweathermap.org/) — free tier, key required
-- **News**: [NewsAPI](https://newsapi.org/) — free developer tier, key required
-
-## Docs
-
-- [Setup Guide](docs/SETUP_TRACK_A.md) — local development setup
-- [Firmware Flashing](docs/FIRMWARE_FLASHING.md) — ESP32 hardware setup (PlatformIO + Arduino IDE)
-- [Elecrow Arduino IDE Setup](docs/ARDUINO_IDE_ELECROW_SETUP.md) — standalone guide for Elecrow CrowPanel using Arduino IDE
-- [API Reference](docs/API_REFERENCE.md) — full endpoint documentation
+Older [setup](docs/SETUP_TRACK_A.md), [API](docs/API_REFERENCE.md) and [flashing](docs/FIRMWARE_FLASHING.md) guides retain some legacy instructions; use the architecture and endpoint status above when they differ.

@@ -41,6 +41,16 @@ describe('fetchMontaData', () => {
     clearMontaCache();
   });
 
+  it('fetches newly selected fields immediately and shares equivalent field selections', async () => {
+    const credentials = { clientId: 'cid', clientSecret: 'csec' };
+    await fetchMontaData('field-user', credentials, ['charger_status']);
+    const data = await fetchMontaData('field-user', credentials, ['charger_status', 'active_session']);
+    expect(data.activeSessions).toHaveLength(1);
+    const calls = vi.mocked(fetch).mock.calls.length;
+    await fetchMontaData('field-user', credentials, ['active_session', 'charger_status']);
+    expect(fetch).toHaveBeenCalledTimes(calls);
+  });
+
   it('fetches token and charge points', async () => {
     const data = await fetchMontaData(
       'user1',

@@ -51,15 +51,24 @@ export interface NotionCredentials {
 
 export async function fetchNotionData(
   userId: string,
-  creds: NotionCredentials
+  creds: NotionCredentials,
+  signal: AbortSignal = AbortSignal.timeout(10_000)
 ): Promise<NotionData> {
+  signal.throwIfAborted();
   const cacheKey = `notion:${userId}`;
   const cached = cache.get(cacheKey);
   if (cached && isCacheValid(cached)) {
     return cached.data;
   }
 
-  const client = new Client({ auth: creds.token, notionVersion: '2025-09-03' });
+  const client = new Client({
+    auth: creds.token,
+    notionVersion: '2025-09-03',
+    timeoutMs: 10_000,
+    retry: false,
+    // Include body consumption in the source's cancellation window.
+    fetch: (url, init) => fetch(url, { ...init, signal }),
+  });
   const dbId = parseDatabaseId(creds.databaseId);
   const titleProp = creds.titleProperty ?? 'Name';
   const maxItems = creds.maxItems ?? 4;
@@ -84,6 +93,7 @@ export async function fetchNotionData(
     }));
 
   const result: NotionData = { rows };
+  signal.throwIfAborted();
   cache.set(cacheKey, { data: result, expiresAt: Date.now() + CACHE_TTL_MS });
   return result;
 }

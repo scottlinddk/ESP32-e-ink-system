@@ -33,7 +33,7 @@ export interface UserPreferences {
 
 export interface EnergyPrice {
   now: number; // øre/kWh
-  average: number;
+  average: number; // average of available intervals today, Europe/Copenhagen
   trend: 'up' | 'down' | 'stable';
 }
 
@@ -161,11 +161,11 @@ export interface CacheEntry<T> {
 
 // Energinet API types
 export interface EnergidataRecord {
-  HourDK: string;
-  HourUTC: string;
+  TimeDK: string;
+  TimeUTC: string;
   PriceArea: string;
-  SpotPriceDKK: number;
-  SpotPriceEUR: number;
+  DayAheadPriceDKK: number;
+  DayAheadPriceEUR: number;
 }
 
 export interface EnergidataResponse {

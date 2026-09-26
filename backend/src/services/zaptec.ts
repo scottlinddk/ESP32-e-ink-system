@@ -27,7 +27,7 @@ export const ZAPTEC_MODE: Record<number, string> = {
   6: 'completed',
 };
 
-async function getZaptecToken(credentials: ZaptecCredentials, cacheKey: string): Promise<string> {
+async function getZaptecToken(credentials: ZaptecCredentials, cacheKey: string, signal: AbortSignal): Promise<string> {
   const cached = tokenCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt - TOKEN_CACHE_BUFFER_MS) {
     return cached.token;
@@ -41,6 +41,7 @@ async function getZaptecToken(credentials: ZaptecCredentials, cacheKey: string):
   });
 
   const res = await fetch(`${ZAPTEC_BASE}/oauth/token`, {
+    signal,
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
@@ -53,6 +54,7 @@ async function getZaptecToken(credentials: ZaptecCredentials, cacheKey: string):
 
   const json = (await res.json()) as { access_token: string; expires_in: number };
   const expiresAt = Date.now() + json.expires_in * 1000;
+  signal.throwIfAborted();
   tokenCache.set(cacheKey, { token: json.access_token, expiresAt });
   return json.access_token;
 }
@@ -60,15 +62,18 @@ async function getZaptecToken(credentials: ZaptecCredentials, cacheKey: string):
 export async function fetchZaptecData(
   userId: string,
   credentials: ZaptecCredentials,
-  fields: string[]
+  fields: string[],
+  signal: AbortSignal = AbortSignal.timeout(10_000)
 ): Promise<ZaptecData> {
+  signal.throwIfAborted();
   const cacheKey = `zaptec:${userId}`;
-  const cached = dataCache.get(cacheKey);
+  const dataCacheKey = `${cacheKey}:${[...new Set(fields)].sort().join(',')}`;
+  const cached = dataCache.get(dataCacheKey);
   if (cached && Date.now() < cached.expiresAt) {
     return cached.data;
   }
 
-  const token = await getZaptecToken(credentials, cacheKey);
+  const token = await getZaptecToken(credentials, cacheKey, signal);
   const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
 
   const result: ZaptecData = { chargers: [], activeSession: null, installationName: null };
@@ -77,7 +82,7 @@ export async function fetchZaptecData(
 
   if (fields.includes('charger_status') || fields.includes('active_session')) {
     tasks.push(
-      fetch(`${ZAPTEC_BASE}/api/chargers`, { headers })
+      fetch(`${ZAPTEC_BASE}/api/chargers`, { headers, signal })
         .then(async (r) => {
           if (!r.ok) throw new Error(`Zaptec chargers: ${r.status}`);
           const json = (await r.json()) as {
@@ -94,7 +99,7 @@ export async function fetchZaptecData(
             const chargingCharger = (json.Data ?? []).find((c) => c.OperatingMode === 5);
             if (chargingCharger) {
               // Fetch charger state for session details
-              await fetch(`${ZAPTEC_BASE}/api/chargers/${chargingCharger.Id}/state`, { headers })
+              await fetch(`${ZAPTEC_BASE}/api/chargers/${chargingCharger.Id}/state`, { headers, signal })
                 .then(async (sr) => {
                   if (!sr.ok) return;
                   const state = (await sr.json()) as Array<{ StateId: number; ValueAsString: string }>;
@@ -119,7 +124,7 @@ export async function fetchZaptecData(
 
   if (fields.includes('installation_info')) {
     tasks.push(
-      fetch(`${ZAPTEC_BASE}/api/installations`, { headers })
+      fetch(`${ZAPTEC_BASE}/api/installations`, { headers, signal })
         .then(async (r) => {
           if (!r.ok) return;
           const json = (await r.json()) as { Data?: Array<{ Name: string }> };
@@ -130,13 +135,16 @@ export async function fetchZaptecData(
   }
 
   await Promise.all(tasks);
-  dataCache.set(cacheKey, { data: result, expiresAt: Date.now() + DATA_CACHE_TTL_MS });
+  signal.throwIfAborted();
+  dataCache.set(dataCacheKey, { data: result, expiresAt: Date.now() + DATA_CACHE_TTL_MS });
   return result;
 }
 
 export function clearZaptecCache(userId?: string): void {
   if (userId) {
-    dataCache.delete(`zaptec:${userId}`);
+    for (const key of dataCache.keys()) {
+      if (key.startsWith(`zaptec:${userId}:`)) dataCache.delete(key);
+    }
     tokenCache.delete(`zaptec:${userId}`);
   } else {
     dataCache.clear();

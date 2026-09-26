@@ -1,9 +1,9 @@
 export interface EnergidataRecord {
-  HourDK: string;
-  HourUTC: string;
+  TimeDK: string;
+  TimeUTC: string;
   PriceArea: string;
-  SpotPriceDKK: number;
-  SpotPriceEUR: number;
+  DayAheadPriceDKK: number;
+  DayAheadPriceEUR: number;
 }
 
 export interface EnergidataResponse {
@@ -14,12 +14,12 @@ export interface EnergidataResponse {
 }
 
 export interface EnergyPriceData {
-  /** Current hour spot price in øre/kWh */
+  /** Current 15-minute spot price in øre/kWh, excluding taxes and tariffs */
   nowOre: number;
-  /** 24-hour average in øre/kWh */
+  /** Average of today's available intervals in øre/kWh, Europe/Copenhagen */
   averageOre: number;
   trend: 'up' | 'down' | 'stable';
-  /** Hourly prices for the last 24 records (newest first) */
+  /** Legacy field name: today's 15-minute prices in chronological order */
   hourlyPrices: Array<{ hourDK: string; priceOre: number }>;
 }
 

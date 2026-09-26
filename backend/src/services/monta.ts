@@ -17,13 +17,14 @@ interface TokenCacheEntry {
 const tokenCache = new Map<string, TokenCacheEntry>();
 const dataCache = new Map<string, CacheEntry<MontaData>>();
 
-async function getMontaToken(credentials: MontaCredentials, cacheKey: string): Promise<string> {
+async function getMontaToken(credentials: MontaCredentials, cacheKey: string, signal: AbortSignal): Promise<string> {
   const cached = tokenCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt - TOKEN_CACHE_BUFFER_MS) {
     return cached.token;
   }
 
   const res = await fetch(`${MONTA_BASE}/auth/token`, {
+    signal,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({
@@ -40,6 +41,7 @@ async function getMontaToken(credentials: MontaCredentials, cacheKey: string): P
 
   const json = (await res.json()) as { access_token: string; expires_in: number };
   const expiresAt = Date.now() + json.expires_in * 1000;
+  signal.throwIfAborted();
   tokenCache.set(cacheKey, { token: json.access_token, expiresAt });
   return json.access_token;
 }
@@ -58,15 +60,18 @@ function normaliseMontaState(raw: string): string {
 export async function fetchMontaData(
   userId: string,
   credentials: MontaCredentials,
-  fields: string[]
+  fields: string[],
+  signal: AbortSignal = AbortSignal.timeout(10_000)
 ): Promise<MontaData> {
+  signal.throwIfAborted();
   const cacheKey = `monta:${userId}`;
-  const cached = dataCache.get(cacheKey);
+  const dataCacheKey = `${cacheKey}:${[...new Set(fields)].sort().join(',')}`;
+  const cached = dataCache.get(dataCacheKey);
   if (cached && Date.now() < cached.expiresAt) {
     return cached.data;
   }
 
-  const token = await getMontaToken(credentials, cacheKey);
+  const token = await getMontaToken(credentials, cacheKey, signal);
   const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
 
   const result: MontaData = { chargePoints: [], activeSessions: [], todayKwh: null };
@@ -75,7 +80,7 @@ export async function fetchMontaData(
 
   if (fields.includes('charger_status') || fields.includes('active_session')) {
     tasks.push(
-      fetch(`${MONTA_BASE}/v1/charge-points`, { headers })
+      fetch(`${MONTA_BASE}/v1/charge-points`, { headers, signal })
         .then(async (r) => {
           if (!r.ok) throw new Error(`Monta charge-points: ${r.status}`);
           const json = (await r.json()) as { data?: Array<{ id: string; state: string; name: string }> };
@@ -91,7 +96,7 @@ export async function fetchMontaData(
 
   if (fields.includes('active_session') || fields.includes('today_stats')) {
     tasks.push(
-      fetch(`${MONTA_BASE}/v1/charges?state=charging&limit=10`, { headers })
+      fetch(`${MONTA_BASE}/v1/charges?state=charging&limit=10`, { headers, signal })
         .then(async (r) => {
           if (!r.ok) throw new Error(`Monta charges: ${r.status}`);
           const json = (await r.json()) as {
@@ -123,7 +128,7 @@ export async function fetchMontaData(
     tasks.push(
       fetch(
         `${MONTA_BASE}/v1/charges?startedAfter=${today.toISOString()}&limit=100`,
-        { headers }
+        { headers, signal }
       )
         .then(async (r) => {
           if (!r.ok) return;
@@ -135,13 +140,16 @@ export async function fetchMontaData(
   }
 
   await Promise.all(tasks);
-  dataCache.set(cacheKey, { data: result, expiresAt: Date.now() + DATA_CACHE_TTL_MS });
+  signal.throwIfAborted();
+  dataCache.set(dataCacheKey, { data: result, expiresAt: Date.now() + DATA_CACHE_TTL_MS });
   return result;
 }
 
 export function clearMontaCache(userId?: string): void {
   if (userId) {
-    dataCache.delete(`monta:${userId}`);
+    for (const key of dataCache.keys()) {
+      if (key.startsWith(`monta:${userId}:`)) dataCache.delete(key);
+    }
     tokenCache.delete(`monta:${userId}`);
   } else {
     dataCache.clear();

@@ -1,5 +1,11 @@
 # API Reference
 
+> Some sections below describe the legacy Wi-Fi/license-key firmware. The current
+> dashboard uses authenticated `/api/preview`, `/api/image/preview` (BMP) and
+> `/api/image/preview/raw` (Bluetooth pixels). See the [README](../README.md#api-and-hardware-status)
+> for active endpoints and hardware limitations. Direct local Express requests
+> omit the `/api` prefix; the frontend development proxy adds that public prefix.
+
 Base URL: `https://api.yourdomain.com` (or `http://localhost:3001` for local dev)
 
 All authenticated endpoints require a Clerk JWT in the `Authorization: Bearer <token>` header.

@@ -1,20 +1,19 @@
 // =========================================================================
-// LayoutPreviewPane.tsx — debounced live BMP preview for the layout editor
+// LayoutPreviewPane.tsx — sample content illustration for the layout editor
 // =========================================================================
 import React, { useState } from 'react';
 import { DisplayLayout } from '../../types';
 import { Icon } from '../ui/Logo';
 import { EInk } from '../eink/EInk';
 import { einkContent } from '../../lib/mockData';
-import { STRINGS } from '../../lib/strings';
+import { useApp } from '../../lib/appContext';
 
 interface LayoutPreviewPaneProps {
   layout: DisplayLayout;
-  token: string | null;
-  debounceMs?: number;
 }
 
 export function LayoutPreviewPane({ layout }: LayoutPreviewPaneProps) {
+  const { t, lang } = useApp();
   const [refreshToken] = useState(0);
 
   const sources = {
@@ -30,14 +29,14 @@ export function LayoutPreviewPane({ layout }: LayoutPreviewPaneProps) {
       <EInk
         sources={sources}
         keys={{ weather: true, news: true, monta: true, zaptec: true }}
-        data={einkContent('en')}
-        lang="en"
-        strings={STRINGS['en']}
+        data={einkContent(lang)}
+        lang={lang}
+        strings={t}
         refreshToken={refreshToken}
         view="raw"
       />
       <p className="flex items-center gap-1 text-[11px] text-fg3 m-0 [&_.material-symbols-outlined]:text-[14px]">
-        <Icon name="info" /> Live preview — updates after each change
+        <Icon name="info" /> {t.layoutSampleNote}
       </p>
     </div>
   );

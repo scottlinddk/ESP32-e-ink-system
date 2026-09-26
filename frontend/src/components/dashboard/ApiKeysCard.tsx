@@ -54,6 +54,7 @@ function EvCredentialsSection({ provider }: EvCredentialsSectionProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: statusKey });
+      queryClient.invalidateQueries({ queryKey: ['preview'] });
       setOpen(false);
       app.toast({ type: 'success', title: t.evCredSaved, msg: t.evCredSavedMsg });
     },
@@ -68,6 +69,7 @@ function EvCredentialsSection({ provider }: EvCredentialsSectionProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: statusKey });
+      queryClient.invalidateQueries({ queryKey: ['preview'] });
       app.toast({ type: 'info', title: t.keyRemoved });
     },
   });
@@ -217,6 +219,7 @@ function NotionCredentialsSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: statusKey });
+      queryClient.invalidateQueries({ queryKey: ['preview'] });
       setOpen(false);
       app.toast({ type: 'success', title: t.evCredSaved, msg: t.evCredSavedMsg });
     },
@@ -231,6 +234,7 @@ function NotionCredentialsSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: statusKey });
+      queryClient.invalidateQueries({ queryKey: ['preview'] });
       app.toast({ type: 'info', title: t.keyRemoved });
     },
   });
@@ -359,6 +363,7 @@ export function ApiKeysCard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
+      queryClient.invalidateQueries({ queryKey: ['preview'] });
       setDialog(null);
       app.toast({ type: 'success', title: t.keySaved, msg: t.keySavedMsg });
     },
@@ -373,6 +378,7 @@ export function ApiKeysCard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
+      queryClient.invalidateQueries({ queryKey: ['preview'] });
       app.toast({ type: 'info', title: t.keyRemoved });
     },
     onError: (e: Error) => { app.toast({ type: 'error', title: e.message }); },
