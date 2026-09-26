@@ -28,8 +28,10 @@ function mapCondition(owmMain: string): string {
 
 export async function fetchWeather(
   location: string,
-  apiKey?: string
+  apiKey?: string,
+  signal: AbortSignal = AbortSignal.timeout(10_000)
 ): Promise<WeatherData> {
+  signal.throwIfAborted();
   const key = apiKey ?? process.env.OPENWEATHERMAP_API_KEY;
   if (!key) {
     throw new Error('No OpenWeatherMap API key available');
@@ -49,7 +51,7 @@ export async function fetchWeather(
 
   const url = `${OWM_BASE_URL}?lat=${encodeURIComponent(lat.trim())}&lon=${encodeURIComponent(lon.trim())}&appid=${encodeURIComponent(key)}&units=metric`;
 
-  const response = await fetch(url);
+  const response = await fetch(url, { signal });
 
   if (!response.ok) {
     const body = await response.text();
@@ -65,6 +67,7 @@ export async function fetchWeather(
     icon: json.weather[0]?.icon ?? '01d',
   };
 
+  signal.throwIfAborted();
   cache.set(cacheKey, { data: result, expiresAt: Date.now() + CACHE_TTL_MS });
 
   return result;

@@ -3,22 +3,26 @@
 // =========================================================================
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../lib/appContext';
 import { useAuth } from '../hooks/useAuth';
-import { DisplayLayout, DEFAULT_LAYOUT, WidgetLayout } from '../types';
+import { DisplayLayout, DEFAULT_LAYOUT } from '../types';
 import { saveLayout, getPreferences } from '../lib/api';
+import { findWidgetSpace } from '../lib/layoutPlacement';
 import { GridEditor, WIDGET_META } from '../components/layout/GridEditor';
 import { LayoutPreviewPane } from '../components/layout/LayoutPreviewPane';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { LoadBox } from '../components/ui/Spinner';
+import { Empty } from '../components/ui/Empty';
 import { Icon } from '../components/ui/Logo';
 
-const ALL_WIDGET_IDS = ['energy', 'weather', 'news'] as const;
+const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion'] as const;
 
 export function LayoutEditorPage() {
   const app = useApp();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { getToken } = useAuth();
   const t = app.t;
 
@@ -26,48 +30,59 @@ export function LayoutEditorPage() {
     energy:  { id: 'energy',  label: t.layoutWidgetEnergy,  icon: 'bolt' },
     weather: { id: 'weather', label: t.layoutWidgetWeather, icon: 'cloud' },
     news:    { id: 'news',    label: t.layoutWidgetNews,    icon: 'newspaper' },
+    monta:   { id: 'monta',   label: t.srcMonta,            icon: 'electric_car' },
+    zaptec:  { id: 'zaptec',  label: t.srcZaptec,           icon: 'electric_car' },
+    notion:  { id: 'notion',  label: t.srcNotion,           icon: 'auto_stories' },
     status:  { id: 'status',  label: t.layoutWidgetStatus,  icon: 'schedule' },
   };
 
   const [layout, setLayout] = useState<DisplayLayout>(DEFAULT_LAYOUT);
-  const [token, setToken] = useState<string | null>(null);
   const [loadingPrefs, setLoadingPrefs] = useState(true);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => { getToken().then(setToken); }, [getToken]);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
-    if (!token) return;
-    getPreferences(token)
-      .then(({ preferences }) => { setLayout(preferences.layout ?? DEFAULT_LAYOUT); })
-      .catch(() => setLayout(DEFAULT_LAYOUT))
-      .finally(() => setLoadingPrefs(false));
-  }, [token]);
+    let cancelled = false;
+    setLoadingPrefs(true);
+    setLoadError(false);
+    getToken().then(async (authToken) => {
+      if (!authToken) throw new Error('Not authenticated');
+      const { preferences } = await getPreferences(authToken);
+      if (cancelled) return;
+      setLayout(preferences.layout ?? DEFAULT_LAYOUT);
+    }).catch(() => {
+      if (!cancelled) setLoadError(true);
+    }).finally(() => {
+      if (!cancelled) setLoadingPrefs(false);
+    });
+    return () => { cancelled = true; };
+  }, [getToken, loadAttempt]);
 
   const activeWidgetIds = new Set(layout.widgets.map((w) => w.i));
   const availableWidgets = ALL_WIDGET_IDS.filter((id) => !activeWidgetIds.has(id));
+  const hasSpace = findWidgetSpace(layout) !== null;
 
   function handleRemoveWidget(widgetId: string) {
     setLayout((prev) => ({ ...prev, widgets: prev.widgets.filter((w) => w.i !== widgetId) }));
   }
 
   function handleAddWidget(widgetId: string) {
-    const occupiedRows = new Set(layout.widgets.flatMap((w) => {
-      const rows: number[] = [];
-      for (let r = w.y; r < w.y + w.h; r++) rows.push(r);
-      return rows;
-    }));
-    let freeRow = 0;
-    for (let r = 0; r < 5; r++) { if (!occupiedRows.has(r)) { freeRow = r; break; } }
-    const newWidget: WidgetLayout = { i: widgetId, x: 0, y: freeRow, w: 10, h: 1 };
-    setLayout((prev) => ({ ...prev, widgets: [...prev.widgets, newWidget] }));
+    setLayout((prev) => {
+      const space = findWidgetSpace(prev);
+      if (!space || prev.widgets.some((widget) => widget.i === widgetId)) return prev;
+      return { ...prev, widgets: [...prev.widgets, { i: widgetId, ...space }] };
+    });
   }
 
   async function handleSave() {
-    if (!token) return;
     setSaving(true);
     try {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
       await saveLayout(token, layout);
+      queryClient.invalidateQueries({ queryKey: ['preferences'] });
+      queryClient.invalidateQueries({ queryKey: ['preview'] });
       app.toast({ type: 'success', title: t.layoutSaved, msg: t.layoutSavedMsg });
       navigate('/dashboard');
     } catch {
@@ -81,6 +96,15 @@ export function LayoutEditorPage() {
     return (
       <div className="max-w-[1200px] mx-auto px-6 pt-6">
         <LoadBox text={t.loading} />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="max-w-[1200px] mx-auto px-6 pt-6">
+        <Empty icon="cloud_off" title={t.prefsError} text={t.previewErrorMsg}
+          action={<Button icon="refresh" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>{t.retry}</Button>} />
       </div>
     );
   }
@@ -126,13 +150,14 @@ export function LayoutEditorPage() {
 
         {/* Sidebar: preview + palette */}
         <div className="sticky top-20 max-[900px]:static flex flex-col gap-4">
-          <Card title={t.previewTitle} desc={t.previewSub}>
-            <LayoutPreviewPane layout={layout} token={token} />
+          <Card title={t.layoutSampleTitle}>
+            <LayoutPreviewPane layout={layout} />
           </Card>
 
           {availableWidgets.length > 0 && (
             <Card title={t.layoutAvailable}>
               <div className="flex flex-col gap-2">
+                {!hasSpace && <p className="text-xs text-fg2 m-0 mb-1">{t.layoutFull}</p>}
                 {availableWidgets.map((id) => {
                   const meta = widgetMeta[id];
                   return (
@@ -143,9 +168,11 @@ export function LayoutEditorPage() {
                       <Icon name={meta.icon} className="!text-[18px] text-fg2" />
                       <span className="flex-1 text-sm">{meta.label}</span>
                       <button
-                        className="w-7 h-7 rounded-full border border-accent bg-transparent cursor-pointer text-accent flex items-center justify-center [&_.material-symbols-outlined]:text-[16px] hover:bg-accent hover:text-fg-on transition-[background,color] duration-[150ms]"
+                        className="w-7 h-7 rounded-full border border-accent bg-transparent cursor-pointer text-accent flex items-center justify-center [&_.material-symbols-outlined]:text-[16px] hover:bg-accent hover:text-fg-on transition-[background,color] duration-[150ms] disabled:opacity-40 disabled:cursor-default"
                         onClick={() => handleAddWidget(id)}
-                        title={t.layoutAddWidget}
+                        disabled={!hasSpace}
+                        title={hasSpace ? t.layoutAddWidget : t.layoutFull}
+                        aria-label={`${t.layoutAddWidget}: ${meta.label}`}
                       >
                         <Icon name="add" />
                       </button>

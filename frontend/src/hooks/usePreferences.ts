@@ -69,6 +69,7 @@ export function useSaveApiKey() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: API_KEYS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ['preview'] });
     },
   });
 }

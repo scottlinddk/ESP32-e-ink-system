@@ -45,6 +45,16 @@ describe('fetchZaptecData', () => {
     clearZaptecCache();
   });
 
+  it('fetches newly selected fields immediately and shares equivalent field selections', async () => {
+    const credentials = { username: 'u@e.com', password: 'pw' };
+    await fetchZaptecData('field-user', credentials, ['charger_status']);
+    const data = await fetchZaptecData('field-user', credentials, ['charger_status', 'active_session']);
+    expect(data.activeSession?.energyDeliveredKwh).toBe(5.2);
+    const calls = vi.mocked(fetch).mock.calls.length;
+    await fetchZaptecData('field-user', credentials, ['active_session', 'charger_status']);
+    expect(fetch).toHaveBeenCalledTimes(calls);
+  });
+
   it('fetches chargers and maps operating modes', async () => {
     const data = await fetchZaptecData(
       'user1',
