@@ -1,44 +1,47 @@
-// =========================================================================
-// LayoutPreviewPane.tsx — sample content illustration for the layout editor
-// =========================================================================
-import React, { useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { DisplayLayout } from '../../types';
-import { Icon } from '../ui/Logo';
-import { EInk } from '../eink/EInk';
-import { einkContent } from '../../lib/mockData';
 import { useApp } from '../../lib/appContext';
+import { useAuth } from '../../hooks/useAuth';
+import { fetchDraftPreviewBmp } from '../../lib/api';
+import { createDraftPreview, EMPTY_DRAFT_PREVIEW, DraftPreviewState } from '../../lib/draftPreview';
+import { Button } from '../ui/button';
+import { Spinner } from '../ui/Spinner';
 
-interface LayoutPreviewPaneProps {
-  layout: DisplayLayout;
-}
+export function LayoutPreviewPane({ layout }: { layout: DisplayLayout }) {
+  const { t } = useApp();
+  const { getToken, user } = useAuth();
+  const [state, setState] = useState<DraftPreviewState>(EMPTY_DRAFT_PREVIEW);
+  const preview = useMemo(() => createDraftPreview(setState), []);
+  const layoutKey = JSON.stringify(layout);
 
-export function LayoutPreviewPane({ layout }: LayoutPreviewPaneProps) {
-  const { t, lang } = useApp();
-  const [refreshToken] = useState(0);
+  // An edited layout or changed account invalidates the image and in-flight work.
+  useLayoutEffect(() => { preview.reset(); }, [preview, layoutKey, user?.id]);
+  useEffect(() => () => preview.dispose(), [preview]);
 
-  const sources = {
-    energy: layout.widgets.some((w) => w.i === 'energy'),
-    weather: layout.widgets.some((w) => w.i === 'weather'),
-    news: layout.widgets.some((w) => w.i === 'news'),
-    monta: layout.widgets.some((w) => w.i === 'monta'),
-    zaptec: layout.widgets.some((w) => w.i === 'zaptec'),
-  };
+  function renderDraft() {
+    void preview.render(async (signal) => {
+      const token = await getToken();
+      signal.throwIfAborted();
+      if (!token) throw new Error(t.previewSignIn);
+      return fetchDraftPreviewBmp(token, layout, signal);
+    });
+  }
 
   return (
-    <div className="flex flex-col gap-2">
-      <EInk
-        sources={sources}
-        keys={{ weather: true, news: true, monta: true, zaptec: true }}
-        data={einkContent(lang)}
-        lang={lang}
-        strings={t}
-        refreshToken={refreshToken}
-        view="raw"
-      />
-      <p className="flex items-center gap-1 text-[11px] text-fg3 m-0 [&_.material-symbols-outlined]:text-[14px]">
-        <Icon name="info" /> {t.layoutSampleNote}
-      </p>
+    <div className="flex flex-col gap-3" aria-busy={state.status === 'loading'}>
+      <p className="text-xs text-fg2 m-0">{t.layoutPreviewNote}</p>
+      {state.imageUrl && (
+        <img src={state.imageUrl} alt={t.layoutPreviewAlt} className="w-full"
+          style={{ height: 'auto', imageRendering: 'pixelated' }} />
+      )}
+      {state.status === 'loading' && (
+        <div role="status" className="flex items-center gap-2 text-xs text-fg2"><Spinner />{t.previewLoading}</div>
+      )}
+      {state.status === 'idle' && <p className="text-xs text-fg3 m-0">{t.layoutPreviewReady}</p>}
+      {state.status === 'error' && <p role="alert" className="text-xs text-warning m-0">{t.previewError}: {state.error}</p>}
+      <Button variant="outlined" size="sm" icon="preview" onClick={renderDraft} disabled={state.status === 'loading'}>
+        {state.status === 'error' ? t.retry : t.layoutPreviewRender}
+      </Button>
     </div>
   );
 }
-
