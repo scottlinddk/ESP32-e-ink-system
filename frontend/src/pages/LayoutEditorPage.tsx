@@ -142,7 +142,7 @@ export function LayoutEditorPage() {
           </div>
           <div className="flex flex-col gap-0.5 mt-2 [&_.material-symbols-outlined]:text-[14px]">
             <p className="flex items-center gap-1 text-xs text-fg3 m-0">
-              <Icon name="info" /> Grid: 10 columns × 6 rows · 250×122 px display
+              <Icon name="info" /> Grid: 10 columns × 6 rows · size and orientation from saved display profile
             </p>
             <p className="flex items-center gap-1 text-xs text-fg3 m-0">
               <Icon name="drag_indicator" /> Drag the handle to move · drag the bottom-right corner to resize

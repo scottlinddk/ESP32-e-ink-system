@@ -1,3 +1,4 @@
+import { frameMetadata } from '../utils/displayProfile';
 import { Router, Request, Response, NextFunction } from 'express';
 import { createClerkClient } from '@clerk/backend';
 import {
@@ -108,6 +109,12 @@ router.get(
       const displayData = await buildDisplayData(user.id, prefs, apiKeyMap);
       const rawBuf = renderDisplayDataRaw(displayData, prefs.layout ?? null, prefs);
 
+      const meta = frameMetadata(prefs.display_profile);
+      res.setHeader('X-Display-Width', meta.width);
+      res.setHeader('X-Display-Height', meta.height);
+      res.setHeader('X-Display-Rotation', meta.rotation);
+      res.setHeader('X-Display-Encoding', meta.encoding);
+      res.setHeader('X-Display-Row-Bytes', meta.rowBytes);
       res.setHeader('Content-Type', 'application/octet-stream');
       res.setHeader('Content-Length', rawBuf.length);
       res.setHeader('Cache-Control', 'no-store');
