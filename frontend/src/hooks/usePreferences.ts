@@ -7,11 +7,11 @@ const PREFS_QUERY_KEY = ['preferences'] as const;
 const API_KEYS_QUERY_KEY = ['api-keys'] as const;
 
 export function usePreferences() {
-  const { getToken, isSignedIn } = useAuth();
+  const { getToken, isSignedIn, user } = useAuth();
 
   return useQuery({
-    queryKey: PREFS_QUERY_KEY,
-    enabled: isSignedIn,
+    queryKey: [...PREFS_QUERY_KEY, user?.id],
+    enabled: isSignedIn && !!user?.id,
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
@@ -23,18 +23,22 @@ export function usePreferences() {
 }
 
 export function useSavePreferences() {
-  const { getToken } = useAuth();
+  const { getToken, user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (prefs: Partial<UserPreferences>) => {
+      const ownerId = user?.id;
+      if (!ownerId) throw new Error('Not authenticated');
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
       const result = await savePreferences(token, prefs);
+      // Capture the owner before awaiting. A completion after account switching
+      // must never write the previous owner's data into the new owner's cache.
+      queryClient.setQueryData([...PREFS_QUERY_KEY, ownerId], result.preferences);
       return result.preferences;
     },
-    onSuccess: (updatedPrefs) => {
-      queryClient.setQueryData(PREFS_QUERY_KEY, updatedPrefs);
+    onSuccess: () => {
       // Invalidate preview data so it reflects new preferences
       queryClient.invalidateQueries({ queryKey: ['preview'] });
     },
@@ -42,11 +46,11 @@ export function useSavePreferences() {
 }
 
 export function useApiKeys() {
-  const { getToken, isSignedIn } = useAuth();
+  const { getToken, isSignedIn, user } = useAuth();
 
   return useQuery({
-    queryKey: API_KEYS_QUERY_KEY,
-    enabled: isSignedIn,
+    queryKey: [...API_KEYS_QUERY_KEY, user?.id],
+    enabled: isSignedIn && !!user?.id,
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');

@@ -1,3 +1,4 @@
+import { parseDisplayLayout } from '../utils/layoutValidation';
 import { describe, expect, it } from 'vitest';
 import { parseCustomContentUpdates, parseCustomImage, drawCustomImage } from '../utils/customContent';
 import { BmpCanvas, renderDisplayData, renderDisplayDataRaw } from '../utils/bmpGenerator';
@@ -84,3 +85,5 @@ describe('custom content rendering', () => {
     expect(renderDisplayDataRaw({ nextRefresh: 300000 }, layout).every((byte) => byte === 0xff)).toBe(true);
   });
 });
+
+it('accepts custom widgets in live draft layouts', () => { expect(parseDisplayLayout({ version:1,cols:10,rows:6,widgets:[{i:'custom-text',x:0,y:0,w:10,h:3},{i:'custom-image',x:0,y:3,w:10,h:3}] }).widgets).toHaveLength(2); });

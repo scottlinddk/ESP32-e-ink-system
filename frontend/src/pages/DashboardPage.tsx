@@ -1,9 +1,11 @@
+import { DisplayProfileCard } from '../components/dashboard/DisplayProfileCard';
 // =========================================================================
 // DashboardPage.tsx
 // =========================================================================
 import React, { useEffect } from 'react';
 import { useApp } from '../lib/appContext';
 import { usePreferences } from '../hooks/usePreferences';
+import { useAuth } from '../hooks/useAuth';
 import { DisplayCard } from '../components/dashboard/DisplayCard';
 import { ApiKeysCard } from '../components/dashboard/ApiKeysCard';
 import { PreviewCard } from '../components/dashboard/PreviewCard';
@@ -11,6 +13,12 @@ import { CustomContentCard } from '../components/dashboard/CustomContentCard';
 import { CustomWebhookCard } from '../components/dashboard/CustomWebhookCard';
 
 export function DashboardPage() {
+  const { user, isSignedIn } = useAuth();
+  // Remount forms and discard in-memory credentials on a Clerk account switch.
+  return isSignedIn && user ? <AccountDashboard key={user.id} /> : null;
+}
+
+function AccountDashboard() {
   const app = useApp();
   const t = app.t;
   const { data: serverPrefs, isLoading } = usePreferences();
@@ -59,6 +67,7 @@ export function DashboardPage() {
           <CustomContentCard />
           <CustomWebhookCard />
           <ApiKeysCard />
+          <DisplayProfileCard />
         </div>
         <div className="max-[1080px]:static max-[1080px]:order-first sticky top-[calc(64px+var(--space-5))]">
           <PreviewCard />

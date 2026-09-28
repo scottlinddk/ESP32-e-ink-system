@@ -9,7 +9,7 @@ import { Button } from '../ui/button';
 import { Field } from '../ui/Field';
 
 export function CustomWebhookCard() {
-  const { getToken, isSignedIn } = useAuth();
+  const { getToken, isSignedIn, user } = useAuth();
   const queryClient = useQueryClient();
   const preferences = usePreferences();
   const save = useSavePreferences();
@@ -21,7 +21,7 @@ export function CustomWebhookCard() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const status = useQuery({
-    queryKey: ['custom-webhook'], enabled: isSignedIn, refetchInterval: 60000,
+    queryKey: ['custom-webhook', user?.id], enabled: isSignedIn && !!user?.id, refetchInterval: 60000,
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');

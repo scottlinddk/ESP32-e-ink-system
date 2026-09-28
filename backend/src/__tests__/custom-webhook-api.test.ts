@@ -60,6 +60,7 @@ vi.mock('../services/database', () => ({
   }),
   getApiKeys: vi.fn().mockResolvedValue([]),
   upsertUser: vi.fn(async (email: string) => ({ id: email.split('@')[0] })),
+  getUserByEmail: vi.fn(async (email: string) => ({ id: email.split('@')[0] })),
   logApiUsage: vi.fn(), upsertApiKey: vi.fn(), deleteApiKey: vi.fn(),
 }));
 vi.mock('@clerk/backend', () => ({
@@ -155,6 +156,27 @@ describe('custom webhook authentication and persisted snapshots', () => {
     expect((await send('/custom-webhook/ingest', currentToken, 'POST', reading)).status).toBe(401);
     expect(state.records.get('alice')?.rows).toEqual([]);
     expect(state.writes.at(-1)?.filters).toEqual([['user_id', 'alice'], ['token_hash', hashWebhookToken(currentToken)]]);
+  });
+
+  it('accepts sensor widgets in draft layouts with a rotated display profile', async () => {
+    const token = await issue();
+    await send('/custom-webhook/ingest', token, 'POST', reading);
+    const prefs = state.preferences.get('alice')!;
+    prefs.display_profile = { width: 300, height: 200, rotation: 90, colorMode: 'bw' };
+    const draft = await send('/image/preview/draft', 'alice', 'POST', { layout: prefs.layout });
+    expect(draft.status).toBe(200);
+    const bmp = Buffer.from(await draft.arrayBuffer());
+    expect(bmp.readInt32LE(18)).toBe(300);
+    expect(Math.abs(bmp.readInt32LE(22))).toBe(200);
+    const rawResponse = await send('/image/preview/raw', 'alice');
+    expect(rawResponse.headers.get('x-display-rotation')).toBe('90');
+    const raw = Buffer.from(await rawResponse.arrayBuffer());
+    // BMP rows pad to four bytes; raw OpenDisplay rows only pad to one byte.
+    expect(raw.length).toBe(38 * 200);
+    for (let y = 0; y < 200; y++) {
+      expect(bmp.subarray(62 + y * 40, 62 + y * 40 + 38).equals(raw.subarray(y * 38, (y + 1) * 38))).toBe(true);
+    }
+    expect(bmp.subarray(62).some((byte) => byte !== 0xff)).toBe(true);
   });
 
   it('rejects wrong auth, malformed/oversized payloads and cross-owner fields', async () => {

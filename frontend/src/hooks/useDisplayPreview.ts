@@ -10,11 +10,11 @@ const PREVIEW_QUERY_KEY = ['preview'] as const;
  * Refreshes when preferences change (via queryClient.invalidateQueries).
  */
 export function useDisplayPreview(preferences?: UserPreferences | null) {
-  const { getToken, isSignedIn } = useAuth();
+  const { getToken, isSignedIn, user } = useAuth();
 
   return useQuery({
-    queryKey: [...PREVIEW_QUERY_KEY, preferences],
-    enabled: isSignedIn,
+    queryKey: [...PREVIEW_QUERY_KEY, user?.id, preferences],
+    enabled: isSignedIn && !!user?.id,
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');

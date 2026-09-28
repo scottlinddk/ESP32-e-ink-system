@@ -1,3 +1,4 @@
+import type { DisplayProfile } from '../utils/displayProfile';
 export interface WidgetLayout {
   i: string;       // 'energy' | 'weather' | 'news' | 'status'
   x: number;       // 0–9
@@ -17,6 +18,7 @@ export interface DisplayLayout {
 export interface UserPreferences {
   show_custom_webhook?: boolean;
   custom_webhook_ttl_minutes?: number;
+  display_profile?: DisplayProfile | null;
   show_custom_text?: boolean;
   custom_text?: string;
   show_custom_image?: boolean;
