@@ -9,6 +9,8 @@ A quiet, glanceable home dashboard for Danish electricity prices, weather, news,
 3. Arrange widgets in the layout editor and use **Preview layout** to render the unsaved arrangement with your saved data sources. Save when ready; the Dashboard shows the saved display image.
 4. Use **Push to Display** to select a compatible OpenDisplay device and transfer a fresh image. Transfers are manual; refreshing the browser preview does not update the physical display.
 
+Use **Layout templates** on the Dashboard to export settings, review a JSON import or apply a starter layout. Templates omit credentials and private feed URLs; see the [format and compatibility guide](docs/DISPLAY_TEMPLATES.md).
+
 The JSON preview, BMP preview and Bluetooth payload share one live-data pipeline. Unavailable sources are shown as unavailable, without invented weather or headlines. Widget drawing is clipped to its assigned area so long content cannot overwrite neighboring widgets.
 
 The image renderer supports validated monochrome panel sizes and clockwise rotation, defaulting to **250 × 122**. Choose native dimensions on the Dashboard. Bluetooth verifies the connected panel; current OpenDisplay direct-write firmware requires a byte-aligned width, so 250-pixel output is available as a BMP download rather than sent through that unsafe path. See [display profiles](docs/DISPLAY_PROFILES.md) and [the researched feature comparison](docs/PROJECT_COMPARISON_2026-09-28.md). A profile does not install a new board driver.
@@ -20,9 +22,14 @@ The image renderer supports validated monochrome panel sizes and clockwise rotat
 | Energinet | DK1/DK2 day-ahead spot electricity prices | None |
 | OpenWeatherMap | Temperature, conditions and wind | API key |
 | NewsAPI | Headlines | API key |
+| RSS / Atom | Headlines from a public HTTPS feed | None |
 | Monta | Charger status, active sessions and daily energy | Client ID and secret |
 | Zaptec | Charger status, active session and installation | Account credentials |
 | Notion | Database items | Integration token and database ID |
+
+For RSS/Atom, select **RSS / Atom** under News headlines, enter a public HTTPS feed URL and save. NewsAPI remains the default for existing accounts. The feed returns up to 1–10 headlines; the display draws as many as fit in the news widget. An empty feed shows “No headlines”; a failed feed shows “News: unavailable”. Apply `010_rss.sql` to existing databases before using these settings.
+
+Feed fetching accepts UTF-8 RSS 2.0 and Atom 1.0, including CDATA/HTML titles and relative links. Requests use public HTTPS on port 443, an 8-second total deadline, a 1 MiB response limit, and at most three redirects. DNS addresses are checked and pinned for each request. Local/private feeds, embedded credentials, compressed responses and XML document types are rejected. Feed URLs are ordinary preferences: use public feeds without secret tokens.
 
 Electricity uses Energinet's [DayAheadPrices dataset](https://www.energidataservice.dk/tso-electricity/DayAheadPrices). It selects the current **15-minute interval by UTC**, compares it with the average of available intervals for the Danish calendar day, and expires cached prices at the next interval boundary. Zero and negative prices are supported. Values are **spot prices, excluding VAT, taxes and grid/supplier tariffs**, not the final household electricity cost. The former Elspotprices feed contains historical hourly data only.
 

@@ -645,6 +645,9 @@ export type Database = {
           layout: Json | null
           monta_fields: Json | null
           news_language: string | null
+          news_source: string
+          news_feed_url: string
+          news_item_limit: number
           refresh_interval_minutes: number | null
           show_air_quality: boolean | null
           show_energy_price: boolean | null
@@ -672,6 +675,9 @@ export type Database = {
           layout?: Json | null
           monta_fields?: Json | null
           news_language?: string | null
+          news_source?: string
+          news_feed_url?: string
+          news_item_limit?: number
           refresh_interval_minutes?: number | null
           show_air_quality?: boolean | null
           show_energy_price?: boolean | null
@@ -699,6 +705,9 @@ export type Database = {
           layout?: Json | null
           monta_fields?: Json | null
           news_language?: string | null
+          news_source?: string
+          news_feed_url?: string
+          news_item_limit?: number
           refresh_interval_minutes?: number | null
           show_air_quality?: boolean | null
           show_energy_price?: boolean | null

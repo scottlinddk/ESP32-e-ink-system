@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import { DisplayCard } from '../components/dashboard/DisplayCard';
 import { ApiKeysCard } from '../components/dashboard/ApiKeysCard';
 import { PreviewCard } from '../components/dashboard/PreviewCard';
+import { TemplatesCard } from '../components/dashboard/TemplatesCard';
 import { CustomContentCard } from '../components/dashboard/CustomContentCard';
 import { CustomWebhookCard } from '../components/dashboard/CustomWebhookCard';
 
@@ -38,7 +39,9 @@ function AccountDashboard() {
       news: {
         on: serverPrefs.show_news,
         lang: serverPrefs.news_language || app.prefs.news.lang,
-        source: app.prefs.news.source,
+        source: serverPrefs.news_source ?? 'newsapi',
+        feedUrl: serverPrefs.news_feed_url ?? '',
+        itemLimit: serverPrefs.news_item_limit ?? 3,
       },
       monta: {
         on: serverPrefs.show_monta ?? false,
@@ -67,6 +70,7 @@ function AccountDashboard() {
           <CustomContentCard />
           <CustomWebhookCard />
           <ApiKeysCard />
+          <TemplatesCard />
           <DisplayProfileCard />
         </div>
         <div className="max-[1080px]:static max-[1080px]:order-first sticky top-[calc(64px+var(--space-5))]">
