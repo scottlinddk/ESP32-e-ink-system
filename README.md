@@ -76,9 +76,11 @@ Browser-facing paths below include `/api`; direct requests to the local Express 
 | GET | `/api/image/preview` | Actual saved-layout BMP preview |
 | POST | `/api/image/preview/draft` | Live BMP of a validated unsaved layout; body `{ "layout": ... }` |
 | GET | `/api/image/preview/raw` | Raw pixels for Bluetooth transfer |
+| GET / POST / DELETE | `/api/devices/:id/delivery` and `/delivery/token` | Owner-managed device credentials and reported status |
+| GET / POST | `/api/device-feed/:id/frame` and `/heartbeat` | Device-token frame delivery and telemetry |
 
-All listed endpoints except health require a Clerk bearer token.
+Browser endpoints require a Clerk bearer token; device-feed endpoints require the separately issued device token. Health is public.
 
-The active dashboard flow uses OpenDisplay and Bluetooth. The bundled custom Wi-Fi firmware still calls legacy license-key pairing, image/data and status endpoints that the current backend no longer exposes. It is not an end-to-end alternative to the Bluetooth flow yet. See [the improvement notes](docs/PROJECT_DIRECTION.md) for remaining work and validation limits.
+The dashboard supports OpenDisplay Bluetooth and an [unattended polling bridge](docs/DEVICE_DELIVERY.md) with per-device credentials, ETag/304, scheduled quiet periods and reported telemetry. The bridge can run an explicitly configured display driver; file-only mode never reports physical application. The bundled custom Wi-Fi firmware still calls legacy endpoints and does not implement this new protocol. See [the improvement notes](docs/PROJECT_DIRECTION.md) for remaining work and validation limits.
 
 Older [setup](docs/SETUP_TRACK_A.md), [API](docs/API_REFERENCE.md) and [flashing](docs/FIRMWARE_FLASHING.md) guides retain some legacy instructions; use the architecture and endpoint status above when they differ.

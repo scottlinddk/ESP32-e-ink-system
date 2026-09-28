@@ -15,6 +15,7 @@ import devicesRouter from './routes/devices';
 import displayDataRouter from './routes/display-data';
 import firmwareRouter from './routes/firmware';
 import imageRouter from './routes/image';
+import { feedRouter, managementRouter as deliveryManagementRouter } from './routes/deviceDelivery';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { swaggerSpec } from './swagger';
 
@@ -60,7 +61,9 @@ const displayLimiter = createRateLimiter(
   'display-data'
 );
 
-app.use('/', globalLimiter);
+// Authenticated devices have their own per-device budget so gateways sharing
+// one public IP do not spend the browser/dashboard request allowance.
+app.use((req, res, next) => req.path.startsWith('/device-feed/') ? next() : globalLimiter(req, res, next));
 app.use('/image', displayLimiter);
 
 // Body parsing
@@ -171,6 +174,8 @@ app.use('/health', healthRouter);
 app.use('/auth', authRouter);
 app.use('/preferences', preferencesRouter);
 app.use('/devices', devicesRouter);
+app.use('/devices', deliveryManagementRouter);
+app.use('/device-feed', feedRouter);
 app.use('/firmware', firmwareRouter);
 app.use('/preview', displayDataRouter);
 app.use('/image', imageRouter);

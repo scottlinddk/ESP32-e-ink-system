@@ -1,0 +1,72 @@
+# Unattended display delivery
+
+Apply `backend/src/db/migrations/015_device_delivery.sql` and configure the backend's Supabase **service role** key. The new `device_delivery` table has RLS enabled and denies `anon`/`authenticated` access; tokens and telemetry never become columns on the legacy `devices` table.
+
+In **Devices → Automatic updates**, create a token for the registered device. Copy it immediately: only its SHA-256 hash is stored. Creating another token invalidates the previous token; **Revoke token** stops future frame/heartbeat requests. Management endpoints require the owning Clerk account. Frame/heartbeat tokens cannot read preferences or manage other devices.
+
+## Reference bridge
+
+The dependency-free client requires Node.js 20+ and stays running between checks. Run it on a computer or gateway with access to the panel's display driver. It is separate from the legacy ESP32 Wi-Fi firmware.
+
+Example PowerShell configuration (use your API origin, device UUID and actual physical dimensions):
+
+```powershell
+$env:DISPLAY_API_URL = 'https://your-host.example/api'
+$env:DISPLAY_DEVICE_ID = 'device-uuid-from-the-device-card'
+$env:DEVICE_TOKEN = 'paste-the-token-shown-once'
+$env:DISPLAY_WIDTH = '250'
+$env:DISPLAY_HEIGHT = '122'
+$env:DISPLAY_ROTATION = '0'
+$env:DISPLAY_OUTPUT_FILE = 'C:\display\frame.bmp'
+node tools/display-client.mjs
+```
+
+Keep credentials in your service manager's protected environment, not a committed script. A local development server can use `http://127.0.0.1:3001` with `ALLOW_HTTP_LOCALHOST=1`; HTTPS is mandatory for other hosts. `DISPLAY_ONCE=1` performs one check and exits with a failure code on error. The client remembers its ETag/applied hash for the lifetime of its process; restarting fetches and reapplies the current frame.
+
+Without a driver, the client writes the verified image to disk and reports only its heartbeat. It does **not** claim the image reached a physical display. To update a panel, configure `DISPLAY_DRIVER` as an executable and `DISPLAY_DRIVER_ARGS` as a JSON array of arguments containing `{file}`. Optional placeholders are `{width}`, `{height}` and `{rotation}`. The client launches this executable directly (`shell:false`), with a 300-second default deadline. Set `DISPLAY_DRIVER_TIMEOUT_SECONDS` to an integer from 10 to 600 for your driver's upload/refresh budget. Exit status zero must mean that the driver successfully applied the frame; any other exit status leaves the frame unacknowledged and retries it. The API credential is removed from the child environment.
+
+For example, after separately installing the official [OpenDisplay CLI](https://github.com/OpenDisplay/py-opendisplay#cli), checking the device with `opendisplay info`, and verifying that its physical profile matches the server:
+
+```powershell
+$env:DISPLAY_DRIVER = 'opendisplay'
+$env:DISPLAY_DRIVER_ARGS = '["upload","--device","AA:BB:CC:DD:EE:FF","{file}","--refresh-mode","full"]'
+node tools/display-client.mjs
+```
+
+Use BMP for this driver. The server has already applied layout rotation, so do not apply it again in the driver. Encrypted OpenDisplay devices also need their own BLE key configured according to the CLI documentation. A different executable can drive other panels; its success/acknowledgement semantics are the adapter author's responsibility. Full refresh is the default and required by this reference protocol. No partial-refresh or power-consumption claim is made.
+
+## Wire protocol
+
+Paths below include the public `/api` prefix. All device requests carry `Authorization: Bearer einkd_…`; credentials are never accepted in query parameters.
+
+| Method/path | Authentication | Result |
+|---|---|---|
+| GET `/api/devices/:id/delivery` | Owning Clerk account | Configured status and reported telemetry; no token/hash |
+| POST `/api/devices/:id/delivery/token` | Owning Clerk account | New token, returned once; invalidates old token |
+| DELETE `/api/devices/:id/delivery/token` | Owning Clerk account | Revocation |
+| GET `/api/device-feed/:id/frame?format=bmp` | Device token | 1-bit top-down BMP |
+| GET `/api/device-feed/:id/frame?format=raw` | Device token | Row-major `ceil(width/8)` bytes per row, MSB-first, 1=white |
+| POST `/api/device-feed/:id/heartbeat` | Device token | Validated telemetry; `{ "accepted": true }` |
+
+Frame responses provide `ETag` and `X-Image-SHA256` over the exact response bytes, `X-Display-Width`, `X-Display-Height`, `X-Display-Rotation`, `X-Display-Row-Bytes`, `X-Display-Encoding: mono-msb-white1`, `X-Refresh-Mode: full`, and `Retry-After` in seconds. Send `If-None-Match` for a verified cached frame to receive 304 when unchanged. Quiet schedules return 204 without an image, with a retry hint for waking again. The client keeps its prior frame during quiet periods.
+
+The reference client rejects redirects, dimensions/rotation/encoding mismatches, corrupt hashes, malformed BMP/raw lengths and bodies over 512 KiB. Each HTTP operation has a 20-second deadline. Successful polls follow bounded 1–86,400 second retry hints, subtracting download, driver and heartbeat time before sleeping. Failures use exponential backoff starting at 15 seconds and reaching one hour, extended by server retry hints up to one day. Authentication failure stops the client so the token can be replaced. Image replacement uses an exclusive temporary file followed by an atomic rename.
+
+Heartbeat example:
+
+When Upstash rate limiting is configured, authenticated devices each receive a 120-request/minute frame+heartbeat budget; they do not share the dashboard's per-IP allowance. Invalid credentials have a separate 30-request/minute per-IP budget.
+
+```json
+{
+  "firmware_version": "panel/1.0",
+  "battery_percent": 78,
+  "rssi": -65,
+  "last_applied_hash": "64-lowercase-hex-characters"
+}
+```
+
+`firmware_version` is required (1–64 safe version characters). Optional battery is 0–100 percent; RSSI is an integer from -150 to 0 dBm; the applied hash must be a lowercase SHA-256 hex digest. Unknown fields are rejected. The example hash is a placeholder. Omit `last_applied_hash` until the driver confirms application. Reports describe what the client said, not independently verified physical state. A frame download does not update `lastSeenAt` or acknowledge an image. The reference bridge reports its own `display-bridge/1.0` version and cannot measure panel battery/RSSI.
+
+## Verification
+
+`npm test` includes API token lifecycle/ownership, telemetry validation, frame metadata/304, reference-client/API integration, simulated full-driver success/failure, quiet responses, redirects, corrupted files and backoff. Browser BLE delivery separately verifies bounded operations and firmware ACK/NACK responses (see [Bluetooth delivery](BLUETOOTH_DELIVERY.md)). Hardware refresh, radio range, battery drain, gateway service setup and each selected driver still require device testing.
