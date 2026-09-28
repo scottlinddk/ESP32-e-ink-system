@@ -9,6 +9,7 @@ import {
 } from '../services/database';
 import { getOrCreateUserFromClerk } from './preferences-helpers';
 import { UserPreferences } from '../types/index';
+import { validatePublicHttpsUrl } from '../utils/publicFeedFetch';
 
 /**
  * @swagger
@@ -188,6 +189,9 @@ router.get(
         energy_price_location: 'DK1',
         weather_location: '55.3,10.4',
         news_language: 'da',
+        news_source: 'newsapi',
+        news_feed_url: '',
+        news_item_limit: 3,
         refresh_interval_minutes: 30,
         layout: null,
         monta_fields: ['charger_status', 'active_session'],
@@ -223,6 +227,9 @@ router.post(
         'energy_price_location',
         'weather_location',
         'news_language',
+        'news_source',
+        'news_feed_url',
+        'news_item_limit',
         'refresh_interval_minutes',
         'layout',
         'monta_fields',
@@ -231,6 +238,27 @@ router.post(
       ];
 
       const updates: Partial<UserPreferences> = {};
+      const { news_source, news_feed_url, news_item_limit } = req.body;
+      if (news_source !== undefined && !['newsapi', 'rss'].includes(news_source)) {
+        res.status(400).json({ error: 'news_source must be newsapi or rss' }); return;
+      }
+      if (news_item_limit !== undefined && (!Number.isInteger(news_item_limit) || news_item_limit < 1 || news_item_limit > 10)) {
+        res.status(400).json({ error: 'news_item_limit must be an integer between 1 and 10' }); return;
+      }
+      if (news_feed_url !== undefined) {
+        try {
+          if (typeof news_feed_url !== 'string') throw new Error('Feed URL must be a string');
+          if (news_feed_url !== '') validatePublicHttpsUrl(news_feed_url);
+        } catch (error) {
+          res.status(400).json({ error: (error as Error).message }); return;
+        }
+      }
+      if (news_source === 'rss' || news_feed_url === '') {
+        const current = await getPreferences(userId);
+        if ((news_source ?? current?.news_source) === 'rss' && !(news_feed_url ?? current?.news_feed_url)) {
+          res.status(400).json({ error: 'A feed URL is required for RSS/Atom' }); return;
+        }
+      }
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

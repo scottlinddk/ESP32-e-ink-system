@@ -335,14 +335,17 @@ function renderNewsWidget(
   bounds: WidgetBounds,
   news?: DisplayData['news']
 ): void {
-  const { x, y, width } = bounds;
+  const { x, y, width, height } = bounds;
   if (y > 0) canvas.drawHLine(x, y, width);
-  const textY = y + 2;
+  let textY = y + 2;
   const maxW = width - 4;
   if (news && news.length > 0) {
-    canvas.drawWrappedText(news[0].title, x + 2, textY, maxW, 10);
+    for (const item of news) {
+      if (textY + 8 > y + height) break;
+      textY = canvas.drawWrappedText(item.title, x + 2, textY, maxW, 10) + 2;
+    }
   } else {
-    canvas.drawText('No news available', x + 2, textY, maxW);
+    canvas.drawText(news ? 'No headlines' : 'News: unavailable', x + 2, textY, maxW);
   }
 }
 

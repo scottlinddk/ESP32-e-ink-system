@@ -28,7 +28,9 @@ export function DashboardPage() {
       news: {
         on: serverPrefs.show_news,
         lang: serverPrefs.news_language || app.prefs.news.lang,
-        source: app.prefs.news.source,
+        source: serverPrefs.news_source ?? 'newsapi',
+        feedUrl: serverPrefs.news_feed_url ?? '',
+        itemLimit: serverPrefs.news_item_limit ?? 3,
       },
       monta: {
         on: serverPrefs.show_monta ?? false,

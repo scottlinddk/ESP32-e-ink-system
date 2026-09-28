@@ -1,6 +1,7 @@
 import { fetchEnergyPrice } from './energinet';
 import { fetchWeather } from './weather';
 import { fetchNews } from './news';
+import { fetchRssNews } from './rss';
 import { fetchMontaData } from './monta';
 import { fetchZaptecData } from './zaptec';
 import { fetchNotionData, NotionCredentials } from './notion';
@@ -20,6 +21,9 @@ export const DEFAULT_PREFS: UserPreferences = {
   energy_price_location: 'DK1',
   weather_location: '55.3,10.4',
   news_language: 'da',
+  news_source: 'newsapi',
+  news_feed_url: '',
+  news_item_limit: 3,
   refresh_interval_minutes: 30,
   layout: null,
   monta_fields: ['charger_status', 'active_session'],
@@ -86,7 +90,9 @@ export async function buildDisplayData(
   if (prefs.show_news) {
     const newsKey = apiKeyMap['newsapi'];
     tasks.push(
-      withSourceDeadline((signal) => fetchNews(prefs.news_language, newsKey, signal))
+      withSourceDeadline((signal) => prefs.news_source === 'rss'
+        ? fetchRssNews(prefs.news_feed_url ?? '', prefs.news_item_limit ?? 3, signal)
+        : fetchNews(prefs.news_language, newsKey, signal))
         .then((news) => {
           result.news = news;
         })

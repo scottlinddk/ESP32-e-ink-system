@@ -24,6 +24,9 @@ export interface UserPreferences {
   energy_price_location: string; // 'DK1' | 'DK2'
   weather_location: string; // 'lat,lng'
   news_language: string; // 'da' | 'en'
+  news_source?: 'newsapi' | 'rss';
+  news_feed_url?: string;
+  news_item_limit?: number;
   refresh_interval_minutes: number;
   layout: DisplayLayout | null;
   monta_fields: string[]; // e.g. ['charger_status', 'active_session', 'today_stats']
