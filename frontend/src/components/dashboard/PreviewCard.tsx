@@ -8,7 +8,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Spinner } from '../ui/Spinner';
 import { Icon } from '../ui/Logo';
-import { fetchPreviewBmp, fetchPreviewRaw } from '../../lib/api';
+import { fetchPreviewBmp, fetchPreviewFrame } from '../../lib/api';
 import { bleImagePush, BleSelectionCancelledError } from '../../lib/bleImagePush';
 
 type PushState = 'idle' | 'selecting' | 'fetching' | 'pushing' | 'done' | 'error';
@@ -56,7 +56,7 @@ export function PreviewCard() {
           setPushState('fetching');
           const token = await getToken();
           if (!token) throw new Error(t.previewSignIn);
-          return fetchPreviewRaw(token);
+          return fetchPreviewFrame(token);
         },
         onProgress: ({ sent, total }) => {
           setPushState('pushing');
@@ -87,8 +87,6 @@ export function PreviewCard() {
             <img
               src={imageSrc}
               alt={t.previewImageAlt}
-              width={250}
-              height={122}
               className="eink-screen"
               style={{ width: '100%', height: 'auto', imageRendering: 'pixelated', display: 'block' }}
             />
@@ -102,7 +100,7 @@ export function PreviewCard() {
             </div>
           )}
           <div className="absolute bottom-1.5 left-0 right-0 text-center text-[8px] tracking-[0.14em] uppercase text-black/40 font-mono [data-theme='dark']_&:text-white/35">
-            e-ink · 2.13″
+            e-ink · monochrome
           </div>
         </div>
 
@@ -142,6 +140,7 @@ export function PreviewCard() {
               : t.pushToDisplay}
           </Button>
         </div>
+        {imageSrc && <a href={imageSrc} download="display.bmp" className="text-xs underline">Download display image (BMP)</a>}
         {!bluetoothSupported && <p className="text-xs text-fg2 m-0">{t.pushUnsupported}</p>}
         {pushState === 'done' && <p role="status" className="text-xs text-fg2 m-0">{t.pushComplete}</p>}
         {pushError && <p role={pushState === 'error' ? 'alert' : 'status'} className="text-xs text-warning m-0">{pushError}</p>}

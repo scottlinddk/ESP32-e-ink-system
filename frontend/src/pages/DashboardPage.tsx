@@ -1,3 +1,4 @@
+import { DisplayProfileCard } from '../components/dashboard/DisplayProfileCard';
 // =========================================================================
 // DashboardPage.tsx
 // =========================================================================
@@ -8,6 +9,7 @@ import { DisplayCard } from '../components/dashboard/DisplayCard';
 import { ApiKeysCard } from '../components/dashboard/ApiKeysCard';
 import { PreviewCard } from '../components/dashboard/PreviewCard';
 import { CalendarCard } from '../components/dashboard/CalendarCard';
+import { CustomContentCard } from '../components/dashboard/CustomContentCard';
 
 export function DashboardPage() {
   const app = useApp();
@@ -58,7 +60,9 @@ export function DashboardPage() {
         <div className="flex flex-col gap-5 min-w-0">
           <DisplayCard loading={isLoading} />
           <CalendarCard />
+          <CustomContentCard />
           <ApiKeysCard />
+          <DisplayProfileCard />
         </div>
         <div className="max-[1080px]:static max-[1080px]:order-first sticky top-[calc(64px+var(--space-5))]">
           <PreviewCard />

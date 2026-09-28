@@ -8,10 +8,15 @@ import { fetchZaptecData } from './zaptec';
 import { fetchNotionData, NotionCredentials } from './notion';
 import { DisplayData, UserPreferences } from '../types/index';
 import { logger } from '../lib/logger';
+import { parseCustomImage } from '../utils/customContent';
 
 // JSON previews and display images use the same enabled sources. A failed
 // source stays absent so an unavailable reading is never presented as live data.
 export const DEFAULT_PREFS: UserPreferences = {
+  show_custom_text: false,
+  custom_text: '',
+  show_custom_image: false,
+  custom_image: null,
   show_energy_price: true,
   show_weather: true,
   show_news: true,
@@ -66,6 +71,17 @@ export async function buildDisplayData(
   };
 
   const tasks: Promise<void>[] = [];
+
+  if (prefs.show_custom_text && typeof prefs.custom_text === 'string') {
+    result.customText = prefs.custom_text.slice(0, 2000).normalize('NFC');
+  }
+  if (prefs.show_custom_image && prefs.custom_image) {
+    try {
+      result.customImage = parseCustomImage(prefs.custom_image);
+    } catch {
+      logger.warn('Stored custom image is invalid — skipping');
+    }
+  }
 
   if (prefs.show_energy_price) {
     tasks.push(

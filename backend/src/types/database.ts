@@ -597,6 +597,10 @@ export type Database = {
       }
       user_preferences: {
         Row: {
+          show_custom_text: boolean
+          custom_text: string
+          show_custom_image: boolean
+          custom_image: Json | null
           created_at: string
           default_price_area: string
           default_timezone: string
@@ -627,6 +631,10 @@ export type Database = {
         Insert: {
           created_at?: string
           default_price_area?: string
+          show_custom_text?: boolean
+          custom_text?: string
+          show_custom_image?: boolean
+          custom_image?: Json | null
           default_timezone?: string
           energy_price_location?: string | null
           layout?: Json | null
@@ -655,6 +663,10 @@ export type Database = {
         Update: {
           created_at?: string
           default_price_area?: string
+          show_custom_text?: boolean
+          custom_text?: string
+          show_custom_image?: boolean
+          custom_image?: Json | null
           default_timezone?: string
           energy_price_location?: string | null
           layout?: Json | null

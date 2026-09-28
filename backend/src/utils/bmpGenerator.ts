@@ -1,4 +1,7 @@
+import { parseDisplayProfile, DisplayProfile } from './displayProfile';
 import { DisplayData, DisplayLayout, UserPreferences, WidgetLayout } from '../types/index';
+import { bitmapGlyph, normalizeBitmapText, wrapBitmapText } from './bitmapText';
+import { drawCustomImage } from './customContent';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -106,21 +109,37 @@ export const DISPLAY_WIDTH = 250;
 export const DISPLAY_HEIGHT = 122;
 
 // Row stride must be a multiple of 4 bytes (BMP requirement)
-const ROW_STRIDE = Math.ceil(DISPLAY_WIDTH / 32) * 4; // = 32 bytes
+
 
 export class BmpCanvas {
   private pixels: Uint8Array;
-  private clip = { left: 0, top: 0, right: DISPLAY_WIDTH, bottom: DISPLAY_HEIGHT };
+  private clip: { left: number; top: number; right: number; bottom: number };
+  readonly profile: DisplayProfile;
+  readonly width: number;
+  readonly height: number;
+  private readonly rowBytes: number;
 
-  constructor() {
-    // 1 bit per pixel; initialise to all white (0xFF = all bits set = white)
-    this.pixels = new Uint8Array(ROW_STRIDE * DISPLAY_HEIGHT).fill(0xff);
+  constructor(profile?: DisplayProfile | null) {
+    this.profile = parseDisplayProfile(profile);
+    const turned = this.profile.rotation === 90 || this.profile.rotation === 270;
+    this.width = turned ? this.profile.height : this.profile.width;
+    this.height = turned ? this.profile.width : this.profile.height;
+    this.rowBytes = Math.ceil(this.profile.width / 8);
+    this.clip = { left: 0, top: 0, right: this.width, bottom: this.height };
+    this.pixels = new Uint8Array(this.rowBytes * this.profile.height).fill(0xff);
   }
 
   setPixel(x: number, y: number, black: boolean): void {
     if (x < this.clip.left || x >= this.clip.right || y < this.clip.top || y >= this.clip.bottom) return;
-    const byteIdx = y * ROW_STRIDE + Math.floor(x / 8);
-    const bitMask = 0x80 >> (x % 8);
+    if (!Number.isInteger(x) || !Number.isInteger(y)) return;
+    let px = x, py = y;
+    switch (this.profile.rotation) {
+      case 90: px = this.profile.width - 1 - y; py = x; break;
+      case 180: px = this.profile.width - 1 - x; py = this.profile.height - 1 - y; break;
+      case 270: px = y; py = this.profile.height - 1 - x; break;
+    }
+    const byteIdx = py * this.rowBytes + Math.floor(px / 8);
+    const bitMask = 0x80 >> (px % 8);
     if (black) {
       this.pixels[byteIdx] &= ~bitMask;
     } else {
@@ -157,8 +176,7 @@ export class BmpCanvas {
   }
 
   drawChar(ch: number, x: number, y: number): void {
-    if (ch < 32 || ch > 127) ch = 63; // '?' for unknown
-    const glyph = FONT8X8[ch - 32];
+    const glyph = bitmapGlyph(ch, FONT8X8);
     for (let row = 0; row < 8; row++) {
       const byte = glyph[row];
       for (let col = 0; col < 8; col++) {
@@ -167,13 +185,11 @@ export class BmpCanvas {
     }
   }
 
-  drawText(text: string, x: number, y: number, maxWidth = DISPLAY_WIDTH): void {
+  drawText(text: string, x: number, y: number, maxWidth = this.width): void {
     let cx = x;
-    for (const ch of text) {
-      if (cx + 8 > x + maxWidth || cx + 8 > DISPLAY_WIDTH) break;
-      const code = ch.charCodeAt(0);
-      // Replace non-ASCII with '?'
-      this.drawChar(code >= 32 && code <= 127 ? code : 63, cx, y);
+    for (const ch of normalizeBitmapText(text)) {
+      if (cx + 8 > x + maxWidth || cx + 8 > this.width) break;
+      this.drawChar(ch.codePointAt(0)!, cx, y);
       cx += 8;
     }
   }
@@ -181,26 +197,10 @@ export class BmpCanvas {
   // Word-wrap text within a box; returns the y position after the last line
   drawWrappedText(text: string, x: number, y: number, w: number, lineH = 10): number {
     const maxChars = Math.floor(w / 8);
-    if (maxChars < 1 || y + 8 > this.clip.bottom) return y;
-    const words = text.split(' ');
-    let line = '';
+    if (maxChars < 1 || y + 8 > this.clip.bottom || !Number.isFinite(lineH) || lineH < 1) return y;
     let cy = y;
-
-    for (const word of words) {
-      const candidate = line ? `${line} ${word}` : word;
-      if (candidate.length <= maxChars) {
-        line = candidate;
-      } else {
-        if (line) {
-          this.drawText(line, x, cy, w);
-          cy += lineH;
-          if (cy + 8 > this.clip.bottom) break;
-        }
-        // word longer than line — truncate
-        line = word.length > maxChars ? word.slice(0, maxChars) : word;
-      }
-    }
-    if (line && cy + 8 <= this.clip.bottom) {
+    for (const line of wrapBitmapText(text, maxChars)) {
+      if (cy + 8 > this.clip.bottom) break;
       this.drawText(line, x, cy, w);
       cy += lineH;
     }
@@ -208,7 +208,8 @@ export class BmpCanvas {
   }
 
   toBmp(): Buffer {
-    const pixelDataSize = ROW_STRIDE * DISPLAY_HEIGHT;
+    const bmpStride = Math.ceil(this.profile.width / 32) * 4;
+    const pixelDataSize = bmpStride * this.profile.height;
     const fileSize = 14 + 40 + 8 + pixelDataSize;
     const buf = Buffer.alloc(fileSize, 0);
 
@@ -220,8 +221,8 @@ export class BmpCanvas {
 
     // --- BITMAPINFOHEADER (40 bytes) ---
     buf.writeUInt32LE(40, 14);
-    buf.writeInt32LE(DISPLAY_WIDTH, 18);
-    buf.writeInt32LE(-DISPLAY_HEIGHT, 22); // negative = top-down storage
+    buf.writeInt32LE(this.profile.width, 18);
+    buf.writeInt32LE(-this.profile.height, 22); // negative = top-down storage
     buf.writeUInt16LE(1, 26);   // planes
     buf.writeUInt16LE(1, 28);   // biBitCount = 1
     buf.writeUInt32LE(0, 30);   // compression = BI_RGB
@@ -238,7 +239,10 @@ export class BmpCanvas {
     buf[58] = 0xFF; buf[59] = 0xFF; buf[60] = 0xFF; buf[61] = 0x00;
 
     // --- Pixel data ---
-    buf.set(this.pixels, 62);
+    for (let y = 0; y < this.profile.height; y++) {
+      buf.fill(0xff, 62 + y * bmpStride, 62 + (y + 1) * bmpStride);
+      buf.set(this.pixels.subarray(y * this.rowBytes, (y + 1) * this.rowBytes), 62 + y * bmpStride);
+    }
 
     return buf;
   }
@@ -272,12 +276,14 @@ export const DEFAULT_LAYOUT: DisplayLayout = {
 
 interface WidgetBounds { x: number; y: number; width: number; height: number; }
 
-function getWidgetBounds(w: WidgetLayout): WidgetBounds {
+function getWidgetBounds(w: WidgetLayout, canvas: BmpCanvas): WidgetBounds {
+  const colPx = canvas.width / GRID_COLS;
+  const rowPx = Math.floor(canvas.height / GRID_ROWS);
   return {
-    x: w.x * COL_PX,
-    y: w.y * ROW_PX,
-    width: w.w * COL_PX,
-    height: w.h * ROW_PX,
+    x: Math.floor(w.x * colPx),
+    y: w.y * rowPx,
+    width: Math.floor((w.x + w.w) * colPx) - Math.floor(w.x * colPx),
+    height: w.h * rowPx,
   };
 }
 
@@ -500,7 +506,7 @@ function renderStatusWidget(
 
 // ── Main render entry point ───────────────────────────────────────────────────
 
-type RenderPreferences = Pick<UserPreferences, 'monta_fields' | 'zaptec_fields'>;
+type RenderPreferences = Pick<UserPreferences, 'monta_fields' | 'zaptec_fields' | 'display_profile'>;
 
 function populateCanvas(
   canvas: BmpCanvas,
@@ -510,9 +516,15 @@ function populateCanvas(
 ): void {
   const effectiveLayout = layout ?? DEFAULT_LAYOUT;
   for (const widget of effectiveLayout.widgets) {
-    const bounds = getWidgetBounds(widget);
+    const bounds = getWidgetBounds(widget, canvas);
     canvas.withClip(bounds, () => {
       switch (widget.i) {
+        case 'custom-text':
+          if (data.customText) canvas.drawWrappedText(data.customText, bounds.x + 2, bounds.y + 2, bounds.width - 4);
+          break;
+        case 'custom-image':
+          if (data.customImage) drawCustomImage(canvas, bounds, data.customImage, { x: 0, y: 0, width: canvas.width, height: canvas.height });
+          break;
         case 'energy':  renderEnergyWidget(canvas, bounds, data.price); break;
         case 'weather': renderWeatherWidget(canvas, bounds, data.weather); break;
         case 'news':    renderNewsWidget(canvas, bounds, data.news); break;
@@ -531,7 +543,7 @@ export function renderDisplayData(
   layout?: DisplayLayout | null,
   preferences?: RenderPreferences
 ): Buffer {
-  const canvas = new BmpCanvas();
+  const canvas = new BmpCanvas(preferences?.display_profile);
   populateCanvas(canvas, data, layout, preferences);
   return canvas.toBmp();
 }
@@ -543,7 +555,7 @@ export function renderDisplayDataRaw(
   layout?: DisplayLayout | null,
   preferences?: RenderPreferences
 ): Buffer {
-  const canvas = new BmpCanvas();
+  const canvas = new BmpCanvas(preferences?.display_profile);
   populateCanvas(canvas, data, layout, preferences);
   return canvas.toRawPixels();
 }

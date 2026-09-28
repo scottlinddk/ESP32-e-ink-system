@@ -11,9 +11,14 @@ import { Input, PasswordInput } from '../ui/input';
 import { Switch } from '../ui/Switch';
 
 export function CalendarCard() {
+  const { user } = useAuth();
+  return <CalendarCardContent key={user?.id ?? 'signed-out'} />;
+}
+
+function CalendarCardContent() {
   const app = useApp();
   const da = app.lang === 'da';
-  const { getToken, isSignedIn } = useAuth();
+  const { getToken, isSignedIn, user } = useAuth();
   const queryClient = useQueryClient();
   const { data: preferences, isLoading } = usePreferences();
   const save = useSavePreferences();
@@ -37,14 +42,14 @@ export function CalendarCard() {
     return value;
   };
   const status = useQuery({
-    queryKey: ['calendar-credentials'], enabled: isSignedIn,
+    queryKey: ['calendar-credentials', user?.id], enabled: isSignedIn,
     queryFn: async () => getCalendarCredentialStatus(await token()),
   });
   const credential = useMutation({
     mutationFn: async (remove: boolean) => remove
       ? deleteCalendarCredential(await token()) : saveCalendarCredential(await token(), url.trim()),
     onSuccess: (result) => {
-      setUrl(''); queryClient.setQueryData(['calendar-credentials'], result);
+      setUrl(''); queryClient.setQueryData(['calendar-credentials', user?.id], result);
       void queryClient.invalidateQueries({ queryKey: ['preview'] });
       setMessage(da ? 'Kalenderadresse opdateret' : 'Calendar URL updated');
     },

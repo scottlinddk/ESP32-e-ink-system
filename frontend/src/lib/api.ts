@@ -1,3 +1,4 @@
+import { DisplayProfile, frameMetadata } from './displayProfile';
 import { buildAuthHeaders } from './auth';
 import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout } from '../types';
 
@@ -250,6 +251,22 @@ export async function fetchPreviewBmp(token: string, signal?: AbortSignal): Prom
   return response.blob();
 }
 
+/** Render a layout draft using the signed-in user's saved source settings. */
+export async function fetchDraftPreviewBmp(token: string, layout: DisplayLayout, signal?: AbortSignal): Promise<Blob> {
+  const response = await fetch(`${BASE_URL}/api/image/preview/draft`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ layout }),
+    signal,
+  });
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`;
+    try { message = (await response.json()).error ?? message; } catch { /* Keep HTTP status. */ }
+    throw new ApiError(response.status, message);
+  }
+  return response.blob();
+}
+
 /**
  * Fetches raw 1-bit pixel bytes (no BMP header) for OpenDisplay BLE direct write.
  * 32 bytes/row × 122 rows = 3,904 bytes.
@@ -275,3 +292,13 @@ export async function getHealth(): Promise<{
 }
 
 export { ApiError };
+
+export async function fetchPreviewFrame(token: string): Promise<{ pixels: Uint8Array; profile: DisplayProfile }> {
+  const response = await fetch(`${BASE_URL}/api/image/preview/raw`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const profile = { width: Number(response.headers.get('X-Display-Width')), height: Number(response.headers.get('X-Display-Height')), rotation: Number(response.headers.get('X-Display-Rotation')), colorMode: 'bw' } as DisplayProfile;
+  const meta = frameMetadata(profile);
+  const pixels = new Uint8Array(await response.arrayBuffer());
+  if (response.headers.get('X-Display-Encoding') !== meta.encoding || Number(response.headers.get('X-Display-Row-Bytes')) !== meta.rowBytes || pixels.length !== meta.byteLength) throw new Error('Invalid display image metadata');
+  return { pixels, profile };
+}
