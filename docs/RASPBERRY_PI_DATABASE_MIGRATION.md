@@ -465,7 +465,11 @@ database dump does not include role passwords, tunnel credentials or the AES key
 Restore practice uses the fixed project `esp32-eink-recovery` and fresh storage
 under `/srv/esp32-eink/recovery/`. Budget the extra temporary PostgreSQL
 container (384 MiB cap) and I/O first, or use a separate test host with the same
-dedicated directory layout. Use the backup's application commit so the initialized
+dedicated directory layout. On the shared 4 GB Pi, run only the recovery PostgreSQL
+container; its restore client runs inside that same cap. Use a separate Linux
+test host for the full recovery API drill: adding PostgREST and Nginx makes the
+recovery stack 544 MiB before the test client, exceeding the 512 MiB maintenance
+allowance. Use the backup's application commit so the initialized
 schema matches its data. Generate fresh recovery credentials in a private directory,
 copy its `.env` to `/etc/esp32-eink/recovery.env`, set its verified `STORAGE_MOUNT`
 and `STORAGE_UUID`, and set that file's `DATA_DIR`
@@ -489,9 +493,9 @@ sudo bash restore.sh /etc/esp32-eink/recovery.env \
 database identity and empty tables. It selects exactly the nine table-data
 entries, loads `users` first, excludes the existing identity marker, and restores
 in one transaction. It does not start the recovery API (which would collide with
-the production gateway port). For an API recovery drill on the same host, use a
-reviewed port override and the **recovery** service JWT; on a separate test host,
-the normal gateway port is available. Compare recovered rows and run SDK/application
+the production gateway port). For the full API recovery drill, use the separate
+test host and the **recovery** service JWT; the normal gateway port is available
+there. Compare recovered rows and run SDK/application
 checks before accepting recovery. Stop only the recovery project when done; retain
 the drill data until reviewed. Never use `--clean`, restore over a running target,
 or attach an Investor volume. Time this drill to establish an achievable recovery

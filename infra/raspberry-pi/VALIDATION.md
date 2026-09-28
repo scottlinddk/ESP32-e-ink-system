@@ -6,12 +6,14 @@ Supabase, Raspberry Pi, DNS, Vercel settings or Investor service was changed.
 ## Completed
 
 - `npm run typecheck`: all workspaces passed.
-- `npm test`: 163 application tests passed, including 14 new database-client and
+- `npm test`: 604 application tests passed locally and in Linux CI, including 21 database-client and
   maintenance-mode tests. The database-client tests exercise the actual Supabase
   SDK with mocked HTTP responses, including custom `/rest/v1` routing,
-  authorization headers and encrypted composite upserts.
+  authorization headers and encrypted composite upserts. Maintenance tests include
+  webhook ingestion, device frames, heartbeats and token mutations. Windows
+  checkout rules keep the reference client's shebang LF-terminated for Vite.
 - `npm run build`: frontend and backend production builds passed.
-- `python -m unittest discover -s infra/raspberry-pi/tests -v`: 37 offline migration
+- `python -m unittest discover -s infra/raspberry-pi/tests -v`: 48 offline migration
   safety tests passed using the pinned psycopg dependency. These cover unique-index drift, changed
   bundle data/manifests, drift, wrong targets, nonempty targets, refusal before
   writes and transactional control flow. Database connections are mocked; this
@@ -22,32 +24,35 @@ Supabase, Raspberry Pi, DNS, Vercel settings or Investor service was changed.
   migration/credential directories, backup destinations and isolated recovery.
   Memory cases cover a shared 4 GB host, idle-container growth, missing Investor
   services, overcommit, uncapped containers and concurrent maintenance.
-  Together with the migration suite, 93 offline Python safety tests passed.
+  Together with the migration suite, 104 offline Python safety tests passed.
 - Compose YAML parsed locally; project isolation, loopback gateway publication,
   absence of a host database port, platform/resource limits were inspected.
 - `node --check infra/raspberry-pi/smoke.mjs` passed; its help command ran.
 - Bash syntax checks passed for all six shell scripts using the bundled Git GNU
   Bash executable.
 - `git diff --check` passed for tracked changes.
-- [Database integration CI](https://github.com/scottlinddk/ESP32-e-ink-system/actions/runs/36427182971)
+- [Database integration CI](https://github.com/scottlinddk/ESP32-e-ink-system/actions/runs/36434875597)
   passed on native AMD64 (`ubuntu-24.04`) and ARM64 (`ubuntu-24.04-arm`) for
-  implementation commit `dc19c5b`. Both jobs initialized the real pinned
-  PostgreSQL/PostgREST/Nginx stack, exercised seven-table export/import/verification,
+  implementation commit `5ac2d3b`, incorporating e-ink main `2cffedd`. Both jobs
+  initialized the real pinned PostgreSQL/PostgREST/Nginx stack through migration
+  015, exercised nine-table export/import/verification,
   rejected tampered bundles, nonempty targets and standalone unique-index drift,
   proved rollback after late foreign-key and post-COPY checksum failures, and
   passed real Supabase SDK access/write/cleanup checks. Source rows stayed unchanged.
-  These jobs also passed all 66 offline Python tests and shell syntax checks.
-- [Application CI](https://github.com/scottlinddk/ESP32-e-ink-system/actions/runs/36427182883)
-  passed type checks, all 163 tests and production builds on the same implementation.
+  These jobs also passed all 104 offline Python tests and shell syntax checks.
+  The new webhook/device tables retained their real primary keys, token hashes,
+  telemetry, RLS and server-only CRUD permissions; new preferences round-tripped.
+- [Application CI](https://github.com/scottlinddk/ESP32-e-ink-system/actions/runs/36434875639)
+  passed type checks, all 604 tests and production builds on the same implementation.
 
-## Confirmed 4 GB hardware follow-up
+## Confirmed 4 GB hardware profile
 
 The owner confirmed a Pi 4B / 4 GB / 500 GB SSD, Vercel backend and Cloudflare
-domain after the original integration runs above. The profile now caps e-ink
+domain. The tested profile caps e-ink
 PostgreSQL/PostgREST/Nginx at 384/128/32 MiB, tools at 256 MiB, and retains the
-256 MiB tunnel cap. The workflow runs the entire migration/SDK fixture using
-these caps, verifies they were applied without OOM/restarts, and exercises the
-real Linux memory-inventory path. Current results are in the
+256 MiB tunnel cap. Both integration jobs above ran the entire migration/SDK fixture
+using these caps, verified they were applied without OOM/restarts, and exercised
+the real Linux memory-inventory path. Subsequent results are in the
 [PR checks](https://github.com/scottlinddk/ESP32-e-ink-system/pull/96/checks).
 The actual Pi's peak memory, SSD layout and host identity remain unverified;
 these fixture tests cannot certify its workload.
@@ -61,14 +66,15 @@ storage/backup procedures. Its success does not replace the deployment rehearsal
 
 Rehearse on the actual ARM64 host. Confirm:
 
-1. Native ARM64 image pulls, clean initialization (including both 002 migrations),
+1. Native ARM64 image pulls, clean initialization through 015 (including both 002 migrations),
    SQL permissions, authenticated API access and denied anonymous/invalid access.
 2. Real source inspection against the live Supabase schema; explicit resolution
    of schema drift, extra table dependencies and Storage/firmware URLs.
 3. A complete export/import/verify cycle with exact counts and full-row hashes;
    refusal of wrong/nonempty targets and rollback on failed COPY/verification.
-4. A backup restored into the isolated recovery project and verified through SQL
-   and the SDK; retained copies and secrets recoverable off-device.
+4. A backup restored into the isolated recovery project and verified through SQL;
+   perform the full recovery API/SDK drill on a separate test host as the runbook
+   requires for the 4 GB budget. Keep copies and secrets recoverable off-device.
 5. HTTPS access from the deployed backend, existing provider-key decryption with
    the original AES key, and actual UI/device workflows after the cutover freeze.
 6. Investor availability and unchanged Tailscale routing; combined peak memory,
