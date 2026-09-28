@@ -15,7 +15,15 @@ export interface DisplayLayout {
   widgets: WidgetLayout[];
 }
 
+export interface DisplaySchedule {
+  enabled: boolean;
+  timezone: string;
+  pages: Array<{ id: string; name: string; duration_seconds: number; layout: DisplayLayout }>;
+  quiet_hours: { enabled: boolean; start: string; end: string };
+}
+
 export interface UserPreferences {
+  display_schedule?: DisplaySchedule | null;
   display_profile?: DisplayProfile | null;
   show_custom_text?: boolean;
   custom_text?: string;
@@ -123,6 +131,7 @@ export interface CalendarEvent {
 export interface CalendarData { timezone: string; events: CalendarEvent[] }
 
 export interface DisplayData {
+  schedule?: { pageId: string; pageName: string; quiet: boolean; nextTransitionAt: string };
   customText?: string;
   customImage?: CustomImage;
   price?: EnergyPrice;

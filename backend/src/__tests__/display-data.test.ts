@@ -13,6 +13,7 @@ import { fetchMontaData } from '../services/monta';
 import { fetchZaptecData } from '../services/zaptec';
 import { fetchNotionData } from '../services/notion';
 import { buildDisplayData, DEFAULT_PREFS } from '../services/displayData';
+import { resolveDisplaySchedule } from '../services/displaySchedule';
 import displayDataRouter from '../routes/display-data';
 import imageRouter from '../routes/image';
 import { renderDisplayData, renderDisplayDataRaw } from '../utils/bmpGenerator';
@@ -275,6 +276,25 @@ describe('JSON, BMP and Bluetooth endpoints', () => {
     expect(Buffer.from(await bmpResponse.arrayBuffer())).toEqual(renderDisplayData(availableData, null, prefs));
     const rawResponse = await fetch(`${baseUrl}/image/preview/raw`, auth);
     expect(Buffer.from(await rawResponse.arrayBuffer())).toEqual(renderDisplayDataRaw(availableData, null, prefs));
+  });
+
+  it('uses one active scheduled page and refresh delay in JSON, BMP and raw output', async () => {
+    const scheduledPrefs: UserPreferences = { ...prefs, display_schedule: {
+      enabled: true, timezone: 'UTC', quiet_hours: { enabled: false, start: '22:00', end: '07:00' },
+      pages: [
+        { id: 'energy', name: 'Electricity', duration_seconds: 60, layout: { version: 1, cols: 10, rows: 6, widgets: [{ i: 'energy', x: 0, y: 0, w: 10, h: 6 }] } },
+        { id: 'weather', name: 'Weather', duration_seconds: 120, layout: { version: 1, cols: 10, rows: 6, widgets: [{ i: 'weather', x: 0, y: 0, w: 10, h: 6 }] } },
+      ],
+    } };
+    vi.mocked(getPreferences).mockResolvedValue(scheduledPrefs);
+    const selected = resolveDisplaySchedule(scheduledPrefs);
+    const expected = { ...liveData, nextRefresh: selected.nextRefresh, schedule: selected.schedule };
+    const json = await fetch(`${baseUrl}/preview`, auth);
+    expect(await json.json()).toEqual(expected);
+    const bmp = await fetch(`${baseUrl}/image/preview`, auth);
+    expect(Buffer.from(await bmp.arrayBuffer())).toEqual(renderDisplayData(expected, selected.layout, scheduledPrefs));
+    const raw = await fetch(`${baseUrl}/image/preview/raw`, auth);
+    expect(Buffer.from(await raw.arrayBuffer())).toEqual(renderDisplayDataRaw(expected, selected.layout, scheduledPrefs));
   });
 
   it.each(['/preview', '/image/preview', '/image/preview/raw'])('requires authentication for %s', async (path) => {

@@ -8,6 +8,7 @@ import { fetchZaptecData } from './zaptec';
 import { fetchNotionData, NotionCredentials } from './notion';
 import { DisplayData, UserPreferences } from '../types/index';
 import { logger } from '../lib/logger';
+import { resolveDisplaySchedule } from './displaySchedule';
 import { parseCustomImage } from '../utils/customContent';
 
 // JSON previews and display images use the same enabled sources. A failed
@@ -66,8 +67,10 @@ export async function buildDisplayData(
   prefs: UserPreferences,
   apiKeyMap: Record<string, string>
 ): Promise<DisplayData> {
+  const resolved = resolveDisplaySchedule(prefs);
   const result: DisplayData = {
-    nextRefresh: prefs.refresh_interval_minutes * 60 * 1000,
+    nextRefresh: resolved.nextRefresh,
+    ...(resolved.schedule ? { schedule: resolved.schedule } : {}),
   };
 
   const tasks: Promise<void>[] = [];

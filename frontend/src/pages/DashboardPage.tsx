@@ -10,6 +10,7 @@ import { ApiKeysCard } from '../components/dashboard/ApiKeysCard';
 import { PreviewCard } from '../components/dashboard/PreviewCard';
 import { CalendarCard } from '../components/dashboard/CalendarCard';
 import { TemplatesCard } from '../components/dashboard/TemplatesCard';
+import { ScheduleCard } from '../components/dashboard/ScheduleCard';
 import { CustomContentCard } from '../components/dashboard/CustomContentCard';
 
 export function DashboardPage() {
@@ -64,6 +65,7 @@ export function DashboardPage() {
           <CustomContentCard />
           <ApiKeysCard />
           <TemplatesCard />
+          <ScheduleCard />
           <DisplayProfileCard />
         </div>
         <div className="max-[1080px]:static max-[1080px]:order-first sticky top-[calc(64px+var(--space-5))]">
