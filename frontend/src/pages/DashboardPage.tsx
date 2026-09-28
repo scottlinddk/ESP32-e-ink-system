@@ -8,6 +8,7 @@ import { usePreferences } from '../hooks/usePreferences';
 import { DisplayCard } from '../components/dashboard/DisplayCard';
 import { ApiKeysCard } from '../components/dashboard/ApiKeysCard';
 import { PreviewCard } from '../components/dashboard/PreviewCard';
+import { TemplatesCard } from '../components/dashboard/TemplatesCard';
 import { CustomContentCard } from '../components/dashboard/CustomContentCard';
 
 export function DashboardPage() {
@@ -60,6 +61,7 @@ export function DashboardPage() {
           <DisplayCard loading={isLoading} />
           <CustomContentCard />
           <ApiKeysCard />
+          <TemplatesCard />
           <DisplayProfileCard />
         </div>
         <div className="max-[1080px]:static max-[1080px]:order-first sticky top-[calc(64px+var(--space-5))]">
