@@ -25,6 +25,8 @@ $env:DISPLAY_OUTPUT_FILE = 'C:\display\frame.bmp'
 node tools/display-client.mjs
 ```
 
+The 250×122 example above is for file-only output. A valid server image does not establish support in a physical panel or external driver; in particular, the current browser BLE path rejects a 250-pixel row because the upstream transfer encoding requires byte-aligned widths. Before attaching a driver, choose dimensions and a panel that it actually supports and verify its width/row-packing limits.
+
 Keep credentials in your service manager's protected environment, not a committed script. A local development server can use `http://127.0.0.1:3001` with `ALLOW_HTTP_LOCALHOST=1`; HTTPS is mandatory for other hosts. `DISPLAY_ONCE=1` performs one check and exits with a failure code on error. The client remembers its ETag/applied hash for the lifetime of its process; restarting fetches and reapplies the current frame.
 
 Without a driver, the client writes the verified image to disk and reports only its heartbeat. It does **not** claim the image reached a physical display. To update a panel, configure `DISPLAY_DRIVER` as an executable and `DISPLAY_DRIVER_ARGS` as a JSON array of arguments containing `{file}`. Optional placeholders are `{width}`, `{height}` and `{rotation}`. The client launches this executable directly (`shell:false`), with a 300-second default deadline. Set `DISPLAY_DRIVER_TIMEOUT_SECONDS` to an integer from 10 to 600 for your driver's upload/refresh budget. Exit status zero must mean that the driver successfully applied the frame; any other exit status leaves the frame unacknowledged and retries it. The API credential is removed from the child environment.
@@ -37,7 +39,9 @@ $env:DISPLAY_DRIVER_ARGS = '["upload","--device","AA:BB:CC:DD:EE:FF","{file}","-
 node tools/display-client.mjs
 ```
 
-Use BMP for this driver. The server has already applied layout rotation, so do not apply it again in the driver. Encrypted OpenDisplay devices also need their own BLE key configured according to the CLI documentation. A different executable can drive other panels; its success/acknowledgement semantics are the adapter author's responsibility. Full refresh is the default and required by this reference protocol. No partial-refresh or power-consumption claim is made.
+Use BMP for this driver. The server has already applied layout rotation; verify that the device's configured rotation and the driver's fitting behavior do not rotate or rescale it again. Encrypted OpenDisplay devices also need their own BLE key configured according to the CLI documentation. A different executable can drive other panels; its supported widths and success/acknowledgement semantics are the adapter author's responsibility. Full refresh is the default and required by this reference protocol. No partial-refresh or power-consumption claim is made.
+
+The example's `upload`, `--device`, image argument and `--refresh-mode full` are confirmed in the [upstream CLI implementation](https://github.com/OpenDisplay/py-opendisplay/blob/main/src/opendisplay/cli.py). The CLI awaits `upload_image`; its [device implementation](https://github.com/OpenDisplay/py-opendisplay/blob/main/src/opendisplay/device.py) waits for the firmware's refresh-complete response and raises on a timeout or unexpected response. Thus a successful exit reports protocol-confirmed completion, not an independent visual check that the panel displayed the right pixels. Validate the installed CLI version and hardware before unattended use.
 
 ## Wire protocol
 
