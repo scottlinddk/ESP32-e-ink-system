@@ -3,6 +3,7 @@ import { getSupabaseClient } from './database';
 
 interface DeliveryRow {
   device_id: string;
+  owner_id: string;
   token_hash: string | null;
   rotated_at: string;
   revoked_at: string | null;
@@ -40,7 +41,8 @@ export async function getDeliveryStatus(owner: string, deviceId: string): Promis
   await assertOwner(owner, deviceId);
   const { data, error } = await getSupabaseClient().from('device_delivery').select('*').eq('device_id', deviceId).maybeSingle();
   if (error) throw new Error('Unable to load device delivery status');
-  const row = data as DeliveryRow | null;
+  // Credentials/reports issued to an earlier owner never follow a reassignment.
+  const row = data?.owner_id === owner ? data as DeliveryRow : null;
   return {
     configured: Boolean(row?.token_hash && !row.revoked_at), rotatedAt: row?.rotated_at ?? null,
     lastSeenAt: row?.last_seen_at ?? null, firmwareVersion: row?.firmware_version ?? null,
@@ -53,7 +55,8 @@ export async function rotateDeviceToken(owner: string, deviceId: string): Promis
   await assertOwner(owner, deviceId);
   const token = `einkd_${randomBytes(32).toString('base64url')}`;
   const { error } = await getSupabaseClient().from('device_delivery').upsert({
-    device_id: deviceId, token_hash: tokenHash(token), rotated_at: new Date().toISOString(), revoked_at: null,
+    device_id: deviceId, owner_id: owner, token_hash: tokenHash(token), rotated_at: new Date().toISOString(), revoked_at: null,
+    last_seen_at: null, firmware_version: null, battery_percent: null, rssi: null, last_applied_hash: null,
   }, { onConflict: 'device_id' });
   if (error) throw new Error('Unable to create device token');
   return token;
@@ -69,12 +72,12 @@ export async function authenticateDevice(deviceId: string, authorization?: strin
   const match = /^Bearer (einkd_[A-Za-z0-9_-]{43})$/.exec(authorization ?? '');
   if (!match) return null;
   const db = getSupabaseClient();
-  const { data, error } = await db.from('device_delivery').select('device_id').eq('device_id', deviceId).eq('token_hash', tokenHash(match[1])).is('revoked_at', null).maybeSingle();
+  const { data, error } = await db.from('device_delivery').select('device_id, owner_id').eq('device_id', deviceId).eq('token_hash', tokenHash(match[1])).is('revoked_at', null).maybeSingle();
   if (error) throw new Error('Unable to authenticate device');
   if (!data) return null;
   const device = await db.from('devices').select('user_id').eq('id', deviceId).maybeSingle();
   if (device.error) throw new Error('Unable to authenticate device');
-  return device.data?.user_id ?? null;
+  return device.data?.user_id === data.owner_id ? data.owner_id as string : null;
 }
 
 export function validateHeartbeat(body: unknown): Heartbeat {

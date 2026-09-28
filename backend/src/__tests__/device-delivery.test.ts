@@ -52,6 +52,7 @@ describe('authenticated device delivery', () => {
   afterEach(() => { vi.useRealTimers(); });
   beforeEach(() => {
     state.deliveries.clear(); vi.clearAllMocks();
+    state.owners.set('device-a', 'owner-a'); state.owners.set('device-b', 'owner-b');
     vi.mocked(getApiKeys).mockResolvedValue([]);
     vi.mocked(getPreferences).mockResolvedValue({ ...DEFAULT_PREFS, layout: { version: 1, cols: 10, rows: 6, widgets: [{ i: 'news', x: 0, y: 0, w: 10, h: 6 }] } });
     vi.mocked(buildDisplayData).mockResolvedValue({ nextRefresh: 120000, news: [{ title: 'Live frame', url: '' }] });
@@ -74,7 +75,7 @@ describe('authenticated device delivery', () => {
     expect((await frame(token, {}, 'device-b')).status).toBe(401);
     const replacement = await create(); expect(replacement).not.toBe(token);
     expect((await frame(token)).status).toBe(401); expect((await frame(replacement)).status).toBe(200);
-    expect(state.deliveries.get('device-a')?.last_seen_at).toBeUndefined();
+    expect(state.deliveries.get('device-a')?.last_seen_at).toBeNull();
     expect((await fetch(`${base}/devices/device-a/delivery/token`, { method: 'DELETE', headers: ownerHeaders })).status).toBe(200);
     expect((await frame(replacement)).status).toBe(401);
   });
@@ -88,7 +89,7 @@ describe('authenticated device delivery', () => {
     expect(unchanged.status).toBe(304); expect(await unchanged.text()).toBe('');
     const bmp = await frame(token, {}, 'device-a', 'bmp'); const bmpBytes = Buffer.from(await bmp.arrayBuffer());
     expect(bmpBytes.toString('ascii', 0, 2)).toBe('BM'); expect(bmpBytes.readInt32LE(18)).toBe(250);
-    expect(state.deliveries.get('device-a')?.last_applied_hash).toBeUndefined();
+    expect(state.deliveries.get('device-a')?.last_applied_hash).toBeNull();
   });
   it('validates reports and returns reported telemetry to the owner', async () => {
     const token = await create(); const report = { firmware_version: 'test/1.0', battery_percent: 45, rssi: -73, last_applied_hash: 'ab'.repeat(32) };
@@ -107,7 +108,7 @@ describe('authenticated device delivery', () => {
       expect((await poller.pollOnce()).kind).toBe('updated'); expect((await readFile(join(directory, 'frame.bmp'))).toString('ascii', 0, 2)).toBe('BM');
       expect((await poller.pollOnce()).kind).toBe('unchanged');
       expect(state.deliveries.get('device-a')?.last_seen_at).toEqual(expect.any(String));
-      expect(state.deliveries.get('device-a')?.last_applied_hash).toBeUndefined();
+      expect(state.deliveries.get('device-a')?.last_applied_hash).toBeNull();
     } finally { await rm(directory, { recursive: true, force: true }); }
   });
   it('sends quiet 204 before fetching credentials/sources and wakes at the quiet boundary', async () => {
@@ -117,6 +118,12 @@ describe('authenticated device delivery', () => {
     const response = await frame(await create());
     expect(response.status).toBe(204); expect(await response.text()).toBe(''); expect(response.headers.get('retry-after')).toBe('25200');
     expect(getApiKeys).not.toHaveBeenCalled(); expect(buildDisplayData).not.toHaveBeenCalled();
+  });
+  it('does not carry an earlier owner token or reports across device reassignment', async () => {
+    const token = await create(); state.owners.set('device-a', 'owner-b');
+    expect((await frame(token)).status).toBe(401);
+    const status = await (await fetch(`${base}/devices/device-a/delivery`, { headers: { Authorization: 'Bearer owner-b' } })).json();
+    expect(status).toMatchObject({ configured: false, lastSeenAt: null, lastAppliedHash: null });
   });
   it('uses the page attached to collected data and subtracts elapsed rendering time from the next boundary', async () => {
     vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-09-28T12:00:59Z'));
