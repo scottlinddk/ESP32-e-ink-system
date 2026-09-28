@@ -17,7 +17,7 @@ import { LoadBox } from '../components/ui/Spinner';
 import { Empty } from '../components/ui/Empty';
 import { Icon } from '../components/ui/Logo';
 
-const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion'] as const;
+const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image'] as const;
 
 export function LayoutEditorPage() {
   const app = useApp();
@@ -34,6 +34,8 @@ export function LayoutEditorPage() {
     zaptec:  { id: 'zaptec',  label: t.srcZaptec,           icon: 'electric_car' },
     notion:  { id: 'notion',  label: t.srcNotion,           icon: 'auto_stories' },
     status:  { id: 'status',  label: t.layoutWidgetStatus,  icon: 'schedule' },
+    'custom-text': { id: 'custom-text', label: 'My note', icon: 'notes' },
+    'custom-image': { id: 'custom-image', label: 'My image', icon: 'image' },
   };
 
   const [layout, setLayout] = useState<DisplayLayout>(DEFAULT_LAYOUT);

@@ -27,3 +27,9 @@ describe('display profiles and frame encoding', () => {
     expect(raw.length).toBe(48000); expect(raw.subarray(0,40000).every(x=>x===255)).toBe(true);
   });
 });
+
+it('scales custom images across the whole logical canvas on larger panels', () => {
+  const prefs={monta_fields:[],zaptec_fields:[],display_profile:{width:800,height:480,rotation:0 as const,colorMode:'bw' as const}};
+  const raw=renderDisplayDataRaw({nextRefresh:60000,customImage:{width:8,height:1,pixels:'AA==',fit:'cover'}},{version:1,cols:10,rows:6,widgets:[{i:'custom-image',x:0,y:0,w:10,h:6}]},prefs);
+  expect(raw.length).toBe(48000);expect(raw.every(byte=>byte===0)).toBe(true);
+});
