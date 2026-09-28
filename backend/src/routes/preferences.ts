@@ -10,6 +10,8 @@ import {
 import { getOrCreateUserFromClerk } from './preferences-helpers';
 import { UserPreferences } from '../types/index';
 import templatesRouter from './templates';
+import { parseDisplaySchedule, ScheduleValidationError } from '../utils/scheduleValidation';
+import { LayoutValidationError } from '../utils/layoutValidation';
 
 /**
  * @swagger
@@ -212,10 +214,13 @@ router.post(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const clerkUserId = req.clerkUserId!;
-      const userId = await getOrCreateUserFromClerk(clerkUserId);
+      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+        res.status(400).json({ error: 'Preferences must be an object.' });
+        return;
+      }
 
       const allowedFields: (keyof UserPreferences)[] = [
+        'display_schedule',
         'show_energy_price',
         'show_weather',
         'show_news',
@@ -240,9 +245,18 @@ router.post(
         }
       }
 
+      if (updates.display_schedule !== undefined && updates.display_schedule !== null) {
+        updates.display_schedule = parseDisplaySchedule(updates.display_schedule);
+      }
+
+      const userId = await getOrCreateUserFromClerk(req.clerkUserId!);
       const prefs = await upsertPreferences(userId, updates);
       res.json({ preferences: prefs });
     } catch (err) {
+      if (err instanceof ScheduleValidationError || err instanceof LayoutValidationError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
       next(err);
     }
   }

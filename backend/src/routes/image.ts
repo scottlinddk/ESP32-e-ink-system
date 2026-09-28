@@ -10,6 +10,7 @@ import { buildDisplayData, DEFAULT_PREFS } from '../services/displayData';
 import { renderDisplayData, renderDisplayDataRaw } from '../utils/bmpGenerator';
 import { requireAuth } from '../middleware/auth';
 import { LayoutValidationError, parseDisplayLayout } from '../utils/layoutValidation';
+import { layoutForDisplayData } from '../services/displaySchedule';
 
 const router = Router();
 
@@ -36,7 +37,8 @@ router.post('/preview/draft', requireAuth, async (req: Request, res: Response, n
     const prefs = (await getPreferences(user.id)) ?? DEFAULT_PREFS;
     const keys = await getApiKeys(user.id);
     const apiKeyMap = Object.fromEntries(keys.map((key) => [key.provider, key.api_key]));
-    const data = await buildDisplayData(user.id, prefs, apiKeyMap);
+    const draftPrefs = prefs.display_schedule ? { ...prefs, display_schedule: null } : prefs;
+    const data = await buildDisplayData(user.id, draftPrefs, apiKeyMap);
     const bmp = renderDisplayData(data, layout, prefs);
     res.setHeader('Content-Type', 'image/bmp');
     res.setHeader('Cache-Control', 'no-store');
@@ -106,7 +108,7 @@ router.get(
       for (const row of apiKeyRows) apiKeyMap[row.provider] = row.api_key;
 
       const displayData = await buildDisplayData(user.id, prefs, apiKeyMap);
-      const rawBuf = renderDisplayDataRaw(displayData, prefs.layout ?? null, prefs);
+      const rawBuf = renderDisplayDataRaw(displayData, layoutForDisplayData(prefs, displayData), prefs);
 
       res.setHeader('Content-Type', 'application/octet-stream');
       res.setHeader('Content-Length', rawBuf.length);
@@ -152,7 +154,7 @@ router.get(
       }
 
       const displayData = await buildDisplayData(user.id, prefs, apiKeyMap);
-      const bmpBuffer = renderDisplayData(displayData, prefs.layout ?? null, prefs);
+      const bmpBuffer = renderDisplayData(displayData, layoutForDisplayData(prefs, displayData), prefs);
 
       res.setHeader('Content-Type', 'image/bmp');
       res.setHeader('Content-Length', bmpBuffer.length);

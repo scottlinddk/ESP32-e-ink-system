@@ -2,12 +2,12 @@
 // LayoutEditorPage.tsx — full-page drag-and-drop layout editor
 // =========================================================================
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../lib/appContext';
 import { useAuth } from '../hooks/useAuth';
 import { DisplayLayout, DEFAULT_LAYOUT } from '../types';
-import { saveLayout, getPreferences } from '../lib/api';
+import { saveLayout, getPreferences, savePreferences } from '../lib/api';
 import { findWidgetSpace } from '../lib/layoutPlacement';
 import { GridEditor, WIDGET_META } from '../components/layout/GridEditor';
 import { LayoutPreviewPane } from '../components/layout/LayoutPreviewPane';
@@ -22,6 +22,8 @@ const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion'
 export function LayoutEditorPage() {
   const app = useApp();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const pageId = searchParams.get('page');
   const queryClient = useQueryClient();
   const { getToken } = useAuth();
   const t = app.t;
@@ -41,6 +43,7 @@ export function LayoutEditorPage() {
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [pageName, setPageName] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,14 +53,22 @@ export function LayoutEditorPage() {
       if (!authToken) throw new Error('Not authenticated');
       const { preferences } = await getPreferences(authToken);
       if (cancelled) return;
-      setLayout(preferences.layout ?? DEFAULT_LAYOUT);
+      if (pageId) {
+        const page = preferences.display_schedule?.pages.find((item) => item.id === pageId);
+        if (!page) throw new Error('Scheduled page no longer exists');
+        setPageName(page.name);
+        setLayout(page.layout);
+      } else {
+        setPageName(null);
+        setLayout(preferences.layout ?? DEFAULT_LAYOUT);
+      }
     }).catch(() => {
       if (!cancelled) setLoadError(true);
     }).finally(() => {
       if (!cancelled) setLoadingPrefs(false);
     });
     return () => { cancelled = true; };
-  }, [getToken, loadAttempt]);
+  }, [getToken, loadAttempt, pageId]);
 
   const activeWidgetIds = new Set(layout.widgets.map((w) => w.i));
   const availableWidgets = ALL_WIDGET_IDS.filter((id) => !activeWidgetIds.has(id));
@@ -80,7 +91,18 @@ export function LayoutEditorPage() {
     try {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      await saveLayout(token, layout);
+      if (pageId) {
+        // Read the current schedule so editing one page preserves its current order
+        // and the other pages, even if those changed after opening the editor.
+        const { preferences } = await getPreferences(token);
+        const schedule = preferences.display_schedule;
+        if (!schedule?.pages.some((page) => page.id === pageId)) throw new Error('Scheduled page no longer exists');
+        await savePreferences(token, { display_schedule: {
+          ...schedule, pages: schedule.pages.map((page) => page.id === pageId ? { ...page, layout } : page),
+        } });
+      } else {
+        await saveLayout(token, layout);
+      }
       queryClient.invalidateQueries({ queryKey: ['preferences'] });
       queryClient.invalidateQueries({ queryKey: ['preview'] });
       app.toast({ type: 'success', title: t.layoutSaved, msg: t.layoutSavedMsg });
@@ -116,6 +138,7 @@ export function LayoutEditorPage() {
         <div>
           <h1 className="text-h2 font-light tracking-tight m-0 mb-1.5">{t.layoutTitle}</h1>
           <p className="text-fg2 text-body m-0">{t.layoutSub}</p>
+          {pageName && <p className="text-sm text-fg2 mt-2">{app.lang === 'da' ? 'Side' : 'Page'}: {pageName}</p>}
         </div>
         <div className="flex gap-2 flex-shrink-0 flex-wrap">
           <Button variant="outlined" onClick={handleReset} icon="restart_alt">{t.layoutReset}</Button>

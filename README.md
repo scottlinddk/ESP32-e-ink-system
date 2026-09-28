@@ -11,6 +11,8 @@ A quiet, glanceable home dashboard for Danish electricity prices, weather, news,
 
 Use **Layout templates** on the Dashboard to export settings, review a JSON import or apply a starter layout. Templates omit credentials and private feed URLs; see the [format and compatibility guide](docs/DISPLAY_TEMPLATES.md).
 
+Use **Pages and schedule** to save named layouts, choose their order and duration, and configure local quiet hours. Server requests select the active page; browser Bluetooth still requires manual pushes. See the [schedule guide](docs/DISPLAY_SCHEDULES.md) for timing rules and the required migration.
+
 The JSON preview, BMP preview and Bluetooth payload share one live-data pipeline. Unavailable sources are shown as unavailable, without invented weather or headlines. Widget drawing is clipped to its assigned area so long content cannot overwrite neighboring widgets.
 
 The current image renderer and Bluetooth payload target **250 × 122 monochrome pixels** (3,904 raw bytes). The firmware folders also contain work for other boards, but flashing another board does not make this renderer adapt to its panel size.

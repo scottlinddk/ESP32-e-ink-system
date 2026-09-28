@@ -16,6 +16,13 @@ export interface DisplayLayout {
   widgets: WidgetLayout[];
 }
 
+export interface DisplaySchedule {
+  enabled: boolean;
+  timezone: string;
+  pages: Array<{ id: string; name: string; duration_seconds: number; layout: DisplayLayout }>;
+  quiet_hours: { enabled: boolean; start: string; end: string };
+}
+
 export const DEFAULT_LAYOUT: DisplayLayout = {
   version: 1,
   cols: 10,
@@ -29,6 +36,7 @@ export const DEFAULT_LAYOUT: DisplayLayout = {
 };
 
 export interface UserPreferences {
+  display_schedule?: DisplaySchedule | null;
   show_energy_price: boolean;
   show_weather: boolean;
   show_news: boolean;
@@ -64,6 +72,7 @@ export interface NewsItem {
 }
 
 export interface DisplayData {
+  schedule?: { pageId: string; pageName: string; quiet: boolean; nextTransitionAt: string };
   price?: EnergyPrice;
   weather?: WeatherData;
   news?: NewsItem[];
