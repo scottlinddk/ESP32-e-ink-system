@@ -6,7 +6,7 @@ import { DisplaySchedule, parseDisplaySchedule, ScheduleValidationError } from '
 export const TEMPLATE_MAX_BYTES = 32768;
 export const TEMPLATE_SETTING_KEYS = [
   'show_energy_price', 'show_weather', 'show_news', 'show_air_quality', 'show_monta', 'show_zaptec', 'show_notion', 'show_custom_text', 'show_custom_image',
-  'energy_price_location', 'weather_location', 'news_language', 'refresh_interval_minutes', 'layout', 'monta_fields', 'zaptec_fields', 'display_profile', 'display_schedule',
+  'energy_price_location', 'weather_location', 'news_language', 'news_source', 'news_item_limit', 'refresh_interval_minutes', 'layout', 'monta_fields', 'zaptec_fields', 'display_profile', 'display_schedule',
 ] as const;
 
 export type TemplateSettings = Partial<UserPreferences> & {
@@ -56,6 +56,10 @@ export function parseDisplayTemplate(input: unknown): DisplayTemplate {
         && Math.abs(Number(parts[0])) <= 90 && Math.abs(Number(parts[1])) <= 180, 'Weather coordinates are outside valid latitude/longitude ranges.');
     } else if (key === 'news_language') {
       check(typeof value === 'string' && ['da', 'en', 'de', 'sv', 'no', 'fi'].includes(value), 'Unsupported news language.');
+    } else if (key === 'news_source') {
+      check(value === 'newsapi' || value === 'rss', 'Unsupported news source.');
+    } else if (key === 'news_item_limit') {
+      check(typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 10, 'News item limit must be 1–10.');
     } else if (key === 'refresh_interval_minutes') {
       check(typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 1440, 'Refresh interval must be 1–1440 whole minutes.');
     } else if (key === 'layout') {

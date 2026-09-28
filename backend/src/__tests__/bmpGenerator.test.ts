@@ -13,6 +13,22 @@ import {
 
 const STRIDE = 32;
 
+describe('news feed rendering', () => {
+  const newsLayout: DisplayLayout = { version: 1, cols: 10, rows: 6, widgets: [{ i: 'news', x: 0, y: 0, w: 10, h: 6 }] };
+  it('renders additional headlines when the news widget has room', () => {
+    const one = { nextRefresh: 60_000, news: [{ title: 'First', url: '' }] };
+    const two = { ...one, news: [...one.news, { title: 'Second', url: '' }] };
+    const first = renderDisplayDataRaw(one, newsLayout);
+    const both = renderDisplayDataRaw(two, newsLayout);
+    expect(first.subarray(0, STRIDE * 12)).toEqual(both.subarray(0, STRIDE * 12));
+    expect(first).not.toEqual(both);
+  });
+  it('distinguishes an empty feed from a failed source', () => {
+    expect(renderDisplayDataRaw({ nextRefresh: 60_000, news: [] }, newsLayout))
+      .not.toEqual(renderDisplayDataRaw({ nextRefresh: 60_000 }, newsLayout));
+  });
+});
+
 const data: DisplayData = {
   price: { now: 125, average: 175, trend: 'down' },
   weather: { temp: 17, condition: 'Mostly cloudy', windSpeed: 2.5, icon: '04d' },
