@@ -1,3 +1,4 @@
+import type { DisplayProfile } from '../utils/displayProfile';
 export interface WidgetLayout {
   i: string;       // 'energy' | 'weather' | 'news' | 'status'
   x: number;       // 0–9
@@ -23,6 +24,11 @@ export interface DisplaySchedule {
 
 export interface UserPreferences {
   display_schedule?: DisplaySchedule | null;
+  display_profile?: DisplayProfile | null;
+  show_custom_text?: boolean;
+  custom_text?: string;
+  show_custom_image?: boolean;
+  custom_image?: CustomImage | null;
   show_energy_price: boolean;
   show_weather: boolean;
   show_news: boolean;
@@ -32,6 +38,9 @@ export interface UserPreferences {
   energy_price_location: string; // 'DK1' | 'DK2'
   weather_location: string; // 'lat,lng'
   news_language: string; // 'da' | 'en'
+  news_source?: 'newsapi' | 'rss';
+  news_feed_url?: string;
+  news_item_limit?: number;
   refresh_interval_minutes: number;
   layout: DisplayLayout | null;
   monta_fields: string[]; // e.g. ['charger_status', 'active_session', 'today_stats']
@@ -108,6 +117,8 @@ export interface NotionData {
 
 export interface DisplayData {
   schedule?: { pageId: string; pageName: string; quiet: boolean; nextTransitionAt: string };
+  customText?: string;
+  customImage?: CustomImage;
   price?: EnergyPrice;
   weather?: WeatherData;
   news?: NewsItem[];
@@ -115,6 +126,14 @@ export interface DisplayData {
   zaptec?: ZaptecData;
   notion?: NotionData;
   nextRefresh: number;
+}
+
+export interface CustomImage {
+  width: number;
+  height: number;
+  // Base64, MSB-first, 1=white, tight rows of ceil(width / 8) bytes.
+  pixels: string;
+  fit: 'contain' | 'cover';
 }
 
 export interface Device {

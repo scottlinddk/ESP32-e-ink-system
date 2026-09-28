@@ -1,3 +1,4 @@
+import { parseDisplayProfile } from '../utils/displayProfile';
 import { Router, Request, Response, NextFunction } from 'express';
 import { requireAuth } from '../middleware/auth';
 import {
@@ -12,6 +13,8 @@ import { UserPreferences } from '../types/index';
 import templatesRouter from './templates';
 import { parseDisplaySchedule, ScheduleValidationError } from '../utils/scheduleValidation';
 import { LayoutValidationError } from '../utils/layoutValidation';
+import { validatePublicHttpsUrl } from '../utils/publicFeedFetch';
+import { parseCustomContentUpdates } from '../utils/customContent';
 
 /**
  * @swagger
@@ -182,6 +185,10 @@ router.get(
 
       // Return defaults if no preferences set yet
       const defaultPrefs: UserPreferences = {
+        show_custom_text: false,
+        custom_text: '',
+        show_custom_image: false,
+        custom_image: null,
         show_energy_price: true,
         show_weather: true,
         show_news: true,
@@ -192,6 +199,9 @@ router.get(
         energy_price_location: 'DK1',
         weather_location: '55.3,10.4',
         news_language: 'da',
+        news_source: 'newsapi',
+        news_feed_url: '',
+        news_item_limit: 3,
         refresh_interval_minutes: 30,
         layout: null,
         monta_fields: ['charger_status', 'active_session'],
@@ -230,14 +240,43 @@ router.post(
         'energy_price_location',
         'weather_location',
         'news_language',
+        'news_source',
+        'news_feed_url',
+        'news_item_limit',
         'refresh_interval_minutes',
         'layout',
+        'display_profile',
         'monta_fields',
         'zaptec_fields',
         'show_notion',
       ];
 
-      const updates: Partial<UserPreferences> = {};
+      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+        res.status(400).json({ error: 'Preferences must be an object' });
+        return;
+      }
+      let updates: Partial<UserPreferences>;
+      try {
+        updates = parseCustomContentUpdates(req.body);
+      } catch (error) {
+        res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid custom content' });
+        return;
+      }
+      const { news_source, news_feed_url, news_item_limit } = req.body;
+      if (news_source !== undefined && !['newsapi', 'rss'].includes(news_source)) {
+        res.status(400).json({ error: 'news_source must be newsapi or rss' }); return;
+      }
+      if (news_item_limit !== undefined && (!Number.isInteger(news_item_limit) || news_item_limit < 1 || news_item_limit > 10)) {
+        res.status(400).json({ error: 'news_item_limit must be an integer between 1 and 10' }); return;
+      }
+      if (news_feed_url !== undefined) {
+        try {
+          if (typeof news_feed_url !== 'string') throw new Error('Feed URL must be a string');
+          if (news_feed_url !== '') validatePublicHttpsUrl(news_feed_url);
+        } catch (error) {
+          res.status(400).json({ error: (error as Error).message }); return;
+        }
+      }
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -250,6 +289,17 @@ router.post(
       }
 
       const userId = await getOrCreateUserFromClerk(req.clerkUserId!);
+      if (req.body.display_profile !== undefined) {
+        try { updates.display_profile = parseDisplayProfile(req.body.display_profile); }
+        catch (error) { res.status(400).json({ error: (error as Error).message }); return; }
+      }
+      if (news_source === 'rss' || news_feed_url === '') {
+        const current = await getPreferences(userId);
+        if ((news_source ?? current?.news_source) === 'rss' && !(news_feed_url ?? current?.news_feed_url)) {
+          res.status(400).json({ error: 'A feed URL is required for RSS/Atom' }); return;
+        }
+
+      }
       const prefs = await upsertPreferences(userId, updates);
       res.json({ preferences: prefs });
     } catch (err) {

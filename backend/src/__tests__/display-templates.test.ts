@@ -14,7 +14,7 @@ vi.mock('@clerk/backend', () => ({ verifyToken: vi.fn() }));
 vi.mock('../routes/preferences-helpers', () => ({ getOrCreateUserFromClerk: vi.fn() }));
 vi.mock('../services/database', () => ({ getPreferences: vi.fn(), upsertPreferences: vi.fn() }));
 vi.mock('../lib/logger', () => ({ logger: { error: vi.fn(), warn: vi.fn() } }));
-const template = { format: 'esp32-eink-template', version: 1, settings: { ...DEFAULT_PREFS } };
+const template = { format: 'esp32-eink-template', version: 1, settings: exportDisplayTemplate(DEFAULT_PREFS).settings };
 const withSettings = (settings: unknown) => ({ ...template, settings });
 const schedule = {
   enabled: true, timezone: 'Europe/Copenhagen',
@@ -40,13 +40,25 @@ describe('portable display template schema', () => {
       display_schedule: schedule,
     } as UserPreferences;
     const exported = exportDisplayTemplate(prefs);
-    expect(parseDisplayTemplate(JSON.parse(JSON.stringify(exported))).settings).toEqual(prefs);
+    expect(parseDisplayTemplate(JSON.parse(JSON.stringify(exported)))).toEqual(exported);
+    expect(exported.settings).toMatchObject({ layout: prefs.layout, display_profile: prefs.display_profile, display_schedule: schedule });
+  });
+
+  it('exports migrated rows with a null profile as the default profile', () => {
+    expect(exportDisplayTemplate({ ...DEFAULT_PREFS, display_profile: null }).settings.display_profile).toEqual({ width: 250, height: 122, rotation: 0, colorMode: 'bw' });
+  });
+
+  it('round-trips a full twelve-page schedule above the old 8 KiB limit', () => {
+    const widgets = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'status'].map((i, x) => ({ i, x, y: 0, w: 1, h: 1, static: true }));
+    const large = withSettings({ display_schedule: { ...schedule, pages: Array.from({ length: 12 }, (_, i) => ({ id: `page-${i}`, name: 'A'.repeat(80), duration_seconds: 900, layout: { version: 1, cols: 10, rows: 6, widgets } })) } });
+    expect(Buffer.byteLength(JSON.stringify(large))).toBeGreaterThan(8192);
+    expect(parseDisplayTemplate(large).settings.display_schedule?.pages).toHaveLength(12);
   });
 
   it('only exports safe settings even when a database row contains secrets or identifiers', () => {
     const prefs = {
       ...DEFAULT_PREFS, user_id: 'private-user', device_id: 'private-device', api_keys: { secret: 'private-token' },
-      integration_token: 'private-token', rss_url: 'https://example.com/private-feed?key=private-token',
+      integration_token: 'private-token', news_feed_url: 'https://example.com/private-feed?key=private-token',
       calendar_url: 'https://calendar.example.com/private-token', unknown_future_secret: 'private-token',
     } as UserPreferences;
     const exported = JSON.stringify(exportDisplayTemplate(prefs));
@@ -96,7 +108,7 @@ describe('authenticated template endpoints', () => {
   let baseUrl: string;
   beforeAll(async () => {
     const app = express();
-    app.use(express.json({ limit: '10kb' }));
+    app.use(express.json({ limit: '64kb' }));
     app.use('/templates', templatesRouter);
     await new Promise<void>((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
     baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/templates`;
@@ -141,7 +153,7 @@ describe('authenticated template endpoints', () => {
   });
 
   it('rejects over-sized documents without saving', async () => {
-    const response = await request('import', withSettings({ weather_location: 'x'.repeat(9000) }));
+    const response = await request('import', withSettings({ weather_location: 'x'.repeat(33000) }));
     expect(response.status).toBe(400);
     expect(upsertPreferences).not.toHaveBeenCalled();
   });

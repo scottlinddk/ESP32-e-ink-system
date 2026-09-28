@@ -1,3 +1,4 @@
+import type { DisplayProfile } from '../lib/displayProfile';
 // ---- Legacy API types (kept for compatibility with existing hooks/api.ts) ----
 
 export interface WidgetLayout {
@@ -37,6 +38,11 @@ export const DEFAULT_LAYOUT: DisplayLayout = {
 
 export interface UserPreferences {
   display_schedule?: DisplaySchedule | null;
+  display_profile?: DisplayProfile | null;
+  show_custom_text?: boolean;
+  custom_text?: string;
+  show_custom_image?: boolean;
+  custom_image?: CustomImage | null;
   show_energy_price: boolean;
   show_weather: boolean;
   show_news: boolean;
@@ -46,6 +52,9 @@ export interface UserPreferences {
   energy_price_location: string; // 'DK1' | 'DK2'
   weather_location: string; // 'lat,lng'
   news_language: string; // 'da' | 'en'
+  news_source?: 'newsapi' | 'rss';
+  news_feed_url?: string;
+  news_item_limit?: number;
   refresh_interval_minutes: number;
   layout: DisplayLayout | null;
   monta_fields: string[];
@@ -73,10 +82,20 @@ export interface NewsItem {
 
 export interface DisplayData {
   schedule?: { pageId: string; pageName: string; quiet: boolean; nextTransitionAt: string };
+  customText?: string;
+  customImage?: CustomImage;
   price?: EnergyPrice;
   weather?: WeatherData;
   news?: NewsItem[];
   nextRefresh: number;
+}
+
+export interface CustomImage {
+  width: number;
+  height: number;
+  // Base64, MSB-first, 1=white, tight rows of ceil(width / 8) bytes.
+  pixels: string;
+  fit: 'contain' | 'cover';
 }
 
 export interface MaskedApiKey {
@@ -96,7 +115,7 @@ export interface ApiResponse<T> {
 export interface Preferences {
   energy: { on: boolean; zone: string };
   weather: { on: boolean; location: string };
-  news: { on: boolean; lang: string; source: string };
+  news: { on: boolean; lang: string; source: string; feedUrl?: string; itemLimit?: number };
   monta: { on: boolean; fields: string[] };
   zaptec: { on: boolean; fields: string[] };
   notion: { on: boolean };

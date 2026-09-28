@@ -1,16 +1,22 @@
 import { fetchEnergyPrice } from './energinet';
 import { fetchWeather } from './weather';
 import { fetchNews } from './news';
+import { fetchRssNews } from './rss';
 import { fetchMontaData } from './monta';
 import { fetchZaptecData } from './zaptec';
 import { fetchNotionData, NotionCredentials } from './notion';
 import { DisplayData, UserPreferences } from '../types/index';
 import { logger } from '../lib/logger';
 import { resolveDisplaySchedule } from './displaySchedule';
+import { parseCustomImage } from '../utils/customContent';
 
 // JSON previews and display images use the same enabled sources. A failed
 // source stays absent so an unavailable reading is never presented as live data.
 export const DEFAULT_PREFS: UserPreferences = {
+  show_custom_text: false,
+  custom_text: '',
+  show_custom_image: false,
+  custom_image: null,
   show_energy_price: true,
   show_weather: true,
   show_news: true,
@@ -21,6 +27,9 @@ export const DEFAULT_PREFS: UserPreferences = {
   energy_price_location: 'DK1',
   weather_location: '55.3,10.4',
   news_language: 'da',
+  news_source: 'newsapi',
+  news_feed_url: '',
+  news_item_limit: 3,
   refresh_interval_minutes: 30,
   layout: null,
   monta_fields: ['charger_status', 'active_session'],
@@ -61,6 +70,17 @@ export async function buildDisplayData(
 
   const tasks: Promise<void>[] = [];
 
+  if (prefs.show_custom_text && typeof prefs.custom_text === 'string') {
+    result.customText = prefs.custom_text.slice(0, 2000).normalize('NFC');
+  }
+  if (prefs.show_custom_image && prefs.custom_image) {
+    try {
+      result.customImage = parseCustomImage(prefs.custom_image);
+    } catch {
+      logger.warn('Stored custom image is invalid — skipping');
+    }
+  }
+
   if (prefs.show_energy_price) {
     tasks.push(
       withSourceDeadline((signal) => fetchEnergyPrice(prefs.energy_price_location, signal))
@@ -89,7 +109,9 @@ export async function buildDisplayData(
   if (prefs.show_news) {
     const newsKey = apiKeyMap['newsapi'];
     tasks.push(
-      withSourceDeadline((signal) => fetchNews(prefs.news_language, newsKey, signal))
+      withSourceDeadline((signal) => prefs.news_source === 'rss'
+        ? fetchRssNews(prefs.news_feed_url ?? '', prefs.news_item_limit ?? 3, signal)
+        : fetchNews(prefs.news_language, newsKey, signal))
         .then((news) => {
           result.news = news;
         })

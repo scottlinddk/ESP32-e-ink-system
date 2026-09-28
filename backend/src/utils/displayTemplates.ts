@@ -1,11 +1,12 @@
 import type { UserPreferences } from '../types';
+import { parseDisplayProfile } from './displayProfile';
 import { LayoutValidationError, parseDisplayLayout } from './layoutValidation';
 import { DisplaySchedule, parseDisplaySchedule, ScheduleValidationError } from './scheduleValidation';
 
-export const TEMPLATE_MAX_BYTES = 8192;
+export const TEMPLATE_MAX_BYTES = 32768;
 export const TEMPLATE_SETTING_KEYS = [
-  'show_energy_price', 'show_weather', 'show_news', 'show_air_quality', 'show_monta', 'show_zaptec', 'show_notion',
-  'energy_price_location', 'weather_location', 'news_language', 'refresh_interval_minutes', 'layout', 'monta_fields', 'zaptec_fields', 'display_profile', 'display_schedule',
+  'show_energy_price', 'show_weather', 'show_news', 'show_air_quality', 'show_monta', 'show_zaptec', 'show_notion', 'show_custom_text', 'show_custom_image',
+  'energy_price_location', 'weather_location', 'news_language', 'news_source', 'news_item_limit', 'refresh_interval_minutes', 'layout', 'monta_fields', 'zaptec_fields', 'display_profile', 'display_schedule',
 ] as const;
 
 export type TemplateSettings = Partial<UserPreferences> & {
@@ -33,7 +34,7 @@ function check(condition: boolean, message: string): asserts condition {
 
 /** Strict, bounded data format. No credentials, private URLs or account/device IDs. */
 export function parseDisplayTemplate(input: unknown): DisplayTemplate {
-  check(Buffer.byteLength(JSON.stringify(input) ?? '', 'utf8') <= TEMPLATE_MAX_BYTES, 'Templates must be at most 8 KiB.');
+  check(Buffer.byteLength(JSON.stringify(input) ?? '', 'utf8') <= TEMPLATE_MAX_BYTES, 'Templates must be at most 32 KiB.');
   check(record(input), 'A template must be a JSON object.');
   exactKeys(input, ['format', 'version', 'settings'], 'Template');
   check(input.format === 'esp32-eink-template', 'Unsupported template format.');
@@ -55,6 +56,10 @@ export function parseDisplayTemplate(input: unknown): DisplayTemplate {
         && Math.abs(Number(parts[0])) <= 90 && Math.abs(Number(parts[1])) <= 180, 'Weather coordinates are outside valid latitude/longitude ranges.');
     } else if (key === 'news_language') {
       check(typeof value === 'string' && ['da', 'en', 'de', 'sv', 'no', 'fi'].includes(value), 'Unsupported news language.');
+    } else if (key === 'news_source') {
+      check(value === 'newsapi' || value === 'rss', 'Unsupported news source.');
+    } else if (key === 'news_item_limit') {
+      check(typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 10, 'News item limit must be 1–10.');
     } else if (key === 'refresh_interval_minutes') {
       check(typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 1440, 'Refresh interval must be 1–1440 whole minutes.');
     } else if (key === 'layout') {
@@ -75,13 +80,9 @@ export function parseDisplayTemplate(input: unknown): DisplayTemplate {
         && value.every((field) => typeof field === 'string' && allowed.includes(field))
         && new Set(value).size === value.length, `${key} must contain supported, unique fields.`);
     } else if (key === 'display_profile') {
-      check(record(value), 'Display profile must be an object.');
-      exactKeys(value, ['width', 'height', 'rotation', 'colorMode'], 'Display profile');
-      check(typeof value.width === 'number' && Number.isInteger(value.width) && value.width >= 64 && value.width <= 1600
-        && typeof value.height === 'number' && Number.isInteger(value.height) && value.height >= 64 && value.height <= 1600
-        && value.width * value.height <= 1920000, 'Display dimensions must be 64–1600 pixels and at most 1,920,000 pixels total.');
-      check([0, 90, 180, 270].includes(value.rotation as number), 'Display rotation must be 0, 90, 180 or 270.');
-      check(value.colorMode === 'bw', 'Only monochrome display profiles are supported.');
+      try { settings[key] = parseDisplayProfile(value); }
+      catch (error) { throw new TemplateValidationError(error instanceof Error ? error.message : 'Invalid display profile.'); }
+      continue;
     }
     settings[key] = value;
   }

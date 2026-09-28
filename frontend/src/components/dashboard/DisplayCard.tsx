@@ -91,6 +91,9 @@ export function DisplayCard({ loading }: { loading: boolean }) {
       weather_location: prefs.weather.location,
       show_news: prefs.news.on,
       news_language: prefs.news.lang,
+      news_source: prefs.news.source === 'rss' ? 'rss' : 'newsapi',
+      news_feed_url: (prefs.news.feedUrl ?? '').trim(),
+      news_item_limit: prefs.news.itemLimit ?? 3,
       show_monta: prefs.monta.on,
       monta_fields: prefs.monta.fields,
       show_zaptec: prefs.zaptec.on,
@@ -115,7 +118,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
       onSuccess: () => {
         app.toast({ type: 'success', title: t.saved, msg: t.savedMsg });
       },
-      onError: () => {
+      onError: (error) => {
         if (!app.online) {
           app.toast({
             type: 'error',
@@ -125,7 +128,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
             action: { label: t.retry, onClick: save },
           });
         } else {
-          app.toast({ type: 'error', title: t.saveFailed, msg: t.saveFailedMsg });
+          app.toast({ type: 'error', title: t.saveFailed, msg: error instanceof Error ? error.message : t.saveFailedMsg });
         }
       },
     });
@@ -239,7 +242,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
             onToggle={() => set({ news: { ...p.news, on: !p.news.on } })}
           >
             <div className="grid grid-cols-2 gap-3.5 max-[820px]:grid-cols-1">
-              <Field label={t.contentLang} htmlFor="nl">
+              {p.news.source !== 'rss' && <Field label={t.contentLang} htmlFor="nl">
                 <Select
                   id="nl"
                   value={p.news.lang}
@@ -249,19 +252,33 @@ export function DisplayCard({ loading }: { loading: boolean }) {
                     { value: 'en', label: t.langEnglish },
                   ]}
                 />
-              </Field>
+              </Field>}
               <Field label={t.source} htmlFor="ns">
                 <Select
                   id="ns"
-                  value={p.news.source}
+                  value={p.news.source === 'rss' ? 'rss' : 'newsapi'}
                   onChange={(e) => set({ news: { ...p.news, source: e.target.value } })}
                   options={[
-                    { value: 'dr', label: t.newsSrcDR },
-                    { value: 'pol', label: t.newsSrcPolitiken },
-                    { value: 'tv2', label: t.newsSrcTV2 },
+                    { value: 'newsapi', label: 'NewsAPI' },
+                    { value: 'rss', label: 'RSS / Atom' },
                   ]}
                 />
               </Field>
+              {p.news.source === 'rss' && <>
+                <Field label={app.lang === 'da' ? 'Feed-adresse (HTTPS)' : 'Feed URL (HTTPS)'} htmlFor="news-feed-url">
+                  <Input id="news-feed-url" type="url" maxLength={2048} value={p.news.feedUrl ?? ''}
+                    placeholder="https://example.org/feed.xml"
+                    onChange={(e) => set({ news: { ...p.news, feedUrl: e.target.value } })} />
+                </Field>
+                <Field label={app.lang === 'da' ? 'Antal overskrifter' : 'Headline limit'} htmlFor="news-item-limit">
+                  <Select id="news-item-limit" value={String(p.news.itemLimit ?? 3)}
+                    options={[1, 2, 3, 5, 10].map((value) => ({ value: String(value), label: String(value) }))}
+                    onChange={(e) => set({ news: { ...p.news, itemLimit: Number(e.target.value) } })} />
+                </Field>
+                <p className="text-xs text-fg3 m-0 col-span-full">{app.lang === 'da'
+                  ? 'Offentligt RSS- eller Atom-feed uden API-nøgle. Antallet på skærmen afhænger af widgetens plads.'
+                  : 'Public RSS or Atom feed; no API key needed. Visible headlines depend on the space in your widget.'}</p>
+              </>}
             </div>
           </SourceRow>
 
