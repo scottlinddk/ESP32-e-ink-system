@@ -1,3 +1,4 @@
+import { DisplayProfileCard } from '../components/dashboard/DisplayProfileCard';
 // =========================================================================
 // DashboardPage.tsx
 // =========================================================================
@@ -55,6 +56,7 @@ export function DashboardPage() {
         <div className="flex flex-col gap-5 min-w-0">
           <DisplayCard loading={isLoading} />
           <ApiKeysCard />
+          <DisplayProfileCard />
         </div>
         <div className="max-[1080px]:static max-[1080px]:order-first sticky top-[calc(64px+var(--space-5))]">
           <PreviewCard />

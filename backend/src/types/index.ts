@@ -1,3 +1,4 @@
+import type { DisplayProfile } from '../utils/displayProfile';
 export interface WidgetLayout {
   i: string;       // 'energy' | 'weather' | 'news' | 'status'
   x: number;       // 0–9
@@ -15,6 +16,7 @@ export interface DisplayLayout {
 }
 
 export interface UserPreferences {
+  display_profile?: DisplayProfile | null;
   show_energy_price: boolean;
   show_weather: boolean;
   show_news: boolean;

@@ -1,3 +1,4 @@
+import { DisplayProfile, frameMetadata } from './displayProfile';
 import { buildAuthHeaders } from './auth';
 import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout } from '../types';
 
@@ -263,3 +264,13 @@ export async function getHealth(): Promise<{
 }
 
 export { ApiError };
+
+export async function fetchPreviewFrame(token: string): Promise<{ pixels: Uint8Array; profile: DisplayProfile }> {
+  const response = await fetch(`${BASE_URL}/api/image/preview/raw`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const profile = { width: Number(response.headers.get('X-Display-Width')), height: Number(response.headers.get('X-Display-Height')), rotation: Number(response.headers.get('X-Display-Rotation')), colorMode: 'bw' } as DisplayProfile;
+  const meta = frameMetadata(profile);
+  const pixels = new Uint8Array(await response.arrayBuffer());
+  if (response.headers.get('X-Display-Encoding') !== meta.encoding || Number(response.headers.get('X-Display-Row-Bytes')) !== meta.rowBytes || pixels.length !== meta.byteLength) throw new Error('Invalid display image metadata');
+  return { pixels, profile };
+}
