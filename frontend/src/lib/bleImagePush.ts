@@ -1,9 +1,11 @@
+import { frameMetadata, DEFAULT_DISPLAY_PROFILE, DisplayProfile } from './displayProfile';
+import { readPanelConfig } from './openDisplayConfig';
 // OpenDisplay BLE direct-write protocol (uncompressed path).
 //
 // The device advertises as "OD<chip-id-hex>" (e.g. "OD4A2B3C") and exposes
 // a single GATT service + characteristic with UUID 0x2446.
 //
-// Frame format: every write is [cmd_lo, cmd_hi, ...payload]
+// Frame format: every write is [cmd_hi, cmd_lo, ...payload]
 //   0x0070  Start  — no payload
 //   0x0071  Data   — up to 230 bytes of pixel data
 //   0x0072  End    — [refresh_mode: 0x00=full, 0x01=fast]
@@ -19,7 +21,8 @@ export type PushProgress = { sent: number; total: number };
 
 export interface BleImagePushOptions {
   // Loaded after the picker, so requestDevice retains the click's user activation.
-  loadPixels: () => Promise<Uint8Array>;
+  loadPixels: () => Promise<Uint8Array | { pixels: Uint8Array; profile: DisplayProfile }>;
+  profile?: DisplayProfile;
   onProgress?: (p: PushProgress) => void;
 }
 
@@ -36,8 +39,8 @@ export class BleSelectionCancelledError extends Error {
 
 function frame(cmd: number, payload?: Uint8Array): Uint8Array {
   const buf = new Uint8Array(2 + (payload?.length ?? 0));
-  buf[0] = cmd & 0xff;
-  buf[1] = (cmd >> 8) & 0xff;
+  buf[0] = (cmd >> 8) & 0xff;
+  buf[1] = cmd & 0xff;
   if (payload) buf.set(payload, 2);
   return buf;
 }
@@ -52,7 +55,7 @@ export async function bleImagePush(opts: BleImagePushOptions): Promise<BleImageP
   let device: BluetoothDevice;
   try {
     device = await navigator.bluetooth.requestDevice({
-      filters: [{ namePrefix: 'OD' }],
+      filters: [{ namePrefix: 'OD' }, { namePrefix: 'OpenDisplay' }],
       optionalServices: [OD_UUID],
     });
   } catch (error) {
@@ -64,15 +67,23 @@ export async function bleImagePush(opts: BleImagePushOptions): Promise<BleImageP
   }
 
   try {
-    const pixels = await loadPixels();
-    if (pixels.length !== DISPLAY_PIXEL_BYTES) {
-      throw new Error(`Invalid display image: expected ${DISPLAY_PIXEL_BYTES} bytes for the 250×122 display, received ${pixels.length}.`);
+    const loaded = await loadPixels();
+    const pixels = loaded instanceof Uint8Array ? loaded : loaded.pixels;
+    const meta = frameMetadata(loaded instanceof Uint8Array ? opts.profile ?? DEFAULT_DISPLAY_PROFILE : loaded.profile);
+    if (pixels.length !== meta.byteLength) {
+      throw new Error(`Invalid display image: expected ${meta.byteLength} bytes for ${meta.width}×${meta.height}, received ${pixels.length}.`);
     }
     if (!device.gatt) throw new Error('The selected display does not support a Bluetooth GATT connection.');
 
     const server = await device.gatt.connect();
     const service = await server.getPrimaryService(OD_UUID);
     const char = await service.getCharacteristic(OD_UUID);
+    const panel = await readPanelConfig(char);
+    if (panel.color !== 0 || panel.width !== meta.width || panel.height !== meta.height) {
+      throw new Error(`Display mismatch: device is ${panel.width}×${panel.height}, color scheme ${panel.color}. Choose its native monochrome profile before sending.`);
+    }
+    // Current upstream direct-write firmware truncates non-byte-aligned rows.
+    if (panel.width % 8 !== 0) throw new Error('This panel width is not byte-aligned; current OpenDisplay direct-write firmware can truncate it. Use BMP export with a compatible driver.');
     const total = pixels.length;
     onProgress?.({ sent: 0, total });
 

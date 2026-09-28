@@ -17,7 +17,7 @@ import { LoadBox } from '../components/ui/Spinner';
 import { Empty } from '../components/ui/Empty';
 import { Icon } from '../components/ui/Logo';
 
-const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion'] as const;
+const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image'] as const;
 
 export function LayoutEditorPage() {
   const app = useApp();
@@ -34,6 +34,8 @@ export function LayoutEditorPage() {
     zaptec:  { id: 'zaptec',  label: t.srcZaptec,           icon: 'electric_car' },
     notion:  { id: 'notion',  label: t.srcNotion,           icon: 'auto_stories' },
     status:  { id: 'status',  label: t.layoutWidgetStatus,  icon: 'schedule' },
+    'custom-text': { id: 'custom-text', label: 'My note', icon: 'notes' },
+    'custom-image': { id: 'custom-image', label: 'My image', icon: 'image' },
   };
 
   const [layout, setLayout] = useState<DisplayLayout>(DEFAULT_LAYOUT);
@@ -140,7 +142,7 @@ export function LayoutEditorPage() {
           </div>
           <div className="flex flex-col gap-0.5 mt-2 [&_.material-symbols-outlined]:text-[14px]">
             <p className="flex items-center gap-1 text-xs text-fg3 m-0">
-              <Icon name="info" /> Grid: 10 columns × 6 rows · 250×122 px display
+              <Icon name="info" /> Grid: 10 columns × 6 rows · size and orientation from saved display profile
             </p>
             <p className="flex items-center gap-1 text-xs text-fg3 m-0">
               <Icon name="drag_indicator" /> Drag the handle to move · drag the bottom-right corner to resize

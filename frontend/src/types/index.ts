@@ -1,3 +1,4 @@
+import type { DisplayProfile } from '../lib/displayProfile';
 // ---- Legacy API types (kept for compatibility with existing hooks/api.ts) ----
 
 export interface WidgetLayout {
@@ -29,6 +30,11 @@ export const DEFAULT_LAYOUT: DisplayLayout = {
 };
 
 export interface UserPreferences {
+  display_profile?: DisplayProfile | null;
+  show_custom_text?: boolean;
+  custom_text?: string;
+  show_custom_image?: boolean;
+  custom_image?: CustomImage | null;
   show_energy_price: boolean;
   show_weather: boolean;
   show_news: boolean;
@@ -64,10 +70,20 @@ export interface NewsItem {
 }
 
 export interface DisplayData {
+  customText?: string;
+  customImage?: CustomImage;
   price?: EnergyPrice;
   weather?: WeatherData;
   news?: NewsItem[];
   nextRefresh: number;
+}
+
+export interface CustomImage {
+  width: number;
+  height: number;
+  // Base64, MSB-first, 1=white, tight rows of ceil(width / 8) bytes.
+  pixels: string;
+  fit: 'contain' | 'cover';
 }
 
 export interface MaskedApiKey {

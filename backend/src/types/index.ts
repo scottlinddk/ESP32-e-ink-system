@@ -1,3 +1,4 @@
+import type { DisplayProfile } from '../utils/displayProfile';
 export interface WidgetLayout {
   i: string;       // 'energy' | 'weather' | 'news' | 'status'
   x: number;       // 0–9
@@ -15,6 +16,11 @@ export interface DisplayLayout {
 }
 
 export interface UserPreferences {
+  display_profile?: DisplayProfile | null;
+  show_custom_text?: boolean;
+  custom_text?: string;
+  show_custom_image?: boolean;
+  custom_image?: CustomImage | null;
   show_energy_price: boolean;
   show_weather: boolean;
   show_news: boolean;
@@ -99,6 +105,8 @@ export interface NotionData {
 }
 
 export interface DisplayData {
+  customText?: string;
+  customImage?: CustomImage;
   price?: EnergyPrice;
   weather?: WeatherData;
   news?: NewsItem[];
@@ -106,6 +114,14 @@ export interface DisplayData {
   zaptec?: ZaptecData;
   notion?: NotionData;
   nextRefresh: number;
+}
+
+export interface CustomImage {
+  width: number;
+  height: number;
+  // Base64, MSB-first, 1=white, tight rows of ceil(width / 8) bytes.
+  pixels: string;
+  fit: 'contain' | 'cover';
 }
 
 export interface Device {

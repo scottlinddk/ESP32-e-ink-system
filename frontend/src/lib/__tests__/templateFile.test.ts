@@ -11,7 +11,7 @@ describe('template file review', () => {
   });
   it('rejects a file larger than the limit before reading it', async () => {
     const text = vi.fn();
-    await expect(readTemplateFile({ size: 8193, text } as unknown as Blob)).rejects.toThrow('8 KiB');
+    await expect(readTemplateFile({ size: 32769, text } as unknown as Blob)).rejects.toThrow('32 KiB');
     expect(text).not.toHaveBeenCalled();
   });
   it('explains malformed JSON', async () => {

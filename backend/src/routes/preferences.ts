@@ -1,3 +1,4 @@
+import { parseDisplayProfile } from '../utils/displayProfile';
 import { Router, Request, Response, NextFunction } from 'express';
 import { requireAuth } from '../middleware/auth';
 import {
@@ -10,6 +11,7 @@ import {
 import { getOrCreateUserFromClerk } from './preferences-helpers';
 import { UserPreferences } from '../types/index';
 import templatesRouter from './templates';
+import { parseCustomContentUpdates } from '../utils/customContent';
 
 /**
  * @swagger
@@ -180,6 +182,10 @@ router.get(
 
       // Return defaults if no preferences set yet
       const defaultPrefs: UserPreferences = {
+        show_custom_text: false,
+        custom_text: '',
+        show_custom_image: false,
+        custom_image: null,
         show_energy_price: true,
         show_weather: true,
         show_news: true,
@@ -227,12 +233,23 @@ router.post(
         'news_language',
         'refresh_interval_minutes',
         'layout',
+        'display_profile',
         'monta_fields',
         'zaptec_fields',
         'show_notion',
       ];
 
-      const updates: Partial<UserPreferences> = {};
+      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+        res.status(400).json({ error: 'Preferences must be an object' });
+        return;
+      }
+      let updates: Partial<UserPreferences>;
+      try {
+        updates = parseCustomContentUpdates(req.body);
+      } catch (error) {
+        res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid custom content' });
+        return;
+      }
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -240,6 +257,10 @@ router.post(
         }
       }
 
+      if (req.body.display_profile !== undefined) {
+        try { updates.display_profile = parseDisplayProfile(req.body.display_profile); }
+        catch (error) { res.status(400).json({ error: (error as Error).message }); return; }
+      }
       const prefs = await upsertPreferences(userId, updates);
       res.json({ preferences: prefs });
     } catch (err) {
