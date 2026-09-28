@@ -77,7 +77,7 @@ describe('portable display template schema', () => {
     withSettings(null), withSettings([]), withSettings({}), withSettings({ user_id: 'victim' }),
     withSettings({ api_key: 'secret' }), withSettings({ calendar_url: 'https://private' }), withSettings({ show_weather: 'true' }),
     withSettings({ energy_price_location: 'UK' }), withSettings({ weather_location: '91,0' }), withSettings({ weather_location: '0,-181' }),
-    withSettings({ weather_location: ',0' }), withSettings({ weather_location: '0,0,0' }), withSettings({ news_language: 'unknown' }),
+    withSettings({ weather_location: ',0' }), withSettings({ weather_location: '0,0,0' }), withSettings({ news_language: 'unknown' }), withSettings({ calendar_timezone: 'Invalid' }), withSettings({ calendar_days: 0 }), withSettings({ calendar_item_limit: 11 }),
     withSettings({ refresh_interval_minutes: 0 }), withSettings({ refresh_interval_minutes: 1441 }), withSettings({ refresh_interval_minutes: 1.5 }),
     withSettings({ monta_fields: ['password'] }), withSettings({ monta_fields: ['today_stats', 'today_stats'] }), withSettings({ zaptec_fields: ['today_stats'] }),
     withSettings({ layout: { version: 1, cols: 10, rows: 6, widgets: [], secret: 'token' } }),

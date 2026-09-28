@@ -184,6 +184,16 @@ describe('display widget boundaries', () => {
 });
 
 describe('EV charging field selection', () => {
+  it('renders a calendar agenda in BMP/raw and distinguishes empty/unavailable results', () => {
+    const widgetLayout = layout({ i: 'calendar', x: 0, y: 0, w: 10, h: 4 });
+    const calendar = { timezone: 'Europe/Copenhagen', events: [{ title: 'Dentist', start: '2026-10-01T10:00:00Z', end: '2026-10-01T11:00:00Z', allDay: false, dateLabel: '1 Oct', timeLabel: '12:00' }] };
+    const agenda = { nextRefresh: 60000, calendar };
+    const raw = renderDisplayDataRaw(agenda, widgetLayout);
+    expect(raw).toEqual(renderDisplayData(agenda, widgetLayout).subarray(62));
+    expect(raw).not.toEqual(renderDisplayDataRaw({ ...agenda, calendar: { ...calendar, events: [] } }, widgetLayout));
+    expect(renderDisplayDataRaw({ ...agenda, calendar: { ...calendar, events: [] } }, widgetLayout)).not.toEqual(renderDisplayDataRaw({ nextRefresh: 60000 }, widgetLayout));
+    expect(blackPixels(raw).every(([, y]) => y < 80)).toBe(true);
+  });
   it.each(['monta', 'zaptec'])('uses default fields when saved %s preferences are null', (widget) => {
     // These JSONB columns are nullable in the database.
     const preferences = JSON.parse('{"monta_fields":null,"zaptec_fields":null}');

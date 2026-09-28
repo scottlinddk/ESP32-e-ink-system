@@ -94,6 +94,18 @@ export async function saveLayout(
   await savePreferences(token, { layout });
 }
 
+export async function getCalendarCredentialStatus(token: string): Promise<{ configured: boolean }> {
+  return request('/api/preferences/calendar-credentials', { token });
+}
+
+export async function saveCalendarCredential(token: string, url: string): Promise<{ configured: boolean }> {
+  return request('/api/preferences/calendar-credentials', { method: 'POST', token, body: JSON.stringify({ url }) });
+}
+
+export async function deleteCalendarCredential(token: string): Promise<{ configured: boolean }> {
+  return request('/api/preferences/calendar-credentials', { method: 'DELETE', token });
+}
+
 export interface DisplayTemplate {
   format: 'esp32-eink-template';
   version: 1;
