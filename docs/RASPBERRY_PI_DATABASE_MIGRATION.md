@@ -1,6 +1,6 @@
 # Move the e-ink database to the Raspberry Pi
 
-Reviewed 2026-09-28 against e-ink `origin/main` at `fa2a797` and Investor
+Reviewed 2026-09-28 against e-ink `origin/main` at `2cffedd` and Investor
 `origin/main` at `605e9df`, including its managed updater. These are repository findings, not a live inventory of
 the Pi or Supabase. No production data, DNS, Vercel settings or Pi services
 were changed while preparing this package.
@@ -109,8 +109,12 @@ measure headroom again or use a separate test host.
 ## Migration gates and data scope
 
 The transfer allowlist is `users`, `user_preferences`, `api_keys`, `devices`,
-`firmware_versions`, `api_usage`, and `orders`. IDs, foreign keys, timestamps,
-JSONB values and encrypted provider credentials are copied without transformation.
+`firmware_versions`, `api_usage`, `custom_webhooks`, `device_delivery`, and `orders`.
+The target applies all tracked SQL migrations through `015_device_delivery.sql`,
+including both `002` migrations. IDs, foreign keys, timestamps, JSONB values,
+encrypted provider credentials, webhook token hashes, device token hashes and
+delivery telemetry are copied without transformation. Display schedules and
+calendar, image, news and webhook preferences are included.
 Preserve the **exact current `ENCRYPTION_KEY`** in the backend and its recovery
 backup. A fresh encryption key cannot decrypt existing credentials.
 
@@ -217,7 +221,7 @@ postgres:5432:eink:eink_admin:GENERATED_POSTGRES_PASSWORD
 
 Use the actual source port and escape `:` and `\` inside passwords according
 to libpq rules. The source database password is not the Supabase service API
-key. Use a source account with visibility of all seven tables; RLS filtering
+key. Use a source account with visibility of all nine tables; RLS filtering
 must fail rather than silently export a partial database. The target service's
 unencrypted connection stays inside the dedicated Docker network. No host
 PostgreSQL port is published.
@@ -482,7 +486,7 @@ sudo bash restore.sh /etc/esp32-eink/recovery.env \
 ```
 
 `restore.sh` verifies the companion checksum, actual recovery container storage,
-database identity and empty tables. It selects exactly the seven table-data
+database identity and empty tables. It selects exactly the nine table-data
 entries, loads `users` first, excludes the existing identity marker, and restores
 in one transaction. It does not start the recovery API (which would collide with
 the production gateway port). For an API recovery drill on the same host, use a

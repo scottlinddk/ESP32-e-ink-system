@@ -10,7 +10,7 @@ with PostgreSQL 17 and PostgREST while retaining the current app and Clerk login
 | `preflight.sh`, `start-postgres.sh` | Verify SSD identity, storage separation and host capacity |
 | `memory_budget.py` | Check the 4 GB host's total/available RAM and existing container growth allowance |
 | `generate-secrets.py` | Create private database credentials and backend service JWT |
-| `migrate.py` | Inspect source; export, atomically import and verify all seven app tables |
+| `migrate.py` | Inspect source; export, atomically import and verify all nine app tables |
 | `smoke.mjs` | Test authentication and real Supabase SDK operations |
 | `backup.sh`, `restore.sh` | Create checksummed backups and rehearse isolated recovery |
 | `systemd/`, `cloudflared.yml.example` | Separate backup schedule and HTTPS tunnel |

@@ -55,7 +55,7 @@ trap cleanup EXIT
 "${compose[@]}" exec -T postgres pg_restore --list < "$archive" > "$work/archive.list"
 python3 - "$work/archive.list" "$work/restore.list" <<'PY'
 import pathlib, re, sys
-tables = ('users', 'user_preferences', 'api_keys', 'devices', 'firmware_versions', 'api_usage', 'orders')
+tables = ('users', 'user_preferences', 'api_keys', 'devices', 'firmware_versions', 'api_usage', 'custom_webhooks', 'device_delivery', 'orders')
 entries = {}
 for line in pathlib.Path(sys.argv[1]).read_text('utf-8').splitlines():
     match = re.fullmatch(r'\d+; \d+ \d+ TABLE DATA (\w+) (\w+) \S+', line)
@@ -70,7 +70,7 @@ for line in pathlib.Path(sys.argv[1]).read_text('utf-8').splitlines():
             raise SystemExit('Duplicate application data entry in archive.')
         entries[match[2]] = line
 if set(entries) != set(tables):
-    raise SystemExit('Archive must contain all seven application tables exactly once.')
+    raise SystemExit('Archive must contain all nine application tables exactly once.')
 # Full pg_dump archives can put child data first; enforce parent-first order.
 pathlib.Path(sys.argv[2]).write_text('\n'.join(entries[t] for t in tables) + '\n', encoding='utf-8')
 PY
@@ -98,17 +98,18 @@ BEGIN
     RAISE EXCEPTION 'Recovery identity marker mismatch';
   END IF;
   IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN (
-    'users', 'user_preferences', 'api_keys', 'devices', 'firmware_versions', 'api_usage', 'orders'
+    'users', 'user_preferences', 'api_keys', 'devices', 'firmware_versions', 'api_usage', 'custom_webhooks', 'device_delivery', 'orders'
   )) THEN
     RAISE EXCEPTION 'Unexpected recovery tables';
   END IF;
 END $$;
 LOCK TABLE public.users, public.user_preferences, public.api_keys, public.devices,
-  public.firmware_versions, public.api_usage, public.orders IN ACCESS EXCLUSIVE MODE;
+  public.firmware_versions, public.api_usage, public.custom_webhooks,
+  public.device_delivery, public.orders IN ACCESS EXCLUSIVE MODE;
 DO $$
 DECLARE table_name text; has_rows boolean;
 BEGIN
-  FOREACH table_name IN ARRAY ARRAY['users','user_preferences','api_keys','devices','firmware_versions','api_usage','orders'] LOOP
+  FOREACH table_name IN ARRAY ARRAY['users','user_preferences','api_keys','devices','firmware_versions','api_usage','custom_webhooks','device_delivery','orders'] LOOP
     EXECUTE format('SELECT EXISTS(SELECT 1 FROM public.%I)', table_name) INTO has_rows;
     IF has_rows THEN RAISE EXCEPTION 'Recovery target is not empty'; END IF;
   END LOOP;
@@ -126,5 +127,5 @@ if ! "${compose[@]}" exec -T postgres psql -X --username eink_admin --dbname ein
   printf 'Recovery restore failed and rolled back. Check schema/version and empty-target guard; private row details suppressed.\n' >&2
   exit 1
 fi
-printf 'Restored the seven application tables atomically into esp32-eink-recovery. Production was not changed.\n'
+printf 'Restored the nine application tables atomically into esp32-eink-recovery. Production was not changed.\n'
 printf 'Validate row counts, relationships and API behavior on the isolated recovery stack before using it.\n'

@@ -18,6 +18,11 @@ psql -X --set ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB
 \getenv authenticator_password AUTHENTICATOR_PASSWORD
 CREATE ROLE eink_authenticator LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD :'authenticator_password';
 CREATE ROLE service_role NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS;
+-- Migration 015 revokes grants from Supabase's standard client roles. Keep
+-- inert compatibility roles so the unchanged application migrations apply.
+-- They have no login, memberships, database/schema/table grants or API mapping.
+CREATE ROLE anon NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE ROLE authenticated NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 GRANT service_role TO eink_authenticator;
 REVOKE ALL ON DATABASE eink FROM PUBLIC;
 GRANT CONNECT ON DATABASE eink TO eink_authenticator;

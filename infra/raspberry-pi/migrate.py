@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy only the seven e-ink application tables; never copy Supabase internals.
+"""Copy only the nine e-ink application tables; never copy Supabase internals.
 
 Connection secrets belong in libpq service/password files, never command arguments.
 Exports contain encrypted API keys and personal data: keep the entire bundle private.
@@ -26,8 +26,12 @@ FORMAT_VERSION = 1
 APPLICATION = "esp32-eink"
 TARGET_DATABASE = "eink"
 TARGET_ROLE = "eink_admin"
-# Parent rows first. Every remaining table references users only.
-TABLES = ("users", "user_preferences", "api_keys", "devices", "firmware_versions", "api_usage", "orders")
+# Parents precede their children (device_delivery also references devices).
+TABLES = ("users", "user_preferences", "api_keys", "devices", "firmware_versions", "api_usage",
+          "custom_webhooks", "device_delivery", "orders")
+# Stable complete-row checksums require the actual primary key, not an assumed id.
+PRIMARY_KEYS = {table: ("id",) for table in TABLES}
+PRIMARY_KEYS.update({"custom_webhooks": ("user_id",), "device_delivery": ("device_id",)})
 
 
 def columns(required: dict[str, str], optional: dict[str, str]) -> dict[str, tuple[str, bool]]:
@@ -35,16 +39,23 @@ def columns(required: dict[str, str], optional: dict[str, str]) -> dict[str, tup
 
 
 TS = "timestamp with time zone"
-# The final schema after the repository's 001, 002_layout, 002_ev_integrations,
-# 004, 007 and 008 SQL migrations. Do not automatically repair a live source.
+# The final schema after all tracked migrations through 015_device_delivery.
+# Do not automatically repair a live source.
 EXPECTED_COLUMNS = {
     "users": columns({"id": "uuid", "email": "text"}, {"display_name": "text", "created_at": TS, "updated_at": TS}),
-    "user_preferences": columns({"id": "uuid", "user_id": "uuid"}, {
+    "user_preferences": columns({
+        "id": "uuid", "user_id": "uuid", "news_source": "text", "news_feed_url": "text",
+        "news_item_limit": "integer", "show_custom_text": "boolean", "custom_text": "text",
+        "show_custom_image": "boolean", "show_calendar": "boolean", "calendar_timezone": "text",
+        "calendar_days": "integer", "calendar_item_limit": "integer", "show_custom_webhook": "boolean",
+        "custom_webhook_ttl_minutes": "integer",
+    }, {
         "show_energy_price": "boolean", "show_weather": "boolean", "show_news": "boolean",
         "show_air_quality": "boolean", "energy_price_location": "text", "weather_location": "text",
         "news_language": "text", "refresh_interval_minutes": "integer", "created_at": TS,
         "updated_at": TS, "layout": "jsonb", "show_monta": "boolean", "show_zaptec": "boolean",
         "monta_fields": "jsonb", "zaptec_fields": "jsonb", "show_notion": "boolean",
+        "display_profile": "jsonb", "custom_image": "jsonb", "display_schedule": "jsonb",
     }),
     "api_keys": columns({"id": "uuid", "user_id": "uuid", "provider": "text", "api_key": "text"}, {"created_at": TS}),
     "devices": columns({"id": "uuid", "user_id": "uuid", "device_id": "text"}, {
@@ -55,6 +66,13 @@ EXPECTED_COLUMNS = {
         "checksum": "text", "release_notes": "text", "active": "boolean", "created_at": TS,
     }),
     "api_usage": columns({"id": "uuid", "user_id": "uuid"}, {"endpoint": "text", "called_at": TS}),
+    "custom_webhooks": columns({"user_id": "uuid", "rows": "jsonb"}, {
+        "token_hash": "text", "token_created_at": TS, "observed_at": TS, "received_at": TS,
+    }),
+    "device_delivery": columns({"device_id": "uuid", "owner_id": "uuid", "rotated_at": TS}, {
+        "token_hash": "text", "revoked_at": TS, "last_seen_at": TS, "firmware_version": "text",
+        "battery_percent": "double precision", "rssi": "integer", "last_applied_hash": "text",
+    }),
     "orders": columns({"id": "uuid", "user_id": "uuid"}, {
         "stripe_charge_id": "text", "amount_cents": "integer", "status": "text", "created_at": TS,
     }),
@@ -65,7 +83,8 @@ EXPECTED_DEFAULTS: dict[str, dict[str, str | None]] = {
     table: {name: None for name in fields} for table, fields in EXPECTED_COLUMNS.items()
 }
 for _table, _fields in EXPECTED_DEFAULTS.items():
-    _fields["id"] = "gen_random_uuid()"
+    if "id" in _fields:
+        _fields["id"] = "gen_random_uuid()"
     for _name in ("created_at", "updated_at", "called_at"):
         if _name in _fields:
             _fields[_name] = "now()"
@@ -75,19 +94,57 @@ EXPECTED_DEFAULTS["user_preferences"].update({
     "refresh_interval_minutes": "30", "show_monta": "false", "show_zaptec": "false", "show_notion": "false",
     "monta_fields": "'[\"charger_status\", \"active_session\"]'::jsonb",
     "zaptec_fields": "'[\"charger_status\", \"active_session\"]'::jsonb",
+    "news_source": "'newsapi'::text", "news_feed_url": "''::text", "news_item_limit": "3",
+    "show_custom_text": "false", "custom_text": "''::text", "show_custom_image": "false",
+    "show_calendar": "false", "calendar_timezone": "'Europe/Copenhagen'::text", "calendar_days": "7",
+    "calendar_item_limit": "5", "show_custom_webhook": "false", "custom_webhook_ttl_minutes": "60",
 })
 EXPECTED_DEFAULTS["devices"].update({"device_name": "'My Display'::text", "firmware_version": "'1.0.0'::text"})
 EXPECTED_DEFAULTS["firmware_versions"]["active"] = "true"
 EXPECTED_DEFAULTS["orders"]["status"] = "'pending'::text"
+EXPECTED_DEFAULTS["custom_webhooks"]["rows"] = "'[]'::jsonb"
+EXPECTED_DEFAULTS["device_delivery"]["rotated_at"] = "now()"
+
+# PostgreSQL's pretty constraint definitions, including every tracked CHECK.
+# Keep casts, bounds, regexes and boolean grouping exact: removing them while
+# normalizing can accidentally accept a different integrity rule.
+EXPECTED_CHECKS = {
+    "user_preferences": (
+        "CHECK (news_source = ANY (ARRAY['newsapi'::text, 'rss'::text]))",
+        "CHECK (length(news_feed_url) <= 2048)",
+        "CHECK (news_item_limit >= 1 AND news_item_limit <= 10)",
+        "CHECK (char_length(custom_text) <= 2000)",
+        "CHECK (custom_image IS NULL OR jsonb_typeof(custom_image) = 'object'::text AND octet_length(custom_image::text) <= 45000)",
+        "CHECK (calendar_days >= 1 AND calendar_days <= 30)",
+        "CHECK (calendar_item_limit >= 1 AND calendar_item_limit <= 10)",
+        "CHECK (custom_webhook_ttl_minutes >= 1 AND custom_webhook_ttl_minutes <= 1440)",
+    ),
+    "custom_webhooks": (
+        "CHECK (token_hash IS NULL OR token_hash ~ '^[a-f0-9]{64}$'::text)",
+        "CHECK (jsonb_typeof(rows) = 'array'::text AND jsonb_array_length(rows) <= 12 AND octet_length(rows::text) <= 16000)",
+    ),
+    "device_delivery": (
+        "CHECK (token_hash IS NULL OR token_hash ~ '^[0-9a-f]{64}$'::text)",
+        "CHECK (battery_percent >= 0::double precision AND battery_percent <= 100::double precision)",
+        "CHECK (rssi >= '-150'::integer AND rssi <= 0)",
+        "CHECK (last_applied_hash IS NULL OR last_applied_hash ~ '^[0-9a-f]{64}$'::text)",
+    ),
+}
 
 EXPECTED_CONSTRAINTS: dict[str, list[dict[str, str]]] = {}
 for _table in TABLES:
-    _constraints = [{"type": "p", "definition": "PRIMARY KEY (id)"}]
-    if _table != "users":
+    _constraints = [{"type": "p", "definition": f"PRIMARY KEY ({', '.join(PRIMARY_KEYS[_table])})"}]
+    if _table == "device_delivery":
+        _constraints.extend([
+            {"type": "f", "definition": "FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE"},
+            {"type": "f", "definition": "FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE"},
+        ])
+    elif _table != "users":
         _constraints.append({"type": "f", "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"})
     for _key in {"users": ["email"], "user_preferences": ["user_id"], "api_keys": ["user_id, provider"],
-                 "devices": ["device_id", "license_key"]}.get(_table, []):
+                 "devices": ["device_id", "license_key"], "custom_webhooks": ["token_hash"]}.get(_table, []):
         _constraints.append({"type": "u", "definition": f"UNIQUE ({_key})"})
+    _constraints.extend({"type": "c", "definition": definition} for definition in EXPECTED_CHECKS.get(_table, ()))
     EXPECTED_CONSTRAINTS[_table] = sorted(_constraints, key=lambda item: (item["type"], item["definition"]))
 
 
@@ -241,7 +298,7 @@ def read_triggers(conn: Any, table: str) -> list[dict[str, Any]]:
 
 def check_relations(table: str, constraints: list[dict[str, Any]], triggers: list[dict[str, Any]]) -> None:
     if constraints != EXPECTED_CONSTRAINTS[table]:
-        raise MigrationError(f"Constraint drift in {table}: expected repository primary/unique/foreign keys only.")
+        raise MigrationError(f"Constraint drift in {table}: expected repository primary/unique/foreign keys and checks exactly.")
     expected_name = f"update_{table}_updated_at" if table in ("users", "user_preferences", "devices") else None
     if len(triggers) != int(expected_name is not None):
         raise MigrationError(f"Trigger drift in {table}: reconcile missing or extra triggers explicitly.")
@@ -285,8 +342,9 @@ def count_rows(conn: Any, table: str) -> int:
 def copy_out(conn: Any, table: str, stream: Any = None) -> tuple[str, int]:
     # Lexical column order is independent of historical ALTER TABLE ordering.
     names = sql.SQL(", ").join(map(sql.Identifier, sorted(EXPECTED_COLUMNS[table])))
-    command = sql.SQL("COPY (SELECT {} FROM {} ORDER BY id) TO STDOUT WITH (FORMAT CSV, HEADER TRUE, ENCODING 'UTF8')").format(
-        names, sql.Identifier("public", table)
+    keys = sql.SQL(", ").join(map(sql.Identifier, PRIMARY_KEYS[table]))
+    command = sql.SQL("COPY (SELECT {} FROM {} ORDER BY {}) TO STDOUT WITH (FORMAT CSV, HEADER TRUE, ENCODING 'UTF8')").format(
+        names, sql.Identifier("public", table), keys
     )
     digest, size = hashlib.sha256(), 0
     with conn.cursor() as cursor, cursor.copy(command) as copy:
@@ -416,7 +474,7 @@ def load_bundle(bundle: Path) -> dict[str, Any]:
         raise MigrationError("Bundle is missing, incomplete, or a symbolic link.")
     required = {"manifest.json", "manifest.sha256", *(f"{table}.csv" for table in TABLES)}
     if set(path.name for path in bundle.iterdir()) != required:
-        raise MigrationError("Bundle must contain exactly the manifest, checksum and seven CSV files.")
+        raise MigrationError(f"Bundle must contain exactly the manifest, checksum and {len(TABLES)} CSV files.")
     if any((bundle / name).is_symlink() or not (bundle / name).is_file() for name in required):
         raise MigrationError("Bundle entries must be regular files, not symbolic links.")
     raw = (bundle / "manifest.json").read_bytes()

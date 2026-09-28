@@ -38,6 +38,13 @@ describe('database migration maintenance mode', () => {
     ['PUT', '/preferences'],
     ['DELETE', '/devices/test-id'],
     ['GET', '/image'], // Device reads can update last-seen and usage.
+    ['GET', '/device-feed/test-id/frame'], // Device delivery can record activity.
+    ['POST', '/device-feed/test-id/heartbeat'],
+    ['POST', '/devices/test-id/delivery/token'],
+    ['DELETE', '/devices/test-id/delivery/token'],
+    ['POST', '/custom-webhook/ingest'], // External producers must freeze too.
+    ['POST', '/custom-webhook/token'],
+    ['DELETE', '/custom-webhook/token'],
     ['GET', '/firmware/manifest.json'],
   ])('freezes %s %s before rate limiting or database access', async (method, path) => {
     const response = await fetch(`${baseUrl}${path}`, {

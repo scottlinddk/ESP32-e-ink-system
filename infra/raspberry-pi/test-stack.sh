@@ -78,9 +78,12 @@ PY
 # only its harmless fixture values; never print the rendered secret-bearing config.
 "${compose[@]}" config --format json | python3 -c '
 import json, sys
-storage = json.load(sys.stdin).get("x-eink-storage", {})
+config = json.load(sys.stdin)
+storage = config.get("x-eink-storage", {})
 if storage.get("mount") != "/" or storage.get("uuid") != "ci-disposable-fixture":
     raise SystemExit("Compose did not preserve the expected storage identity extension")
+if "PGRST_DB_ANON_ROLE" in config["services"]["postgrest"]["environment"]:
+    raise SystemExit("PostgREST must not map requests to an anonymous role")
 print("PASS: Compose JSON retains the storage identity extension.")
 '
 timeout 300 "${compose[@]}" build tools
@@ -115,14 +118,29 @@ for path in config.iterdir():
 PY
 
 "${compose[@]}" exec -T postgres psql -X -v ON_ERROR_STOP=1 -U eink_admin -d postgres -c 'CREATE DATABASE eink_source'
+# Supabase compatibility roles created by target bootstrap are cluster-wide;
+# both fixture databases therefore apply the unchanged migrations through 015.
 "${compose[@]}" exec -T postgres bash -euc 'export LC_ALL=C; for migration in /migrations/*.sql; do psql -X -v ON_ERROR_STOP=1 -U eink_admin -d eink_source -f "$migration"; done'
 "${compose[@]}" exec -T postgres psql -X -v ON_ERROR_STOP=1 -U eink_admin -d eink_source <<'SQL'
 INSERT INTO users (id, email, display_name) VALUES ('00000000-0000-4000-8000-000000000001', 'fixture@example.invalid', E'Unicode æøå, "quotes"\nand newline');
 INSERT INTO user_preferences (id, user_id, layout) VALUES ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000001', '{"nested":[null,false,1.25],"label":"æøå"}');
+UPDATE user_preferences SET
+  display_profile = '{"width":320,"height":240,"rotation":90,"colorMode":"bw"}',
+  news_source = 'rss', news_feed_url = 'https://example.invalid/feed.xml?x=1&lang=da', news_item_limit = 7,
+  show_custom_text = true, custom_text = E'Køkken, "quotes"\nand newline',
+  show_custom_image = true, custom_image = '{"width":8,"height":2,"pixels":"/wA=","fit":"contain"}',
+  show_calendar = true, calendar_timezone = 'Europe/Copenhagen', calendar_days = 14, calendar_item_limit = 8,
+  display_schedule = '{"enabled":true,"timezone":"Europe/Copenhagen","pages":[{"id":"fixture","name":"Øjeblik","duration_seconds":120,"layout":{"version":1,"cols":10,"rows":6,"widgets":[{"i":"custom-text","x":0,"y":0,"w":10,"h":6}]}}],"quiet_hours":{"enabled":true,"start":"22:30","end":"07:15"}}',
+  show_custom_webhook = true, custom_webhook_ttl_minutes = 90
+WHERE user_id = '00000000-0000-4000-8000-000000000001';
 INSERT INTO api_keys (id, user_id, provider, api_key) VALUES ('00000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', 'ci-fixture', E'fixture-ciphertext,\nopaque-bytes');
 INSERT INTO devices (id, user_id, device_id, ble_name, license_key) VALUES ('00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001', 'ci-device', 'OD-ci', NULL);
 INSERT INTO firmware_versions (id, user_id, version, download_path) VALUES ('00000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000001', 'ci-version', 'https://example.invalid/fixture.bin');
 INSERT INTO api_usage (id, user_id, endpoint) VALUES ('00000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000001', '/ci-fixture');
+INSERT INTO custom_webhooks (user_id, token_hash, token_created_at, rows, observed_at, received_at)
+VALUES ('00000000-0000-4000-8000-000000000001', repeat('a', 64), '2026-09-28T10:01:02.123456Z', '[{"label":"Køkken","value":"21.5","unit":"°C"}]', '2026-09-28T09:59:59Z', '2026-09-28T10:01:03Z');
+INSERT INTO device_delivery (device_id, owner_id, token_hash, rotated_at, revoked_at, last_seen_at, firmware_version, battery_percent, rssi, last_applied_hash)
+VALUES ('00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001', repeat('b', 64), '2026-09-28T10:01:02.123456Z', NULL, '2026-09-28T10:02:03.654321Z', 'ci-delivery', 72.5, -65, repeat('c', 64));
 INSERT INTO orders (id, user_id, amount_cents, status) VALUES ('00000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000001', 1250, 'ci-fixture');
 SQL
 
@@ -146,7 +164,7 @@ import migrate, psycopg
 with psycopg.connect(service='eink-target') as connection:
     migrate.check_target_identity(connection)
     migrate.check_empty_target(connection)
-print('PASS: all seven target tables remain empty.')
+print('PASS: all nine target tables remain empty.')
 PY
 }
 
@@ -159,11 +177,13 @@ sys.path.insert(0, '/tools')
 import migrate, psycopg
 with psycopg.connect(service='eink-ci-source') as connection:
     report = migrate.inspect_source(connection)
-    assert not report['schema_drift'], report['schema_drift']
+    assert not report['schema_drift'], (report['schema_drift'], {
+        table: details['constraints'] for table, details in report['tables'].items()
+    })
     assert all(report['tables'][table]['row_count'] == 1 for table in migrate.TABLES)
     manifest = migrate.export_bundle(connection, Path('/work/bundle'))
 assert all(item['row_count'] == 1 for item in manifest['tables'].values())
-print('PASS: real PostgreSQL source inspection and consistent seven-table export.')
+print('PASS: real PostgreSQL source inspection and consistent nine-table export.')
 PY
 
 # A unique expression/partial index is invisible to pg_constraint. It must
@@ -207,7 +227,7 @@ with (tampered / 'api_keys.csv').open('ab') as output:
     output.write(b'corrupt-fixture\n')
 # Both bundles have valid file/manifest hashes and reach COPY. The FK error
 # occurs in the final table. The padded integer is accepted by COPY but becomes
-# canonical 1250 on re-export, causing verification to fail after all seven COPYs.
+# canonical 1250 on re-export, causing verification to fail after all nine COPYs.
 for name, old, new in (
     ('bad-fk', b'00000000-0000-4000-8000-000000000001', b'00000000-0000-4000-8000-000000000099'),
     ('bad-checksum', b'\n1250,', b'\n01250,'),
@@ -237,6 +257,7 @@ migration verify --service eink-target --bundle /work/bundle
 
 "${compose[@]}" exec -T postgres psql -X -v ON_ERROR_STOP=1 -U eink_admin -d eink <<'SQL'
 DO $$
+DECLARE client_role text; table_name text; privilege_name text;
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'eink_authenticator' AND (rolsuper OR rolbypassrls OR rolinherit OR rolcreaterole OR rolcreatedb)) THEN
     RAISE EXCEPTION 'Unsafe authenticator privileges';
@@ -250,6 +271,41 @@ BEGIN
   IF has_function_privilege('service_role', 'public.update_updated_at_column()', 'EXECUTE') THEN
     RAISE EXCEPTION 'Unexpected RPC function grant';
   END IF;
+  FOREACH client_role IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = client_role) OR EXISTS (
+      SELECT 1 FROM pg_roles WHERE rolname = client_role
+      AND (rolcanlogin OR rolsuper OR rolbypassrls OR rolinherit OR rolcreaterole OR rolcreatedb OR rolreplication)
+    ) THEN
+      RAISE EXCEPTION 'Compatibility client roles must exist and remain inert';
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM pg_auth_members m JOIN pg_roles r ON r.oid IN (m.roleid, m.member)
+      WHERE r.rolname = client_role
+    ) OR has_database_privilege(client_role, 'eink', 'CONNECT,CREATE,TEMPORARY')
+      OR has_schema_privilege(client_role, 'public', 'USAGE,CREATE')
+      OR has_function_privilege(client_role, 'public.update_updated_at_column()', 'EXECUTE') THEN
+      RAISE EXCEPTION 'Compatibility client roles gained membership/database/schema/function access';
+    END IF;
+    FOREACH table_name IN ARRAY ARRAY['users','user_preferences','api_keys','devices','firmware_versions','api_usage','custom_webhooks','device_delivery','orders'] LOOP
+      IF has_table_privilege(client_role, 'public.' || table_name, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') THEN
+        RAISE EXCEPTION 'Compatibility client role gained table access';
+      END IF;
+    END LOOP;
+  END LOOP;
+  FOREACH table_name IN ARRAY ARRAY['custom_webhooks', 'device_delivery'] LOOP
+    FOREACH privilege_name IN ARRAY ARRAY['SELECT','INSERT','UPDATE','DELETE'] LOOP
+      IF NOT has_table_privilege('service_role', 'public.' || table_name, privilege_name) THEN
+        RAISE EXCEPTION 'Missing service CRUD grant';
+      END IF;
+    END LOOP;
+    IF has_table_privilege('service_role', 'public.' || table_name, 'TRUNCATE,REFERENCES,TRIGGER') THEN
+      RAISE EXCEPTION 'Service role has excessive table grants';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = table_name AND c.relrowsecurity) THEN
+      RAISE EXCEPTION 'Private service table is missing RLS';
+    END IF;
+  END LOOP;
 END $$;
 SQL
 
