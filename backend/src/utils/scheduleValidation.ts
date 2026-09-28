@@ -1,12 +1,7 @@
-import type { DisplayLayout } from '../types';
+import type { DisplaySchedule } from '../types';
 import { parseDisplayLayout } from './layoutValidation';
 
-export interface DisplaySchedule {
-  enabled: boolean;
-  timezone: string;
-  pages: Array<{ id: string; name: string; duration_seconds: number; layout: DisplayLayout }>;
-  quiet_hours: { enabled: boolean; start: string; end: string };
-}
+export type { DisplaySchedule } from '../types';
 export class ScheduleValidationError extends Error {
   constructor(message: string) { super(message); this.name = 'ScheduleValidationError'; }
 }

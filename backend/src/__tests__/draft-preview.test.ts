@@ -95,6 +95,18 @@ describe('authenticated draft image endpoint', () => {
     expect(upsertPreferences).not.toHaveBeenCalled();
   });
 
+  it('previews the explicit draft independently of the active schedule', async () => {
+    const scheduled = { ...DEFAULT_PREFS, layout, display_schedule: {
+      enabled: true, timezone: 'UTC', quiet_hours: { enabled: false, start: '22:00', end: '07:00' },
+      pages: [{ id: 'weather', name: 'Weather', duration_seconds: 60, layout: { ...layout, widgets: [{ i: 'weather', x: 0, y: 0, w: 10, h: 6 }] } }],
+    } };
+    vi.mocked(getPreferences).mockResolvedValue(scheduled);
+    const response = await draft();
+    expect(response.status).toBe(200);
+    expect(buildDisplayData).toHaveBeenCalledWith('owner', { ...scheduled, display_schedule: null }, {});
+    expect(upsertPreferences).not.toHaveBeenCalled();
+  });
+
   it.each([{}, { layout: null }, { layout: { ...layout, widgets: [{ i: 'energy', x: 0, y: 0, w: 1000000, h: 1 }] } }, { layout, user_id: 'victim' }, { layout, api_keys: { openweathermap: 'injected' } }])('rejects invalid drafts before looking up private data', async (body) => {
     const response = await draft(body);
     expect(response.status).toBe(400);

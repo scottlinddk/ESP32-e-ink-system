@@ -17,6 +17,13 @@ export interface DisplayLayout {
   widgets: WidgetLayout[];
 }
 
+export interface DisplaySchedule {
+  enabled: boolean;
+  timezone: string;
+  pages: Array<{ id: string; name: string; duration_seconds: number; layout: DisplayLayout }>;
+  quiet_hours: { enabled: boolean; start: string; end: string };
+}
+
 export const DEFAULT_LAYOUT: DisplayLayout = {
   version: 1,
   cols: 10,
@@ -32,6 +39,7 @@ export const DEFAULT_LAYOUT: DisplayLayout = {
 export interface UserPreferences {
   show_custom_webhook?: boolean;
   custom_webhook_ttl_minutes?: number;
+  display_schedule?: DisplaySchedule | null;
   display_profile?: DisplayProfile | null;
   show_custom_text?: boolean;
   custom_text?: string;
@@ -54,6 +62,10 @@ export interface UserPreferences {
   monta_fields: string[];
   zaptec_fields: string[];
   show_notion: boolean;
+  show_calendar?: boolean;
+  calendar_timezone?: string;
+  calendar_days?: number;
+  calendar_item_limit?: number;
 }
 
 export interface EnergyPrice {
@@ -76,11 +88,13 @@ export interface NewsItem {
 
 export interface DisplayData {
   customWebhook?: CustomWebhookData;
+  schedule?: { pageId: string; pageName: string; quiet: boolean; nextTransitionAt: string };
   customText?: string;
   customImage?: CustomImage;
   price?: EnergyPrice;
   weather?: WeatherData;
   news?: NewsItem[];
+  calendar?: { timezone: string; events: Array<{ title: string; start: string; end: string; allDay: boolean; dateLabel: string; timeLabel: string }> };
   nextRefresh: number;
 }
 

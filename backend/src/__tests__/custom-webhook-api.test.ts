@@ -179,6 +179,29 @@ describe('custom webhook authentication and persisted snapshots', () => {
     expect(bmp.subarray(62).some((byte) => byte !== 0xff)).toBe(true);
   });
 
+  it('renders sensors alongside calendar widgets on the selected scheduled page', async () => {
+    const token = await issue();
+    await send('/custom-webhook/ingest', token, 'POST', reading);
+    const prefs = state.preferences.get('alice')!;
+    const layout = { version: 1 as const, cols: 10 as const, rows: 6 as const, widgets: [
+      { i: 'calendar', x: 0, y: 0, w: 10, h: 3 },
+      { i: 'custom-webhook', x: 0, y: 3, w: 10, h: 3 },
+    ] };
+    prefs.layout = { ...layout, widgets: [] };
+    prefs.display_schedule = {
+      enabled: true, timezone: 'UTC', pages: [{ id: 'household', name: 'Household', duration_seconds: 900, layout }],
+      quiet_hours: { enabled: false, start: '22:00', end: '07:00' },
+    };
+    const data = await (await send('/preview', 'alice')).json() as DisplayData;
+    expect(data.schedule?.pageId).toBe('household');
+    expect(data.customWebhook?.rows).toEqual(reading.rows);
+    const draft = await send('/image/preview/draft', 'alice', 'POST', { layout });
+    expect(draft.status).toBe(200);
+    const raw = Buffer.from(await (await send('/image/preview/raw', 'alice')).arrayBuffer());
+    expect(raw.some((byte) => byte !== 0xff)).toBe(true);
+    expect(raw.equals(Buffer.from(await draft.arrayBuffer()).subarray(62))).toBe(true);
+  });
+
   it('rejects wrong auth, malformed/oversized payloads and cross-owner fields', async () => {
     const token = await issue();
     expect((await send('/custom-webhook/ingest', 'alice', 'POST', reading)).status).toBe(401);

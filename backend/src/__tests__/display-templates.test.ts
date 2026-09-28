@@ -63,6 +63,19 @@ describe('portable display template schema', () => {
       .toEqual({ show_custom_webhook: false, custom_webhook_ttl_minutes: 1 });
   });
 
+  it('combines calendar and sensor widgets within a portable scheduled page', () => {
+    const layout = { version: 1, cols: 10, rows: 6, widgets: [
+      { i: 'calendar', x: 0, y: 0, w: 10, h: 3 },
+      { i: 'custom-webhook', x: 0, y: 3, w: 10, h: 3 },
+    ] };
+    const input = withSettings({
+      show_calendar: true, calendar_timezone: 'Europe/Copenhagen', calendar_days: 7, calendar_item_limit: 5,
+      show_custom_webhook: true, custom_webhook_ttl_minutes: 30,
+      display_schedule: { ...schedule, pages: [{ ...schedule.pages[0], layout }] },
+    });
+    expect(parseDisplayTemplate(input).settings).toEqual(input.settings);
+  });
+
   it('round-trips a full twelve-page schedule above the old 8 KiB limit', () => {
     const widgets = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'status'].map((i, x) => ({ i, x, y: 0, w: 1, h: 1, static: true }));
     const large = withSettings({ display_schedule: { ...schedule, pages: Array.from({ length: 12 }, (_, i) => ({ id: `page-${i}`, name: 'A'.repeat(80), duration_seconds: 900, layout: { version: 1, cols: 10, rows: 6, widgets } })) } });
@@ -96,7 +109,7 @@ describe('portable display template schema', () => {
     withSettings({ customWebhook: { rows: [{ label: 'private', value: 'private' }] } }),
     withSettings({ token_hash: 'secret' }), withSettings({ integration_token: 'secret' }),
     withSettings({ energy_price_location: 'UK' }), withSettings({ weather_location: '91,0' }), withSettings({ weather_location: '0,-181' }),
-    withSettings({ weather_location: ',0' }), withSettings({ weather_location: '0,0,0' }), withSettings({ news_language: 'unknown' }),
+    withSettings({ weather_location: ',0' }), withSettings({ weather_location: '0,0,0' }), withSettings({ news_language: 'unknown' }), withSettings({ calendar_timezone: 'Invalid' }), withSettings({ calendar_days: 0 }), withSettings({ calendar_item_limit: 11 }),
     withSettings({ refresh_interval_minutes: 0 }), withSettings({ refresh_interval_minutes: 1441 }), withSettings({ refresh_interval_minutes: 1.5 }),
     withSettings({ monta_fields: ['password'] }), withSettings({ monta_fields: ['today_stats', 'today_stats'] }), withSettings({ zaptec_fields: ['today_stats'] }),
     withSettings({ layout: { version: 1, cols: 10, rows: 6, widgets: [], secret: 'token' } }),

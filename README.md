@@ -11,6 +11,8 @@ A quiet, glanceable home dashboard for Danish electricity prices, weather, news,
 
 Use **Layout templates** on the Dashboard to export settings, review a JSON import or apply a starter layout. Templates omit credentials and private feed URLs; see the [format and compatibility guide](docs/DISPLAY_TEMPLATES.md).
 
+Use **Pages and schedule** to save named layouts, choose their order and duration, and configure local quiet hours. Server requests select the active page; browser Bluetooth still requires manual pushes. See the [schedule guide](docs/DISPLAY_SCHEDULES.md) for timing rules and the required migration.
+
 The JSON preview, BMP preview and Bluetooth payload share one live-data pipeline. Unavailable sources are shown as unavailable, without invented weather or headlines. Widget drawing is clipped to its assigned area so long content cannot overwrite neighboring widgets.
 
 The image renderer supports validated monochrome panel sizes and clockwise rotation, defaulting to **250 × 122**. Choose native dimensions on the Dashboard. Bluetooth verifies the connected panel; current OpenDisplay direct-write firmware requires a byte-aligned width, so 250-pixel output is available as a BMP download rather than sent through that unsafe path. See [display profiles](docs/DISPLAY_PROFILES.md) and [the researched feature comparison](docs/PROJECT_COMPARISON_2026-09-28.md). A profile does not install a new board driver.
@@ -26,10 +28,15 @@ The image renderer supports validated monochrome panel sizes and clockwise rotat
 | Monta | Charger status, active sessions and daily energy | Client ID and secret |
 | Zaptec | Charger status, active session and installation | Account credentials |
 | Notion | Database items | Integration token and database ID |
+| Calendar | Upcoming timed/all-day ICS events and recurring appointments | Private HTTPS ICS feed URL, encrypted at rest |
 
 For RSS/Atom, select **RSS / Atom** under News headlines, enter a public HTTPS feed URL and save. NewsAPI remains the default for existing accounts. The feed returns up to 1–10 headlines; the display draws as many as fit in the news widget. An empty feed shows “No headlines”; a failed feed shows “News: unavailable”. Apply `010_rss.sql` to existing databases before using these settings.
 
 Feed fetching accepts UTF-8 RSS 2.0 and Atom 1.0, including CDATA/HTML titles and relative links. Requests use public HTTPS on port 443, an 8-second total deadline, a 1 MiB response limit, and at most three redirects. DNS addresses are checked and pinned for each request. Local/private feeds, embedded credentials, compressed responses and XML document types are rejected. Feed URLs are ordinary preferences: use public feeds without secret tokens.
+
+For calendars, apply `012_calendar.sql`, save the subscription URL in the dashboard's **Calendar** card, enable the source, and add **Calendar** in the layout editor. Select an IANA timezone (for example `Europe/Copenhagen`), a 1–30 day window and 1–10 events. Private URL paths/query tokens are encrypted using `ENCRYPTION_KEY`; credential endpoints return only configured status and the URL is excluded from preferences and key listings. Removing the URL stops calendar fetching.
+
+The agenda uses `node-ical` for UTF-8 ICS 2.0: UTC/IANA TZID and floating times, all-day dates with exclusive end dates, daily/weekly/monthly/yearly RRULEs, EXDATEs, moved instances and cancellations. Floating times use the selected timezone; ongoing events remain visible until they end. RDATE, EXRULE, RANGE overrides, unknown timezones and subdaily rules are rejected explicitly. The calendar uses the same public HTTPS/DNS/size/deadline restrictions as RSS, so local network calendars and compressed responses are unsupported. Parsing/recurrence expansion runs in a worker limited to two seconds, 64 MiB, 500 event components and 5,000 expanded instances. Empty calendars show “No upcoming events”; errors show “Calendar: unavailable”. Physical panel behavior still requires hardware validation.
 
 Electricity uses Energinet's [DayAheadPrices dataset](https://www.energidataservice.dk/tso-electricity/DayAheadPrices). It selects the current **15-minute interval by UTC**, compares it with the average of available intervals for the Danish calendar day, and expires cached prices at the next interval boundary. Zero and negative prices are supported. Values are **spot prices, excluding VAT, taxes and grid/supplier tariffs**, not the final household electricity cost. The former Elspotprices feed contains historical hourly data only.
 
@@ -79,6 +86,7 @@ Browser-facing paths below include `/api`; direct requests to the local Express 
 | GET | `/api/health` | Public health check |
 | POST | `/api/auth/login` | Synchronize authenticated user |
 | GET / POST | `/api/preferences` | Read/save source preferences and layout |
+| GET / POST / DELETE | `/api/preferences/calendar-credentials` | Calendar configured status, encrypted URL storage, removal |
 | GET | `/api/preview` | Live display data as JSON |
 | GET | `/api/image/preview` | Actual saved-layout BMP preview |
 | POST | `/api/image/preview/draft` | Live BMP of a validated unsaved layout; body `{ "layout": ... }` |

@@ -1,6 +1,6 @@
 import type { DisplayLayout, WidgetLayout } from '../types';
 
-export const DISPLAY_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'status'] as const;
+export const DISPLAY_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'status'] as const;
 
 export class LayoutValidationError extends Error {
   constructor(message: string) {

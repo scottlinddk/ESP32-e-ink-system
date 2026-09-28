@@ -2,11 +2,13 @@ import { fetchEnergyPrice } from './energinet';
 import { fetchWeather } from './weather';
 import { fetchNews } from './news';
 import { fetchRssNews } from './rss';
+import { fetchCalendar } from './calendar';
 import { fetchMontaData } from './monta';
 import { fetchZaptecData } from './zaptec';
 import { fetchNotionData, NotionCredentials } from './notion';
 import { DisplayData, UserPreferences } from '../types/index';
 import { logger } from '../lib/logger';
+import { resolveDisplaySchedule } from './displaySchedule';
 import { parseCustomImage } from '../utils/customContent';
 import { fetchWebhookData } from './customWebhook';
 
@@ -26,6 +28,10 @@ export const DEFAULT_PREFS: UserPreferences = {
   show_monta: false,
   show_zaptec: false,
   show_notion: false,
+  show_calendar: false,
+  calendar_timezone: 'Europe/Copenhagen',
+  calendar_days: 7,
+  calendar_item_limit: 5,
   energy_price_location: 'DK1',
   weather_location: '55.3,10.4',
   news_language: 'da',
@@ -64,8 +70,10 @@ export async function buildDisplayData(
   prefs: UserPreferences,
   apiKeyMap: Record<string, string>
 ): Promise<DisplayData> {
+  const resolved = resolveDisplaySchedule(prefs);
   const result: DisplayData = {
-    nextRefresh: prefs.refresh_interval_minutes * 60 * 1000,
+    nextRefresh: resolved.nextRefresh,
+    ...(resolved.schedule ? { schedule: resolved.schedule } : {}),
   };
 
   const tasks: Promise<void>[] = [];
@@ -178,6 +186,15 @@ export async function buildDisplayData(
         logger.warn('Notion credentials are not valid JSON — skipping');
       }
     }
+  }
+
+  if (prefs.show_calendar && apiKeyMap.calendar) {
+    tasks.push(withSourceDeadline((signal) => fetchCalendar(apiKeyMap.calendar, {
+      timezone: prefs.calendar_timezone ?? 'Europe/Copenhagen',
+      days: prefs.calendar_days ?? 7,
+      limit: prefs.calendar_item_limit ?? 5,
+    }, signal)).then((calendar) => { result.calendar = calendar; })
+      .catch(() => { logger.warn('Calendar source unavailable'); }));
   }
 
   await Promise.all(tasks);

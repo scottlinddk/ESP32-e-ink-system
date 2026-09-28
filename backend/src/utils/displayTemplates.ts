@@ -1,12 +1,13 @@
 import type { UserPreferences } from '../types';
 import { parseWebhookPreferences } from '../services/customWebhook';
+import { validateCalendarOptions } from '../services/calendar';
 import { parseDisplayProfile } from './displayProfile';
 import { LayoutValidationError, parseDisplayLayout } from './layoutValidation';
 import { DisplaySchedule, parseDisplaySchedule, ScheduleValidationError } from './scheduleValidation';
 
 export const TEMPLATE_MAX_BYTES = 32768;
 export const TEMPLATE_SETTING_KEYS = [
-  'show_energy_price', 'show_weather', 'show_news', 'show_air_quality', 'show_monta', 'show_zaptec', 'show_notion', 'show_custom_text', 'show_custom_image',
+  'show_energy_price', 'show_weather', 'show_news', 'show_air_quality', 'show_monta', 'show_zaptec', 'show_notion', 'show_custom_text', 'show_custom_image', 'show_calendar', 'calendar_timezone', 'calendar_days', 'calendar_item_limit',
   'energy_price_location', 'weather_location', 'news_language', 'news_source', 'news_item_limit', 'refresh_interval_minutes', 'layout', 'monta_fields', 'zaptec_fields', 'display_profile', 'display_schedule',
   'show_custom_webhook', 'custom_webhook_ttl_minutes',
 ] as const;
@@ -63,6 +64,9 @@ export function parseDisplayTemplate(input: unknown): DisplayTemplate {
         && Math.abs(Number(parts[0])) <= 90 && Math.abs(Number(parts[1])) <= 180, 'Weather coordinates are outside valid latitude/longitude ranges.');
     } else if (key === 'news_language') {
       check(typeof value === 'string' && ['da', 'en', 'de', 'sv', 'no', 'fi'].includes(value), 'Unsupported news language.');
+    } else if (key.startsWith('calendar_')) {
+      try { validateCalendarOptions({ timezone: key === 'calendar_timezone' ? value as string : 'UTC', days: key === 'calendar_days' ? value as number : 7, limit: key === 'calendar_item_limit' ? value as number : 5 }); }
+      catch (error) { throw new TemplateValidationError(error instanceof Error ? error.message : 'Invalid calendar settings.'); }
     } else if (key === 'news_source') {
       check(value === 'newsapi' || value === 'rss', 'Unsupported news source.');
     } else if (key === 'news_item_limit') {

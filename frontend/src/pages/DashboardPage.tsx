@@ -9,7 +9,9 @@ import { useAuth } from '../hooks/useAuth';
 import { DisplayCard } from '../components/dashboard/DisplayCard';
 import { ApiKeysCard } from '../components/dashboard/ApiKeysCard';
 import { PreviewCard } from '../components/dashboard/PreviewCard';
+import { CalendarCard } from '../components/dashboard/CalendarCard';
 import { TemplatesCard } from '../components/dashboard/TemplatesCard';
+import { ScheduleCard } from '../components/dashboard/ScheduleCard';
 import { CustomContentCard } from '../components/dashboard/CustomContentCard';
 import { CustomWebhookCard } from '../components/dashboard/CustomWebhookCard';
 
@@ -67,10 +69,12 @@ function AccountDashboard() {
       <div className="grid grid-cols-[minmax(0,1fr)_380px] gap-5 items-start max-[1080px]:grid-cols-1">
         <div className="flex flex-col gap-5 min-w-0">
           <DisplayCard loading={isLoading} />
+          <CalendarCard />
           <CustomContentCard />
           <CustomWebhookCard />
           <ApiKeysCard />
           <TemplatesCard />
+          <ScheduleCard />
           <DisplayProfileCard />
         </div>
         <div className="max-[1080px]:static max-[1080px]:order-first sticky top-[calc(64px+var(--space-5))]">
