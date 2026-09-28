@@ -23,6 +23,8 @@ export interface DisplaySchedule {
 }
 
 export interface UserPreferences {
+  show_custom_webhook?: boolean;
+  custom_webhook_ttl_minutes?: number;
   display_schedule?: DisplaySchedule | null;
   display_profile?: DisplayProfile | null;
   show_custom_text?: boolean;
@@ -131,6 +133,7 @@ export interface CalendarEvent {
 export interface CalendarData { timezone: string; events: CalendarEvent[] }
 
 export interface DisplayData {
+  customWebhook?: CustomWebhookData;
   schedule?: { pageId: string; pageName: string; quiet: boolean; nextTransitionAt: string };
   customText?: string;
   customImage?: CustomImage;
@@ -150,6 +153,15 @@ export interface CustomImage {
   // Base64, MSB-first, 1=white, tight rows of ceil(width / 8) bytes.
   pixels: string;
   fit: 'contain' | 'cover';
+}
+
+export interface SensorRow { label: string; value: string; unit?: string; }
+export interface CustomWebhookData {
+  state: 'fresh' | 'stale' | 'unavailable';
+  rows: SensorRow[];
+  observedAt: string | null;
+  receivedAt: string | null;
+  expiresAt: string | null;
 }
 
 export interface Device {

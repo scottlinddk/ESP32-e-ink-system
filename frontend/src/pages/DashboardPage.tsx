@@ -5,6 +5,7 @@ import { DisplayProfileCard } from '../components/dashboard/DisplayProfileCard';
 import React, { useEffect } from 'react';
 import { useApp } from '../lib/appContext';
 import { usePreferences } from '../hooks/usePreferences';
+import { useAuth } from '../hooks/useAuth';
 import { DisplayCard } from '../components/dashboard/DisplayCard';
 import { ApiKeysCard } from '../components/dashboard/ApiKeysCard';
 import { PreviewCard } from '../components/dashboard/PreviewCard';
@@ -12,8 +13,15 @@ import { CalendarCard } from '../components/dashboard/CalendarCard';
 import { TemplatesCard } from '../components/dashboard/TemplatesCard';
 import { ScheduleCard } from '../components/dashboard/ScheduleCard';
 import { CustomContentCard } from '../components/dashboard/CustomContentCard';
+import { CustomWebhookCard } from '../components/dashboard/CustomWebhookCard';
 
 export function DashboardPage() {
+  const { user, isSignedIn } = useAuth();
+  // Remount forms and discard in-memory credentials on a Clerk account switch.
+  return isSignedIn && user ? <AccountDashboard key={user.id} /> : null;
+}
+
+function AccountDashboard() {
   const app = useApp();
   const t = app.t;
   const { data: serverPrefs, isLoading } = usePreferences();
@@ -63,6 +71,7 @@ export function DashboardPage() {
           <DisplayCard loading={isLoading} />
           <CalendarCard />
           <CustomContentCard />
+          <CustomWebhookCard />
           <ApiKeysCard />
           <TemplatesCard />
           <ScheduleCard />
