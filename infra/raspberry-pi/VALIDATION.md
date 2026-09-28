@@ -1,7 +1,7 @@
 # Validation record
 
-Validated locally on Windows, 2026-09-28. No live Supabase, Raspberry Pi, DNS,
-Vercel deployment or Investor service was accessed or changed.
+Validated locally on Windows and in disposable Linux CI, 2026-09-28. No production
+Supabase, Raspberry Pi, DNS, Vercel settings or Investor service was changed.
 
 ## Completed
 
@@ -27,16 +27,25 @@ Vercel deployment or Investor service was accessed or changed.
 - Bash syntax checks passed for all six shell scripts using the bundled Git GNU
   Bash executable.
 - `git diff --check` passed for tracked changes.
+- [Database integration CI](https://github.com/scottlinddk/ESP32-e-ink-system/actions/runs/36427182971)
+  passed on native AMD64 (`ubuntu-24.04`) and ARM64 (`ubuntu-24.04-arm`) for
+  implementation commit `dc19c5b`. Both jobs initialized the real pinned
+  PostgreSQL/PostgREST/Nginx stack, exercised seven-table export/import/verification,
+  rejected tampered bundles, nonempty targets and standalone unique-index drift,
+  proved rollback after late foreign-key and post-COPY checksum failures, and
+  passed real Supabase SDK access/write/cleanup checks. Source rows stayed unchanged.
+  These jobs also passed all 66 offline Python tests and shell syntax checks.
+- [Application CI](https://github.com/scottlinddk/ESP32-e-ink-system/actions/runs/36427182883)
+  passed type checks, all 163 tests and production builds on the same implementation.
 
 ## Required before production
 
-Docker, PostgreSQL and Nginx are not installed in this workstation environment.
-Container startup, Linux operating procedures and database integration were
-therefore **not run here**; Bash syntax checks do not establish runtime behavior.
-The companion `test-stack.sh` and `pi-database.yml` workflow provide disposable
-native AMD64 and ARM64 Docker exercises; their presence does not mean that CI has already run or passed.
+Docker, PostgreSQL and Nginx are not installed on this Windows workstation;
+container integration was run in CI as linked above. CI uses generated fixture
+data and disposable storage, not the actual Pi, source database or production
+storage/backup procedures. Its success does not replace the deployment rehearsal.
 
-Run the integration workflow, then rehearse on the actual ARM64 host. Confirm:
+Rehearse on the actual ARM64 host. Confirm:
 
 1. Native ARM64 image pulls, clean initialization (including both 002 migrations),
    SQL permissions, authenticated API access and denied anonymous/invalid access.
