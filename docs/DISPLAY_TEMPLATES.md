@@ -10,7 +10,9 @@ A template uses this versioned format:
 
 Version 1 supports source enable flags, electricity area, weather coordinates, news language, refresh interval, EV field selections, layout, monochrome display profile and display schedule (named pages, durations, time zone and quiet hours). Display profile and scheduling settings take effect only on app versions that provide those features. The format is limited to 32 KiB. Unknown versions, unknown fields, duplicate/overlapping widgets, invalid geometry, unsupported profiles and invalid schedules are rejected before any settings are saved. There is no automatic conversion from other applications' formats.
 
-Exports deliberately exclude API keys, passwords, integration/device tokens, user/device identifiers and private feed URLs. They include your configured weather coordinates, page names and non-secret source settings: review an export before sharing it. Importing a layout that uses a data source does not transfer its account credentials. A receiving account must configure those separately.
+Custom sensor templates can include visibility (`show_custom_webhook`) and the freshness lifetime (`custom_webhook_ttl_minutes`, 1–1440 whole minutes), along with the sensor widget layout. These controls use the same validation as dashboard settings.
+
+Exports deliberately exclude API keys, passwords, integration/device tokens, token hashes, sensor snapshots, user/device identifiers and private feed URLs. They include your configured weather coordinates, page names and non-secret source settings: review an export before sharing it. Importing a layout that uses a data source does not transfer its account credentials or sensor readings. A receiving account must configure those separately.
 
 Endpoints require a Clerk bearer token:
 

@@ -16,6 +16,7 @@ import displayDataRouter from './routes/display-data';
 import firmwareRouter from './routes/firmware';
 import imageRouter from './routes/image';
 import { feedRouter, managementRouter as deliveryManagementRouter } from './routes/deviceDelivery';
+import customWebhookRouter from './routes/custom-webhook';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { swaggerSpec } from './swagger';
 
@@ -179,6 +180,7 @@ app.use('/device-feed', feedRouter);
 app.use('/firmware', firmwareRouter);
 app.use('/preview', displayDataRouter);
 app.use('/image', imageRouter);
+app.use('/custom-webhook', customWebhookRouter);
 
 // Checkout stub
 app.post('/checkout', (_req, res) => {

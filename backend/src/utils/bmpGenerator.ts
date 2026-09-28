@@ -2,6 +2,7 @@ import { parseDisplayProfile, DisplayProfile } from './displayProfile';
 import { DisplayData, DisplayLayout, UserPreferences, WidgetLayout } from '../types/index';
 import { bitmapGlyph, normalizeBitmapText, wrapBitmapText } from './bitmapText';
 import { drawCustomImage } from './customContent';
+import { renderWebhookWidget } from './webhookRenderer';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -519,6 +520,7 @@ function populateCanvas(
     const bounds = getWidgetBounds(widget, canvas);
     canvas.withClip(bounds, () => {
       switch (widget.i) {
+        case 'custom-webhook': renderWebhookWidget(canvas, bounds, data.customWebhook); break;
         case 'custom-text':
           if (data.customText) canvas.drawWrappedText(data.customText, bounds.x + 2, bounds.y + 2, bounds.width - 4);
           break;

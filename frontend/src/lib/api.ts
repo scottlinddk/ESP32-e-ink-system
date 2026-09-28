@@ -1,6 +1,6 @@
 import { DisplayProfile, frameMetadata } from './displayProfile';
 import { buildAuthHeaders } from './auth';
-import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout } from '../types';
+import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout, CustomWebhookStatus } from '../types';
 
 // In production (Vercel), use relative paths so requests always go to the same
 // origin and Vercel routes /api/* to the Express backend service.
@@ -333,6 +333,18 @@ export async function getHealth(): Promise<{
 }
 
 export { ApiError };
+
+export function getCustomWebhookStatus(token: string): Promise<CustomWebhookStatus> {
+  return request('/api/custom-webhook', { token });
+}
+
+export function createCustomWebhookToken(token: string): Promise<{ token: string }> {
+  return request('/api/custom-webhook/token', { token, method: 'POST', body: '{}' });
+}
+
+export function deleteCustomWebhookToken(token: string): Promise<void> {
+  return request('/api/custom-webhook/token', { token, method: 'DELETE' });
+}
 
 export async function fetchPreviewFrame(token: string): Promise<{ pixels: Uint8Array; profile: DisplayProfile }> {
   const response = await fetch(`${BASE_URL}/api/image/preview/raw`, { headers: { Authorization: `Bearer ${token}` } });
