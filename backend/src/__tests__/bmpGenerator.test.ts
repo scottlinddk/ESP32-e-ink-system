@@ -13,6 +13,22 @@ import {
 
 const STRIDE = 32;
 
+describe('news feed rendering', () => {
+  const newsLayout: DisplayLayout = { version: 1, cols: 10, rows: 6, widgets: [{ i: 'news', x: 0, y: 0, w: 10, h: 6 }] };
+  it('renders additional headlines when the news widget has room', () => {
+    const one = { nextRefresh: 60_000, news: [{ title: 'First', url: '' }] };
+    const two = { ...one, news: [...one.news, { title: 'Second', url: '' }] };
+    const first = renderDisplayDataRaw(one, newsLayout);
+    const both = renderDisplayDataRaw(two, newsLayout);
+    expect(first.subarray(0, STRIDE * 12)).toEqual(both.subarray(0, STRIDE * 12));
+    expect(first).not.toEqual(both);
+  });
+  it('distinguishes an empty feed from a failed source', () => {
+    expect(renderDisplayDataRaw({ nextRefresh: 60_000, news: [] }, newsLayout))
+      .not.toEqual(renderDisplayDataRaw({ nextRefresh: 60_000 }, newsLayout));
+  });
+});
+
 const data: DisplayData = {
   price: { now: 125, average: 175, trend: 'down' },
   weather: { temp: 17, condition: 'Mostly cloudy', windSpeed: 2.5, icon: '04d' },
@@ -168,6 +184,16 @@ describe('display widget boundaries', () => {
 });
 
 describe('EV charging field selection', () => {
+  it('renders a calendar agenda in BMP/raw and distinguishes empty/unavailable results', () => {
+    const widgetLayout = layout({ i: 'calendar', x: 0, y: 0, w: 10, h: 4 });
+    const calendar = { timezone: 'Europe/Copenhagen', events: [{ title: 'Dentist', start: '2026-10-01T10:00:00Z', end: '2026-10-01T11:00:00Z', allDay: false, dateLabel: '1 Oct', timeLabel: '12:00' }] };
+    const agenda = { nextRefresh: 60000, calendar };
+    const raw = renderDisplayDataRaw(agenda, widgetLayout);
+    expect(raw).toEqual(renderDisplayData(agenda, widgetLayout).subarray(62));
+    expect(raw).not.toEqual(renderDisplayDataRaw({ ...agenda, calendar: { ...calendar, events: [] } }, widgetLayout));
+    expect(renderDisplayDataRaw({ ...agenda, calendar: { ...calendar, events: [] } }, widgetLayout)).not.toEqual(renderDisplayDataRaw({ nextRefresh: 60000 }, widgetLayout));
+    expect(blackPixels(raw).every(([, y]) => y < 80)).toBe(true);
+  });
   it.each(['monta', 'zaptec'])('uses default fields when saved %s preferences are null', (widget) => {
     // These JSONB columns are nullable in the database.
     const preferences = JSON.parse('{"monta_fields":null,"zaptec_fields":null}');

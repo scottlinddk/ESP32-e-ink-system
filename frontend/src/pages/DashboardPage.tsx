@@ -1,14 +1,27 @@
+import { DisplayProfileCard } from '../components/dashboard/DisplayProfileCard';
 // =========================================================================
 // DashboardPage.tsx
 // =========================================================================
 import React, { useEffect } from 'react';
 import { useApp } from '../lib/appContext';
 import { usePreferences } from '../hooks/usePreferences';
+import { useAuth } from '../hooks/useAuth';
 import { DisplayCard } from '../components/dashboard/DisplayCard';
 import { ApiKeysCard } from '../components/dashboard/ApiKeysCard';
 import { PreviewCard } from '../components/dashboard/PreviewCard';
+import { CalendarCard } from '../components/dashboard/CalendarCard';
+import { TemplatesCard } from '../components/dashboard/TemplatesCard';
+import { ScheduleCard } from '../components/dashboard/ScheduleCard';
+import { CustomContentCard } from '../components/dashboard/CustomContentCard';
+import { CustomWebhookCard } from '../components/dashboard/CustomWebhookCard';
 
 export function DashboardPage() {
+  const { user, isSignedIn } = useAuth();
+  // Remount forms and discard in-memory credentials on a Clerk account switch.
+  return isSignedIn && user ? <AccountDashboard key={user.id} /> : null;
+}
+
+function AccountDashboard() {
   const app = useApp();
   const t = app.t;
   const { data: serverPrefs, isLoading } = usePreferences();
@@ -28,7 +41,9 @@ export function DashboardPage() {
       news: {
         on: serverPrefs.show_news,
         lang: serverPrefs.news_language || app.prefs.news.lang,
-        source: app.prefs.news.source,
+        source: serverPrefs.news_source ?? 'newsapi',
+        feedUrl: serverPrefs.news_feed_url ?? '',
+        itemLimit: serverPrefs.news_item_limit ?? 3,
       },
       monta: {
         on: serverPrefs.show_monta ?? false,
@@ -54,7 +69,13 @@ export function DashboardPage() {
       <div className="grid grid-cols-[minmax(0,1fr)_380px] gap-5 items-start max-[1080px]:grid-cols-1">
         <div className="flex flex-col gap-5 min-w-0">
           <DisplayCard loading={isLoading} />
+          <CalendarCard />
+          <CustomContentCard />
+          <CustomWebhookCard />
           <ApiKeysCard />
+          <TemplatesCard />
+          <ScheduleCard />
+          <DisplayProfileCard />
         </div>
         <div className="max-[1080px]:static max-[1080px]:order-first sticky top-[calc(64px+var(--space-5))]">
           <PreviewCard />

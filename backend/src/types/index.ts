@@ -1,3 +1,4 @@
+import type { DisplayProfile } from '../utils/displayProfile';
 export interface WidgetLayout {
   i: string;       // 'energy' | 'weather' | 'news' | 'status'
   x: number;       // 0–9
@@ -14,7 +15,22 @@ export interface DisplayLayout {
   widgets: WidgetLayout[];
 }
 
+export interface DisplaySchedule {
+  enabled: boolean;
+  timezone: string;
+  pages: Array<{ id: string; name: string; duration_seconds: number; layout: DisplayLayout }>;
+  quiet_hours: { enabled: boolean; start: string; end: string };
+}
+
 export interface UserPreferences {
+  show_custom_webhook?: boolean;
+  custom_webhook_ttl_minutes?: number;
+  display_schedule?: DisplaySchedule | null;
+  display_profile?: DisplayProfile | null;
+  show_custom_text?: boolean;
+  custom_text?: string;
+  show_custom_image?: boolean;
+  custom_image?: CustomImage | null;
   show_energy_price: boolean;
   show_weather: boolean;
   show_news: boolean;
@@ -24,11 +40,18 @@ export interface UserPreferences {
   energy_price_location: string; // 'DK1' | 'DK2'
   weather_location: string; // 'lat,lng'
   news_language: string; // 'da' | 'en'
+  news_source?: 'newsapi' | 'rss';
+  news_feed_url?: string;
+  news_item_limit?: number;
   refresh_interval_minutes: number;
   layout: DisplayLayout | null;
   monta_fields: string[]; // e.g. ['charger_status', 'active_session', 'today_stats']
   zaptec_fields: string[]; // e.g. ['charger_status', 'active_session', 'installation_info']
   show_notion: boolean;
+  show_calendar?: boolean;
+  calendar_timezone?: string;
+  calendar_days?: number;
+  calendar_item_limit?: number;
 }
 
 export interface EnergyPrice {
@@ -98,14 +121,47 @@ export interface NotionData {
   databaseName?: string;
 }
 
+export interface CalendarEvent {
+  title: string;
+  start: string; // ISO instant for timed events, YYYY-MM-DD for all-day dates
+  end: string; // exclusive for all-day dates
+  allDay: boolean;
+  dateLabel: string;
+  timeLabel: string;
+}
+
+export interface CalendarData { timezone: string; events: CalendarEvent[] }
+
 export interface DisplayData {
+  customWebhook?: CustomWebhookData;
+  schedule?: { pageId: string; pageName: string; quiet: boolean; nextTransitionAt: string };
+  customText?: string;
+  customImage?: CustomImage;
   price?: EnergyPrice;
   weather?: WeatherData;
   news?: NewsItem[];
   monta?: MontaData;
   zaptec?: ZaptecData;
   notion?: NotionData;
+  calendar?: CalendarData;
   nextRefresh: number;
+}
+
+export interface CustomImage {
+  width: number;
+  height: number;
+  // Base64, MSB-first, 1=white, tight rows of ceil(width / 8) bytes.
+  pixels: string;
+  fit: 'contain' | 'cover';
+}
+
+export interface SensorRow { label: string; value: string; unit?: string; }
+export interface CustomWebhookData {
+  state: 'fresh' | 'stale' | 'unavailable';
+  rows: SensorRow[];
+  observedAt: string | null;
+  receivedAt: string | null;
+  expiresAt: string | null;
 }
 
 export interface Device {

@@ -7,10 +7,13 @@ import { getApiKeys, getPreferences } from '../services/database';
 import { fetchEnergyPrice } from '../services/energinet';
 import { fetchWeather } from '../services/weather';
 import { fetchNews } from '../services/news';
+import { fetchRssNews } from '../services/rss';
+import { fetchCalendar } from '../services/calendar';
 import { fetchMontaData } from '../services/monta';
 import { fetchZaptecData } from '../services/zaptec';
 import { fetchNotionData } from '../services/notion';
 import { buildDisplayData, DEFAULT_PREFS } from '../services/displayData';
+import { resolveDisplaySchedule } from '../services/displaySchedule';
 import displayDataRouter from '../routes/display-data';
 import imageRouter from '../routes/image';
 import { renderDisplayData, renderDisplayDataRaw } from '../utils/bmpGenerator';
@@ -31,6 +34,8 @@ vi.mock('../services/database', () => ({
 vi.mock('../services/energinet', () => ({ fetchEnergyPrice: vi.fn() }));
 vi.mock('../services/weather', () => ({ fetchWeather: vi.fn() }));
 vi.mock('../services/news', () => ({ fetchNews: vi.fn() }));
+vi.mock('../services/rss', () => ({ fetchRssNews: vi.fn() }));
+vi.mock('../services/calendar', () => ({ fetchCalendar: vi.fn() }));
 vi.mock('../services/monta', () => ({ fetchMontaData: vi.fn() }));
 vi.mock('../services/zaptec', () => ({ fetchZaptecData: vi.fn() }));
 vi.mock('../services/notion', () => ({ fetchNotionData: vi.fn() }));
@@ -94,6 +99,34 @@ afterEach(() => {
 });
 
 describe('live display data', () => {
+  it('uses the encrypted calendar credential only when enabled and keeps empty calendars distinct from failures', async () => {
+    const calendar = { timezone: 'Europe/Copenhagen', events: [] };
+    vi.mocked(fetchCalendar).mockResolvedValue(calendar);
+    expect((await buildDisplayData('user-test', { ...prefs, show_calendar: true }, { calendar: 'https://private.example.org/token' })).calendar).toEqual(calendar);
+    expect(fetchCalendar).toHaveBeenCalledWith('https://private.example.org/token', { timezone: 'Europe/Copenhagen', days: 7, limit: 5 }, expect.any(AbortSignal));
+    vi.mocked(fetchCalendar).mockRejectedValue(new Error('private URL must not leak'));
+    expect((await buildDisplayData('user-test', { ...prefs, show_calendar: true }, { calendar: 'https://private.example.org/token' })).calendar).toBeUndefined();
+    vi.mocked(fetchCalendar).mockClear();
+    await buildDisplayData('user-test', { ...prefs, show_calendar: false }, { calendar: 'https://private.example.org/token' });
+    await buildDisplayData('user-test', { ...prefs, show_calendar: true }, {});
+    expect(fetchCalendar).not.toHaveBeenCalled();
+  });
+  it('selects RSS without NewsAPI credentials and preserves an empty successful feed', async () => {
+    vi.mocked(fetchRssNews).mockResolvedValue([]);
+    const selected = { ...prefs, news_source: 'rss' as const, news_feed_url: 'https://example.org/rss', news_item_limit: 5 };
+    const result = await buildDisplayData('user-test', selected, {});
+    expect(result.news).toEqual([]);
+    expect(fetchRssNews).toHaveBeenCalledWith(selected.news_feed_url, 5, expect.any(AbortSignal));
+    expect(fetchNews).not.toHaveBeenCalled();
+  });
+
+  it('omits failed feeds, keeps other data and does not silently fall back to NewsAPI', async () => {
+    vi.mocked(fetchRssNews).mockRejectedValue(new Error('Malformed feed'));
+    const result = await buildDisplayData('user-test', { ...prefs, news_source: 'rss' }, credentials);
+    expect(result.news).toBeUndefined();
+    expect(result.price).toEqual(liveData.price);
+    expect(fetchNews).not.toHaveBeenCalled();
+  });
   it('includes every enabled integration and forwards the selected fields and user identity', async () => {
     expect(await buildDisplayData('user-test', prefs, credentials)).toEqual(liveData);
     expect(fetchMontaData).toHaveBeenCalledWith('user-test', JSON.parse(credentials.monta), ['today_stats'], expect.any(AbortSignal));
@@ -177,6 +210,39 @@ describe('JSON, BMP and Bluetooth endpoints', () => {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   });
 
+  it('renders RSS headlines through JSON, BMP and raw display endpoints', async () => {
+    const selected = { ...prefs, news_source: 'rss' as const, news_feed_url: 'https://example.org/rss', news_item_limit: 3,
+      layout: { version: 1 as const, cols: 10 as const, rows: 6 as const, widgets: [{ i: 'news', x: 0, y: 0, w: 10, h: 6 }] } };
+    const headlines = [{ title: 'Feed headline one', url: 'https://example.org/one' }, { title: 'Feed headline two', url: '' }];
+    vi.mocked(getPreferences).mockResolvedValue(selected);
+    vi.mocked(fetchRssNews).mockResolvedValue(headlines);
+    const expected = { ...liveData, news: headlines };
+    expect(await (await fetch(`${baseUrl}/preview`, auth)).json()).toEqual(expected);
+    const bmp = Buffer.from(await (await fetch(`${baseUrl}/image/preview`, auth)).arrayBuffer());
+    const raw = Buffer.from(await (await fetch(`${baseUrl}/image/preview/raw`, auth)).arrayBuffer());
+    expect(bmp).toEqual(renderDisplayData(expected, selected.layout, selected));
+    expect(raw).toEqual(renderDisplayDataRaw(expected, selected.layout, selected));
+    expect(fetchNews).not.toHaveBeenCalled();
+    expect(fetchRssNews).toHaveBeenCalledTimes(3);
+  });
+
+  it('renders the calendar in JSON, BMP and raw without returning its private URL', async () => {
+    const selected = { ...prefs, show_calendar: true,
+      layout: { version: 1 as const, cols: 10 as const, rows: 6 as const, widgets: [{ i: 'calendar', x: 0, y: 0, w: 10, h: 6 }] } };
+    const calendar = { timezone: 'Europe/Copenhagen', events: [{ title: 'Appointment', start: '2026-09-28', end: '2026-09-29', allDay: true, dateLabel: '28 Sep', timeLabel: 'All day' }] };
+    vi.mocked(getPreferences).mockResolvedValue(selected);
+    vi.mocked(getApiKeys).mockResolvedValue([...Object.entries(credentials).map(([provider, api_key]) => ({ provider, api_key } as ApiKey)), { provider: 'calendar', api_key: 'https://private.example.org/secret-token' } as ApiKey]);
+    vi.mocked(fetchCalendar).mockResolvedValue(calendar);
+    const expected = { ...liveData, calendar };
+    const json = await (await fetch(`${baseUrl}/preview`, auth)).json();
+    expect(json).toEqual(expected); expect(JSON.stringify(json)).not.toContain('secret-token');
+    const bmp = Buffer.from(await (await fetch(`${baseUrl}/image/preview`, auth)).arrayBuffer());
+    const raw = Buffer.from(await (await fetch(`${baseUrl}/image/preview/raw`, auth)).arrayBuffer());
+    expect(bmp).toEqual(renderDisplayData(expected, selected.layout, selected));
+    expect(raw).toEqual(renderDisplayDataRaw(expected, selected.layout, selected));
+    expect(fetchCalendar).toHaveBeenCalledTimes(3);
+  });
+
   it('renders all three formats from the same enabled live integrations and field preferences', async () => {
     const jsonResponse = await fetch(`${baseUrl}/preview`, auth);
     expect(jsonResponse.status).toBe(200);
@@ -210,6 +276,25 @@ describe('JSON, BMP and Bluetooth endpoints', () => {
     expect(Buffer.from(await bmpResponse.arrayBuffer())).toEqual(renderDisplayData(availableData, null, prefs));
     const rawResponse = await fetch(`${baseUrl}/image/preview/raw`, auth);
     expect(Buffer.from(await rawResponse.arrayBuffer())).toEqual(renderDisplayDataRaw(availableData, null, prefs));
+  });
+
+  it('uses one active scheduled page and refresh delay in JSON, BMP and raw output', async () => {
+    const scheduledPrefs: UserPreferences = { ...prefs, display_schedule: {
+      enabled: true, timezone: 'UTC', quiet_hours: { enabled: false, start: '22:00', end: '07:00' },
+      pages: [
+        { id: 'energy', name: 'Electricity', duration_seconds: 60, layout: { version: 1, cols: 10, rows: 6, widgets: [{ i: 'energy', x: 0, y: 0, w: 10, h: 6 }] } },
+        { id: 'weather', name: 'Weather', duration_seconds: 120, layout: { version: 1, cols: 10, rows: 6, widgets: [{ i: 'weather', x: 0, y: 0, w: 10, h: 6 }] } },
+      ],
+    } };
+    vi.mocked(getPreferences).mockResolvedValue(scheduledPrefs);
+    const selected = resolveDisplaySchedule(scheduledPrefs);
+    const expected = { ...liveData, nextRefresh: selected.nextRefresh, schedule: selected.schedule };
+    const json = await fetch(`${baseUrl}/preview`, auth);
+    expect(await json.json()).toEqual(expected);
+    const bmp = await fetch(`${baseUrl}/image/preview`, auth);
+    expect(Buffer.from(await bmp.arrayBuffer())).toEqual(renderDisplayData(expected, selected.layout, scheduledPrefs));
+    const raw = await fetch(`${baseUrl}/image/preview/raw`, auth);
+    expect(Buffer.from(await raw.arrayBuffer())).toEqual(renderDisplayDataRaw(expected, selected.layout, scheduledPrefs));
   });
 
   it.each(['/preview', '/image/preview', '/image/preview/raw'])('requires authentication for %s', async (path) => {

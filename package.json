@@ -14,7 +14,7 @@
     "build:frontend": "npm run build -w frontend",
     "build:backend": "npm run build -w backend",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && node --test tools/display-client.test.mjs",
     "flash": "bash firmware/scripts/flash.sh upload",
     "flash:build": "bash firmware/scripts/flash.sh build",
     "flash:monitor": "bash firmware/scripts/flash.sh monitor",

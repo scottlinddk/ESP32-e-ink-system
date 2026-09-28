@@ -6,12 +6,16 @@ A quiet, glanceable home dashboard for Danish electricity prices, weather, news,
 
 1. Sign in and choose your data sources on the Dashboard.
 2. Add the API credentials required by your chosen sources.
-3. Arrange widgets in the layout editor and save. Its sample illustration is not a pixel-accurate draft preview; the Dashboard shows the actual saved display image.
+3. Arrange widgets in the layout editor and use **Preview layout** to render the unsaved arrangement with your saved data sources. Save when ready; the Dashboard shows the saved display image.
 4. Use **Push to Display** to select a compatible OpenDisplay device and transfer a fresh image. Transfers are manual; refreshing the browser preview does not update the physical display.
+
+Use **Layout templates** on the Dashboard to export settings, review a JSON import or apply a starter layout. Templates omit credentials and private feed URLs; see the [format and compatibility guide](docs/DISPLAY_TEMPLATES.md).
+
+Use **Pages and schedule** to save named layouts, choose their order and duration, and configure local quiet hours. Server requests select the active page; browser Bluetooth still requires manual pushes. See the [schedule guide](docs/DISPLAY_SCHEDULES.md) for timing rules and the required migration.
 
 The JSON preview, BMP preview and Bluetooth payload share one live-data pipeline. Unavailable sources are shown as unavailable, without invented weather or headlines. Widget drawing is clipped to its assigned area so long content cannot overwrite neighboring widgets.
 
-The current image renderer and Bluetooth payload target **250 × 122 monochrome pixels** (3,904 raw bytes). The firmware folders also contain work for other boards, but flashing another board does not make this renderer adapt to its panel size.
+The image renderer supports validated monochrome panel sizes and clockwise rotation, defaulting to **250 × 122**. Choose native dimensions on the Dashboard. Bluetooth verifies the connected panel; current OpenDisplay direct-write firmware requires a byte-aligned width, so 250-pixel output is available as a BMP download rather than sent through that unsafe path. See [display profiles](docs/DISPLAY_PROFILES.md) and [the researched feature comparison](docs/PROJECT_COMPARISON_2026-09-28.md). A profile does not install a new board driver.
 
 ## Data sources
 
@@ -20,9 +24,19 @@ The current image renderer and Bluetooth payload target **250 × 122 monochrome 
 | Energinet | DK1/DK2 day-ahead spot electricity prices | None |
 | OpenWeatherMap | Temperature, conditions and wind | API key |
 | NewsAPI | Headlines | API key |
+| RSS / Atom | Headlines from a public HTTPS feed | None |
 | Monta | Charger status, active sessions and daily energy | Client ID and secret |
 | Zaptec | Charger status, active session and installation | Account credentials |
 | Notion | Database items | Integration token and database ID |
+| Calendar | Upcoming timed/all-day ICS events and recurring appointments | Private HTTPS ICS feed URL, encrypted at rest |
+
+For RSS/Atom, select **RSS / Atom** under News headlines, enter a public HTTPS feed URL and save. NewsAPI remains the default for existing accounts. The feed returns up to 1–10 headlines; the display draws as many as fit in the news widget. An empty feed shows “No headlines”; a failed feed shows “News: unavailable”. Apply `010_rss.sql` to existing databases before using these settings.
+
+Feed fetching accepts UTF-8 RSS 2.0 and Atom 1.0, including CDATA/HTML titles and relative links. Requests use public HTTPS on port 443, an 8-second total deadline, a 1 MiB response limit, and at most three redirects. DNS addresses are checked and pinned for each request. Local/private feeds, embedded credentials, compressed responses and XML document types are rejected. Feed URLs are ordinary preferences: use public feeds without secret tokens.
+
+For calendars, apply `012_calendar.sql`, save the subscription URL in the dashboard's **Calendar** card, enable the source, and add **Calendar** in the layout editor. Select an IANA timezone (for example `Europe/Copenhagen`), a 1–30 day window and 1–10 events. Private URL paths/query tokens are encrypted using `ENCRYPTION_KEY`; credential endpoints return only configured status and the URL is excluded from preferences and key listings. Removing the URL stops calendar fetching.
+
+The agenda uses `node-ical` for UTF-8 ICS 2.0: UTC/IANA TZID and floating times, all-day dates with exclusive end dates, daily/weekly/monthly/yearly RRULEs, EXDATEs, moved instances and cancellations. Floating times use the selected timezone; ongoing events remain visible until they end. RDATE, EXRULE, RANGE overrides, unknown timezones and subdaily rules are rejected explicitly. The calendar uses the same public HTTPS/DNS/size/deadline restrictions as RSS, so local network calendars and compressed responses are unsupported. Parsing/recurrence expansion runs in a worker limited to two seconds, 64 MiB, 500 event components and 5,000 expanded instances. Empty calendars show “No upcoming events”; errors show “Calendar: unavailable”. Physical panel behavior still requires hardware validation.
 
 Electricity uses Energinet's [DayAheadPrices dataset](https://www.energidataservice.dk/tso-electricity/DayAheadPrices). It selects the current **15-minute interval by UTC**, compares it with the average of available intervals for the Danish calendar day, and expires cached prices at the next interval boundary. Zero and negative prices are supported. Values are **spot prices, excluding VAT, taxes and grid/supplier tariffs**, not the final household electricity cost. The former Elspotprices feed contains historical hourly data only.
 
@@ -83,12 +97,16 @@ Browser-facing paths below include `/api`; direct requests to the local Express 
 | GET | `/api/health` | Public health check |
 | POST | `/api/auth/login` | Synchronize authenticated user |
 | GET / POST | `/api/preferences` | Read/save source preferences and layout |
+| GET / POST / DELETE | `/api/preferences/calendar-credentials` | Calendar configured status, encrypted URL storage, removal |
 | GET | `/api/preview` | Live display data as JSON |
 | GET | `/api/image/preview` | Actual saved-layout BMP preview |
+| POST | `/api/image/preview/draft` | Live BMP of a validated unsaved layout; body `{ "layout": ... }` |
 | GET | `/api/image/preview/raw` | Raw pixels for Bluetooth transfer |
+| GET / POST / DELETE | `/api/devices/:id/delivery` and `/delivery/token` | Owner-managed device credentials and reported status |
+| GET / POST | `/api/device-feed/:id/frame` and `/heartbeat` | Device-token frame delivery and telemetry |
 
-All listed endpoints except health require a Clerk bearer token.
+Browser endpoints require a Clerk bearer token; device-feed endpoints require the separately issued device token. Health is public.
 
-The active dashboard flow uses OpenDisplay and Bluetooth. The bundled custom Wi-Fi firmware still calls legacy license-key pairing, image/data and status endpoints that the current backend no longer exposes. It is not an end-to-end alternative to the Bluetooth flow yet. See [the improvement notes](docs/PROJECT_DIRECTION.md) for remaining work and validation limits.
+The dashboard supports OpenDisplay Bluetooth and an [unattended polling bridge](docs/DEVICE_DELIVERY.md) with per-device credentials, ETag/304, scheduled quiet periods and reported telemetry. The bridge can run an explicitly configured display driver; file-only mode never reports physical application. The bundled custom Wi-Fi firmware still calls legacy endpoints and does not implement this new protocol. See [the improvement notes](docs/PROJECT_DIRECTION.md) for remaining work and validation limits.
 
 Older [setup](docs/SETUP_TRACK_A.md), [API](docs/API_REFERENCE.md) and [flashing](docs/FIRMWARE_FLASHING.md) guides retain some legacy instructions; use the architecture and endpoint status above when they differ.

@@ -1,5 +1,6 @@
+import { DisplayProfile, frameMetadata } from './displayProfile';
 import { buildAuthHeaders } from './auth';
-import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout } from '../types';
+import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout, CustomWebhookStatus } from '../types';
 
 // In production (Vercel), use relative paths so requests always go to the same
 // origin and Vercel routes /api/* to the Express backend service.
@@ -93,6 +94,45 @@ export async function saveLayout(
   await savePreferences(token, { layout });
 }
 
+export async function getCalendarCredentialStatus(token: string): Promise<{ configured: boolean }> {
+  return request('/api/preferences/calendar-credentials', { token });
+}
+
+export async function saveCalendarCredential(token: string, url: string): Promise<{ configured: boolean }> {
+  return request('/api/preferences/calendar-credentials', { method: 'POST', token, body: JSON.stringify({ url }) });
+}
+
+export async function deleteCalendarCredential(token: string): Promise<{ configured: boolean }> {
+  return request('/api/preferences/calendar-credentials', { method: 'DELETE', token });
+}
+
+export interface DisplayTemplate {
+  format: 'esp32-eink-template';
+  version: 1;
+  settings: Partial<UserPreferences> & {
+    display_profile?: { width: number; height: number; rotation: 0 | 90 | 180 | 270; colorMode: 'bw' };
+    display_schedule?: {
+      enabled: boolean; timezone: string;
+      pages: Array<{ id: string; name: string; duration_seconds: number; layout: DisplayLayout }>;
+      quiet_hours: { enabled: boolean; start: string; end: string };
+    } | null;
+  };
+}
+export interface StarterTemplate { id: string; name: string; template: DisplayTemplate }
+
+export function exportDisplayTemplate(token: string): Promise<DisplayTemplate> {
+  return request('/api/preferences/templates/export', { token });
+}
+export function validateDisplayTemplate(token: string, value: unknown, signal?: AbortSignal): Promise<{ template: DisplayTemplate }> {
+  return request('/api/preferences/templates/validate', { token, method: 'POST', body: JSON.stringify(value), signal });
+}
+export function importDisplayTemplate(token: string, template: DisplayTemplate): Promise<{ preferences: UserPreferences }> {
+  return request('/api/preferences/templates/import', { token, method: 'POST', body: JSON.stringify(template) });
+}
+export function getStarterTemplates(token: string): Promise<{ templates: StarterTemplate[] }> {
+  return request('/api/preferences/templates/starters', { token });
+}
+
 // ============================================================
 // API Keys
 // ============================================================
@@ -158,6 +198,20 @@ export async function deleteEvCredentials(token: string, provider: string): Prom
 
 export async function getDevices(token: string): Promise<{ devices: Device[] }> {
   return request<{ devices: Device[] }>('/api/devices', { token });
+}
+
+export interface DeviceDeliveryStatus {
+  configured: boolean; rotatedAt: string | null; lastSeenAt: string | null;
+  firmwareVersion: string | null; batteryPercent: number | null; rssi: number | null; lastAppliedHash: string | null;
+}
+export async function getDeviceDeliveryStatus(token: string, id: string): Promise<DeviceDeliveryStatus> {
+  return request(`/api/devices/${encodeURIComponent(id)}/delivery`, { token });
+}
+export async function createDeviceDeliveryToken(token: string, id: string): Promise<{ token: string }> {
+  return request(`/api/devices/${encodeURIComponent(id)}/delivery/token`, { method: 'POST', token });
+}
+export async function revokeDeviceDeliveryToken(token: string, id: string): Promise<{ configured: boolean }> {
+  return request(`/api/devices/${encodeURIComponent(id)}/delivery/token`, { method: 'DELETE', token });
 }
 
 export async function addDevice(
@@ -238,6 +292,22 @@ export async function fetchPreviewBmp(token: string, signal?: AbortSignal): Prom
   return response.blob();
 }
 
+/** Render a layout draft using the signed-in user's saved source settings. */
+export async function fetchDraftPreviewBmp(token: string, layout: DisplayLayout, signal?: AbortSignal): Promise<Blob> {
+  const response = await fetch(`${BASE_URL}/api/image/preview/draft`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ layout }),
+    signal,
+  });
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`;
+    try { message = (await response.json()).error ?? message; } catch { /* Keep HTTP status. */ }
+    throw new ApiError(response.status, message);
+  }
+  return response.blob();
+}
+
 /**
  * Fetches raw 1-bit pixel bytes (no BMP header) for OpenDisplay BLE direct write.
  * 32 bytes/row × 122 rows = 3,904 bytes.
@@ -263,3 +333,25 @@ export async function getHealth(): Promise<{
 }
 
 export { ApiError };
+
+export function getCustomWebhookStatus(token: string): Promise<CustomWebhookStatus> {
+  return request('/api/custom-webhook', { token });
+}
+
+export function createCustomWebhookToken(token: string): Promise<{ token: string }> {
+  return request('/api/custom-webhook/token', { token, method: 'POST', body: '{}' });
+}
+
+export function deleteCustomWebhookToken(token: string): Promise<void> {
+  return request('/api/custom-webhook/token', { token, method: 'DELETE' });
+}
+
+export async function fetchPreviewFrame(token: string): Promise<{ pixels: Uint8Array; profile: DisplayProfile }> {
+  const response = await fetch(`${BASE_URL}/api/image/preview/raw`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const profile = { width: Number(response.headers.get('X-Display-Width')), height: Number(response.headers.get('X-Display-Height')), rotation: Number(response.headers.get('X-Display-Rotation')), colorMode: 'bw' } as DisplayProfile;
+  const meta = frameMetadata(profile);
+  const pixels = new Uint8Array(await response.arrayBuffer());
+  if (response.headers.get('X-Display-Encoding') !== meta.encoding || Number(response.headers.get('X-Display-Row-Bytes')) !== meta.rowBytes || pixels.length !== meta.byteLength) throw new Error('Invalid display image metadata');
+  return { pixels, profile };
+}

@@ -15,6 +15,8 @@ import devicesRouter from './routes/devices';
 import displayDataRouter from './routes/display-data';
 import firmwareRouter from './routes/firmware';
 import imageRouter from './routes/image';
+import { feedRouter, managementRouter as deliveryManagementRouter } from './routes/deviceDelivery';
+import customWebhookRouter from './routes/custom-webhook';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { swaggerSpec } from './swagger';
 
@@ -43,6 +45,7 @@ app.use(
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['X-Display-Width', 'X-Display-Height', 'X-Display-Rotation', 'X-Display-Encoding', 'X-Display-Row-Bytes'],
   })
 );
 
@@ -73,10 +76,14 @@ const displayLimiter = createRateLimiter(
   'display-data'
 );
 
-app.use('/', globalLimiter);
+// Authenticated devices have their own per-device budget so gateways sharing
+// one public IP do not spend the browser/dashboard request allowance.
+app.use((req, res, next) => req.path.startsWith('/device-feed/') ? next() : globalLimiter(req, res, next));
 app.use('/image', displayLimiter);
 
 // Body parsing
+// A 512x512 one-bit custom image fits within this bounded preferences payload.
+app.use('/preferences', express.json({ limit: '64kb' }));
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: false }));
 
@@ -181,9 +188,12 @@ app.get('/firmware/default.bin',            (req, res, next) => proxyFirmwareBin
 app.use('/auth', authRouter);
 app.use('/preferences', preferencesRouter);
 app.use('/devices', devicesRouter);
+app.use('/devices', deliveryManagementRouter);
+app.use('/device-feed', feedRouter);
 app.use('/firmware', firmwareRouter);
 app.use('/preview', displayDataRouter);
 app.use('/image', imageRouter);
+app.use('/custom-webhook', customWebhookRouter);
 
 // Checkout stub
 app.post('/checkout', (_req, res) => {

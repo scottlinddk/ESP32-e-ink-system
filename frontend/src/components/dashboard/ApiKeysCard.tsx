@@ -5,7 +5,8 @@ import React, { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../../lib/appContext';
 import { useAuth } from '../../hooks/useAuth';
-import { getApiKeys, saveApiKey, deleteApiKey, saveEvCredentials, getEvCredentialStatus, deleteEvCredentials } from '../../lib/api';
+import { useApiKeys } from '../../hooks/usePreferences';
+import { saveApiKey, deleteApiKey, saveEvCredentials, getEvCredentialStatus, deleteEvCredentials } from '../../lib/api';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Field } from '../ui/Field';
@@ -30,13 +31,13 @@ interface EvCredentialsSectionProps {
 function EvCredentialsSection({ provider }: EvCredentialsSectionProps) {
   const app = useApp();
   const t = app.t;
-  const { getToken } = useAuth();
+  const { getToken, user } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [err, setErr] = useState('');
 
-  const statusKey = ['ev-credentials', provider];
+  const statusKey = ['ev-credentials', provider, user?.id];
   const { data: status } = useQuery({
     queryKey: statusKey,
     queryFn: async () => {
@@ -195,13 +196,13 @@ function EvCredentialsSection({ provider }: EvCredentialsSectionProps) {
 function NotionCredentialsSection() {
   const app = useApp();
   const t = app.t;
-  const { getToken } = useAuth();
+  const { getToken, user } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [err, setErr] = useState('');
 
-  const statusKey = ['ev-credentials', 'notion'];
+  const statusKey = ['ev-credentials', 'notion', user?.id];
   const { data: status } = useQuery({
     queryKey: statusKey,
     queryFn: async () => {
@@ -333,22 +334,14 @@ export function ApiKeysCard() {
   const [keyInput, setKeyInput] = useState('');
   const [err, setErr] = useState('');
 
-  const { data } = useQuery({
-    queryKey: ['api-keys'],
-    queryFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return getApiKeys(token);
-    },
-  });
+  const { data } = useApiKeys();
 
   useEffect(() => {
-    if (!data) return;
     const updated: Record<string, { status: string; key: string }> = {
       openweather: { status: 'none', key: '' },
       newsapi: { status: 'none', key: '' },
     };
-    for (const k of data.api_keys) {
+    for (const k of data ?? []) {
       const frontendId = k.provider === 'openweathermap' ? 'openweather' : k.provider;
       updated[frontendId] = { status: 'connected', key: k.api_key };
     }
@@ -398,7 +391,7 @@ export function ApiKeysCard() {
   }
 
   const connectedProviders = new Set(
-    (data?.api_keys ?? []).map((k) => k.provider === 'openweathermap' ? 'openweather' : k.provider)
+    (data ?? []).map((k) => k.provider === 'openweathermap' ? 'openweather' : k.provider)
   );
 
   const currentService = SERVICES.find((s) => s.id === dialog);
@@ -411,7 +404,7 @@ export function ApiKeysCard() {
         <NotionCredentialsSection />
         {SERVICES.map((svc) => {
           const connected = connectedProviders.has(svc.id);
-          const maskedKey = data?.api_keys.find(
+          const maskedKey = data?.find(
             (k) => (k.provider === 'openweathermap' ? 'openweather' : k.provider) === svc.id
           )?.api_key ?? '';
 

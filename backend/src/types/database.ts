@@ -188,6 +188,41 @@ export type Database = {
           },
         ]
       }
+      custom_webhooks: {
+        Row: {
+          user_id: string
+          token_hash: string | null
+          token_created_at: string | null
+          rows: Json
+          observed_at: string | null
+          received_at: string | null
+        }
+        Insert: {
+          user_id: string
+          token_hash?: string | null
+          token_created_at?: string | null
+          rows?: Json
+          observed_at?: string | null
+          received_at?: string | null
+        }
+        Update: {
+          user_id?: string
+          token_hash?: string | null
+          token_created_at?: string | null
+          rows?: Json
+          observed_at?: string | null
+          received_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_webhooks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       devices: {
         Row: {
           created_at: string
@@ -597,6 +632,12 @@ export type Database = {
       }
       user_preferences: {
         Row: {
+          show_custom_webhook: boolean
+          custom_webhook_ttl_minutes: number
+          show_custom_text: boolean
+          custom_text: string
+          show_custom_image: boolean
+          custom_image: Json | null
           created_at: string
           default_price_area: string
           default_timezone: string
@@ -604,6 +645,13 @@ export type Database = {
           layout: Json | null
           monta_fields: Json | null
           news_language: string | null
+          news_source: string
+          news_feed_url: string
+          news_item_limit: number
+          show_calendar: boolean
+          calendar_timezone: string
+          calendar_days: number
+          calendar_item_limit: number
           refresh_interval_minutes: number | null
           show_air_quality: boolean | null
           show_energy_price: boolean | null
@@ -620,11 +668,24 @@ export type Database = {
         Insert: {
           created_at?: string
           default_price_area?: string
+          show_custom_webhook?: boolean
+          custom_webhook_ttl_minutes?: number
+          show_custom_text?: boolean
+          custom_text?: string
+          show_custom_image?: boolean
+          custom_image?: Json | null
           default_timezone?: string
           energy_price_location?: string | null
           layout?: Json | null
           monta_fields?: Json | null
           news_language?: string | null
+          news_source?: string
+          news_feed_url?: string
+          news_item_limit?: number
+          show_calendar?: boolean
+          calendar_timezone?: string
+          calendar_days?: number
+          calendar_item_limit?: number
           refresh_interval_minutes?: number | null
           show_air_quality?: boolean | null
           show_energy_price?: boolean | null
@@ -641,11 +702,24 @@ export type Database = {
         Update: {
           created_at?: string
           default_price_area?: string
+          show_custom_webhook?: boolean
+          custom_webhook_ttl_minutes?: number
+          show_custom_text?: boolean
+          custom_text?: string
+          show_custom_image?: boolean
+          custom_image?: Json | null
           default_timezone?: string
           energy_price_location?: string | null
           layout?: Json | null
           monta_fields?: Json | null
           news_language?: string | null
+          news_source?: string
+          news_feed_url?: string
+          news_item_limit?: number
+          show_calendar?: boolean
+          calendar_timezone?: string
+          calendar_days?: number
+          calendar_item_limit?: number
           refresh_interval_minutes?: number | null
           show_air_quality?: boolean | null
           show_energy_price?: boolean | null

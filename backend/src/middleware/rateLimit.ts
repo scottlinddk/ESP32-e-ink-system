@@ -38,7 +38,8 @@ export function createRateLimiter(
   requests: number,
   window: Window,
   message: string,
-  prefix: string
+  prefix: string,
+  keyForRequest: (req: Request) => string = getClientIp
 ) {
   const r = getRedis();
 
@@ -58,8 +59,7 @@ export function createRateLimiter(
   });
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const ip = getClientIp(req);
-    const { success, limit, remaining, reset } = await limiter.limit(ip);
+    const { success, limit, remaining, reset } = await limiter.limit(keyForRequest(req));
 
     res.setHeader('X-RateLimit-Limit', limit);
     res.setHeader('X-RateLimit-Remaining', remaining);

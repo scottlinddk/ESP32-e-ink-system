@@ -17,6 +17,7 @@ import { Dialog } from '../components/ui/Dialog';
 import { Icon } from '../components/ui/Logo';
 import { fmtAgo } from '../lib/mockData';
 import type { Device } from '../types';
+import { DeviceDeliveryCard } from '../components/dashboard/DeviceDeliveryCard';
 
 function lastSeenMin(last_seen_at: string | null): number {
   if (!last_seen_at) return 99999;
@@ -56,15 +57,21 @@ type DialogState =
   | null;
 
 export function DevicesPage() {
+  const { user } = useAuth();
+  return <DevicesForUser key={user?.id ?? 'signed-out'} />;
+}
+
+function DevicesForUser() {
   const app = useApp();
   const t = app.t;
-  const { getToken } = useAuth();
+  const { getToken, user, isSignedIn } = useAuth();
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<DialogState>(null);
   const [form, setForm] = useState({ name: '', id: '' });
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['devices'],
+    queryKey: ['devices', user?.id],
+    enabled: isSignedIn,
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
@@ -189,6 +196,7 @@ export function DevicesPage() {
                   <Button variant="outlined" size="sm" icon="edit" onClick={() => openEdit(d)}>{t.edit}</Button>
                   <Button variant="danger-outlined" size="sm" icon="delete" onClick={() => setDialog({ type: 'remove', device: d })}>{t.remove}</Button>
                 </div>
+                <DeviceDeliveryCard deviceId={d.id} />
               </div>
             );
           })

@@ -1,3 +1,4 @@
+import type { DisplayProfile } from '../lib/displayProfile';
 // ---- Legacy API types (kept for compatibility with existing hooks/api.ts) ----
 
 export interface WidgetLayout {
@@ -16,6 +17,13 @@ export interface DisplayLayout {
   widgets: WidgetLayout[];
 }
 
+export interface DisplaySchedule {
+  enabled: boolean;
+  timezone: string;
+  pages: Array<{ id: string; name: string; duration_seconds: number; layout: DisplayLayout }>;
+  quiet_hours: { enabled: boolean; start: string; end: string };
+}
+
 export const DEFAULT_LAYOUT: DisplayLayout = {
   version: 1,
   cols: 10,
@@ -29,6 +37,14 @@ export const DEFAULT_LAYOUT: DisplayLayout = {
 };
 
 export interface UserPreferences {
+  show_custom_webhook?: boolean;
+  custom_webhook_ttl_minutes?: number;
+  display_schedule?: DisplaySchedule | null;
+  display_profile?: DisplayProfile | null;
+  show_custom_text?: boolean;
+  custom_text?: string;
+  show_custom_image?: boolean;
+  custom_image?: CustomImage | null;
   show_energy_price: boolean;
   show_weather: boolean;
   show_news: boolean;
@@ -38,11 +54,18 @@ export interface UserPreferences {
   energy_price_location: string; // 'DK1' | 'DK2'
   weather_location: string; // 'lat,lng'
   news_language: string; // 'da' | 'en'
+  news_source?: 'newsapi' | 'rss';
+  news_feed_url?: string;
+  news_item_limit?: number;
   refresh_interval_minutes: number;
   layout: DisplayLayout | null;
   monta_fields: string[];
   zaptec_fields: string[];
   show_notion: boolean;
+  show_calendar?: boolean;
+  calendar_timezone?: string;
+  calendar_days?: number;
+  calendar_item_limit?: number;
 }
 
 export interface EnergyPrice {
@@ -64,10 +87,41 @@ export interface NewsItem {
 }
 
 export interface DisplayData {
+  customWebhook?: CustomWebhookData;
+  schedule?: { pageId: string; pageName: string; quiet: boolean; nextTransitionAt: string };
+  customText?: string;
+  customImage?: CustomImage;
   price?: EnergyPrice;
   weather?: WeatherData;
   news?: NewsItem[];
+  calendar?: { timezone: string; events: Array<{ title: string; start: string; end: string; allDay: boolean; dateLabel: string; timeLabel: string }> };
   nextRefresh: number;
+}
+
+export interface CustomImage {
+  width: number;
+  height: number;
+  // Base64, MSB-first, 1=white, tight rows of ceil(width / 8) bytes.
+  pixels: string;
+  fit: 'contain' | 'cover';
+}
+
+export interface SensorRow { label: string; value: string; unit?: string; }
+export interface CustomWebhookData {
+  state: 'fresh' | 'stale' | 'unavailable';
+  rows: SensorRow[];
+  observedAt: string | null;
+  receivedAt: string | null;
+  expiresAt: string | null;
+}
+export interface CustomWebhookStatus {
+  configured: boolean;
+  tokenCreatedAt: string | null;
+  state: CustomWebhookData['state'];
+  observedAt: string | null;
+  receivedAt: string | null;
+  expiresAt: string | null;
+  rowCount: number;
 }
 
 export interface MaskedApiKey {
@@ -87,7 +141,7 @@ export interface ApiResponse<T> {
 export interface Preferences {
   energy: { on: boolean; zone: string };
   weather: { on: boolean; location: string };
-  news: { on: boolean; lang: string; source: string };
+  news: { on: boolean; lang: string; source: string; feedUrl?: string; itemLimit?: number };
   monta: { on: boolean; fields: string[] };
   zaptec: { on: boolean; fields: string[] };
   notion: { on: boolean };
