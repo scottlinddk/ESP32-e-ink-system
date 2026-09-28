@@ -239,6 +239,22 @@ export async function fetchPreviewBmp(token: string, signal?: AbortSignal): Prom
   return response.blob();
 }
 
+/** Render a layout draft using the signed-in user's saved source settings. */
+export async function fetchDraftPreviewBmp(token: string, layout: DisplayLayout, signal?: AbortSignal): Promise<Blob> {
+  const response = await fetch(`${BASE_URL}/api/image/preview/draft`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ layout }),
+    signal,
+  });
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`;
+    try { message = (await response.json()).error ?? message; } catch { /* Keep HTTP status. */ }
+    throw new ApiError(response.status, message);
+  }
+  return response.blob();
+}
+
 /**
  * Fetches raw 1-bit pixel bytes (no BMP header) for OpenDisplay BLE direct write.
  * 32 bytes/row × 122 rows = 3,904 bytes.

@@ -150,7 +150,7 @@ export function LayoutEditorPage() {
 
         {/* Sidebar: preview + palette */}
         <div className="sticky top-20 max-[900px]:static flex flex-col gap-4">
-          <Card title={t.layoutSampleTitle}>
+          <Card title={t.layoutPreviewTitle}>
             <LayoutPreviewPane layout={layout} />
           </Card>
 

@@ -4,13 +4,52 @@ import { createClerkClient } from '@clerk/backend';
 import {
   getPreferences,
   getApiKeys,
+  getUserByEmail,
   upsertUser,
 } from '../services/database';
 import { buildDisplayData, DEFAULT_PREFS } from '../services/displayData';
 import { renderDisplayData, renderDisplayDataRaw } from '../utils/bmpGenerator';
 import { requireAuth } from '../middleware/auth';
+import { LayoutValidationError, parseDisplayLayout } from '../utils/layoutValidation';
 
 const router = Router();
+
+/** POST /api/image/preview/draft — render an unsaved layout without database writes. */
+router.post('/preview/draft', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)
+      || Object.keys(req.body).some((key) => key !== 'layout')) {
+      res.status(400).json({ error: 'Submit only the draft layout.' });
+      return;
+    }
+    const layout = parseDisplayLayout(req.body.layout);
+    const secretKey = process.env.CLERK_SECRET_KEY;
+    if (!secretKey) { res.status(500).json({ error: 'Server misconfiguration' }); return; }
+    const clerkUser = await createClerkClient({ secretKey }).users.getUser(req.clerkUserId!);
+    const email = clerkUser.emailAddresses.find((entry) => entry.id === clerkUser.primaryEmailAddressId)
+      ?.emailAddress ?? clerkUser.emailAddresses[0]?.emailAddress;
+    if (!email) { res.status(400).json({ error: 'No email on Clerk user' }); return; }
+
+    // Unlike the saved preview routes, a draft never creates or updates a user.
+    // All data belongs to the verified Clerk identity, never to submitted IDs.
+    const user = await getUserByEmail(email);
+    if (!user) { res.status(404).json({ error: 'Complete sign-in before previewing a layout.' }); return; }
+    const prefs = (await getPreferences(user.id)) ?? DEFAULT_PREFS;
+    const keys = await getApiKeys(user.id);
+    const apiKeyMap = Object.fromEntries(keys.map((key) => [key.provider, key.api_key]));
+    const data = await buildDisplayData(user.id, prefs, apiKeyMap);
+    const bmp = renderDisplayData(data, layout, prefs);
+    res.setHeader('Content-Type', 'image/bmp');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(bmp);
+  } catch (error) {
+    if (error instanceof LayoutValidationError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
 
 /**
  * GET /api/image/preview
