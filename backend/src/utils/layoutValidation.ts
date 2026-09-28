@@ -18,6 +18,9 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
   if (!isRecord(value) || value.version !== 1 || value.cols !== 10 || value.rows !== 6) {
     throw new LayoutValidationError('Layout must use version 1 and a 10 × 6 grid.');
   }
+  if (Object.keys(value).some((key) => !['version', 'cols', 'rows', 'widgets'].includes(key))) {
+    throw new LayoutValidationError('Layout contains unsupported fields.');
+  }
   if (!Array.isArray(value.widgets) || value.widgets.length > DISPLAY_WIDGET_IDS.length) {
     throw new LayoutValidationError('Layout widgets must be an array with at most one of each supported widget.');
   }
@@ -28,6 +31,9 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
     if (!isRecord(input) || typeof input.i !== 'string'
       || !DISPLAY_WIDGET_IDS.some((id) => id === input.i) || seen.has(input.i)) {
       throw new LayoutValidationError('Every widget must have a supported, unique ID.');
+    }
+    if (Object.keys(input).some((key) => !['i', 'x', 'y', 'w', 'h', 'static'].includes(key))) {
+      throw new LayoutValidationError('Widget contains unsupported fields.');
     }
     if (![input.x, input.y, input.w, input.h].every((n) => typeof n === 'number' && Number.isInteger(n))) {
       throw new LayoutValidationError('Widget positions and sizes must be whole numbers.');

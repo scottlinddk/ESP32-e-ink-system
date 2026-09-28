@@ -106,6 +106,33 @@ export async function deleteCalendarCredential(token: string): Promise<{ configu
   return request('/api/preferences/calendar-credentials', { method: 'DELETE', token });
 }
 
+export interface DisplayTemplate {
+  format: 'esp32-eink-template';
+  version: 1;
+  settings: Partial<UserPreferences> & {
+    display_profile?: { width: number; height: number; rotation: 0 | 90 | 180 | 270; colorMode: 'bw' };
+    display_schedule?: {
+      enabled: boolean; timezone: string;
+      pages: Array<{ id: string; name: string; duration_seconds: number; layout: DisplayLayout }>;
+      quiet_hours: { enabled: boolean; start: string; end: string };
+    } | null;
+  };
+}
+export interface StarterTemplate { id: string; name: string; template: DisplayTemplate }
+
+export function exportDisplayTemplate(token: string): Promise<DisplayTemplate> {
+  return request('/api/preferences/templates/export', { token });
+}
+export function validateDisplayTemplate(token: string, value: unknown, signal?: AbortSignal): Promise<{ template: DisplayTemplate }> {
+  return request('/api/preferences/templates/validate', { token, method: 'POST', body: JSON.stringify(value), signal });
+}
+export function importDisplayTemplate(token: string, template: DisplayTemplate): Promise<{ preferences: UserPreferences }> {
+  return request('/api/preferences/templates/import', { token, method: 'POST', body: JSON.stringify(template) });
+}
+export function getStarterTemplates(token: string): Promise<{ templates: StarterTemplate[] }> {
+  return request('/api/preferences/templates/starters', { token });
+}
+
 // ============================================================
 // API Keys
 // ============================================================
