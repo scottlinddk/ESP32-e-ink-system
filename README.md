@@ -6,7 +6,7 @@ A quiet, glanceable home dashboard for Danish electricity prices, weather, news,
 
 1. Sign in and choose your data sources on the Dashboard.
 2. Add the API credentials required by your chosen sources.
-3. Arrange widgets in the layout editor and save. Its sample illustration is not a pixel-accurate draft preview; the Dashboard shows the actual saved display image.
+3. Arrange widgets in the layout editor and use **Preview layout** to render the unsaved arrangement with your saved data sources. Save when ready; the Dashboard shows the saved display image.
 4. Use **Push to Display** to select a compatible OpenDisplay device and transfer a fresh image. Transfers are manual; refreshing the browser preview does not update the physical display.
 
 The JSON preview, BMP preview and Bluetooth payload share one live-data pipeline. Unavailable sources are shown as unavailable, without invented weather or headlines. Widget drawing is clipped to its assigned area so long content cannot overwrite neighboring widgets.
@@ -74,6 +74,7 @@ Browser-facing paths below include `/api`; direct requests to the local Express 
 | GET / POST | `/api/preferences` | Read/save source preferences and layout |
 | GET | `/api/preview` | Live display data as JSON |
 | GET | `/api/image/preview` | Actual saved-layout BMP preview |
+| POST | `/api/image/preview/draft` | Live BMP of a validated unsaved layout; body `{ "layout": ... }` |
 | GET | `/api/image/preview/raw` | Raw pixels for Bluetooth transfer |
 
 All listed endpoints except health require a Clerk bearer token.

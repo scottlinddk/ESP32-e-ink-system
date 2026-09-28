@@ -12,14 +12,15 @@ Make this a dependable household information display: the right electricity pric
 - Refresh previews after preferences, layouts or credentials change.
 - Open the Bluetooth picker during the user's click, validate the expected image size and release the connection after transfers or failures. Successful transmission means the final command was acknowledged; physical panel behavior still needs hardware verification.
 - Clip widgets and separator lines to their layout rectangles, correct mirrored bitmap glyphs, and honor selected EV fields. EV caches distinguish field selections so enabling another field takes effect immediately.
-- Expose EV/Notion widgets in the layout palette, place added widgets without overlaps, protect saved settings after a load failure, and identify the remaining sample illustration as sample content.
+- Expose EV/Notion widgets in the layout palette, place added widgets without overlaps, and protect saved settings after a load failure.
+- Render unsaved layouts on demand with the same authenticated live-data pipeline and BMP renderer as saved previews. Draft requests validate widget IDs, geometry and overlaps without writing to the database; layout edits cancel and clear outdated previews.
 - Add regression coverage and an application CI workflow.
 
 ## Next useful increments
 
 1. **Complete the hardware contract.** Discover a device's panel dimensions and supported transfer format before rendering. Add hardware-backed tests for every supported board, including ESP32-S3/Elecrow. The current image path is fixed at 250 × 122.
 2. **Choose and finish unattended delivery.** The current app requires manual Bluetooth pushes. Either implement an OpenDisplay-compatible scheduled image service or restore and test the bundled Wi-Fi firmware's API contract. Do not advertise automatic physical-display refresh until that path works end to end.
-3. **Make layout editing fully live.** Render an authenticated draft layout without saving, with debounced requests. The Dashboard currently gives the accurate saved-layout preview; the editor's illustration uses examples.
+3. **Refine live layout editing.** The editor now renders the current draft on demand. Any future automatic rendering should debounce changes and respect source/API rate limits.
 4. **Add source freshness.** Return each integration's observation time and availability state; put a compact last-updated marker on the physical screen. A server image-generation timestamp alone does not show how old a source reading is.
 5. **Turn price awareness into planning.** Once current prices are dependable, add upcoming prices and cheapest contiguous charging/appliance windows. Keep spot-price guidance distinct from the household's actual tariff.
 
