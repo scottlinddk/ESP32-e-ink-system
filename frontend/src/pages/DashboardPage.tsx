@@ -8,6 +8,7 @@ import { usePreferences } from '../hooks/usePreferences';
 import { DisplayCard } from '../components/dashboard/DisplayCard';
 import { ApiKeysCard } from '../components/dashboard/ApiKeysCard';
 import { PreviewCard } from '../components/dashboard/PreviewCard';
+import { CalendarCard } from '../components/dashboard/CalendarCard';
 import { TemplatesCard } from '../components/dashboard/TemplatesCard';
 import { CustomContentCard } from '../components/dashboard/CustomContentCard';
 
@@ -59,6 +60,7 @@ export function DashboardPage() {
       <div className="grid grid-cols-[minmax(0,1fr)_380px] gap-5 items-start max-[1080px]:grid-cols-1">
         <div className="flex flex-col gap-5 min-w-0">
           <DisplayCard loading={isLoading} />
+          <CalendarCard />
           <CustomContentCard />
           <ApiKeysCard />
           <TemplatesCard />

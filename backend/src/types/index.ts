@@ -38,6 +38,10 @@ export interface UserPreferences {
   monta_fields: string[]; // e.g. ['charger_status', 'active_session', 'today_stats']
   zaptec_fields: string[]; // e.g. ['charger_status', 'active_session', 'installation_info']
   show_notion: boolean;
+  show_calendar?: boolean;
+  calendar_timezone?: string;
+  calendar_days?: number;
+  calendar_item_limit?: number;
 }
 
 export interface EnergyPrice {
@@ -107,6 +111,17 @@ export interface NotionData {
   databaseName?: string;
 }
 
+export interface CalendarEvent {
+  title: string;
+  start: string; // ISO instant for timed events, YYYY-MM-DD for all-day dates
+  end: string; // exclusive for all-day dates
+  allDay: boolean;
+  dateLabel: string;
+  timeLabel: string;
+}
+
+export interface CalendarData { timezone: string; events: CalendarEvent[] }
+
 export interface DisplayData {
   customText?: string;
   customImage?: CustomImage;
@@ -116,6 +131,7 @@ export interface DisplayData {
   monta?: MontaData;
   zaptec?: ZaptecData;
   notion?: NotionData;
+  calendar?: CalendarData;
   nextRefresh: number;
 }
 

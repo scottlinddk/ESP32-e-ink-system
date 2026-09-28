@@ -611,6 +611,10 @@ export type Database = {
           news_source: string
           news_feed_url: string
           news_item_limit: number
+          show_calendar: boolean
+          calendar_timezone: string
+          calendar_days: number
+          calendar_item_limit: number
           refresh_interval_minutes: number | null
           show_air_quality: boolean | null
           show_energy_price: boolean | null
@@ -639,6 +643,10 @@ export type Database = {
           news_source?: string
           news_feed_url?: string
           news_item_limit?: number
+          show_calendar?: boolean
+          calendar_timezone?: string
+          calendar_days?: number
+          calendar_item_limit?: number
           refresh_interval_minutes?: number | null
           show_air_quality?: boolean | null
           show_energy_price?: boolean | null
@@ -667,6 +675,10 @@ export type Database = {
           news_source?: string
           news_feed_url?: string
           news_item_limit?: number
+          show_calendar?: boolean
+          calendar_timezone?: string
+          calendar_days?: number
+          calendar_item_limit?: number
           refresh_interval_minutes?: number | null
           show_air_quality?: boolean | null
           show_energy_price?: boolean | null

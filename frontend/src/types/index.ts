@@ -52,6 +52,10 @@ export interface UserPreferences {
   monta_fields: string[];
   zaptec_fields: string[];
   show_notion: boolean;
+  show_calendar?: boolean;
+  calendar_timezone?: string;
+  calendar_days?: number;
+  calendar_item_limit?: number;
 }
 
 export interface EnergyPrice {
@@ -78,6 +82,7 @@ export interface DisplayData {
   price?: EnergyPrice;
   weather?: WeatherData;
   news?: NewsItem[];
+  calendar?: { timezone: string; events: Array<{ title: string; start: string; end: string; allDay: boolean; dateLabel: string; timeLabel: string }> };
   nextRefresh: number;
 }
 
