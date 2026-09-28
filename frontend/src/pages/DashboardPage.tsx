@@ -7,6 +7,7 @@ import { usePreferences } from '../hooks/usePreferences';
 import { DisplayCard } from '../components/dashboard/DisplayCard';
 import { ApiKeysCard } from '../components/dashboard/ApiKeysCard';
 import { PreviewCard } from '../components/dashboard/PreviewCard';
+import { TemplatesCard } from '../components/dashboard/TemplatesCard';
 
 export function DashboardPage() {
   const app = useApp();
@@ -55,6 +56,7 @@ export function DashboardPage() {
         <div className="flex flex-col gap-5 min-w-0">
           <DisplayCard loading={isLoading} />
           <ApiKeysCard />
+          <TemplatesCard />
         </div>
         <div className="max-[1080px]:static max-[1080px]:order-first sticky top-[calc(64px+var(--space-5))]">
           <PreviewCard />

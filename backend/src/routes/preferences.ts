@@ -9,6 +9,7 @@ import {
 } from '../services/database';
 import { getOrCreateUserFromClerk } from './preferences-helpers';
 import { UserPreferences } from '../types/index';
+import templatesRouter from './templates';
 
 /**
  * @swagger
@@ -162,6 +163,7 @@ import { UserPreferences } from '../types/index';
  */
 
 const router = Router();
+router.use('/templates', templatesRouter);
 
 /**
  * GET /api/preferences

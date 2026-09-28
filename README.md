@@ -9,6 +9,8 @@ A quiet, glanceable home dashboard for Danish electricity prices, weather, news,
 3. Arrange widgets in the layout editor and use **Preview layout** to render the unsaved arrangement with your saved data sources. Save when ready; the Dashboard shows the saved display image.
 4. Use **Push to Display** to select a compatible OpenDisplay device and transfer a fresh image. Transfers are manual; refreshing the browser preview does not update the physical display.
 
+Use **Layout templates** on the Dashboard to export settings, review a JSON import or apply a starter layout. Templates omit credentials and private feed URLs; see the [format and compatibility guide](docs/DISPLAY_TEMPLATES.md).
+
 The JSON preview, BMP preview and Bluetooth payload share one live-data pipeline. Unavailable sources are shown as unavailable, without invented weather or headlines. Widget drawing is clipped to its assigned area so long content cannot overwrite neighboring widgets.
 
 The current image renderer and Bluetooth payload target **250 × 122 monochrome pixels** (3,904 raw bytes). The firmware folders also contain work for other boards, but flashing another board does not make this renderer adapt to its panel size.
