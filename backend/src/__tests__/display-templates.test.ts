@@ -48,6 +48,21 @@ describe('portable display template schema', () => {
     expect(exportDisplayTemplate({ ...DEFAULT_PREFS, display_profile: null }).settings.display_profile).toEqual({ width: 250, height: 122, rotation: 0, colorMode: 'bw' });
   });
 
+  it('round-trips sensor visibility, lifetime and layout without exporting credentials or readings', () => {
+    const prefs = {
+      ...DEFAULT_PREFS, show_custom_webhook: true, custom_webhook_ttl_minutes: 1440,
+      layout: { version: 1, cols: 10, rows: 6, widgets: [{ i: 'custom-webhook', x: 0, y: 0, w: 10, h: 6 }] },
+      customWebhook: { rows: [{ label: 'private-label', value: 'private-value' }] },
+      token_hash: 'private-hash', integration_token: 'private-token', received_at: 'private-timestamp',
+    } as UserPreferences;
+    const exported = exportDisplayTemplate(prefs);
+    expect(exported.settings).toMatchObject({ show_custom_webhook: true, custom_webhook_ttl_minutes: 1440, layout: prefs.layout });
+    expect(parseDisplayTemplate(JSON.parse(JSON.stringify(exported)))).toEqual(exported);
+    expect(JSON.stringify(exported)).not.toContain('private');
+    expect(parseDisplayTemplate(withSettings({ show_custom_webhook: false, custom_webhook_ttl_minutes: 1 })).settings)
+      .toEqual({ show_custom_webhook: false, custom_webhook_ttl_minutes: 1 });
+  });
+
   it('round-trips a full twelve-page schedule above the old 8 KiB limit', () => {
     const widgets = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'status'].map((i, x) => ({ i, x, y: 0, w: 1, h: 1, static: true }));
     const large = withSettings({ display_schedule: { ...schedule, pages: Array.from({ length: 12 }, (_, i) => ({ id: `page-${i}`, name: 'A'.repeat(80), duration_seconds: 900, layout: { version: 1, cols: 10, rows: 6, widgets } })) } });
@@ -76,6 +91,10 @@ describe('portable display template schema', () => {
     null, [], {}, { ...template, format: 'unknown' }, { ...template, version: 2 }, { ...template, extra: 'unknown' },
     withSettings(null), withSettings([]), withSettings({}), withSettings({ user_id: 'victim' }),
     withSettings({ api_key: 'secret' }), withSettings({ calendar_url: 'https://private' }), withSettings({ show_weather: 'true' }),
+    withSettings({ show_custom_webhook: 'true' }), withSettings({ show_custom_webhook: null }),
+    ...[0, 1441, 1.5, '60', null].map((custom_webhook_ttl_minutes) => withSettings({ custom_webhook_ttl_minutes })),
+    withSettings({ customWebhook: { rows: [{ label: 'private', value: 'private' }] } }),
+    withSettings({ token_hash: 'secret' }), withSettings({ integration_token: 'secret' }),
     withSettings({ energy_price_location: 'UK' }), withSettings({ weather_location: '91,0' }), withSettings({ weather_location: '0,-181' }),
     withSettings({ weather_location: ',0' }), withSettings({ weather_location: '0,0,0' }), withSettings({ news_language: 'unknown' }),
     withSettings({ refresh_interval_minutes: 0 }), withSettings({ refresh_interval_minutes: 1441 }), withSettings({ refresh_interval_minutes: 1.5 }),
