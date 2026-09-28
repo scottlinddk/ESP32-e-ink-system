@@ -15,7 +15,15 @@ export interface DisplayLayout {
   widgets: WidgetLayout[];
 }
 
+export interface DisplaySchedule {
+  enabled: boolean;
+  timezone: string;
+  pages: Array<{ id: string; name: string; duration_seconds: number; layout: DisplayLayout }>;
+  quiet_hours: { enabled: boolean; start: string; end: string };
+}
+
 export interface UserPreferences {
+  display_schedule?: DisplaySchedule | null;
   display_profile?: DisplayProfile | null;
   show_custom_text?: boolean;
   custom_text?: string;
@@ -30,11 +38,18 @@ export interface UserPreferences {
   energy_price_location: string; // 'DK1' | 'DK2'
   weather_location: string; // 'lat,lng'
   news_language: string; // 'da' | 'en'
+  news_source?: 'newsapi' | 'rss';
+  news_feed_url?: string;
+  news_item_limit?: number;
   refresh_interval_minutes: number;
   layout: DisplayLayout | null;
   monta_fields: string[]; // e.g. ['charger_status', 'active_session', 'today_stats']
   zaptec_fields: string[]; // e.g. ['charger_status', 'active_session', 'installation_info']
   show_notion: boolean;
+  show_calendar?: boolean;
+  calendar_timezone?: string;
+  calendar_days?: number;
+  calendar_item_limit?: number;
 }
 
 export interface EnergyPrice {
@@ -104,7 +119,19 @@ export interface NotionData {
   databaseName?: string;
 }
 
+export interface CalendarEvent {
+  title: string;
+  start: string; // ISO instant for timed events, YYYY-MM-DD for all-day dates
+  end: string; // exclusive for all-day dates
+  allDay: boolean;
+  dateLabel: string;
+  timeLabel: string;
+}
+
+export interface CalendarData { timezone: string; events: CalendarEvent[] }
+
 export interface DisplayData {
+  schedule?: { pageId: string; pageName: string; quiet: boolean; nextTransitionAt: string };
   customText?: string;
   customImage?: CustomImage;
   price?: EnergyPrice;
@@ -113,6 +140,7 @@ export interface DisplayData {
   monta?: MontaData;
   zaptec?: ZaptecData;
   notion?: NotionData;
+  calendar?: CalendarData;
   nextRefresh: number;
 }
 

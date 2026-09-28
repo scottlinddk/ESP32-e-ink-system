@@ -17,6 +17,13 @@ export interface DisplayLayout {
   widgets: WidgetLayout[];
 }
 
+export interface DisplaySchedule {
+  enabled: boolean;
+  timezone: string;
+  pages: Array<{ id: string; name: string; duration_seconds: number; layout: DisplayLayout }>;
+  quiet_hours: { enabled: boolean; start: string; end: string };
+}
+
 export const DEFAULT_LAYOUT: DisplayLayout = {
   version: 1,
   cols: 10,
@@ -30,6 +37,7 @@ export const DEFAULT_LAYOUT: DisplayLayout = {
 };
 
 export interface UserPreferences {
+  display_schedule?: DisplaySchedule | null;
   display_profile?: DisplayProfile | null;
   show_custom_text?: boolean;
   custom_text?: string;
@@ -44,11 +52,18 @@ export interface UserPreferences {
   energy_price_location: string; // 'DK1' | 'DK2'
   weather_location: string; // 'lat,lng'
   news_language: string; // 'da' | 'en'
+  news_source?: 'newsapi' | 'rss';
+  news_feed_url?: string;
+  news_item_limit?: number;
   refresh_interval_minutes: number;
   layout: DisplayLayout | null;
   monta_fields: string[];
   zaptec_fields: string[];
   show_notion: boolean;
+  show_calendar?: boolean;
+  calendar_timezone?: string;
+  calendar_days?: number;
+  calendar_item_limit?: number;
 }
 
 export interface EnergyPrice {
@@ -70,11 +85,13 @@ export interface NewsItem {
 }
 
 export interface DisplayData {
+  schedule?: { pageId: string; pageName: string; quiet: boolean; nextTransitionAt: string };
   customText?: string;
   customImage?: CustomImage;
   price?: EnergyPrice;
   weather?: WeatherData;
   news?: NewsItem[];
+  calendar?: { timezone: string; events: Array<{ title: string; start: string; end: string; allDay: boolean; dateLabel: string; timeLabel: string }> };
   nextRefresh: number;
 }
 
@@ -103,7 +120,7 @@ export interface ApiResponse<T> {
 export interface Preferences {
   energy: { on: boolean; zone: string };
   weather: { on: boolean; location: string };
-  news: { on: boolean; lang: string; source: string };
+  news: { on: boolean; lang: string; source: string; feedUrl?: string; itemLimit?: number };
   monta: { on: boolean; fields: string[] };
   zaptec: { on: boolean; fields: string[] };
   notion: { on: boolean };
