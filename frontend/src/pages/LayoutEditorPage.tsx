@@ -17,7 +17,7 @@ import { LoadBox } from '../components/ui/Spinner';
 import { Empty } from '../components/ui/Empty';
 import { Icon } from '../components/ui/Logo';
 
-const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion'] as const;
+const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'calendar'] as const;
 
 export function LayoutEditorPage() {
   const app = useApp();
@@ -33,6 +33,7 @@ export function LayoutEditorPage() {
     monta:   { id: 'monta',   label: t.srcMonta,            icon: 'electric_car' },
     zaptec:  { id: 'zaptec',  label: t.srcZaptec,           icon: 'electric_car' },
     notion:  { id: 'notion',  label: t.srcNotion,           icon: 'auto_stories' },
+    calendar: { id: 'calendar', label: app.lang === 'da' ? 'Kalender' : 'Calendar', icon: 'calendar_month' },
     status:  { id: 'status',  label: t.layoutWidgetStatus,  icon: 'schedule' },
   };
 
