@@ -96,3 +96,18 @@ test('honors bounded retry hints and exponential failure backoff', async (t) => 
   const { options } = await setup(t, (_req, res) => { res.writeHead(429, { 'Retry-After': '300' }); res.end(); });
   await assert.rejects(createPoller(options).pollOnce(), (error) => error.retryAfter === 300);
 });
+
+test('subtracts body, driver and heartbeat time from the next successful poll', async (t) => {
+  const { options, directory } = await setup(t, async (req, res) => {
+    if (req.url.endsWith('/heartbeat')) { await body(req); await new Promise((done) => setTimeout(done, 400)); res.end('{"accepted":true}'); return; }
+    res.writeHead(200, { ...headers, 'Retry-After': '2' }); res.flushHeaders();
+    await new Promise((done) => setTimeout(done, 400)); res.end(bytes);
+  });
+  const script = join(directory, 'slow-driver.mjs');
+  await writeFile(script, 'await new Promise(done => setTimeout(done, 400));');
+  const poller = createPoller({ ...options, driver: { executable: process.execPath, args: [script, '{file}'], timeoutSeconds: 10 } });
+  assert.equal((await poller.pollOnce()).retryAfter, 1);
+  for (const timeoutSeconds of [0, 9, 601, 1.5]) {
+    assert.throws(() => createPoller({ ...options, driver: { executable: process.execPath, args: ['{file}'], timeoutSeconds } }), /Driver timeout/);
+  }
+});

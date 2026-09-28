@@ -41,7 +41,7 @@ Paths below include the public `/api` prefix. All device requests carry `Authori
 
 | Method/path | Authentication | Result |
 |---|---|---|
-| GET `/api/devices/:id/delivery` | Owning Clerk account | Configured status and reported telemetry; no token/hash |
+| GET `/api/devices/:id/delivery` | Owning Clerk account | Configured status and reported telemetry; no token or credential hash |
 | POST `/api/devices/:id/delivery/token` | Owning Clerk account | New token, returned once; invalidates old token |
 | DELETE `/api/devices/:id/delivery/token` | Owning Clerk account | Revocation |
 | GET `/api/device-feed/:id/frame?format=bmp` | Device token | 1-bit top-down BMP |
@@ -52,9 +52,9 @@ Frame responses provide `ETag` and `X-Image-SHA256` over the exact response byte
 
 The reference client rejects redirects, dimensions/rotation/encoding mismatches, corrupt hashes, malformed BMP/raw lengths and bodies over 512 KiB. Each HTTP operation has a 20-second deadline. Successful polls follow bounded 1–86,400 second retry hints, subtracting download, driver and heartbeat time before sleeping. Failures use exponential backoff starting at 15 seconds and reaching one hour, extended by server retry hints up to one day. Authentication failure stops the client so the token can be replaced. Image replacement uses an exclusive temporary file followed by an atomic rename.
 
-Heartbeat example:
-
 When Upstash rate limiting is configured, authenticated devices each receive a 120-request/minute frame+heartbeat budget; they do not share the dashboard's per-IP allowance. Invalid credentials have a separate 30-request/minute per-IP budget.
+
+Heartbeat example:
 
 ```json
 {

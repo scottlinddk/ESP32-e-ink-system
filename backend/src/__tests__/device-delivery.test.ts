@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -10,6 +10,7 @@ import { managementRouter, feedRouter } from '../routes/deviceDelivery';
 import { getApiKeys, getPreferences } from '../services/database';
 import { buildDisplayData, DEFAULT_PREFS } from '../services/displayData';
 import { tokenHash, validateHeartbeat } from '../services/deviceDelivery';
+import { renderDisplayDataRaw } from '../utils/bmpGenerator';
 // @ts-expect-error The standalone reference client is deliberately dependency-free JavaScript.
 import { createPoller } from '../../../tools/display-client.mjs';
 
@@ -48,6 +49,7 @@ describe('authenticated device delivery', () => {
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   });
   afterAll(async () => { await new Promise<void>((resolve) => server.close(() => resolve())); });
+  afterEach(() => { vi.useRealTimers(); });
   beforeEach(() => {
     state.deliveries.clear(); vi.clearAllMocks();
     vi.mocked(getApiKeys).mockResolvedValue([]);
@@ -67,6 +69,8 @@ describe('authenticated device delivery', () => {
     const status = await fetch(`${base}/devices/device-a/delivery`, { headers: ownerHeaders });
     const text = await status.text(); expect(text).not.toContain(tokenHash(token)); expect(JSON.parse(text).lastSeenAt).toBeNull();
     expect((await fetch(`${base}/devices/device-b/delivery/token`, { method: 'POST', headers: ownerHeaders })).status).toBe(404);
+    expect((await fetch(`${base}/devices/device-b/delivery/token`, { method: 'DELETE', headers: ownerHeaders })).status).toBe(404);
+    expect((await fetch(`${base}/devices/device-b/delivery`, { headers: ownerHeaders })).status).toBe(404);
     expect((await frame(token, {}, 'device-b')).status).toBe(401);
     const replacement = await create(); expect(replacement).not.toBe(token);
     expect((await frame(token)).status).toBe(401); expect((await frame(replacement)).status).toBe(200);
@@ -92,6 +96,9 @@ describe('authenticated device delivery', () => {
     expect(response.status).toBe(200);
     const status = await (await fetch(`${base}/devices/device-a/delivery`, { headers: ownerHeaders })).json();
     expect(status).toMatchObject({ firmwareVersion: 'test/1.0', batteryPercent: 45, rssi: -73, lastAppliedHash: 'ab'.repeat(32), lastSeenAt: expect.any(String) });
+    const invalid = await fetch(`${base}/device-feed/device-a/heartbeat`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...report, battery_percent: 101 }) });
+    expect(invalid.status).toBe(400);
+    expect(state.deliveries.get('device-a')?.battery_percent).toBe(45);
   });
   it('runs the real reference client against the API and withholds applied ACKs in file-only mode', async () => {
     const token = await create(); const directory = await mkdtemp(join(tmpdir(), 'eink-api-'));
@@ -102,6 +109,26 @@ describe('authenticated device delivery', () => {
       expect(state.deliveries.get('device-a')?.last_seen_at).toEqual(expect.any(String));
       expect(state.deliveries.get('device-a')?.last_applied_hash).toBeUndefined();
     } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+  it('sends quiet 204 before fetching credentials/sources and wakes at the quiet boundary', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-09-28T23:00:00Z'));
+    const layout = { version: 1 as const, cols: 10 as const, rows: 6 as const, widgets: [{ i: 'news', x: 0, y: 0, w: 10, h: 6 }] };
+    vi.mocked(getPreferences).mockResolvedValue({ ...DEFAULT_PREFS, display_schedule: { enabled: true, timezone: 'UTC', pages: [{ id: 'page', name: 'Page', duration_seconds: 60, layout }], quiet_hours: { enabled: true, start: '22:00', end: '06:00' } } });
+    const response = await frame(await create());
+    expect(response.status).toBe(204); expect(await response.text()).toBe(''); expect(response.headers.get('retry-after')).toBe('25200');
+    expect(getApiKeys).not.toHaveBeenCalled(); expect(buildDisplayData).not.toHaveBeenCalled();
+  });
+  it('uses the page attached to collected data and subtracts elapsed rendering time from the next boundary', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-09-28T12:00:59Z'));
+    const primary = { version: 1 as const, cols: 10 as const, rows: 6 as const, widgets: [{ i: 'news', x: 0, y: 0, w: 10, h: 6 }] };
+    const page = { ...primary, widgets: [{ i: 'weather', x: 0, y: 0, w: 10, h: 6 }] };
+    const selected = { ...DEFAULT_PREFS, layout: primary, display_schedule: { enabled: true, timezone: 'UTC', pages: [{ id: 'weather-page', name: 'Weather', duration_seconds: 60, layout: page }], quiet_hours: { enabled: false, start: '22:00', end: '06:00' } } };
+    const data = { nextRefresh: 1000, weather: { temp: 12, condition: 'Sunny', windSpeed: 2, icon: '' }, schedule: { pageId: 'weather-page', pageName: 'Weather', quiet: false, nextTransitionAt: '2026-09-28T12:01:00Z' } };
+    vi.mocked(getPreferences).mockResolvedValue(selected);
+    vi.mocked(buildDisplayData).mockImplementation(async () => { vi.setSystemTime(new Date('2026-09-28T12:00:59.800Z')); return data; });
+    const response = await frame(await create());
+    expect(response.status).toBe(200); expect(response.headers.get('retry-after')).toBe('1');
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(renderDisplayDataRaw(data, page, selected));
   });
   it.each([{ firmware_version: '' }, { firmware_version: 'v1', battery_percent: 101 }, { firmware_version: 'v1', rssi: -151 }, { firmware_version: 'v1', rssi: -1.5 }, { firmware_version: 'v1', last_applied_hash: 'invalid' }, { firmware_version: 'v1', user_id: 'other' }])('rejects malformed telemetry %j', (body) => {
     expect(() => validateHeartbeat(body)).toThrow();
