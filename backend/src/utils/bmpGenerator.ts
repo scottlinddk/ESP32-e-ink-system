@@ -1,5 +1,6 @@
 import { DisplayData, DisplayLayout, UserPreferences, WidgetLayout } from '../types/index';
 import { bitmapGlyph, normalizeBitmapText, wrapBitmapText } from './bitmapText';
+import { drawCustomImage } from './customContent';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -478,6 +479,12 @@ function populateCanvas(
     const bounds = getWidgetBounds(widget);
     canvas.withClip(bounds, () => {
       switch (widget.i) {
+        case 'custom-text':
+          if (data.customText) canvas.drawWrappedText(data.customText, bounds.x + 2, bounds.y + 2, bounds.width - 4);
+          break;
+        case 'custom-image':
+          if (data.customImage) drawCustomImage(canvas, bounds, data.customImage, { x: 0, y: 0, width: DISPLAY_WIDTH, height: DISPLAY_HEIGHT });
+          break;
         case 'energy':  renderEnergyWidget(canvas, bounds, data.price); break;
         case 'weather': renderWeatherWidget(canvas, bounds, data.weather); break;
         case 'news':    renderNewsWidget(canvas, bounds, data.news); break;
