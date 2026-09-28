@@ -200,6 +200,20 @@ export async function getDevices(token: string): Promise<{ devices: Device[] }> 
   return request<{ devices: Device[] }>('/api/devices', { token });
 }
 
+export interface DeviceDeliveryStatus {
+  configured: boolean; rotatedAt: string | null; lastSeenAt: string | null;
+  firmwareVersion: string | null; batteryPercent: number | null; rssi: number | null; lastAppliedHash: string | null;
+}
+export async function getDeviceDeliveryStatus(token: string, id: string): Promise<DeviceDeliveryStatus> {
+  return request(`/api/devices/${encodeURIComponent(id)}/delivery`, { token });
+}
+export async function createDeviceDeliveryToken(token: string, id: string): Promise<{ token: string }> {
+  return request(`/api/devices/${encodeURIComponent(id)}/delivery/token`, { method: 'POST', token });
+}
+export async function revokeDeviceDeliveryToken(token: string, id: string): Promise<{ configured: boolean }> {
+  return request(`/api/devices/${encodeURIComponent(id)}/delivery/token`, { method: 'DELETE', token });
+}
+
 export async function addDevice(
   token: string,
   ble_name: string,

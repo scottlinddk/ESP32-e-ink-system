@@ -11,7 +11,7 @@ import { Icon } from '../ui/Logo';
 import { fetchPreviewBmp, fetchPreviewFrame } from '../../lib/api';
 import { bleImagePush, BleSelectionCancelledError } from '../../lib/bleImagePush';
 
-type PushState = 'idle' | 'selecting' | 'fetching' | 'pushing' | 'done' | 'error';
+type PushState = 'idle' | 'selecting' | 'fetching' | 'pushing' | 'refreshing' | 'done' | 'error';
 
 export function PreviewCard() {
   const { t } = useApp();
@@ -62,6 +62,7 @@ export function PreviewCard() {
           setPushState('pushing');
           setPushProgress(Math.round((sent / total) * 100));
         },
+        onRefreshing: () => setPushState('refreshing'),
       });
       setPushState('done');
     } catch (err) {
@@ -75,7 +76,7 @@ export function PreviewCard() {
     }
   }
 
-  const pushBusy = pushState === 'selecting' || pushState === 'fetching' || pushState === 'pushing';
+  const pushBusy = pushState === 'selecting' || pushState === 'fetching' || pushState === 'pushing' || pushState === 'refreshing';
   const updatedAt = preview.dataUpdatedAt ? new Date(preview.dataUpdatedAt) : null;
 
   return (
@@ -136,6 +137,7 @@ export function PreviewCard() {
             {pushState === 'selecting' ? t.pushSelecting
               : pushState === 'fetching' ? t.pushFetching
               : pushState === 'pushing' ? `${pushProgress}%`
+              : pushState === 'refreshing' ? t.pushRefreshing
               : pushState === 'done' ? t.pushAgain
               : t.pushToDisplay}
           </Button>
