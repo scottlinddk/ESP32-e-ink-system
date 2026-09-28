@@ -1,3 +1,4 @@
+import type { DisplayProfile } from '../lib/displayProfile';
 // ---- Legacy API types (kept for compatibility with existing hooks/api.ts) ----
 
 export interface WidgetLayout {
@@ -29,6 +30,7 @@ export const DEFAULT_LAYOUT: DisplayLayout = {
 };
 
 export interface UserPreferences {
+  display_profile?: DisplayProfile | null;
   show_custom_text?: boolean;
   custom_text?: string;
   show_custom_image?: boolean;

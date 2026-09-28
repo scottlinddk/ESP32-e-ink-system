@@ -11,7 +11,7 @@ A quiet, glanceable home dashboard for Danish electricity prices, weather, news,
 
 The JSON preview, BMP preview and Bluetooth payload share one live-data pipeline. Unavailable sources are shown as unavailable, without invented weather or headlines. Widget drawing is clipped to its assigned area so long content cannot overwrite neighboring widgets.
 
-The current image renderer and Bluetooth payload target **250 × 122 monochrome pixels** (3,904 raw bytes). The firmware folders also contain work for other boards, but flashing another board does not make this renderer adapt to its panel size.
+The image renderer supports validated monochrome panel sizes and clockwise rotation, defaulting to **250 × 122**. Choose native dimensions on the Dashboard. Bluetooth verifies the connected panel; current OpenDisplay direct-write firmware requires a byte-aligned width, so 250-pixel output is available as a BMP download rather than sent through that unsafe path. See [display profiles](docs/DISPLAY_PROFILES.md) and [the researched feature comparison](docs/PROJECT_COMPARISON_2026-09-28.md). A profile does not install a new board driver.
 
 ## Data sources
 

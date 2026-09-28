@@ -1,3 +1,4 @@
+import { parseDisplayProfile } from '../utils/displayProfile';
 import { Router, Request, Response, NextFunction } from 'express';
 import { requireAuth } from '../middleware/auth';
 import {
@@ -237,6 +238,7 @@ router.post(
         'news_item_limit',
         'refresh_interval_minutes',
         'layout',
+        'display_profile',
         'monta_fields',
         'zaptec_fields',
         'show_notion',
@@ -282,6 +284,10 @@ router.post(
         }
       }
 
+      if (req.body.display_profile !== undefined) {
+        try { updates.display_profile = parseDisplayProfile(req.body.display_profile); }
+        catch (error) { res.status(400).json({ error: (error as Error).message }); return; }
+      }
       const prefs = await upsertPreferences(userId, updates);
       res.json({ preferences: prefs });
     } catch (err) {
