@@ -1,0 +1,7 @@
+infra/raspberry-pi/*.sh text eol=lf
+infra/raspberry-pi/*.py text eol=lf
+infra/raspberry-pi/*.yaml text eol=lf
+infra/raspberry-pi/*.conf text eol=lf
+infra/raspberry-pi/*.example text eol=lf
+infra/raspberry-pi/init/* text eol=lf
+infra/raspberry-pi/systemd/* text eol=lf

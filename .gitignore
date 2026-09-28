@@ -49,3 +49,14 @@ Thumbs.db
 
 # Testing
 .jest-cache/
+.validation/
+
+# Raspberry Pi database credentials, exports and local verification output
+infra/raspberry-pi/backend.env
+infra/raspberry-pi/.venv/
+infra/raspberry-pi/**/__pycache__/
+infra/raspberry-pi/pgconfig/
+infra/raspberry-pi/exports/
+infra/raspberry-pi/backups/
+infra/raspberry-pi/tunnel.json
+infra/raspberry-pi/cloudflared.yml

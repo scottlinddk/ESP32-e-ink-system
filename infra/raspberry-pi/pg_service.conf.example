@@ -1,0 +1,20 @@
+# Copy to /etc/esp32-eink/pgconfig/pg_service.conf; use pgpass for passwords.
+# Get the actual source hostname/user/port from Supabase Connect.
+# Prefer direct connection or the SESSION pooler (never transaction pooler).
+[supabase-source]
+host=YOUR_VERIFIED_SUPABASE_HOSTNAME
+port=5432
+dbname=postgres
+user=YOUR_SUPABASE_DATABASE_USER
+sslmode=verify-full
+sslrootcert=/run/pgconfig/supabase-ca.crt
+connect_timeout=15
+
+# This name resolves only inside the isolated Compose network.
+[eink-target]
+host=postgres
+port=5432
+dbname=eink
+user=eink_admin
+sslmode=disable
+connect_timeout=15

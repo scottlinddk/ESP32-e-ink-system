@@ -1,0 +1,58 @@
+name: Raspberry Pi database migration
+
+on:
+  pull_request:
+    paths:
+      - "infra/raspberry-pi/**"
+      - "backend/src/db/migrations/**"
+      - "backend/src/services/database.ts"
+      - "backend/src/__tests__/database-client.test.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/pi-database.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/raspberry-pi/**"
+      - "backend/src/db/migrations/**"
+      - "backend/src/services/database.ts"
+      - "backend/src/__tests__/database-client.test.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/pi-database.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migration:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install test dependencies
+        run: |
+          npm ci
+          python -m pip install -r infra/raspberry-pi/requirements.txt
+      - name: Offline tests and shell syntax
+        run: |
+          python -m unittest discover -s infra/raspberry-pi/tests -v
+          python -m unittest discover -s infra/raspberry-pi -p 'test_*.py' -v
+          for script in infra/raspberry-pi/*.sh infra/raspberry-pi/init/*.sh; do
+            bash -n "$script"
+          done
+      - name: Disposable PostgreSQL, PostgREST and Supabase SDK integration
+        run: bash infra/raspberry-pi/test-stack.sh
+      # Do not upload the private fixture directory, database files or credentials.

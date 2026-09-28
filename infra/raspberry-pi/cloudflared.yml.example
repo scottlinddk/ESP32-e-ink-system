@@ -1,0 +1,8 @@
+# An independent, locally managed named tunnel. Replace BOTH placeholders.
+tunnel: REPLACE_WITH_EINK_TUNNEL_UUID
+credentials-file: /etc/esp32-eink/tunnel.json
+metrics: 127.0.0.1:20380
+ingress:
+  - hostname: eink-db.example.com
+    service: http://127.0.0.1:3080
+  - service: http_status:404
