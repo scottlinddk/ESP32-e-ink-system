@@ -10,6 +10,7 @@ import {
 import { getOrCreateUserFromClerk } from './preferences-helpers';
 import { UserPreferences } from '../types/index';
 import { validatePublicHttpsUrl } from '../utils/publicFeedFetch';
+import { parseCustomContentUpdates } from '../utils/customContent';
 
 /**
  * @swagger
@@ -179,6 +180,10 @@ router.get(
 
       // Return defaults if no preferences set yet
       const defaultPrefs: UserPreferences = {
+        show_custom_text: false,
+        custom_text: '',
+        show_custom_image: false,
+        custom_image: null,
         show_energy_price: true,
         show_weather: true,
         show_news: true,
@@ -237,7 +242,17 @@ router.post(
         'show_notion',
       ];
 
-      const updates: Partial<UserPreferences> = {};
+      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+        res.status(400).json({ error: 'Preferences must be an object' });
+        return;
+      }
+      let updates: Partial<UserPreferences>;
+      try {
+        updates = parseCustomContentUpdates(req.body);
+      } catch (error) {
+        res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid custom content' });
+        return;
+      }
       const { news_source, news_feed_url, news_item_limit } = req.body;
       if (news_source !== undefined && !['newsapi', 'rss'].includes(news_source)) {
         res.status(400).json({ error: 'news_source must be newsapi or rss' }); return;
@@ -258,6 +273,7 @@ router.post(
         if ((news_source ?? current?.news_source) === 'rss' && !(news_feed_url ?? current?.news_feed_url)) {
           res.status(400).json({ error: 'A feed URL is required for RSS/Atom' }); return;
         }
+
       }
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {

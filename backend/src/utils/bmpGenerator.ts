@@ -1,4 +1,6 @@
 import { DisplayData, DisplayLayout, UserPreferences, WidgetLayout } from '../types/index';
+import { bitmapGlyph, normalizeBitmapText, wrapBitmapText } from './bitmapText';
+import { drawCustomImage } from './customContent';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -157,8 +159,7 @@ export class BmpCanvas {
   }
 
   drawChar(ch: number, x: number, y: number): void {
-    if (ch < 32 || ch > 127) ch = 63; // '?' for unknown
-    const glyph = FONT8X8[ch - 32];
+    const glyph = bitmapGlyph(ch, FONT8X8);
     for (let row = 0; row < 8; row++) {
       const byte = glyph[row];
       for (let col = 0; col < 8; col++) {
@@ -169,11 +170,9 @@ export class BmpCanvas {
 
   drawText(text: string, x: number, y: number, maxWidth = DISPLAY_WIDTH): void {
     let cx = x;
-    for (const ch of text) {
+    for (const ch of normalizeBitmapText(text)) {
       if (cx + 8 > x + maxWidth || cx + 8 > DISPLAY_WIDTH) break;
-      const code = ch.charCodeAt(0);
-      // Replace non-ASCII with '?'
-      this.drawChar(code >= 32 && code <= 127 ? code : 63, cx, y);
+      this.drawChar(ch.codePointAt(0)!, cx, y);
       cx += 8;
     }
   }
@@ -181,26 +180,10 @@ export class BmpCanvas {
   // Word-wrap text within a box; returns the y position after the last line
   drawWrappedText(text: string, x: number, y: number, w: number, lineH = 10): number {
     const maxChars = Math.floor(w / 8);
-    if (maxChars < 1 || y + 8 > this.clip.bottom) return y;
-    const words = text.split(' ');
-    let line = '';
+    if (maxChars < 1 || y + 8 > this.clip.bottom || !Number.isFinite(lineH) || lineH < 1) return y;
     let cy = y;
-
-    for (const word of words) {
-      const candidate = line ? `${line} ${word}` : word;
-      if (candidate.length <= maxChars) {
-        line = candidate;
-      } else {
-        if (line) {
-          this.drawText(line, x, cy, w);
-          cy += lineH;
-          if (cy + 8 > this.clip.bottom) break;
-        }
-        // word longer than line — truncate
-        line = word.length > maxChars ? word.slice(0, maxChars) : word;
-      }
-    }
-    if (line && cy + 8 <= this.clip.bottom) {
+    for (const line of wrapBitmapText(text, maxChars)) {
+      if (cy + 8 > this.clip.bottom) break;
       this.drawText(line, x, cy, w);
       cy += lineH;
     }
@@ -499,6 +482,12 @@ function populateCanvas(
     const bounds = getWidgetBounds(widget);
     canvas.withClip(bounds, () => {
       switch (widget.i) {
+        case 'custom-text':
+          if (data.customText) canvas.drawWrappedText(data.customText, bounds.x + 2, bounds.y + 2, bounds.width - 4);
+          break;
+        case 'custom-image':
+          if (data.customImage) drawCustomImage(canvas, bounds, data.customImage, { x: 0, y: 0, width: DISPLAY_WIDTH, height: DISPLAY_HEIGHT });
+          break;
         case 'energy':  renderEnergyWidget(canvas, bounds, data.price); break;
         case 'weather': renderWeatherWidget(canvas, bounds, data.weather); break;
         case 'news':    renderNewsWidget(canvas, bounds, data.news); break;
