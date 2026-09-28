@@ -1,6 +1,7 @@
 // Protocol fields verified against OpenDisplay/Firmware include/opendisplay_structs.h
 // and py-opendisplay protocol/config_parser.py. Commands use network byte order;
 // native configuration integers use little endian.
+import { bluetoothDeadline } from './bluetoothDeadline';
 export interface PanelCapabilities { width: number; height: number; color: number; }
 const PACKET_SIZES: Record<number, number> = { 1:22, 2:22, 4:30, 0x20:46, 0x21:22, 0x23:30, 0x24:30, 0x25:30, 0x26:160, 0x27:64, 0x28:32, 0x29:32, 0x2a:32, 0x2b:32, 0x2c:288 };
 
@@ -10,7 +11,10 @@ export function parsePanelConfig(bytes: Uint8Array): PanelCapabilities {
   let offset = 3;
   while (offset < bytes.length - 2) {
     const type = bytes[offset + 1];
-    const size = PACKET_SIZES[type];
+    // Older firmware has a 65-byte Wi-Fi packet, supported only at the end
+    // (the same unambiguous fallback used by the upstream SDK).
+    const remaining = bytes.length - 2 - (offset + 2);
+    const size = type === 0x26 && remaining === 65 ? 65 : PACKET_SIZES[type];
     if (!size || offset + 2 + size > bytes.length - 2) throw new Error('Incomplete or unsupported OpenDisplay configuration');
     const start = offset + 2;
     if (type === 0x20) {
@@ -23,13 +27,14 @@ export function parsePanelConfig(bytes: Uint8Array): PanelCapabilities {
   return panels[0];
 }
 
-export async function readPanelConfig(char: BluetoothRemoteGATTCharacteristic): Promise<PanelCapabilities> {
+export async function readPanelConfig(char: BluetoothRemoteGATTCharacteristic, signal?: AbortSignal): Promise<PanelCapabilities> {
   let cleanup = () => {};
+  let active = true;
   const reply = new Promise<PanelCapabilities>((resolve, reject) => {
     let expected = -1, sequence = 0;
     const chunks: number[] = [];
-    const timer = setTimeout(() => reject(new Error('Display configuration timed out. Update OpenDisplay firmware or use the image export.')), 5000);
     const listener = () => {
+      if (!active) return;
       const value = char.value;
       if (!value || value.byteLength < 2) return;
       const code = value.getUint16(0, false);
@@ -46,13 +51,20 @@ export async function readPanelConfig(char: BluetoothRemoteGATTCharacteristic): 
       } catch (error) { reject(error); }
     };
     char.addEventListener('characteristicvaluechanged', listener);
-    cleanup = () => { clearTimeout(timer); char.removeEventListener('characteristicvaluechanged', listener); };
+    cleanup = () => { active = false; char.removeEventListener('characteristicvaluechanged', listener); };
   });
   // Install listeners before writing: fast notifications can arrive during write.
   void reply.catch(() => {});
   try {
-    await char.startNotifications();
-    await char.writeValueWithResponse(new Uint8Array([0, 0x40]));
-    return await reply;
+    const [, panel] = await bluetoothDeadline(() => Promise.all([
+      (async () => {
+        await char.startNotifications();
+        // A late subscription must not issue a read after timeout/disconnect.
+        if (!active || signal?.aborted) return;
+        await char.writeValueWithResponse(new Uint8Array([0, 0x40]));
+      })(),
+      reply,
+    ]), 5000, 'Display configuration timed out. Update OpenDisplay firmware or use the image export.', signal);
+    return panel;
   } finally { cleanup(); }
 }
