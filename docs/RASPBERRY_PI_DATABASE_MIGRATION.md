@@ -7,18 +7,17 @@ were changed while preparing this package.
 
 ## Decision and scope
 
-This is a deployment package, not an executed production migration. Confirm the
-Pi model/RAM, backend host, verified SSD mount/UUID, SSH administration route and
-available HTTPS hostname before following the runbook. The default scope moves
-only the database; hosting the backend on the Pi would change the network design.
+This is a deployment package, not an executed production migration. The owner
+confirmed a **Raspberry Pi 4B with 4 GB RAM and a 500 GB SSD**, a **Vercel** backend
+and a **Cloudflare-managed domain** on 2026-09-28. The live OS, SSD mount/UUID,
+free capacity, SSH host identity and exact database hostname still need verification.
+Only the database moves; the frontend/backend stay on Vercel.
 
-Keep the frontend and Express backend on their current web host (the repository
-contains a Vercel configuration), keep Clerk authentication, and replace the
+Keep the frontend and Express backend on Vercel, keep Clerk authentication, and replace the
 hosted Supabase database API with **PostgreSQL + PostgREST + a small Nginx
 gateway** on the Pi. Use a dedicated HTTPS hostname through a separate outbound
-Cloudflare Tunnel. This assumes a domain you control in Cloudflare; arrange
-that before cutover, or substitute an equivalent authenticated HTTPS reverse
-proxy without publishing PostgreSQL.
+Cloudflare Tunnel under the owner's domain. Choose an unused database subdomain
+before creating the tunnel/DNS record; PostgreSQL itself has no published port.
 
 ```mermaid
 flowchart LR
@@ -59,7 +58,7 @@ Confirm these against the running host before executing setup:
 | The managed updater rejects other containers mounting `/srv/investor/**` or `/etc/investor/**` | Use a real `/srv/esp32-eink/` outside those prefixes. A child directory under Investor still blocks its updates; a bind alias is not an acceptable workaround |
 | The owner's documented Pi has a single-SSD installer adjustment; the legacy scripts assume a separate `/srv/investor` mount | Inspect the live layout. Set `STORAGE_MOUNT` and `STORAGE_UUID` explicitly; `/` is supported only when the root filesystem is the verified SSD |
 | Docker's systemd drop-ins depend on Investor storage/update guards | Preserve them. Shared Docker, SSD failure and host reboot still affect both applications. Non-root e-ink mounts require an existing Docker mount dependency |
-| Investor containers have about 1.81 GiB of steady-state memory caps | Budget another 832 MiB for the database/API containers, up to 256 MiB for the tunnel, and 512 MiB for transient migration tooling; measure actual headroom |
+| Investor containers have 1,856 MiB of steady-state memory caps | E-ink adds 544 MiB of container caps plus a 256 MiB tunnel cap. Keep a separate 512 MiB allowance for one maintenance operation and 512 MiB host floor; validate actual headroom |
 | Investor database/evidence backups run at 03:30 UTC with jitter | Separate e-ink backup job/lock, preferably 05:00 UTC or a measured quiet period; monitor I/O overlap |
 | Investor warns at 20% free SSD and rejects uploads below 10% | Keep at least 20% free after data, dumps, export bundles, images and a restore rehearsal |
 
@@ -71,6 +70,41 @@ Relevant evidence: Investor's `infra/docker-compose.yml`,
 `infra/OPERATIONS.md`, `infra/update/platform.py`, `docs/pi-update-acceptance.md`
 and `docs/remote-access.md` at the reviewed revision. The checked-out Investor
 branch can be older than its deployed release; do not infer live state from it.
+
+### Resource profile for the confirmed 4 GB Pi
+
+| Component | Memory ceiling |
+| --- | ---: |
+| E-ink PostgreSQL | 384 MiB |
+| E-ink PostgREST | 128 MiB |
+| E-ink Nginx | 32 MiB |
+| E-ink Cloudflare Tunnel | 256 MiB |
+| E-ink migration client, only while used | 256 MiB |
+
+The reference steady budget is **2,656 MiB** including Investor. Adding **512 MiB
+for one maintenance operation** (such as Investor's migration or an e-ink recovery
+database) and **512 MiB for host services** gives **3,680 MiB**. This is a planning
+budget, not measured usage or a guarantee that every workload fits. Linux reports
+less usable memory than the physical RAM label; preflight checks actual `MemTotal`,
+`MemAvailable`, running container ceilings and usage, including other workloads.
+Missing Investor services retain their planning allowance so a later start is
+not mistaken for spare capacity. Swap is not counted as additional RAM.
+
+This replaces the original 3.56 GiB *available-memory* requirement, which was
+unsuitable for the shared 4 GB host. The new check also reserves growth to existing
+container ceilings and live host headroom. Run it during representative Investor
+activity. A refusal means investigate usage/scheduling before proceeding; it does
+not authorize reducing Investor's limits.
+
+PostgreSQL uses 64 MiB shared buffers, 2 MiB work memory, one autovacuum worker
+with 16 MiB vacuum memory, 32 MiB maintenance memory and no parallel query workers.
+PostgREST has three pooled connections; PostgreSQL permits 15 connections to leave
+administrative room. These are starting settings for the small e-ink workload.
+Keep durability settings enabled, and monitor memory, restarts, latency and vacuum
+progress during rehearsal and normal use. Build images off the Pi where possible.
+Do not overlap Investor updates/backups with e-ink migration, backup or recovery
+work; the maintenance allowance covers one operation. Before a recovery drill,
+measure headroom again or use a separate test host.
 
 ## Migration gates and data scope
 
@@ -103,13 +137,13 @@ and sessions are retained in Clerk, not migrated as Supabase Auth users.
 
 ## 1. Preflight on the Pi
 
-Use the existing SSH administration route. Record the actual model, RAM, OS,
-SSD mount/UUID, free space and current Investor readiness. The repository assumes an
-ARM64 Linux Pi with Python 3.11+ (as provided by Debian 12/13); it does not
-establish the running machine's specifications.
-Keep at least the Investor planning reserve of 2 GiB for the OS, in addition to
-both applications and tooling. If headroom is insufficient, stop and resize or
-choose a separate host. Prefer an SSD and reliable power; plan for home internet
+Use the existing SSH administration route and verify its host fingerprint if SSH
+reports a changed key. Record the live OS, usable RAM, SSD mount/UUID, free space
+and current Investor readiness. This package requires ARM64 Linux with Python 3.11+
+(as provided by Debian 12/13); the owner's hardware confirmation does not establish
+the installed OS. Apply the 4 GB admission budget above rather than the original
+Investor reference machine's 2 GiB OS reserve. If measured headroom is insufficient,
+stop and review the workload or choose a separate host. Plan for home internet
 and power outages making the web API's database unavailable.
 
 Place this e-ink checkout at `/opt/esp32-eink` (including `backend/src/db/migrations`)
@@ -208,8 +242,24 @@ eink ps
 eink run --rm -T tools inspect --service supabase-source
 ```
 
-The helper image installs only the pinned Python database driver. It can be
-built off-device for ARM64 and transferred if build load on the Pi is undesirable.
+The helper image installs only the pinned Python database driver. Its 256 MiB
+container cap does not constrain Docker image builds. Prefer building it on
+another Docker host for the 4 GB Pi, then transfer the reviewed image:
+
+```sh
+# On an ARM64 build host, or a build host configured for ARM64 builds:
+docker buildx build --platform linux/arm64 --load \
+  -t esp32-eink-migration-tools:local \
+  -f infra/raspberry-pi/tools.Dockerfile infra/raspberry-pi
+docker save -o eink-migration-tools.tar esp32-eink-migration-tools:local
+scp eink-migration-tools.tar YOUR_VERIFIED_PI_SSH_HOST:/tmp/
+# On the Pi, replace `eink build tools` above with this load operation:
+sudo docker load -i /tmp/eink-migration-tools.tar
+```
+
+Ensure the temporary destination has room before transferring; it contains image
+code only, not credentials or a database export. Run builds/loads during a quiet
+period and monitor Investor. The low-memory runtime profile is tested in CI.
 Before production, verify each image has a native ARM64 manifest and pin the
 tested digest in `.env`; never substitute `latest` or silently emulate x86.
 
@@ -410,7 +460,7 @@ database dump does not include role passwords, tunnel credentials or the AES key
 
 Restore practice uses the fixed project `esp32-eink-recovery` and fresh storage
 under `/srv/esp32-eink/recovery/`. Budget the extra temporary PostgreSQL
-container (512 MiB cap) and I/O first, or use a separate test host with the same
+container (384 MiB cap) and I/O first, or use a separate test host with the same
 dedicated directory layout. Use the backup's application commit so the initialized
 schema matches its data. Generate fresh recovery credentials in a private directory,
 copy its `.env` to `/etc/esp32-eink/recovery.env`, set its verified `STORAGE_MOUNT`
@@ -478,6 +528,9 @@ Investor or treat its full development stack as this production stack.
   separate bindings, resource caps and explicit bind mount configuration.
 - [PostgreSQL dump documentation](https://www.postgresql.org/docs/17/app-pgdump.html):
   table-selected dumps do not automatically include dependent objects.
+- [PostgreSQL resource settings](https://www.postgresql.org/docs/17/runtime-config-resource.html):
+  work memory can multiply across query operations and sessions; vacuum memory
+  applies per worker. The small profile therefore limits both memory and concurrency.
 - [Cloudflare named tunnel setup](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/create-local-tunnel/)
   and [configuration](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/configuration-file/):
   a separate hostname can proxy to a loopback HTTP service with a catch-all 404.

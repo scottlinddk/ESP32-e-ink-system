@@ -48,6 +48,7 @@ services:
   gateway:
     platform: $test_platform
   tools:
+    image: $project-tools:local
     platform: $test_platform
     user: "$(id -u):$(id -g)"
 volumes:
@@ -284,3 +285,33 @@ for table in migrate.TABLES:
     assert before['tables'][table]['row_count'] == after['tables'][table]['row_count'], table
 print('PASS: source unchanged; export/import, refusal, rollback, real SDK and cleanup verified.')
 PY
+
+# Confirm the native test actually used the 4 GB profile and did not hide an OOM
+# behind a restart. Inspect only resource/state fields, never container secrets.
+running_ids=$("${compose[@]}" ps --quiet postgres postgrest gateway)
+python3 - "$running_ids" "$script_dir" <<'PY'
+import json, subprocess, sys
+sys.path.insert(0, sys.argv[2])
+from memory_budget import EINK
+expected = EINK
+ids = sys.argv[1].split()
+if len(ids) != len(expected):
+    raise SystemExit('Missing a running low-memory service')
+template = '{"service":{{json (index .Config.Labels "com.docker.compose.service")}},"memory":{{.HostConfig.Memory}},"oom":{{.State.OOMKilled}},"restarts":{{.RestartCount}}}'
+output = subprocess.check_output(['docker', 'inspect', '--format', template, *ids], text=True)
+seen = set()
+for line in output.splitlines():
+    item = json.loads(line)
+    service = item['service']
+    if service not in expected or service in seen:
+        raise SystemExit('Unexpected or repeated low-memory service')
+    seen.add(service)
+    if item['memory'] != expected[service] or item['oom'] or item['restarts']:
+        raise SystemExit('Low-memory profile was not applied or a service restarted/OOMed')
+if seen != set(expected):
+    raise SystemExit('Incomplete low-memory service inventory')
+print('PASS: native 384/128/32 MiB service caps applied with no OOM or restart.')
+PY
+# Exercise the real Linux systemd/Docker inventory path as well as mocked
+# 4 GB boundary cases. CI's RAM is larger and does not certify the actual Pi.
+python3 "$script_dir/memory_budget.py"

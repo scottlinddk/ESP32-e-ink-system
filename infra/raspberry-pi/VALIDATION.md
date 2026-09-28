@@ -17,10 +17,12 @@ Supabase, Raspberry Pi, DNS, Vercel settings or Investor service was changed.
   writes and transactional control flow. Database connections are mocked; this
   is not evidence of a real PostgreSQL restore or rollback.
 - `python -m unittest discover -s infra/raspberry-pi -p 'test_*.py' -v`:
-  29 tests passed (5 credential tests and 24 storage/startup tests), including
+  56 tests passed (5 credential, 24 storage/startup and 27 memory admission tests), including
   Investor backing-storage aliases, root SSD identity, mount protection,
   migration/credential directories, backup destinations and isolated recovery.
-  Together with the migration suite, 66 offline Python safety tests passed.
+  Memory cases cover a shared 4 GB host, idle-container growth, missing Investor
+  services, overcommit, uncapped containers and concurrent maintenance.
+  Together with the migration suite, 93 offline Python safety tests passed.
 - Compose YAML parsed locally; project isolation, loopback gateway publication,
   absence of a host database port, platform/resource limits were inspected.
 - `node --check infra/raspberry-pi/smoke.mjs` passed; its help command ran.
@@ -37,6 +39,18 @@ Supabase, Raspberry Pi, DNS, Vercel settings or Investor service was changed.
   These jobs also passed all 66 offline Python tests and shell syntax checks.
 - [Application CI](https://github.com/scottlinddk/ESP32-e-ink-system/actions/runs/36427182883)
   passed type checks, all 163 tests and production builds on the same implementation.
+
+## Confirmed 4 GB hardware follow-up
+
+The owner confirmed a Pi 4B / 4 GB / 500 GB SSD, Vercel backend and Cloudflare
+domain after the original integration runs above. The profile now caps e-ink
+PostgreSQL/PostgREST/Nginx at 384/128/32 MiB, tools at 256 MiB, and retains the
+256 MiB tunnel cap. The workflow runs the entire migration/SDK fixture using
+these caps, verifies they were applied without OOM/restarts, and exercises the
+real Linux memory-inventory path. Current results are in the
+[PR checks](https://github.com/scottlinddk/ESP32-e-ink-system/pull/96/checks).
+The actual Pi's peak memory, SSD layout and host identity remain unverified;
+these fixture tests cannot certify its workload.
 
 ## Required before production
 

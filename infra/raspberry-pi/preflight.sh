@@ -17,9 +17,7 @@ docker compose version
 docker info >/dev/null
 [[ $(docker info --format '{{.OSType}}') == linux ]] || die 'Docker must run Linux containers.'
 [[ -z $(ss -H -ltn 'sport = :3080') ]] || die 'Host port 3080 is already listening. Inspect the owner before changing configuration.'
-available_kib=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)
-[[ "$available_kib" =~ ^[0-9]+$ && "$available_kib" -ge 3735552 ]] ||
-  die 'Less than 3.56 GiB available RAM: reserve 2 GiB OS headroom plus 832 MiB stack, 256 MiB tunnel and 512 MiB migration tool.'
+python3 "$script_dir/memory_budget.py"
 docker_root=$(docker info --format '{{.DockerRootDir}}')
 [[ "$docker_root" == /* && -d "$docker_root" ]] || die 'Cannot verify local Docker image storage.'
 for directory in "$storage_mount" "$docker_root"; do
@@ -33,7 +31,6 @@ done
 printf '\nVerified storage mount and free space:\n'
 findmnt --target "$storage_mount" -o TARGET,SOURCE,FSTYPE,UUID,FSROOT,OPTIONS
 df -h "$storage_mount" "$docker_root"
-printf '\nAvailable memory: %s KiB\n' "$available_kib"
 printf '\nExisting containers (no configuration or secret output):\n'
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}'
