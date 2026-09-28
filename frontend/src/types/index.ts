@@ -29,6 +29,8 @@ export const DEFAULT_LAYOUT: DisplayLayout = {
 };
 
 export interface UserPreferences {
+  show_custom_webhook?: boolean;
+  custom_webhook_ttl_minutes?: number;
   show_custom_text?: boolean;
   custom_text?: string;
   show_custom_image?: boolean;
@@ -68,6 +70,7 @@ export interface NewsItem {
 }
 
 export interface DisplayData {
+  customWebhook?: CustomWebhookData;
   customText?: string;
   customImage?: CustomImage;
   price?: EnergyPrice;
@@ -82,6 +85,24 @@ export interface CustomImage {
   // Base64, MSB-first, 1=white, tight rows of ceil(width / 8) bytes.
   pixels: string;
   fit: 'contain' | 'cover';
+}
+
+export interface SensorRow { label: string; value: string; unit?: string; }
+export interface CustomWebhookData {
+  state: 'fresh' | 'stale' | 'unavailable';
+  rows: SensorRow[];
+  observedAt: string | null;
+  receivedAt: string | null;
+  expiresAt: string | null;
+}
+export interface CustomWebhookStatus {
+  configured: boolean;
+  tokenCreatedAt: string | null;
+  state: CustomWebhookData['state'];
+  observedAt: string | null;
+  receivedAt: string | null;
+  expiresAt: string | null;
+  rowCount: number;
 }
 
 export interface MaskedApiKey {

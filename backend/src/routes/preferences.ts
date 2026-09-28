@@ -10,6 +10,7 @@ import {
 import { getOrCreateUserFromClerk } from './preferences-helpers';
 import { UserPreferences } from '../types/index';
 import { parseCustomContentUpdates } from '../utils/customContent';
+import { parseWebhookPreferences } from '../services/customWebhook';
 
 /**
  * @swagger
@@ -179,6 +180,8 @@ router.get(
 
       // Return defaults if no preferences set yet
       const defaultPrefs: UserPreferences = {
+        show_custom_webhook: false,
+        custom_webhook_ttl_minutes: 60,
         show_custom_text: false,
         custom_text: '',
         show_custom_image: false,
@@ -241,7 +244,7 @@ router.post(
       }
       let updates: Partial<UserPreferences>;
       try {
-        updates = parseCustomContentUpdates(req.body);
+        updates = { ...parseCustomContentUpdates(req.body), ...parseWebhookPreferences(req.body) };
       } catch (error) {
         res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid custom content' });
         return;
