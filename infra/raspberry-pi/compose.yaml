@@ -1,0 +1,197 @@
+# Run from this directory with an explicit --env-file; do not reuse Investor's file.
+name: esp32-eink
+
+# Consumed by host startup/backup/recovery guards, never sent to a container.
+x-eink-storage:
+  mount: ${STORAGE_MOUNT:?Set the verified SSD mount}
+  uuid: ${STORAGE_UUID:?Set the independently verified SSD filesystem UUID}
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "5m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17.11-bookworm}
+    platform: linux/arm64
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: eink
+      POSTGRES_USER: eink_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run generate-secrets.py}
+      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD:?Run generate-secrets.py}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - type: bind
+        source: ${DATA_DIR:?Set the verified e-ink SSD data directory}
+        target: /var/lib/postgresql/data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./init
+        target: /docker-entrypoint-initdb.d
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../../backend/src/db/migrations
+        target: /migrations
+        read_only: true
+        bind:
+          create_host_path: false
+    # No host port and no connection to Investor's network or database.
+    command:
+      - postgres
+      - -c
+      - max_connections=15
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - work_mem=2MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - autovacuum_work_mem=16MB
+      - -c
+      - autovacuum_max_workers=1
+      - -c
+      - max_parallel_workers_per_gather=0
+      - -c
+      - password_encryption=scram-sha-256
+      - -c
+      - statement_timeout=15000
+      - -c
+      - log_statement=none
+      - -c
+      - log_min_error_statement=panic
+      - -c
+      - log_error_verbosity=terse
+    healthcheck:
+      # TCP starts only after the image's initialization scripts finish.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "eink_admin", "-d", "eink"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 45s
+    # Low-traffic profile for a 4 GB Pi shared with Investor; validate on the host.
+    mem_limit: 384m
+    cpus: 0.75
+    pids_limit: 100
+    shm_size: 64m
+    stop_grace_period: 60s
+    logging: *logging
+
+  postgrest:
+    image: ${POSTGREST_IMAGE:-postgrest/postgrest:v14.18}
+    platform: linux/arm64
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Generated password is URL-safe. Never use eink_admin for this connection.
+      PGRST_DB_URI: postgres://eink_authenticator:${AUTHENTICATOR_PASSWORD:?Run generate-secrets.py}@postgres:5432/eink
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_EXTRA_SEARCH_PATH: public
+      PGRST_DB_POOL: "3"
+      PGRST_DB_POOL_ACQUISITION_TIMEOUT: "5"
+      PGRST_DB_CONFIG: "false"
+      PGRST_JWT_SECRET: ${JWT_SECRET:?Run generate-secrets.py}
+      PGRST_JWT_AUD: esp32-eink-backend
+      PGRST_JWT_ROLE_CLAIM_KEY: .role
+      # Intentionally no PGRST_DB_ANON_ROLE: unauthenticated requests fail.
+      PGRST_ADMIN_SERVER_PORT: "3001"
+      PGRST_SERVER_PORT: "3000"
+      PGRST_OPENAPI_MODE: disabled
+      PGRST_LOG_LEVEL: crit
+      PGRST_LOG_QUERY: "false"
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    logging: *logging
+
+  gateway:
+    image: ${NGINX_IMAGE:-nginx:1.30.5-alpine}
+    platform: linux/arm64
+    restart: unless-stopped
+    depends_on:
+      postgrest:
+        condition: service_started
+    ports:
+      - "127.0.0.1:3080:8080"
+    user: "101:101"
+    entrypoint: ["nginx", "-g", "daemon off;"]
+    volumes:
+      - type: bind
+        source: ./nginx.conf
+        target: /etc/nginx/nginx.conf
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs: ["/tmp:size=16m,noexec,nosuid,uid=101,gid=101"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 32m
+    cpus: 0.25
+    pids_limit: 32
+    logging: *logging
+
+  tools:
+    # Opt-in migration client. It can reach Supabase and only this project's DB.
+    profiles: ["tools"]
+    # Also permits loading an ARM64 image built off the shared Pi.
+    image: esp32-eink-migration-tools:local
+    build:
+      context: .
+      dockerfile: tools.Dockerfile
+    platform: linux/arm64
+    entrypoint: ["python", "/tools/migrate.py"]
+    working_dir: /work
+    environment:
+      PGSERVICEFILE: /run/pgconfig/pg_service.conf
+      PGPASSFILE: /run/pgconfig/pgpass
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - type: bind
+        source: .
+        target: /tools
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${MIGRATION_WORK_DIR:-/srv/esp32-eink/migration}
+        target: /work
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${PG_CONFIG_DIR:-/etc/esp32-eink/pgconfig}
+        target: /run/pgconfig
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs: ["/tmp:size=32m,noexec,nosuid"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    mem_limit: 256m
+    cpus: 0.75
+    pids_limit: 64
+    logging: *logging
+
+# A distinct project-scoped bridge permits the tools client's outbound export.
+# No external/shared network, fixed subnet, container_name, or Investor resources.
+networks:
+  default:
+    driver: bridge

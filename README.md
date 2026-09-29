@@ -42,7 +42,7 @@ Electricity uses Energinet's [DayAheadPrices dataset](https://www.energidataserv
 
 ## Development
 
-Requires Node.js 20+ and npm, a Supabase project and a Clerk application. Browser Bluetooth requires a supported browser and a secure context (HTTPS or localhost).
+Requires Node.js 20+ and npm, a Supabase project or the Raspberry Pi database below, and a Clerk application. Browser Bluetooth requires a supported browser and a secure context (HTTPS or localhost).
 
 Install from the repository root; this is an npm workspace:
 
@@ -65,12 +65,23 @@ npm run build      # frontend and backend production builds
 
 Tests use mocked external services and do not require account credentials or hardware. The application-check workflow runs type checks, tests and builds for pull requests.
 
+## Raspberry Pi database
+
+To move database storage to a Raspberry Pi already running Investor, use the
+[migration plan and runbook](docs/RASPBERRY_PI_DATABASE_MIGRATION.md). The
+[deployment and migration tools](infra/raspberry-pi/) keep the web app and Clerk
+in place and provide an isolated PostgreSQL/PostgREST service on the Pi.
+This includes schema initialization, verified data transfer, a maintenance switch,
+backups and recovery. Investor keeps its own database, storage paths and Tailscale
+access. Live deployment requires the Pi's storage inventory and an HTTPS route
+from the hosted backend; creating this package does not switch production.
+
 ## Structure
 
 | Directory | Purpose |
 |---|---|
 | `frontend/` | React 19, Vite, TanStack Query, Clerk, dashboard and browser Bluetooth |
-| `backend/` | Express API, Supabase persistence, source integrations, BMP/raw rendering |
+| `backend/` | Express API, Supabase-compatible database persistence, source integrations, BMP/raw rendering |
 | `packages/widgets/` | Reusable widget definitions and provider adapters |
 | `packages/rendering/` | Layout and typography utilities |
 | `packages/types/` | Shared widget contracts |

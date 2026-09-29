@@ -49,6 +49,20 @@ app.use(
   })
 );
 
+// Run CORS first so the frontend can read maintenance responses and preflights
+// can succeed. Liveness remains available while every application route is
+// frozen; GET routes also write (user sync and usage/last-seen data).
+app.use('/health', healthRouter);
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  if (process.env.DATABASE_MAINTENANCE_MODE === 'true') {
+    res.setHeader('Retry-After', '300');
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(503).json({ error: 'Database maintenance in progress. Please try again later.' });
+    return;
+  }
+  next();
+});
+
 // Rate limiting — backed by Upstash Redis (shared across serverless invocations).
 // Gracefully disabled if UPSTASH_REDIS_REST_URL/TOKEN env vars are not set.
 const globalLimiter = createRateLimiter(
@@ -171,7 +185,6 @@ app.get('/firmware/firmware-elecrow.bin',   (req, res, next) => proxyFirmwareBin
 app.get('/firmware/default.bin',            (req, res, next) => proxyFirmwareBinary('firmware.bin',           defaultFirmwareUrl(), req, res, next));
 
 // Routes
-app.use('/health', healthRouter);
 app.use('/auth', authRouter);
 app.use('/preferences', preferencesRouter);
 app.use('/devices', devicesRouter);

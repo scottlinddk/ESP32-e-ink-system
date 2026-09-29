@@ -1,0 +1,13 @@
+[Unit]
+Description=Back up the dedicated ESP32 e-ink database
+RequiresMountsFor=/srv/esp32-eink
+After=docker.service
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/usr/bin/bash /opt/esp32-eink/infra/raspberry-pi/backup.sh /etc/esp32-eink/.env /srv/esp32-eink/backups
+Nice=10
+IOSchedulingClass=idle
+# The dump can outlast systemd's default start timeout on a busy shared SSD.
+TimeoutStartSec=1h
