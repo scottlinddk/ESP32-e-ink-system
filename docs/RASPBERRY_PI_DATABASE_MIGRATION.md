@@ -9,15 +9,18 @@ were changed while preparing this package.
 
 This is a deployment package, not an executed production migration. The owner
 confirmed a **Raspberry Pi 4B with 4 GB RAM and a 500 GB SSD**, a **Vercel** backend
-and a **Cloudflare-managed domain** on 2026-09-28. The live OS, SSD mount/UUID,
-free capacity, SSH host identity and exact database hostname still need verification.
+and a **Cloudflare-managed domain** on 2026-09-28. On 2026-09-29, the owner
+specified SSH destination **`scott@rpi-srv.local`**, verified its ED25519 host-key
+fingerprint **`SHA256:dZF+gSvd4h9teswqBSLTMKpjw4Eu/QkB4Z5gXTNsaY0`**, and
+approved **`eink-db.scottlind.dk`** for the database API. The live OS, SSD
+mount/UUID, free capacity and available memory still need verification.
 Only the database moves; the frontend/backend stay on Vercel.
 
 Keep the frontend and Express backend on Vercel, keep Clerk authentication, and replace the
 hosted Supabase database API with **PostgreSQL + PostgREST + a small Nginx
 gateway** on the Pi. Use a dedicated HTTPS hostname through a separate outbound
-Cloudflare Tunnel under the owner's domain. Choose an unused database subdomain
-before creating the tunnel/DNS record; PostgreSQL itself has no published port.
+Cloudflare Tunnel at `eink-db.scottlind.dk`. Check for an existing conflicting DNS
+record before creating the tunnel route; PostgreSQL itself has no published port.
 
 ```mermaid
 flowchart LR
@@ -141,8 +144,10 @@ and sessions are retained in Clerk, not migrated as Supabase Auth users.
 
 ## 1. Preflight on the Pi
 
-Use the existing SSH administration route and verify its host fingerprint if SSH
-reports a changed key. Record the live OS, usable RAM, SSD mount/UUID, free space
+Use `scott@rpi-srv.local` with a known-hosts entry whose ED25519 fingerprint matches
+the owner-verified value above, and keep strict host-key checking enabled. If SSH
+reports a changed key, verify the replacement independently before continuing.
+Record the live OS, usable RAM, SSD mount/UUID, free space
 and current Investor readiness. This package requires ARM64 Linux with Python 3.11+
 (as provided by Debian 12/13); the owner's hardware confirmation does not establish
 the installed OS. Apply the 4 GB admission budget above rather than the original
@@ -192,9 +197,9 @@ sudo python3 generate-secrets.py --output-dir /etc/esp32-eink
 The generator creates private configuration files without printing secrets and
 refuses to overwrite existing files. It creates fresh database passwords and
 a JWT signing secret distinct from Investor, Clerk and Supabase. Securely keep
-the generated `backend.env` for the later backend cutover; edit its hostname
-placeholder. The JWT expires after 365 days by default. Record its expiry and
-renew before then; see the operations section. Do not regenerate database
+the generated `backend.env` for the later backend cutover; replace its hostname
+placeholder with `https://eink-db.scottlind.dk`. The JWT expires after 365 days by
+default. Record its expiry and renew before then; see the operations section. Do not regenerate database
 passwords by replacing `.env` on a running database.
 
 In `/etc/esp32-eink/.env`, set `STORAGE_UUID` to the independently verified SSD
@@ -256,7 +261,7 @@ docker buildx build --platform linux/arm64 --load \
   -t esp32-eink-migration-tools:local \
   -f infra/raspberry-pi/tools.Dockerfile infra/raspberry-pi
 docker save -o eink-migration-tools.tar esp32-eink-migration-tools:local
-scp eink-migration-tools.tar YOUR_VERIFIED_PI_SSH_HOST:/tmp/
+scp -o StrictHostKeyChecking=yes eink-migration-tools.tar scott@rpi-srv.local:/tmp/
 # On the Pi, replace `eink build tools` above with this load operation:
 sudo docker load -i /tmp/eink-migration-tools.tar
 ```
@@ -300,12 +305,12 @@ and retain a trusted copy/checksum off-device.
 
 For SDK testing, use a workstation checkout with `npm ci` (Node 20+). Load the
 new service key into `EINK_SMOKE_SERVICE_KEY` privately, and set
-`EINK_SMOKE_URL` to the new HTTPS origin. Before HTTPS setup, forward only the
+`EINK_SMOKE_URL` to `https://eink-db.scottlind.dk`. Before HTTPS setup, forward only the
 gateway over your existing SSH connection:
 
 ```sh
-# Workstation, separate terminal; PI_SSH_HOST is your existing administrative host.
-ssh -N -L 3080:127.0.0.1:3080 PI_SSH_HOST
+# Workstation, separate terminal, using the verified known-hosts entry.
+ssh -o StrictHostKeyChecking=yes -N -L 3080:127.0.0.1:3080 scott@rpi-srv.local
 # Workstation with EINK_SMOKE_SERVICE_KEY set privately:
 EINK_SMOKE_URL=http://127.0.0.1:3080 node infra/raspberry-pi/smoke.mjs --write-test
 ```
@@ -347,12 +352,13 @@ the new e-ink tunnel/DNS record:
 ```sh
 cloudflared tunnel login
 cloudflared tunnel create esp32-eink-database
-cloudflared tunnel route dns esp32-eink-database eink-db.YOUR_DOMAIN
+cloudflared tunnel route dns esp32-eink-database eink-db.scottlind.dk
 ```
 
 Copy `cloudflared.yml.example` to `/etc/esp32-eink/cloudflared.yml`, replacing
-the tunnel UUID and hostname. Copy this tunnel's generated JSON credential to
-`/etc/esp32-eink/tunnel.json`. Do not give the service the account-wide `cert.pem`.
+the tunnel UUID; the hostname is already `eink-db.scottlind.dk`. Copy this tunnel's
+generated JSON credential to `/etc/esp32-eink/tunnel.json`. Do not give the service
+the account-wide `cert.pem`.
 Create a dedicated system user `esp32-eink-tunnel` if it does not exist. Allow
 that group to traverse `/etc/esp32-eink` and read **only** the tunnel config and
 JSON file (directory `0710`, tunnel files `0640`, group `esp32-eink-tunnel`);

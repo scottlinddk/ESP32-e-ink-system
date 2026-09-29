@@ -1,8 +1,9 @@
-# An independent, locally managed named tunnel. Replace BOTH placeholders.
+# An independent, locally managed named tunnel. Replace the tunnel UUID below.
+# The owner approved eink-db.scottlind.dk on 2026-09-29; deployment is separate.
 tunnel: REPLACE_WITH_EINK_TUNNEL_UUID
 credentials-file: /etc/esp32-eink/tunnel.json
 metrics: 127.0.0.1:20380
 ingress:
-  - hostname: eink-db.example.com
+  - hostname: eink-db.scottlind.dk
     service: http://127.0.0.1:3080
   - service: http_status:404

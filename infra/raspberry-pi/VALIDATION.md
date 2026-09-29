@@ -54,8 +54,22 @@ PostgreSQL/PostgREST/Nginx at 384/128/32 MiB, tools at 256 MiB, and retains the
 using these caps, verified they were applied without OOM/restarts, and exercised
 the real Linux memory-inventory path. Subsequent results are in the
 [PR checks](https://github.com/scottlinddk/ESP32-e-ink-system/pull/96/checks).
-The actual Pi's peak memory, SSD layout and host identity remain unverified;
+The actual Pi's peak memory and SSD layout remain unverified;
 these fixture tests cannot certify its workload.
+
+## Connection verification, 2026-09-29
+
+The owner independently verified the Pi's ED25519 fingerprint documented in the
+runbook and approved `eink-db.scottlind.dk`. A subsequent strict, pinned-key SSH
+attempt matched that fingerprint but failed authentication for `scott`; this
+workstation's default ED25519 public key was offered and rejected. No remote
+command ran. Authorize an administration key or supply an existing key/alias
+before live inventory or setup.
+
+The approved hostname resolved to Cloudflare and returned HTTP 530. A previously
+unused test subdomain resolved to the same addresses, consistent with wildcard
+DNS. Inspect the zone before adding a tunnel route; public DNS alone does not
+establish whether an explicit conflicting record exists. No DNS was changed.
 
 ## Required before production
 
