@@ -133,6 +133,11 @@ usage history and orders. Clerk keeps accounts and sessions. Confirm that the
 `users` row is recreated on first sign-in. Keep the current `ENCRYPTION_KEY`
 anyway so no key change is mixed into the rebuild, and back it up.
 
+**Scripted path.** `infra/raspberry-pi/setup-fresh.sh` wraps the same steps in phases
+(`preflight`, `init`, `start`, `verify`, `timers`). Run it with `sudo` on the Pi from
+`/opt/esp32-eink`. It keeps existing credentials, never prints secrets and does not
+touch Investor. The manual sequence below is equivalent.
+
 Sequence, after [preflight](#1-preflight-on-the-pi) and
 [secrets](#2-create-isolated-storage-and-credentials) (omit the source
 `pg_service.conf`, `pgpass` and CA steps). Run the following on the Pi in the
