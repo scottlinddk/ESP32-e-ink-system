@@ -86,13 +86,15 @@ case $phase in
     echo 'Tables (expect nine):'
     eink exec -T postgres psql -U eink_admin -d eink -c '\dt'
     eink up -d postgrest gateway
-    curl --fail --show-error --max-time 10 http://127.0.0.1:3080/healthz && echo ' gateway healthy'
+    curl --fail --show-error --max-time 10 http://127.0.0.1:3080/healthz || die 'Gateway is not healthy.'
+    echo ' gateway healthy'
     ;;
 
   verify)
     eink ps
-    curl --fail --show-error --max-time 10 http://127.0.0.1:3080/healthz && echo ' gateway healthy'
-    python3 "$INFRA/memory_budget.py"
+    curl --fail --show-error --max-time 10 http://127.0.0.1:3080/healthz || die 'Gateway is not healthy.'
+    echo ' gateway healthy'
+    python3 "$INFRA/memory_budget.py" || die 'Memory admission failed; see the message above.'
     cat <<'MSG'
 
 Local checks done. Remaining manual steps:
@@ -106,6 +108,8 @@ MSG
     ;;
 
   timers)
+    eink ps --status running --services | grep -qx postgres \
+      || die 'The e-ink PostgreSQL container is not running; run the start phase first.'
     install -m 0644 "$INFRA"/systemd/esp32-eink-backup.service "$INFRA"/systemd/esp32-eink-backup.timer /etc/systemd/system/
     systemctl daemon-reload
     systemctl enable --now esp32-eink-backup.timer

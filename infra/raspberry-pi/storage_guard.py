@@ -98,7 +98,10 @@ def compose_config(env_file, recovery=False):
     project = "esp32-eink-recovery" if recovery else "esp32-eink"
     compose = ["docker", "compose", "--project-name", project, "--env-file", str(Path(env_file).resolve(strict=True)),
                "-f", str(Path(__file__).resolve().parent / "compose.yaml")]
-    config = json.loads(read(compose + ["config", "--format", "json"]))
+    # The opt-in tools service is hidden without its profile, but its bind mounts
+    # are validated below. Enable the profile for this read-only render only, so
+    # the returned command never starts it.
+    config = json.loads(read(compose + ["--profile", "tools", "config", "--format", "json"]))
     return project, compose, config
 
 
