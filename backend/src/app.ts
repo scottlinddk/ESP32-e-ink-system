@@ -22,6 +22,15 @@ import { swaggerSpec } from './swagger';
 
 const app = express();
 
+// Vercel forwards the public /api/* path unchanged, while every route below is
+// mounted without a prefix. Strip it first so the app behaves the same behind
+// the platform, a reverse proxy or when run directly.
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  const stripped = req.url.replace(/^\/api(?=\/|\?|$)/, '');
+  if (stripped !== req.url) req.url = stripped.startsWith('/') ? stripped : `/${stripped}`;
+  next();
+});
+
 // Security middleware
 app.use(helmet());
 
