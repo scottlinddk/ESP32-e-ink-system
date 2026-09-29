@@ -60,3 +60,5 @@ infra/raspberry-pi/exports/
 infra/raspberry-pi/backups/
 infra/raspberry-pi/tunnel.json
 infra/raspberry-pi/cloudflared.yml
+.vercel
+.env*
