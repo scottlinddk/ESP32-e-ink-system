@@ -7,13 +7,7 @@
     },
     "backend": {
       "root": "backend",
-      "entrypoint": "api/index.ts",
-      "routes": [
-        {
-          "src": "/api/(.*)",
-          "transforms": [{ "type": "request.path", "op": "set", "args": "/$1" }]
-        }
-      ]
+      "entrypoint": "api/index.ts"
     }
   },
   "rewrites": [
