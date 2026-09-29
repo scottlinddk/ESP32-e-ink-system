@@ -135,9 +135,16 @@ anyway so no key change is mixed into the rebuild, and back it up.
 
 Sequence, after [preflight](#1-preflight-on-the-pi) and
 [secrets](#2-create-isolated-storage-and-credentials) (omit the source
-`pg_service.conf`, `pgpass` and CA steps):
+`pg_service.conf`, `pgpass` and CA steps). Run the following on the Pi in the
+same shell; define the scoped Compose helper before its first use:
 
 ```sh
+cd /opt/esp32-eink/infra/raspberry-pi
+eink() {
+  sudo docker compose --project-name esp32-eink \
+    --env-file /etc/esp32-eink/.env \
+    -f /opt/esp32-eink/infra/raspberry-pi/compose.yaml "$@"
+}
 eink config --quiet
 eink pull postgres postgrest gateway
 sudo bash start-postgres.sh /etc/esp32-eink/.env --ssd-uuid YOUR_VERIFIED_SSD_UUID
@@ -154,8 +161,18 @@ schema it is the main functional check. Rehearse a backup and an isolated recove
 now the only copy. Cut over by changing only the backend `SUPABASE_URL` and
 `SUPABASE_SERVICE_ROLE_KEY` and redeploying, then re-enter settings, register a
 device and check firmware downloads. No write freeze or rehearsal database is
-needed, so `DATA_DIR` stays `/srv/esp32-eink/postgres`. Rerun preflight with
-Investor under representative load once the e-ink containers are running.
+needed, so `DATA_DIR` stays `/srv/esp32-eink/postgres`.
+
+Once the e-ink containers are running, repeat the memory admission check with
+Investor under representative load:
+
+```sh
+sudo python3 /opt/esp32-eink/infra/raspberry-pi/memory_budget.py
+```
+
+The full `preflight.sh` is a pre-start check: it requires port 3080 to be unused
+and therefore rejects the running e-ink gateway. Use the memory check above
+after startup; keep the full preflight before the initial deployment.
 
 ## Migration gates and data scope (source only)
 
@@ -339,8 +356,9 @@ PostgreSQL port is published.
 
 ## 3. Initialize the target and inspect the source
 
-Fresh start: run only the helper, `config`, `pull`, `start-postgres.sh` and
-`eink ps` below. Skip `build tools`, the image transfer and `inspect` (source only).
+For a [fresh start](#fresh-start-no-source-database), use that section's startup
+sequence. The migration tools and source inspection below require a live source
+database.
 
 Define a scoped helper for this shell; all commands explicitly select the
 e-ink project and environment file:
