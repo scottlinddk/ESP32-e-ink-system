@@ -28,6 +28,10 @@
     "arduino:setup": "bash firmware/scripts/setup_arduino_ide.sh",
     "arduino:setup:elecrow": "bash firmware/scripts/setup_arduino_ide.sh --elecrow"
   },
+  "dependencies": {
+    "htmlparser2": "^10.1.0",
+    "ipaddr.js": "^2.5.0"
+  },
   "devDependencies": {
     "concurrently": "^9.1.2"
   }
