@@ -76,6 +76,12 @@ backups and recovery. Investor keeps its own database, storage paths and Tailsca
 access. Live deployment requires the Pi's storage inventory and an HTTPS route
 from the hosted backend; creating this package does not switch production.
 
+The hosted Supabase project no longer exists, so the Pi database starts empty. Use
+the runbook's [fresh-start path](docs/RASPBERRY_PI_DATABASE_MIGRATION.md#fresh-start-no-source-database).
+Existing preferences, saved provider keys and devices are not recoverable, and each
+display must be registered again. The export/import tools apply only when a live
+source database exists.
+
 ## Structure
 
 | Directory | Purpose |
