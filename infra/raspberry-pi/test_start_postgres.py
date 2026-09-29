@@ -62,11 +62,13 @@ class StartupGuardTests(unittest.TestCase):
             elif command[:2] == ["systemctl", "is-active"]:
                 output = active
             elif "config" in command:
-                output = json.dumps({"x-eink-storage": {"mount": storage_mount, "uuid": storage_uuid}, "services": {
-                    "postgres": {"volumes": [{"target": "/var/lib/postgresql/data", "type": "bind", "source": data}],
-                                 "environment": {"POSTGRES_PASSWORD": "fixture-secret-never-print"}},
-                    "tools": {"volumes": [{"target": "/work", "type": "bind", "source": work},
-                                             {"target": "/run/pgconfig", "type": "bind", "source": pgconfig}]}}})
+                services = {"postgres": {"volumes": [{"target": "/var/lib/postgresql/data", "type": "bind", "source": data}],
+                                         "environment": {"POSTGRES_PASSWORD": "fixture-secret-never-print"}}}
+                # Real Compose omits profile-gated services unless the profile is enabled.
+                if "--profile" in command and command[command.index("--profile") + 1] == "tools":
+                    services["tools"] = {"volumes": [{"target": "/work", "type": "bind", "source": work},
+                                                     {"target": "/run/pgconfig", "type": "bind", "source": pgconfig}]}
+                output = json.dumps({"x-eink-storage": {"mount": storage_mount, "uuid": storage_uuid}, "services": services})
             elif command[:3] == ["docker", "ps", "-aq"]:
                 output = "fixture-container" if mounts else ""
             elif command[:2] == ["docker", "inspect"]:
@@ -119,6 +121,7 @@ class StartupGuardTests(unittest.TestCase):
         self.assertIn("--no-deps", starts[0])
         self.assertIn("--force-recreate", starts[0])
         self.assertEqual(starts[0][-1], "postgres")
+        self.assertNotIn("--profile", starts[0])
         self.assertEqual(starts[0][starts[0].index("--project-name") + 1], "esp32-eink")
 
     def test_isolated_recovery_selects_fixed_recovery_project(self):
