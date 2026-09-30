@@ -8,9 +8,15 @@ In **Devices → Automatic updates**, create a token for the registered device. 
 
 Tokens are bound to both the device and issuing owner. Reassigning a device invalidates the earlier owner's credential; creating a replacement token clears previous telemetry until the client reports again.
 
+## Bundled ESP32 Wi-Fi firmware
+
+The firmware in `firmware/` implements the BMP device-feed protocol directly for Waveshare 2.13-inch HAT V2, original CrowPanel 2.13-inch SSD1680, and CrowPanel V1.2 JD79661. Install the matching factory image from the web **Flash** page, then enter the HTTPS API origin (optionally ending in `/api`), device UUID and token in its setup hotspot. Select a 250 × 122 display profile with rotation 0. It verifies TLS, frame metadata, SHA-256 and BMP bounds, preserves the panel for 204/304 responses, and reports RSSI and a hash only after the display driver completes the refresh.
+
+This firmware uses NTP for TLS certificate time validation and sleeps until the next bounded retry interval. Invalid credentials reopen the setup portal; holding the CrowPanel menu button during reset or waking with it also opens setup. Battery reporting and automatic OTA are disabled. See the [flashing guide](FIRMWARE_FLASHING.md) for recovery, CA maintenance and hardware verification. The browser Bluetooth workflow requires OpenDisplay firmware instead.
+
 ## Reference bridge
 
-The dependency-free client requires Node.js 20+ and stays running between checks. Run it on a computer or gateway with access to the panel's display driver. It is separate from the legacy ESP32 Wi-Fi firmware.
+The dependency-free client requires Node.js 20+ and stays running between checks. Run it on a computer or gateway with access to the panel's display driver. It is an alternative to running the bundled device-feed firmware directly on the ESP32.
 
 Example PowerShell configuration (use your API origin, device UUID and actual physical dimensions):
 

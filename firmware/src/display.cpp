@@ -1,5 +1,6 @@
 #include "display.h"
 #include "config.h"
+#include "bitmap.h"
 
 #if DEBUG_ENABLED
 #define LOG_D(fmt, ...) Serial.printf("[Display] " fmt "\n", ##__VA_ARGS__)
@@ -10,7 +11,7 @@
 // ============================================================================
 // ELECROW CrowPanel ESP32 2.13" E-Paper path
 // Uses bundled C-style EPD library in firmware/lib/EPD/
-// Install: copy EPD/ folder from Elecrow GitHub factory_sourcecode into firmware/lib/
+// Controller revision is selected by the PlatformIO environment.
 // ============================================================================
 #ifdef ELECROW_EPAPER_213
 
@@ -28,11 +29,8 @@
 DisplayManager::DisplayManager() {}
 
 void DisplayManager::begin() {
-  EPD_7IN5_Init();
-  Paint_NewImage(0, EPD_W, EPD_H, ROTATE_0, WHITE);
-  Paint_Clear(WHITE);
-  EPD_7IN5_Display();
-  LOG_D("Elecrow EPD initialized: %d x %d", EPD_W, EPD_H);
+  const bool ready = EPD_7IN5_Init();
+  LOG_D("Elecrow EPD %s: %d x %d", ready ? "initialized" : "unavailable", EPD_W, EPD_H);
 }
 
 void DisplayManager::clear() {
@@ -42,18 +40,29 @@ void DisplayManager::clear() {
 }
 
 // Flush internal image buffer to display
-void DisplayManager::elecrowFlush() {
-  EPD_7IN5_Display();
+bool DisplayManager::elecrowFlush() {
+  return EPD_7IN5_Display();
 }
+
+void DisplayManager::sleep() { EPD_7IN5_Sleep(); }
 
 void DisplayManager::drawText(uint16_t x, uint16_t y, const char* text, sFONT* font) {
   Paint_DrawString_EN(x, y, text, font, BLACK, WHITE);
 }
 
 void DisplayManager::drawCenteredText(uint16_t y, const char* text, sFONT* font) {
-  uint16_t textWidth = strlen(text) * font->Width;
-  uint16_t x = (EPD_W > textWidth) ? (EPD_W - textWidth) / 2 : 0;
-  Paint_DrawString_EN(x, y, text, font, BLACK, WHITE);
+  if (!text || !font) return;
+  const size_t columns = EPD_W / font->Width;
+  while (*text && y + font->Height <= EPD_H) {
+    char line[51];
+    size_t count = 0;
+    while (*text && *text != '\n' && count < columns && count < sizeof(line) - 1) line[count++] = *text++;
+    line[count] = '\0';
+    if (*text == '\n') ++text;
+    const uint16_t x = (EPD_W - count * font->Width) / 2;
+    Paint_DrawString_EN(x, y, line, font, BLACK, WHITE);
+    y += font->Height + 2;
+  }
 }
 
 void DisplayManager::drawLine(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
@@ -100,52 +109,19 @@ void DisplayManager::showTestPattern() {
   LOG_D("Test pattern displayed");
 }
 
-void DisplayManager::showBitmap(const uint8_t* bmpData, size_t len) {
-  if (!bmpData || len < 62) {
-    showError("Bitmap Error", "Invalid BMP data");
-    return;
+bool DisplayManager::showBitmap(const uint8_t* bmpData, size_t len) {
+  MonochromeBitmap bitmap;
+  if (!bitmap.parse(bmpData, len, EPD_W, EPD_H)) {
+    LOG_D("Invalid BMP: expected uncompressed 250x122 1-bit image");
+    return false;
   }
-
-  uint32_t pixelOffset = (uint32_t)bmpData[10]
-                       | ((uint32_t)bmpData[11] << 8)
-                       | ((uint32_t)bmpData[12] << 16)
-                       | ((uint32_t)bmpData[13] << 24);
-
-  int32_t bmpWidth  = (int32_t)bmpData[18] | ((int32_t)bmpData[19] << 8)
-                    | ((int32_t)bmpData[20] << 16) | ((int32_t)bmpData[21] << 24);
-  int32_t bmpHeight = (int32_t)bmpData[22] | ((int32_t)bmpData[23] << 8)
-                    | ((int32_t)bmpData[24] << 16) | ((int32_t)bmpData[25] << 24);
-  uint16_t bitCount = (uint16_t)bmpData[28] | ((uint16_t)bmpData[29] << 8);
-
-  if (bitCount != 1) {
-    showError("Bitmap Error", "Only 1-bit BMP");
-    return;
-  }
-
-  bool topDown = (bmpHeight < 0);
-  int32_t rows = topDown ? -bmpHeight : bmpHeight;
-  int32_t cols = bmpWidth;
-  int32_t rowStride = ((cols + 31) / 32) * 4;
-
-  if (pixelOffset + (size_t)(rowStride * rows) > len) {
-    showError("Bitmap Error", "BMP truncated");
-    return;
-  }
-
-  int32_t drawW = (cols < EPD_W) ? cols : EPD_W;
-  int32_t drawH = (rows < EPD_H) ? rows : EPD_H;
-
   Paint_Clear(WHITE);
-  for (int32_t row = 0; row < drawH; row++) {
-    int32_t srcRow = topDown ? row : (rows - 1 - row);
-    const uint8_t* rowPtr = bmpData + pixelOffset + srcRow * rowStride;
-    for (int32_t col = 0; col < drawW; col++) {
-      bool isBlack = !((rowPtr[col / 8] >> (7 - (col % 8))) & 1);
-      if (isBlack) Paint_DrawPixel(col, row, BLACK);
+  for (uint16_t y = 0; y < bitmap.height; ++y) {
+    for (uint16_t x = 0; x < bitmap.width; ++x) {
+      if (bitmap.blackAt(x, y)) Paint_DrawPixel(x, y, BLACK);
     }
   }
-  elecrowFlush();
-  LOG_D("Bitmap displayed: %dx%d", (int)drawW, (int)drawH);
+  return elecrowFlush();
 }
 
 void DisplayManager::layoutEnergyPrices(const DisplayData& data) {
@@ -183,15 +159,19 @@ void DisplayManager::layoutStatusBar(const DisplayData& data) {
 // ============================================================================
 
 DisplayManager::DisplayManager() {
-  display = new GxEPD2_BW<GxEPD2_213_BN, GxEPD2_213_BN::HEIGHT>(
-    GxEPD2_213_BN(PIN_CS, PIN_DC, PIN_RST, PIN_BUSY)
+  display = new GxEPD2_BW<GxEPD2_213_B73, GxEPD2_213_B73::HEIGHT>(
+    GxEPD2_213_B73(PIN_CS, PIN_DC, PIN_RST, PIN_BUSY)
   );
 }
 
 void DisplayManager::begin() {
+  SPI.begin(PIN_CLK, PIN_MISO, PIN_MOSI, PIN_CS);
   display->init(115200);
+  display->setRotation(1);
   LOG_D("Display initialized: %d x %d", display->width(), display->height());
 }
+
+void DisplayManager::sleep() { display->hibernate(); }
 
 void DisplayManager::clear() {
   display->clearScreen();
@@ -259,58 +239,23 @@ void DisplayManager::showTestPattern() {
   LOG_D("Test pattern displayed");
 }
 
-void DisplayManager::showBitmap(const uint8_t* bmpData, size_t len) {
-  if (!bmpData || len < 62) {
-    showError("Bitmap Error", "Invalid BMP data");
-    return;
+bool DisplayManager::showBitmap(const uint8_t* bmpData, size_t len) {
+  MonochromeBitmap bitmap;
+  if (!bitmap.parse(bmpData, len, 250, 122)) {
+    LOG_D("Invalid BMP: expected uncompressed 250x122 1-bit image");
+    return false;
   }
-
-  uint32_t pixelOffset = (uint32_t)bmpData[10]
-                       | ((uint32_t)bmpData[11] << 8)
-                       | ((uint32_t)bmpData[12] << 16)
-                       | ((uint32_t)bmpData[13] << 24);
-
-  int32_t bmpWidth  = (int32_t)bmpData[18] | ((int32_t)bmpData[19] << 8)
-                    | ((int32_t)bmpData[20] << 16) | ((int32_t)bmpData[21] << 24);
-  int32_t bmpHeight = (int32_t)bmpData[22] | ((int32_t)bmpData[23] << 8)
-                    | ((int32_t)bmpData[24] << 16) | ((int32_t)bmpData[25] << 24);
-  uint16_t bitCount = (uint16_t)bmpData[28] | ((uint16_t)bmpData[29] << 8);
-
-  if (bitCount != 1) {
-    showError("Bitmap Error", "Only 1-bit BMP supported");
-    return;
-  }
-
-  bool topDown = (bmpHeight < 0);
-  int32_t rows = topDown ? -bmpHeight : bmpHeight;
-  int32_t cols = bmpWidth;
-  int32_t rowStride = ((cols + 31) / 32) * 4;
-
-  if (pixelOffset + (size_t)(rowStride * rows) > len) {
-    showError("Bitmap Error", "BMP data truncated");
-    return;
-  }
-
-  uint16_t dispW = display->width();
-  uint16_t dispH = display->height();
-  int32_t drawW  = cols < dispW ? cols : dispW;
-  int32_t drawH  = rows < dispH ? rows : dispH;
-
   display->setFullWindow();
   display->firstPage();
   do {
     display->fillScreen(GxEPD_WHITE);
-    for (int32_t row = 0; row < drawH; row++) {
-      int32_t srcRow = topDown ? row : (rows - 1 - row);
-      const uint8_t* rowPtr = bmpData + pixelOffset + srcRow * rowStride;
-      for (int32_t col = 0; col < drawW; col++) {
-        bool isBlack = !((rowPtr[col / 8] >> (7 - (col % 8))) & 1);
-        if (isBlack) display->drawPixel(col, row, GxEPD_BLACK);
+    for (uint16_t y = 0; y < bitmap.height; ++y) {
+      for (uint16_t x = 0; x < bitmap.width; ++x) {
+        if (bitmap.blackAt(x, y)) display->drawPixel(x, y, GxEPD_BLACK);
       }
     }
   } while (display->nextPage());
-
-  LOG_D("Bitmap displayed: %dx%d (1-bit BMP)", (int)drawW, (int)drawH);
+  return true;
 }
 
 // -- Waveshare helpers -------------------------------------------------------

@@ -22,7 +22,7 @@
 // Default API URL pre-filled in the captive-portal setup page.
 // Override via build flag: -D PROVISION_DEFAULT_API_URL=\"https://...\"
 #ifndef PROVISION_DEFAULT_API_URL
-#define PROVISION_DEFAULT_API_URL "https://your-api.vercel.app"
+#define PROVISION_DEFAULT_API_URL "https://esp32.scottlind.dk"
 #endif
 
 // Firmware version (used for OTA checks and build metadata)
@@ -38,8 +38,7 @@
 
 #ifdef ELECROW_EPAPER_213
 // Elecrow CrowPanel ESP32 2.13" E-Paper (ESP32-S3)
-// Pins are the Elecrow board defaults — do NOT change these
-// unless you have modified the EPD library's DEV_Config.h as well.
+// Pins match the Elecrow schematic and manufacturer examples.
 #define PIN_CS   14   // Chip Select (SPI)
 #define PIN_DC   13   // Data/Command
 #define PIN_RST  10   // Hardware Reset
@@ -47,6 +46,9 @@
 #define PIN_MOSI 11   // SPI MOSI (DIN)
 #define PIN_CLK  12   // SPI Clock
 #define PIN_MISO -1   // Not used
+#define PIN_POWER 7   // E-paper rail, HIGH = enabled
+#define PIN_SETUP_BUTTON 2 // Menu button, hold during reset to reopen setup
+#define PIN_BATTERY_ADC -1 // No verified battery ADC on this board; GPIO35 is PSRAM
 #else
 // Waveshare 2.13" e-Paper HAT V2 (ESP32-WROOM-32)
 #define PIN_CS   5    // Chip Select (SPI)
@@ -56,15 +58,17 @@
 #define PIN_MOSI 23   // SPI Data In (DIN)
 #define PIN_CLK  18   // SPI Clock (CLK)
 #define PIN_MISO 19   // SPI Data Out (not used but defined for completeness)
+#define PIN_SETUP_BUTTON 0
+#define PIN_BATTERY_ADC 35
 #endif
 
 // Battery Monitoring
-#define PIN_BATTERY_ADC 35           // GPIO35 (ADC1_7)
+#define BATTERY_VOLTAGE_DIVIDER_RATIO 2.0f // External 1:1 divider required on generic ESP32
 #define BATTERY_ALERT_THRESHOLD 3.0  // Volts — alert if below this
 
 // Deep Sleep Configuration
 #define DEEP_SLEEP_ENABLED 1        // Set to 1 to enable deep sleep
-#define DEEP_SLEEP_DURATION_SEC 900 // 15 minutes (must match REFRESH_MINUTES)
+#define DEEP_SLEEP_DURATION_SEC (REFRESH_MINUTES * 60)
 
 // RTC Memory ID (for deep sleep wake reason tracking)
 #define RTC_MEMORY_ID 33
@@ -72,7 +76,7 @@
 // Debug & Logging
 #define DEBUG_ENABLED 1      // Set to 1 for debug serial output
 #define DEBUG_BAUD 115200
-#define LOG_API_RESPONSES 1  // Log full API response bodies (verbose)
+#define LOG_API_RESPONSES 0
 
 // Connection Timeouts
 #define WIFI_CONNECT_TIMEOUT_SEC 20
@@ -83,8 +87,8 @@
 #define FALLBACK_DATA_MAX_AGE_HOURS 24
 
 // Feature Flags
-#define FEATURE_OTA_UPDATES 1
-#define FEATURE_BATTERY_REPORTING 1
+#define FEATURE_OTA_UPDATES 0 // Web USB installer is the supported firmware update path
+#define FEATURE_BATTERY_REPORTING 0 // Enable only with verified ADC wiring/calibration
 #define FEATURE_CONNECTIVITY_MONITORING 1
 
 // Optional: Custom Data Display Preferences

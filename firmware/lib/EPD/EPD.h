@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <SPI.h>
+#include <initializer_list>
 
 // ── Elecrow CrowPanel 2.13" E-Paper — SSD1680/JD79661 driver ─────────────────
 // Default pins match the Elecrow CrowPanel 2.13" board.  Override any of these
@@ -9,6 +10,9 @@
 
 #ifndef PIN_CS
 #define PIN_CS   14
+#endif
+#ifndef PIN_POWER
+#define PIN_POWER 7
 #endif
 #ifndef PIN_DC
 #define PIN_DC   13
@@ -44,7 +48,7 @@
 // Color constants are defined in GUI_Paint.h; include it to get WHITE/BLACK.
 #include "GUI_Paint.h"
 
-void EPD_7IN5_Init(void);
-void EPD_7IN5_Display(void);
+bool EPD_7IN5_Init(void);
+bool EPD_7IN5_Display(void);
 void EPD_7IN5_Clear(void);
 void EPD_7IN5_Sleep(void);

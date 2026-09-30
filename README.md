@@ -40,6 +40,14 @@ The agenda uses `node-ical` for UTF-8 ICS 2.0: UTC/IANA TZID and floating times,
 
 Electricity uses Energinet's [DayAheadPrices dataset](https://www.energidataservice.dk/tso-electricity/DayAheadPrices). It selects the current **15-minute interval by UTC**, compares it with the average of available intervals for the Danish calendar day, and expires cached prices at the next interval boundary. Zero and negative prices are supported. Values are **spot prices, excluding VAT, taxes and grid/supplier tariffs**, not the final household electricity cost. The former Elspotprices feed contains historical hourly data only.
 
+## Install Wi-Fi firmware on a CrowPanel
+
+The public **Flash** page installs complete firmware over USB from desktop Chrome or Edge. Choose the original CrowPanel 2.13-inch **SSD1680** panel or **V1.2 / JD79661** revision before connecting; both use ESP32-S3, so automatic chip detection cannot distinguish them. A Waveshare 2.13-inch HAT V2 on classic ESP32 is also supported.
+
+This firmware fetches saved layouts over Wi-Fi using a registered device UUID and token from **Devices → Automatic updates**. After installation, join its `ESP32-Display-XXXXXX` hotspot and enter the network and device settings. The dashboard's Bluetooth push workflow requires separately installed OpenDisplay firmware.
+
+See the [browser flashing and recovery guide](docs/FIRMWARE_FLASHING.md) and [firmware build instructions](firmware/README.md). Local factory artifacts can be tested from `/flash` before publishing by setting backend `FIRMWARE_RELEASE_DIR` to their absolute output directory.
+
 ## Development
 
 Requires Node.js 20+ and npm, a Supabase project or the Raspberry Pi database below, and a Clerk application. Browser Bluetooth requires a supported browser and a secure context (HTTPS or localhost).
@@ -91,7 +99,7 @@ source database exists.
 | `packages/widgets/` | Reusable widget definitions and provider adapters |
 | `packages/rendering/` | Layout and typography utilities |
 | `packages/types/` | Shared widget contracts |
-| `firmware/` | Legacy custom Wi-Fi firmware and board tooling |
+| `firmware/` | Device-feed Wi-Fi firmware, board drivers and web-flash packaging |
 | `docs/` | Setup, API and hardware reference material |
 
 ## API and hardware status
@@ -113,6 +121,6 @@ Browser-facing paths below include `/api`; direct requests to the local Express 
 
 Browser endpoints require a Clerk bearer token; device-feed endpoints require the separately issued device token. Health is public.
 
-The dashboard supports OpenDisplay Bluetooth and an [unattended polling bridge](docs/DEVICE_DELIVERY.md) with per-device credentials, ETag/304, scheduled quiet periods and reported telemetry. The bridge can run an explicitly configured display driver; file-only mode never reports physical application. The bundled custom Wi-Fi firmware still calls legacy endpoints and does not implement this new protocol. See [the improvement notes](docs/PROJECT_DIRECTION.md) for remaining work and validation limits.
+The dashboard supports OpenDisplay Bluetooth and [unattended device delivery](docs/DEVICE_DELIVERY.md) with per-device credentials, ETag/304, scheduled quiet periods and reported telemetry. The bundled Wi-Fi firmware implements this protocol for the supported 250 × 122 boards. The separate polling bridge can run an explicitly configured display driver; file-only mode never reports physical application. Firmware compilation, protocol tests and factory packaging pass; USB installation and panel refresh still require verification on the actual unit. See [the improvement notes](docs/PROJECT_DIRECTION.md) for remaining work and validation limits.
 
-Older [setup](docs/SETUP_TRACK_A.md), [API](docs/API_REFERENCE.md) and [flashing](docs/FIRMWARE_FLASHING.md) guides retain some legacy instructions; use the architecture and endpoint status above when they differ.
+Older [setup](docs/SETUP_TRACK_A.md) and [API](docs/API_REFERENCE.md) guides retain some legacy instructions; use the architecture and endpoint status above when they differ. The [flashing guide](docs/FIRMWARE_FLASHING.md) describes the current factory-image and device-token setup.

@@ -1,6 +1,6 @@
 import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { ClerkProvider, AuthenticateWithRedirectCallback } from '@clerk/clerk-react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
@@ -19,8 +19,11 @@ const DocsPage = lazy(() => import('./pages/DocsPage').then((m) => ({ default: m
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
 
-if (!PUBLISHABLE_KEY) {
-  throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY environment variable');
+function AccountRoutes() {
+  if (!PUBLISHABLE_KEY) {
+    return <main className="max-w-xl mx-auto p-8"><h1>Account setup is unavailable</h1><p>Configure VITE_CLERK_PUBLISHABLE_KEY to use the dashboard.</p><a href="/flash">Open the USB firmware installer</a></main>;
+  }
+  return <ClerkProvider publishableKey={PUBLISHABLE_KEY} signInFallbackRedirectUrl="/dashboard" signUpFallbackRedirectUrl="/dashboard"><Outlet /></ClerkProvider>;
 }
 
 const rootElement = document.getElementById('root');
@@ -33,15 +36,11 @@ createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <ClerkProvider
-          publishableKey={PUBLISHABLE_KEY}
-          signInFallbackRedirectUrl="/dashboard"
-          signUpFallbackRedirectUrl="/dashboard"
-        >
           <Suspense fallback={<ProgressBar />}>
             <Routes>
               {/* Public routes — no auth */}
               <Route path="/flash" element={<FlashPage />} />
+              <Route element={<AccountRoutes />}>
               <Route path="/sso-callback" element={<AuthenticateWithRedirectCallback />} />
 
               {/* App shell — protected pages rendered via Outlet */}
@@ -55,9 +54,9 @@ createRoot(rootElement).render(
                 <Route path="/docs" element={<DocsPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Route>
+              </Route>
             </Routes>
           </Suspense>
-        </ClerkProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>

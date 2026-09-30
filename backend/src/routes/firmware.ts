@@ -1,6 +1,4 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { existsSync } from 'fs';
-import path from 'path';
 import { createClerkClient } from '@clerk/backend';
 import { requireAuth } from '../middleware/auth';
 import {
@@ -9,49 +7,20 @@ import {
   getFirmwareVersionById,
   upsertUser,
 } from '../services/database';
-import { fetchLatestFirmwareRelease, buildManifestFromRelease } from '../services/githubRelease';
+import { getInstallManifest } from '../services/firmwareInstall';
 import type { FirmwareVersion } from '../types';
 
 const router = Router();
 
-const FIRMWARE_BUILDS_DIR = path.join(__dirname, '../../firmware/builds');
-const DEFAULT_BIN = path.join(FIRMWARE_BUILDS_DIR, 'default.bin');
-
-async function buildDefaultEntry(req: Request): Promise<FirmwareVersion> {
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
-
-  const ghRelease = await fetchLatestFirmwareRelease().catch(() => null);
-  if (ghRelease) {
-    return {
-      id: 'default',
-      user_id: 'system',
-      version: ghRelease.version,
-      download_path: `${baseUrl}/firmware/default.bin`,
-      checksum: null,
-      release_notes: 'Official default firmware. Flash directly to your ESP32 via USB — no setup required.',
-      active: true,
-      created_at: new Date(0).toISOString(),
-      is_default: true,
-    };
-  }
-
-  // Fallback: env vars
-  const version = process.env.DEFAULT_FIRMWARE_VERSION ?? '1.0.0';
-  const externalUrl = process.env.DEFAULT_FIRMWARE_URL?.trim();
-  const active = !!(externalUrl || existsSync(DEFAULT_BIN));
+async function buildDefaultEntry(_req: Request): Promise<FirmwareVersion> {
+  const release = await getInstallManifest().catch(() => null);
   return {
-    id: 'default',
-    user_id: 'system',
-    version,
-    download_path: `${baseUrl}/firmware/default.bin`,
-    checksum: null,
-    release_notes: 'Official default firmware. Flash directly to your ESP32 via USB — no setup required.',
-    active,
-    created_at: new Date(0).toISOString(),
-    is_default: true,
+    id: 'default', user_id: 'system', version: release?.version ?? 'Unavailable',
+    download_path: '/flash', checksum: null,
+    release_notes: 'Complete factory firmware. Install via USB, then configure Wi-Fi through the device setup network.',
+    active: !!release, created_at: new Date(0).toISOString(), is_default: true,
   };
 }
-
 async function resolveUserId(clerkUserId: string): Promise<string> {
   const secretKey = process.env.CLERK_SECRET_KEY;
   if (!secretKey) throw new Error('CLERK_SECRET_KEY not set');
@@ -145,20 +114,13 @@ router.get(
   '/public-manifest',
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const ghRelease = await fetchLatestFirmwareRelease().catch(() => null);
-      if (!ghRelease) {
+      const manifest = await getInstallManifest(req.query.panel === 'v12' ? 'v12' : 'original').catch(() => null);
+      if (!manifest) {
         res.status(503).json({ error: 'Firmware release not currently available. Try again later.' });
         return;
       }
-      if (!ghRelease.firmwareElecrowUrl) {
-        // The current release is missing the ESP32-S3 build. Return 503 so the
-        // browser falls back to the static manifest (which pins a known-good release).
-        res.status(503).json({ error: 'ESP32-S3 firmware not available in current release.' });
-        return;
-      }
-      const proxyBase = process.env.BACKEND_PUBLIC_BASE_URL?.trim()
-        || `${req.protocol}://${req.get('host')}`;
-      res.json(buildManifestFromRelease(ghRelease, proxyBase));
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(manifest);
     } catch (err) {
       next(err);
     }
@@ -175,16 +137,18 @@ router.get(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const ghRelease = await fetchLatestFirmwareRelease().catch(() => null);
-      if (!ghRelease) {
-        // Cannot produce a multi-chip manifest without the GitHub release — return
-        // 503 rather than an ESP32-only fallback that would reject ESP32-S3 devices.
+      const manifest = await getInstallManifest(req.query.panel === 'v12' ? 'v12' : 'original').catch(() => null);
+      if (!manifest) {
+        // Never offer an application-only image as a recovery installation.
         res.status(503).json({ error: 'Firmware release not currently available. Try again later.' });
         return;
       }
-      const proxyBase = process.env.BACKEND_PUBLIC_BASE_URL?.trim()
-        || `${req.protocol}://${req.get('host')}`;
-      res.json(buildManifestFromRelease(ghRelease, proxyBase));
+      res.setHeader('Cache-Control', 'no-store');
+      // This endpoint is one directory deeper than public-manifest/manifest.json.
+      // Keep it usable directly by ESP Web Tools as well as through a blob client.
+      res.json({ ...manifest, builds: manifest.builds.map(build => ({
+        ...build, parts: build.parts.map(part => ({ ...part, path: /^https?:/.test(part.path) ? part.path : `../${part.path}` })),
+      })) });
     } catch (err) {
       next(err);
     }
@@ -193,7 +157,7 @@ router.get(
 
 /**
  * GET /api/firmware/:id/manifest
- * Returns esp-web-tools manifest JSON. Binary at download_path must be a public URL.
+ * Custom records only describe application images; they cannot safely erase and install a board.
  */
 router.get(
   '/:id/manifest',
@@ -203,10 +167,7 @@ router.get(
       const userId = await resolveUserId(req.clerkUserId!);
       const fw = await getFirmwareVersionById(userId, req.params.id);
       if (!fw) { res.status(404).json({ error: 'Firmware version not found' }); return; }
-      res.json({
-        name: `ESP32 Display v${fw.version}`,
-        builds: [{ chipFamily: 'ESP32', parts: [{ path: fw.download_path, offset: 65536 }] }],
-      });
+      res.status(422).json({ error: 'Custom application images do not include board and bootloader metadata. Use the factory installer at /flash.' });
     } catch (err) { next(err); }
   }
 );
