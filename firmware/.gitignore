@@ -1,5 +1,6 @@
 # PlatformIO
 .pio/
+__pycache__/
 .pioenvs/
 .piolibdeps/
 .vscode/
@@ -7,6 +8,7 @@
 
 # Configuration (DO NOT commit)
 config.h
+!src/config.h
 secret_*
 
 # Build artifacts

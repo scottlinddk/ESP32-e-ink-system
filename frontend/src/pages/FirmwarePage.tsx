@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../lib/appContext';
 import { useAuth } from '../hooks/useAuth';
-import { getFirmwareVersions, createFirmwareVersion, getFirmwareManifest } from '../lib/api';
+import { getFirmwareVersions, createFirmwareVersion } from '../lib/api';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Field } from '../components/ui/Field';
@@ -12,25 +12,18 @@ import { LoadBox } from '../components/ui/Spinner';
 import { Empty } from '../components/ui/Empty';
 import { Icon } from '../components/ui/Logo';
 import type { FirmwareVersion } from '../types';
-import 'esp-web-tools';
+
 
 export function FirmwarePage() {
   const app = useApp();
   const t = app.t;
-  const { getToken } = useAuth();
+  const { getToken, user, isSignedIn } = useAuth();
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ version: '', downloadPath: '', checksum: '', notes: '' });
 
-  const [selectedFwId, setSelectedFwId] = useState('');
-  const [manifestBlobUrl, setManifestBlobUrl] = useState<string | null>(null);
-  const [manifestLoading, setManifestLoading] = useState(false);
-  const [manifestError, setManifestError] = useState<string | null>(null);
-  const blobUrlRef = useRef<string | null>(null);
-  const hasAutoSelected = useRef(false);
-  const supportsWebSerial = 'serial' in navigator;
-
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['firmware_versions'],
+    queryKey: ['firmware_versions', user?.id],
+    enabled: isSignedIn,
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
@@ -41,13 +34,6 @@ export function FirmwarePage() {
   const firmwareVersions = data?.firmware_versions ?? [];
   const defaultFw = firmwareVersions.find((fw) => fw.is_default);
   const userVersions = firmwareVersions.filter((fw) => !fw.is_default);
-
-  useEffect(() => {
-    if (!hasAutoSelected.current && defaultFw?.active) {
-      hasAutoSelected.current = true;
-      setSelectedFwId('default');
-    }
-  }, [defaultFw?.active]);
 
   const createMutation = useMutation({
     mutationFn: async (payload: { version: string; download_path: string; checksum?: string; release_notes?: string }) => {
@@ -62,33 +48,6 @@ export function FirmwarePage() {
     },
     onError: (err: Error) => { app.toast({ type: 'error', title: err.message }); },
   });
-
-  useEffect(() => {
-    if (!selectedFwId) { setManifestBlobUrl(null); return; }
-    let cancelled = false;
-    setManifestLoading(true);
-    setManifestError(null);
-    setManifestBlobUrl(null);
-    if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
-    (async () => {
-      try {
-        const token = await getToken();
-        if (!token) throw new Error('Not authenticated');
-        const manifest = await getFirmwareManifest(token, selectedFwId);
-        if (cancelled) return;
-        const url = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
-        blobUrlRef.current = url;
-        setManifestBlobUrl(url);
-      } catch (err) {
-        if (!cancelled) setManifestError((err as Error).message);
-      } finally {
-        if (!cancelled) setManifestLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [selectedFwId]);
-
-  useEffect(() => () => { if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current); }, []);
 
   function submit() {
     createMutation.mutate({
@@ -198,66 +157,9 @@ export function FirmwarePage() {
       </Card>
 
       <Card flat className="mt-6">
-        <div className="flex flex-col gap-4">
-          <div>
-            <div className="text-h6 font-medium">{t.fwFlashTitle}</div>
-            <p className="text-fg2 text-sm mt-1 mb-0">{t.fwFlashSub}</p>
-          </div>
-          {!supportsWebSerial && (
-            <div className="flex gap-2.5 items-start px-3.5 py-3 rounded-sm bg-info/[0.08] text-fg2 text-sm leading-snug [&_.material-symbols-outlined]:text-[19px] [&_.material-symbols-outlined]:text-info [&_.material-symbols-outlined]:flex-shrink-0 [&_.material-symbols-outlined]:mt-[1px]">
-              <Icon name="warning" /> {t.fwFlashBrowserNote}
-            </div>
-          )}
-          {!firmwareVersions.some((fw) => fw.active) ? (
-            <p className="text-fg2 text-sm">{t.fwFlashNoVersions}</p>
-          ) : (
-            <>
-              <Field label={t.fwFlashSelectVersion} htmlFor="flash-version">
-                <select
-                  id="flash-version"
-                  className="select-native font-sans text-sm text-fg1 px-3 py-2.5 min-h-[42px] rounded-sm border border-border-strong bg-surface outline-none w-full focus:border-accent focus:shadow-[0_0_0_1px_var(--accent)]"
-                  value={selectedFwId}
-                  onChange={(e) => setSelectedFwId(e.target.value)}
-                >
-                  <option value="">{t.fwFlashSelectPlaceholder}</option>
-                  {firmwareVersions.map((fw) => (
-                    <option key={fw.id} value={fw.id} disabled={fw.is_default && !fw.active}>
-                      {fw.is_default
-                        ? `v${fw.version} — ${t.fwDefault}${fw.active ? '' : ' ⚠'}`
-                        : `v${fw.version}${fw.active ? ' ★' : ''}`}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <ol className="list-none m-0 p-0 flex flex-col gap-3">
-                {[t.fwFlashStep1, t.fwFlashStep2, t.fwFlashStep3].map((step, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm text-fg2">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-accent text-fg-on flex items-center justify-center text-xs font-medium">
-                      {i + 1}
-                    </span>
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ol>
-              {selectedFwId && (
-                <div className="flex items-center gap-3 flex-wrap">
-                  {manifestLoading && <span className="text-fg2 text-sm">{t.fwFlashManifestLoading}</span>}
-                  {manifestError && (
-                    <div className="flex gap-2.5 items-start px-3.5 py-3 rounded-sm bg-error/[0.08] text-error text-sm [&_.material-symbols-outlined]:text-[19px]">
-                      <Icon name="error" /> {t.fwFlashManifestError}
-                    </div>
-                  )}
-                  {manifestBlobUrl && !manifestLoading && (
-                    <esp-web-install-button
-                      manifest={manifestBlobUrl}
-                      style={{ '--esp-tools-button-color': 'var(--accent)', '--esp-tools-button-text-color': 'var(--fg-on-primary)', '--esp-tools-button-border-radius': 'var(--radius-md)' }}
-                    />
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
+        <h2 className="text-h6 font-medium">{t.fwFlashTitle}</h2>
+        <p className="text-fg2 text-sm mt-1 mb-3">{t.fwFlashSub}</p>
+        <a href="/flash" className="text-accent underline">{app.lang === 'da' ? 'Åbn USB-installation og opsætning' : 'Open USB installer and setup'}</a>
       </Card>
     </div>
   );

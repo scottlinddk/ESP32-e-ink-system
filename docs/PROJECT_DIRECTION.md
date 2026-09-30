@@ -15,11 +15,12 @@ Make this a dependable household information display: the right electricity pric
 - Expose EV/Notion widgets in the layout palette, place added widgets without overlaps, and protect saved settings after a load failure.
 - Render unsaved layouts on demand with the same authenticated live-data pipeline and BMP renderer as saved previews. Draft requests validate widget IDs, geometry and overlaps without writing to the database; layout edits cancel and clear outdated previews.
 - Add regression coverage and an application CI workflow.
+- Implement direct Wi-Fi device-feed firmware with separate original CrowPanel, V1.2 and Waveshare drivers. Compile and validate full factory images for the browser installer, provision per-device tokens, and test display protocol transfers and malformed BMP handling on the host.
 
 ## Next useful increments
 
-1. **Complete the hardware contract.** Discover a device's panel dimensions and supported transfer format before rendering. Add hardware-backed tests for every supported board, including ESP32-S3/Elecrow. The current image path is fixed at 250 × 122.
-2. **Choose and finish unattended delivery.** The current app requires manual Bluetooth pushes. Either implement an OpenDisplay-compatible scheduled image service or restore and test the bundled Wi-Fi firmware's API contract. Do not advertise automatic physical-display refresh until that path works end to end.
+1. **Verify the hardware contract.** The renderer supports validated display profiles; bundled Wi-Fi firmware requires 250 × 122 and rotation 0, and the Bluetooth path checks its own format constraints. Verify USB installation, orientation and refresh on every supported physical board, including both Elecrow panel revisions.
+2. **Validate unattended delivery on the unit.** Per-device token delivery is implemented by the bundled Wi-Fi firmware and the optional gateway bridge. Complete the actual device's provisioning, TLS connection, successful refresh, acknowledgement and subsequent scheduled update before claiming end-to-end hardware operation.
 3. **Refine live layout editing.** The editor now renders the current draft on demand. Any future automatic rendering should debounce changes and respect source/API rate limits.
 4. **Add source freshness.** Return each integration's observation time and availability state; put a compact last-updated marker on the physical screen. A server image-generation timestamp alone does not show how old a source reading is.
 5. **Turn price awareness into planning.** Once current prices are dependable, add upcoming prices and cheapest contiguous charging/appliance windows. Keep spot-price guidance distinct from the household's actual tariff.

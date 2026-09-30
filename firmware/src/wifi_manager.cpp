@@ -1,4 +1,4 @@
-#include "wifi.h"
+#include "wifi_manager.h"
 #include "config.h"
 
 #if DEBUG_ENABLED
@@ -86,19 +86,19 @@ const char* WiFiManager::getStatusString() {
 
 void WiFiManager::eventCallback(WiFiEvent_t event) {
   switch (event) {
-    case SYSTEM_EVENT_STA_START:
+    case ARDUINO_EVENT_WIFI_STA_START:
       LOG_W("WiFi: Station started");
       break;
-    case SYSTEM_EVENT_STA_CONNECTED:
+    case ARDUINO_EVENT_WIFI_STA_CONNECTED:
       LOG_W("WiFi: Connected to network");
       break;
-    case SYSTEM_EVENT_STA_GOT_IP:
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP:
       LOG_W("WiFi: Got IP address");
       break;
-    case SYSTEM_EVENT_STA_DISCONNECTED:
+    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
       LOG_W("WiFi: Disconnected from network");
       break;
-    case SYSTEM_EVENT_STA_LOST_IP:
+    case ARDUINO_EVENT_WIFI_STA_LOST_IP:
       LOG_W("WiFi: Lost IP address");
       break;
     default:

@@ -13,11 +13,12 @@ const float BatteryManager::BATTERY_FULL_VOLTAGE = 4.2;   // 100%
 const float BatteryManager::BATTERY_EMPTY_VOLTAGE = 3.0;  // 0%
 const int BatteryManager::ADC_MAX_VALUE = 4095;           // 12-bit ADC
 const float BatteryManager::VREF = 1.1;                   // Internal reference
-const float BatteryManager::VOLTAGE_DIVIDER_RATIO = 1.0;  // Adjust if using divider
+const float BatteryManager::VOLTAGE_DIVIDER_RATIO = BATTERY_VOLTAGE_DIVIDER_RATIO;
 
 BatteryManager::BatteryManager() : _lastVoltage(0.0) {}
 
 void BatteryManager::begin() {
+  if (PIN_BATTERY_ADC < 0) return;
   // Configure ADC
   analogSetPinAttenuation(PIN_BATTERY_ADC, ADC_11db);  // Full range 0-3.6V
   analogReadResolution(12);                             // 12-bit resolution
@@ -26,15 +27,17 @@ void BatteryManager::begin() {
 }
 
 uint16_t BatteryManager::readRaw() {
+  if (PIN_BATTERY_ADC < 0) return 0;
   return analogRead(PIN_BATTERY_ADC);
 }
 
 float BatteryManager::readVoltage() {
+  if (PIN_BATTERY_ADC < 0) return 0;
   uint16_t raw = readRaw();
   
   // Convert ADC reading to voltage
   // Formula: voltage = (raw / ADC_MAX) * VREF * 2 (if using 1:1 divider)
-  float voltage = (raw / (float)ADC_MAX_VALUE) * 3.3 * VOLTAGE_DIVIDER_RATIO;
+  float voltage = analogReadMilliVolts(PIN_BATTERY_ADC) / 1000.0f * VOLTAGE_DIVIDER_RATIO;
   
   _lastVoltage = voltage;
   
@@ -44,6 +47,7 @@ float BatteryManager::readVoltage() {
 }
 
 int BatteryManager::readPercentage() {
+  if (PIN_BATTERY_ADC < 0) return -1;
   float voltage = readVoltage();
   
   // Map voltage to percentage (linear approximation)

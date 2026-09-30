@@ -85,7 +85,7 @@ function DevicesForUser() {
     mutationFn: async ({ name, id }: { name: string; id: string }) => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      return addDevice(token, id, name); // id = ble_name e.g. "OD4A2B3C"
+      return addDevice(token, id, name);
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['devices'] }); setDialog(null); app.toast({ type: 'success', title: t.devicePaired }); },
     onError: (err: Error) => { app.toast({ type: 'error', title: err.message }); },
@@ -228,8 +228,8 @@ function DevicesForUser() {
             <Input id="dn" value={form.name} placeholder={t.deviceNamePh} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </Field>
           {dialog && dialog.type === 'add' && (
-            <Field label="BLE Name" htmlFor="di" helper="The Bluetooth name shown during pairing, e.g. OD4A2B3C">
-              <Input id="di" mono value={form.id} placeholder="OD4A2B3C" onChange={(e) => setForm({ ...form, id: e.target.value })} />
+            <Field label="Hardware ID (optional)" htmlFor="di" helper="Use a label or hardware identifier, or leave blank to generate one. Automatic updates provides the device UUID used during Wi-Fi setup.">
+              <Input id="di" mono value={form.id} placeholder="Kitchen display" onChange={(e) => setForm({ ...form, id: e.target.value })} />
             </Field>
           )}
         </div>

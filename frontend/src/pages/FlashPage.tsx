@@ -1,186 +1,95 @@
 import 'esp-web-tools';
 import { useEffect, useRef, useState } from 'react';
-import { BleDeviceConfig } from '../components/BleDeviceConfig';
+import { loadPublicFirmwareManifest, type ElecrowPanel } from '../lib/firmwareManifest';
 
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      'esp-web-install-button': React.DetailedHTMLProps<
-        React.HTMLAttributes<HTMLElement> & { manifest?: string },
-        HTMLElement
-      >;
+      'esp-web-install-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement> & { manifest?: string }, HTMLElement>;
     }
   }
 }
 
-const steps = [
-  'Install the USB driver for your board (see "Before you begin" above), then connect your ESP32-S3 via USB.',
-  'Click "Install Firmware" below.',
-  'In the browser dialog, select the serial port — it will look like /dev/cu.usbserial-… on Mac or COM3 on Windows.',
-  'Wait for the flash to complete (about 30 seconds). The device reboots and begins BLE advertising as "OD…".',
-  'Click "Configure via Bluetooth" below, enter your WiFi credentials, and select the device from the browser Bluetooth picker.',
-  'The device connects to your WiFi network within ~10 seconds.',
-  'Add your device on the Devices page using the BLE name shown (e.g. OD4A2B3C).',
-  'Use "Push to Display" on the Dashboard to send your first image over Bluetooth.',
-];
-
 export function FlashPage() {
-  const webSerialSupported = 'serial' in navigator;
-  const [manifestUrl, setManifestUrl] = useState<string>('/firmware/manifest.json');
+  const secure = window.isSecureContext;
+  const supported = 'serial' in navigator;
+  const [panel, setPanel] = useState<ElecrowPanel | ''>('');
+  const [manifestUrl, setManifestUrl] = useState<string | null>(null);
+  const [version, setVersion] = useState('');
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
   const blobUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/firmware/public-manifest');
-        if (!res.ok) throw new Error('Not available');
-        const manifest = await res.json();
-        // Only use the dynamic manifest if it covers ESP32-S3; otherwise the
-        // static fallback (which pins a known-good release with both chips) is safer.
-        const hasS3 = Array.isArray(manifest.builds) &&
-          manifest.builds.some((b: { chipFamily?: string }) => b.chipFamily === 'ESP32-S3');
-        if (!hasS3) throw new Error('ESP32-S3 build missing from dynamic manifest');
-        if (cancelled) return;
-        const url = URL.createObjectURL(
-          new Blob([JSON.stringify(manifest)], { type: 'application/json' })
-        );
+    const controller = new AbortController();
+    setManifestUrl(null);
+    setError('');
+    setVersion('');
+    if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
+    if (panel) {
+      loadPublicFirmwareManifest(panel, controller.signal).then(manifest => {
+        if (controller.signal.aborted) return;
+        const url = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
         blobUrlRef.current = url;
         setManifestUrl(url);
-      } catch {
-        // Fall back to static manifest
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => () => {
-    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-  }, []);
+        setVersion(manifest.version ?? '');
+      }).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Firmware download failed'); });
+    }
+    return () => { controller.abort(); };
+  }, [panel, attempt]);
+  useEffect(() => () => { if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current); }, []);
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', padding: '40px 16px', fontFamily: 'sans-serif' }}>
-      <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: 8 }}>
-        Flash OpenDisplay Firmware
-      </h1>
-      <p style={{ color: '#555', marginBottom: 32 }}>
-        Install OpenDisplay firmware on your ESP32-S3 directly from your browser,
-        then configure WiFi over Bluetooth. Chrome or Edge on desktop required.
-      </p>
+    <main className="max-w-[760px] mx-auto px-6 py-10 text-fg1">
+      <h1 className="text-h2 mb-3">Install ESP32 E-Ink firmware</h1>
+      <p className="mb-6 text-fg2">Flash your Elecrow CrowPanel 2.13-inch e-paper display through USB, then connect it to Wi-Fi for automatic dashboard updates.</p>
 
-      {!webSerialSupported && (
-        <div
-          style={{
-            background: '#fff3cd',
-            border: '1px solid #ffc107',
-            borderRadius: 6,
-            padding: '12px 16px',
-            marginBottom: 24,
-            color: '#856404',
-          }}
-        >
-          <strong>Browser not supported.</strong> Web Serial requires Chrome or Edge on
-          desktop. Safari, Firefox, and mobile browsers are not supported.
-        </div>
-      )}
+      {!secure ? <p role="alert" className="mb-5 text-error">Open this page over HTTPS or on localhost. Browsers block USB flashing on ordinary HTTP addresses, including a Raspberry Pi LAN address.</p>
+        : !supported && <p role="alert" className="mb-5 text-error">Use Chrome or Edge on a desktop computer. This browser does not provide Web Serial.</p>}
 
-      <div
-        style={{
-          background: '#f0f4ff',
-          border: '1px solid #c7d7ff',
-          borderRadius: 8,
-          padding: '16px 20px',
-          marginBottom: 32,
-        }}
-      >
-        <h2 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 10px' }}>
-          Before you begin — install the USB driver
-        </h2>
-        <p style={{ margin: '0 0 10px', color: '#333', fontSize: '0.9rem' }}>
-          Most ESP32 boards use a CH340 or CP210x USB-to-serial chip. Without the driver,
-          the device won't appear in the browser's port picker.
-        </p>
-        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.85rem' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid #c7d7ff' }}>
-              <th style={{ textAlign: 'left', padding: '4px 8px 4px 0', color: '#555' }}>Chip</th>
-              <th style={{ textAlign: 'left', padding: '4px 8px', color: '#555' }}>macOS</th>
-              <th style={{ textAlign: 'left', padding: '4px 8px', color: '#555' }}>Windows</th>
-              <th style={{ textAlign: 'left', padding: '4px 8px', color: '#555' }}>Linux</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style={{ padding: '4px 8px 4px 0' }}>CH340 / CH341</td>
-              <td style={{ padding: '4px 8px' }}>
-                <a href="https://www.wch-ic.com/downloads/CH34XSER_MAC_ZIP.html" target="_blank" rel="noreferrer">
-                  WCH CH34x driver
-                </a>
-              </td>
-              <td style={{ padding: '4px 8px', color: '#555' }}>Auto via Windows Update</td>
-              <td style={{ padding: '4px 8px', color: '#555' }}>Built-in</td>
-            </tr>
-            <tr>
-              <td style={{ padding: '4px 8px 4px 0' }}>CP2102 / CP2104</td>
-              <td style={{ padding: '4px 8px' }}>
-                <a href="https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers" target="_blank" rel="noreferrer">
-                  Silicon Labs driver
-                </a>
-              </td>
-              <td style={{ padding: '4px 8px', color: '#555' }}>Auto via Windows Update</td>
-              <td style={{ padding: '4px 8px', color: '#555' }}>Built-in</td>
-            </tr>
-          </tbody>
-        </table>
-        <p style={{ margin: '10px 0 0', fontSize: '0.85rem', color: '#555' }}>
-          After installing, unplug and replug the USB cable, then come back here.
-        </p>
-      </div>
+      <section className="border border-divider rounded-md p-5 mb-6">
+        <h2 className="text-h5 mb-3">1. Connect and select your hardware</h2>
+        <p className="mb-3">Use a USB data cable and turn the display power switch on. Close Arduino, PlatformIO, and other serial monitors before connecting.</p>
+        <label htmlFor="panel" className="block font-medium mb-2">Display revision</label>
+        <select id="panel" value={panel} onChange={event => setPanel(event.target.value as ElecrowPanel | '')} className="select-native w-full p-3 border border-border-strong rounded-sm bg-surface text-fg1">
+          <option value="">Check your board label and select a revision…</option>
+          <option value="original">CrowPanel 2.13 original — SSD1680 (or ESP32 + Waveshare 2.13 V2)</option>
+          <option value="v12">CrowPanel 2.13 V1.2 — JD79661</option>
+        </select>
+        <p className="mt-3 text-sm text-fg2">Both CrowPanel revisions use ESP32-S3. USB detection cannot distinguish their display controllers. Check the product revision before installing.</p>
+        {panel && !manifestUrl && !error && <p role="status" className="mt-4">Checking the firmware release…</p>}
+        {error && <div role="alert" className="mt-4"><p>{error}</p><button className="underline mt-2" onClick={() => setAttempt(value => value + 1)}>Retry</button></div>}
+        {manifestUrl && secure && supported && <div className="mt-4"><p className="text-sm mb-3">Firmware: {version}. For a first installation or recovery, choose erase when prompted. Erasing removes saved Wi-Fi and device credentials.</p><esp-web-install-button key={panel} manifest={manifestUrl}><button slot="activate" className="bg-accent text-fg-on px-5 py-3 rounded-sm">Install firmware</button></esp-web-install-button></div>}
+      </section>
 
-      <div style={{ marginBottom: 16 }}>
-        <esp-web-install-button manifest={manifestUrl} />
-      </div>
+      <section className="border border-divider rounded-md p-5 mb-6">
+        <h2 className="text-h5 mb-3">2. Create your device credentials</h2>
+        <p className="mb-3">On the <a className="underline" href="/devices">Devices page</a>, add a display. Expand <strong>Automatic updates</strong>, create a device token, and copy the API URL, device UUID, and token. The token is shown only once.</p>
+        <p className="text-sm text-fg2">Keep these values ready before joining the display setup network, which has no internet access.</p>
+      </section>
 
-      <div style={{ marginBottom: 32 }}>
-        <p style={{ marginBottom: 8, fontWeight: 600, fontSize: '0.95rem' }}>
-          Step 2 — Configure WiFi over Bluetooth
-        </p>
-        <p style={{ color: '#555', fontSize: '0.875rem', marginBottom: 12 }}>
-          After flashing, use the button below to send your WiFi credentials to the device via Web Bluetooth.
-          The device must be powered on and BLE advertising (name starts with "OD").
-        </p>
-        <BleDeviceConfig />
-      </div>
+      <section className="border border-divider rounded-md p-5 mb-6">
+        <h2 className="text-h5 mb-3">3. Configure Wi-Fi</h2>
+        <ol className="list-decimal pl-5 space-y-2">
+          <li>After installation, press RESET if the board remains in download mode.</li>
+          <li>Join the display Wi-Fi network named <code>ESP32-Display-XXXXXX</code>.</li>
+          <li>Open <a className="underline" href="http://192.168.4.1" target="_blank" rel="noreferrer">http://192.168.4.1</a> if the setup page does not open automatically.</li>
+          <li>Enter your 2.4 GHz Wi-Fi details and the API URL, device UUID, and device token from Automatic updates. Save to restart.</li>
+          <li>Reconnect your computer to your normal network. Save your dashboard layout; the display fetches updates over Wi-Fi.</li>
+        </ol>
+        <p className="mt-3 text-sm text-fg2">This firmware uses the Wi-Fi setup portal. Bluetooth configuration and “Push to Display” apply only to separately installed OpenDisplay firmware.</p>
+      </section>
 
-      <div
-        style={{
-          background: '#fffbe6',
-          border: '1px solid #ffe58f',
-          borderRadius: 6,
-          padding: '10px 14px',
-          marginBottom: 32,
-          fontSize: '0.875rem',
-          color: '#7d5800',
-        }}
-      >
-        <strong>Don't see a serial port in the picker?</strong> Install the USB driver above, unplug
-        and replug the cable, then try again. Make sure you're on Chrome or Edge and not selecting a
-        Bluetooth entry.
-      </div>
-
-      <h2 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: 12 }}>Setup steps</h2>
-      <ol style={{ paddingLeft: 20, lineHeight: 1.9, color: '#333' }}>
-        {steps.map((step, i) => (
-          <li key={i}>{step}</li>
-        ))}
-      </ol>
-
-      <p style={{ marginTop: 24, fontSize: '0.85rem', color: '#888' }}>
-        Re-flashing erases the device config, so you will need to re-send WiFi credentials
-        via "Configure via Bluetooth" after each firmware update.
-      </p>
-    </div>
+      <section className="border border-divider rounded-md p-5">
+        <h2 className="text-h5 mb-3">If the serial connection fails</h2>
+        <ul className="list-disc pl-5 space-y-2">
+          <li>Try another data cable and USB port. Check Windows Device Manager or your system USB device list for a serial port.</li>
+          <li>Hold BOOT, press and release RESET, then release BOOT. Click Install and select the newly appearing USB serial port. After flashing, press RESET with BOOT released.</li>
+          <li>The CrowPanel USB-to-UART bridge may need a WCH driver. Match the detected bridge: <a className="underline" href="https://www.wch-ic.com/downloads/CH341SER_EXE.html" target="_blank" rel="noreferrer">CH340/CH341</a> or <a className="underline" href="https://www.wch-ic.com/downloads/CH343SER_EXE.html" target="_blank" rel="noreferrer">CH343/CH9102</a>. Other ESP32 boards may use <a className="underline" href="https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers" target="_blank" rel="noreferrer">CP210x</a>.</li>
+          <li>If flashing completes but setup never appears, open the installer logs at 115200 baud after reset. Recheck the selected display revision.</li>
+        </ul>
+        <p className="mt-4 text-sm"><a className="underline" href="https://github.com/scottlinddk/ESP32-e-ink-system/tree/main/firmware" target="_blank" rel="noreferrer">Firmware source and hardware guide</a></p>
+      </section>
+    </main>
   );
 }

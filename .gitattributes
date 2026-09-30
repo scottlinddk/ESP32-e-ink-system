@@ -6,3 +6,5 @@ infra/raspberry-pi/*.example text eol=lf
 infra/raspberry-pi/init/* text eol=lf
 infra/raspberry-pi/systemd/* text eol=lf
 tools/*.mjs text eol=lf
+firmware/scripts/*.sh text eol=lf
+firmware/scripts/*.py text eol=lf

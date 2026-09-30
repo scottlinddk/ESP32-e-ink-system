@@ -50,6 +50,7 @@ Thumbs.db
 # Testing
 .jest-cache/
 .validation/
+.tools/
 
 # Raspberry Pi database credentials, exports and local verification output
 infra/raspberry-pi/backend.env

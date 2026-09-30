@@ -1,8 +1,9 @@
 #pragma once
+#include "config.h"
 
 #ifdef ELECROW_EPAPER_213
 // Elecrow CrowPanel ESP32 2.13" — uses bundled EPD library
-// Source: firmware/lib/EPD/ (copy from Elecrow GitHub repo factory_sourcecode)
+// Source: firmware/lib/EPD/ (bundled, no extra driver download required)
 #include "EPD.h"
 #include "GUI_Paint.h"
 #else
@@ -64,7 +65,8 @@ public:
   void showTestPattern();
 
   // Display a server-rendered 1-bit BMP from memory buffer
-  void showBitmap(const uint8_t* bmpData, size_t len);
+  bool showBitmap(const uint8_t* bmpData, size_t len);
+  void sleep();
 
   // Clear display
   void clear();
@@ -75,14 +77,14 @@ public:
 
 private:
 #ifdef ELECROW_EPAPER_213
-  void elecrowFlush();
+  bool elecrowFlush();
   void drawText(uint16_t x, uint16_t y, const char* text, sFONT* font);
   void drawCenteredText(uint16_t y, const char* text, sFONT* font);
   void drawLine(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
   void layoutEnergyPrices(const DisplayData& data);
   void layoutStatusBar(const DisplayData& data);
 #else
-  GxEPD2_BW<GxEPD2_213_BN, GxEPD2_213_BN::HEIGHT>* display;
+  GxEPD2_BW<GxEPD2_213_B73, GxEPD2_213_B73::HEIGHT>* display;
 
   void drawCenteredText(const char* text, int16_t y, const GFXfont* font = nullptr);
   void drawLeftText(const char* text, int16_t x, int16_t y, const GFXfont* font = nullptr);

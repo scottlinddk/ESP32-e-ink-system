@@ -1,430 +1,113 @@
 #include "api.h"
 #include "config.h"
+#include "tls_roots.h"
+#include "feed_validation.h"
 #include <ArduinoJson.h>
-
-#ifndef PROVISION_DEFAULT_API_URL
-#define PROVISION_DEFAULT_API_URL "https://your-api.vercel.app"
-#endif
-
-#if DEBUG_ENABLED
-#define LOG_A(fmt, ...) Serial.printf("[API] " fmt "\n", ##__VA_ARGS__)
-#else
-#define LOG_A(fmt, ...)
-#endif
+#include <mbedtls/sha256.h>
 
 ApiClient::ApiClient() {
-  strlcpy(_baseUrl, PROVISION_DEFAULT_API_URL, sizeof(_baseUrl));
-  setupSSL();
+  client.setCACert(DEVICE_ROOT_CA);
+  client.setHandshakeTimeout(15);
 }
 
-void ApiClient::setBaseUrl(const char* baseUrl) {
-  strlcpy(_baseUrl, baseUrl, sizeof(_baseUrl));
-}
-
-void ApiClient::setupSSL() {
-  client.setInsecure();
-}
-
-ApiResponse ApiClient::fetchDisplayData(const char* userId, const char* licenseKey) {
-  ApiResponse response = {false, 0, {}, ""};
-
-  char url[512];
-  snprintf(url, sizeof(url), "%s/api/display-data/%s", _baseUrl, userId);
-
-  LOG_A("Fetching display data from: %s", url);
-
+bool ApiClient::begin(HTTPClient& http, const char* baseUrl, const char* deviceId,
+                      const char* token, const char* endpoint) {
+  if (!feed::validBaseUrl(baseUrl) || !feed::validDeviceId(deviceId) || !feed::validToken(token)) return false;
+  String base(baseUrl);
+  while (base.endsWith("/")) base.remove(base.length() - 1);
+  if (!base.endsWith("/api")) base += "/api";
   http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
   http.setTimeout(API_REQUEST_TIMEOUT_MS);
-
-  if (!http.begin(client, url)) {
-    snprintf(response.errorMessage, sizeof(response.errorMessage), "Failed to connect to server");
-    LOG_A("Connection failed");
-    return response;
-  }
-
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-License-Key", licenseKey);
-
-  int httpCode = http.GET();
-  response.httpCode = httpCode;
-
-  LOG_A("HTTP response code: %d", httpCode);
-
-  if (httpCode != 200) {
-    snprintf(response.errorMessage, sizeof(response.errorMessage), "HTTP error %d", httpCode);
-    http.end();
-    return response;
-  }
-
-  String payload = http.getString();
-  http.end();
-
-  if (payload.length() == 0) {
-    snprintf(response.errorMessage, sizeof(response.errorMessage), "Empty response");
-    return response;
-  }
-
-#if LOG_API_RESPONSES
-  LOG_A("Response: %s", payload.c_str());
-#endif
-
-  if (parseDisplayDataResponse(payload.c_str(), response.displayData)) {
-    response.success = true;
-    LOG_A("Display data parsed successfully");
-  } else {
-    snprintf(response.errorMessage, sizeof(response.errorMessage), "JSON parse error");
-    LOG_A("Failed to parse JSON response");
-  }
-
-  return response;
-}
-
-bool ApiClient::pairDevice(const char* macAddress, const char* deviceName, PairingResult& result) {
-  result.success = false;
-  result.userId[0] = '\0';
-  result.licenseKey[0] = '\0';
-  result.errorMessage[0] = '\0';
-
-  char url[512];
-  snprintf(url, sizeof(url), "%s/api/devices/pair", _baseUrl);
-
-  LOG_A("Pairing device at: %s  MAC: %s", url, macAddress);
-
-  http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
-  http.setTimeout(API_REQUEST_TIMEOUT_MS);
-
-  if (!http.begin(client, url)) {
-    snprintf(result.errorMessage, sizeof(result.errorMessage), "Failed to connect to server");
-    LOG_A("Connection failed");
-    return false;
-  }
-
-  http.addHeader("Content-Type", "application/json");
-
-  StaticJsonDocument<256> reqDoc;
-  reqDoc["mac_address"] = macAddress;
-  reqDoc["device_name"] = deviceName;
-
-  String payload;
-  serializeJson(reqDoc, payload);
-
-  int httpCode = http.POST(payload);
-  LOG_A("Pair response: HTTP %d", httpCode);
-
-  if (httpCode != 200 && httpCode != 201) {
-    snprintf(result.errorMessage, sizeof(result.errorMessage), "HTTP error %d", httpCode);
-    http.end();
-    return false;
-  }
-
-  String body = http.getString();
-  http.end();
-
-  StaticJsonDocument<512> resDoc;
-  DeserializationError err = deserializeJson(resDoc, body);
-  if (err) {
-    snprintf(result.errorMessage, sizeof(result.errorMessage), "JSON parse error");
-    LOG_A("Failed to parse pair response");
-    return false;
-  }
-
-  if (!resDoc.containsKey("user_id") || !resDoc.containsKey("license_key")) {
-    snprintf(result.errorMessage, sizeof(result.errorMessage), "Invalid pair response");
-    LOG_A("Missing fields in pair response");
-    return false;
-  }
-
-  strlcpy(result.userId,     resDoc["user_id"],     sizeof(result.userId));
-  strlcpy(result.licenseKey, resDoc["license_key"], sizeof(result.licenseKey));
-  result.success = true;
-
-  LOG_A("Device paired — userId: %s", result.userId);
+  http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+  // HTTP/1.0 avoids chunked transfer encoding and bounds the BMP reader.
+  http.useHTTP10(true);
+  if (!http.begin(client, base + "/device-feed/" + deviceId + endpoint)) return false;
+  http.addHeader("Authorization", String("Bearer ") + token);
   return true;
 }
 
-bool ApiClient::reportDeviceStatus(const char* userId, const char* licenseKey,
-                                   int batteryPercent, int signalStrength) {
-  char url[512];
-  snprintf(url, sizeof(url), "%s/api/devices/%s/status", _baseUrl, userId);
-
-  LOG_A("Reporting device status to: %s", url);
-
-  http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
-  http.setTimeout(API_REQUEST_TIMEOUT_MS);
-
-  if (!http.begin(client, url)) {
-    LOG_A("Connection failed");
-    return false;
+FrameResult ApiClient::fetchFrame(const char* baseUrl, const char* deviceId, const char* token,
+                                 const char* appliedHash, uint8_t* buffer, size_t capacity) {
+  FrameResult result;
+  result.receivedAt = millis();
+  HTTPClient http;
+  if (!begin(http, baseUrl, deviceId, token, "/frame?format=bmp")) {
+    strlcpy(result.error, "Invalid device configuration", sizeof(result.error));
+    return result;
   }
+  const char* headers[] = {"Retry-After", "X-Image-SHA256", "X-Display-Width", "X-Display-Height",
+    "X-Display-Rotation", "X-Display-Row-Bytes", "X-Display-Encoding", "X-Refresh-Mode", "Content-Type", "Transfer-Encoding"};
+  http.collectHeaders(headers, sizeof(headers) / sizeof(headers[0]));
+  if (feed::validHash(appliedHash)) http.addHeader("If-None-Match", String('"') + appliedHash + '"');
+  result.httpCode = http.GET();
+  result.receivedAt = millis();
+  result.retrySeconds = feed::retrySeconds(http.header("Retry-After").c_str());
+  if (result.httpCode == 204 || (result.httpCode == 304 && feed::validHash(appliedHash))) {
+    http.end();
+    return result;
+  }
+  if (result.httpCode != 200) {
+    snprintf(result.error, sizeof(result.error), "Frame request failed (HTTP %d)", result.httpCode);
+    http.end();
+    return result;
+  }
+  String hash = http.header("X-Image-SHA256");
+  if (!feed::validHash(hash.c_str()) || http.header("X-Display-Width") != "250" ||
+      http.header("X-Display-Height") != "122" || http.header("X-Display-Rotation") != "0" ||
+      http.header("X-Display-Row-Bytes") != "32" || http.header("X-Display-Encoding") != "mono-msb-white1" ||
+      http.header("X-Refresh-Mode") != "full" || !http.header("Content-Type").startsWith("image/bmp") ||
+      http.header("Transfer-Encoding").length()) {
+    strlcpy(result.error, "Unsupported frame: select 250x122, rotation 0", sizeof(result.error));
+    http.end();
+    return result;
+  }
+  const int expected = http.getSize();
+  if (expected < 62 || static_cast<size_t>(expected) > capacity) {
+    strlcpy(result.error, "Invalid frame length", sizeof(result.error));
+    http.end();
+    return result;
+  }
+  WiFiClient* stream = http.getStreamPtr();
+  size_t received = 0;
+  const uint32_t start = millis();
+  while (received < static_cast<size_t>(expected) && millis() - start < API_REQUEST_TIMEOUT_MS) {
+    const int available = stream->available();
+    if (available > 0) {
+      const int count = stream->read(buffer + received, min(static_cast<size_t>(available), static_cast<size_t>(expected) - received));
+      if (count > 0) received += count;
+    } else if (!http.connected()) break;
+    else delay(1);
+  }
+  http.end();
+  if (received != static_cast<size_t>(expected)) {
+    strlcpy(result.error, "Incomplete frame download", sizeof(result.error));
+    return result;
+  }
+  uint8_t digest[32];
+  mbedtls_sha256_ret(buffer, received, digest, 0);
+  for (size_t i = 0; i < sizeof(digest); i++) snprintf(result.hash + i * 2, 3, "%02x", digest[i]);
+  if (strcmp(result.hash, hash.c_str()) != 0) {
+    result.hash[0] = 0;
+    strlcpy(result.error, "Frame checksum mismatch", sizeof(result.error));
+    return result;
+  }
+  result.length = expected;
+  return result;
+}
 
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-License-Key", licenseKey);
-
-  StaticJsonDocument<200> doc;
-  doc["batteryPercent"] = batteryPercent;
-  doc["signalStrength"] = signalStrength;
-
+bool ApiClient::heartbeat(const char* baseUrl, const char* deviceId, const char* token,
+                          const char* appliedHash, int rssi) {
+  HTTPClient http;
+  if (!begin(http, baseUrl, deviceId, token, "/heartbeat")) return false;
+  JsonDocument doc;
+  doc["firmware_version"] = FIRMWARE_VERSION;
+  doc["rssi"] = constrain(rssi, -150, 0);
+  // Only acknowledge after the panel driver confirms refresh completion.
+  if (feed::validHash(appliedHash)) doc["last_applied_hash"] = appliedHash;
   String payload;
   serializeJson(doc, payload);
-
-  int httpCode = http.POST(payload);
-  http.end();
-
-  bool success = (httpCode == 200 || httpCode == 204);
-  LOG_A("Status report: HTTP %d - %s", httpCode, success ? "success" : "failed");
-
-  return success;
-}
-
-bool ApiClient::checkForUpdates(const char* userId, const char* licenseKey,
-                               const char* currentVersion, char* latestVersion,
-                               char* downloadUrl, char* checksum) {
-  char url[512];
-  snprintf(url, sizeof(url), "%s/api/devices/%s/firmware/latest?currentVersion=%s",
-           _baseUrl, userId, currentVersion);
-
-  LOG_A("Checking for firmware updates at: %s", url);
-
-  http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
-  http.setTimeout(API_REQUEST_TIMEOUT_MS);
-
-  if (!http.begin(client, url)) {
-    LOG_A("Connection failed");
-    return false;
-  }
-
-  http.addHeader("X-License-Key", licenseKey);
-
-  int httpCode = http.GET();
-
-  if (httpCode == 204) {
-    LOG_A("No firmware update available");
-    http.end();
-    return false;
-  }
-
-  if (httpCode != 200) {
-    LOG_A("Update check failed: HTTP %d", httpCode);
-    http.end();
-    return false;
-  }
-
-  String payload = http.getString();
-  http.end();
-
-  StaticJsonDocument<512> doc;
-  DeserializationError error = deserializeJson(doc, payload);
-
-  if (error) {
-    LOG_A("Failed to parse update response");
-    return false;
-  }
-
-  if (doc.containsKey("version") && doc.containsKey("url")) {
-    strlcpy(latestVersion, doc["version"], 32);
-    strlcpy(downloadUrl,   doc["url"],     256);
-    strlcpy(checksum,      doc["checksum"], 256);
-    LOG_A("Update available: %s", latestVersion);
-    return true;
-  }
-
-  LOG_A("No update available");
-  return false;
-}
-
-bool ApiClient::getPreferences(const char* userId, const char* licenseKey,
-                              uint32_t* refreshMinutes, int* displayMode) {
-  char url[512];
-  snprintf(url, sizeof(url), "%s/api/preferences", _baseUrl);
-
-  LOG_A("Fetching preferences from: %s", url);
-
-  http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
-  http.setTimeout(API_REQUEST_TIMEOUT_MS);
-
-  if (!http.begin(client, url)) {
-    LOG_A("Connection failed");
-    return false;
-  }
-
-  http.addHeader("X-License-Key", licenseKey);
-
-  int httpCode = http.GET();
-
-  if (httpCode != 200) {
-    LOG_A("Preferences fetch failed: HTTP %d", httpCode);
-    http.end();
-    return false;
-  }
-
-  String payload = http.getString();
-  http.end();
-
-  return parsePreferencesResponse(payload.c_str(), refreshMinutes, displayMode);
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-bool ApiClient::fetchImageEndpoint(const char* userId, const char* licenseKey,
-                                   ImageDisplayResult& result) {
-  result.success = false;
-  result.imageUrl[0] = '\0';
-  result.refreshSeconds = 1800;
-  result.errorMessage[0] = '\0';
-
-  char url[512];
-  snprintf(url, sizeof(url), "%s/api/image/%s", _baseUrl, userId);
-
-  LOG_A("Fetching image endpoint: %s", url);
-
-  http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
-  http.setTimeout(API_REQUEST_TIMEOUT_MS);
-
-  if (!http.begin(client, url)) {
-    snprintf(result.errorMessage, sizeof(result.errorMessage), "Failed to connect");
-    return false;
-  }
-
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-License-Key", licenseKey);
-
-  int httpCode = http.GET();
-  LOG_A("Image endpoint HTTP %d", httpCode);
-
-  if (httpCode != 200) {
-    snprintf(result.errorMessage, sizeof(result.errorMessage), "HTTP error %d", httpCode);
-    http.end();
-    return false;
-  }
-
-  String payload = http.getString();
+  int status = http.POST(payload);
   http.end();
-
-  StaticJsonDocument<512> doc;
-  DeserializationError err = deserializeJson(doc, payload);
-  if (err) {
-    snprintf(result.errorMessage, sizeof(result.errorMessage), "JSON parse error");
-    return false;
-  }
-
-  if (!doc.containsKey("image_url")) {
-    snprintf(result.errorMessage, sizeof(result.errorMessage), "Missing image_url");
-    return false;
-  }
-
-  strlcpy(result.imageUrl, doc["image_url"] | "", sizeof(result.imageUrl));
-  result.refreshSeconds = doc["refresh_rate"] | 1800;
-  result.success = true;
-
-  LOG_A("Image URL: %s (refresh %us)", result.imageUrl, result.refreshSeconds);
-  return true;
-}
-
-int ApiClient::downloadBmp(const char* url, uint8_t* buffer, size_t bufferSize) {
-  LOG_A("Downloading BMP from: %s", url);
-
-  http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
-  http.setTimeout(API_REQUEST_TIMEOUT_MS);
-
-  if (!http.begin(client, url)) {
-    LOG_A("BMP download: connect failed");
-    return -1;
-  }
-
-  int httpCode = http.GET();
-  LOG_A("BMP download HTTP %d", httpCode);
-
-  if (httpCode != 200) {
-    http.end();
-    return -1;
-  }
-
-  int contentLen = http.getSize();
-  if (contentLen > 0 && (size_t)contentLen > bufferSize) {
-    LOG_A("BMP too large: %d > %u", contentLen, (unsigned)bufferSize);
-    http.end();
-    return -1;
-  }
-
-  WiFiClient* stream = http.getStreamPtr();
-  size_t total = 0;
-  unsigned long deadline = millis() + API_REQUEST_TIMEOUT_MS;
-
-  while ((contentLen < 0 || total < (size_t)contentLen) && millis() < deadline) {
-    if (stream->available()) {
-      int c = stream->read(buffer + total, bufferSize - total);
-      if (c > 0) total += c;
-    } else {
-      delay(1);
-    }
-    if (total >= bufferSize) break;
-  }
-
-  http.end();
-
-  if (total < 62) { // too small to be a valid BMP
-    LOG_A("BMP download incomplete: %u bytes", (unsigned)total);
-    return -1;
-  }
-
-  LOG_A("BMP downloaded: %u bytes", (unsigned)total);
-  return (int)total;
-}
-
-bool ApiClient::parseDisplayDataResponse(const char* jsonResponse, DisplayData& data) {
-  StaticJsonDocument<1024> doc;
-  DeserializationError error = deserializeJson(doc, jsonResponse);
-
-  if (error) {
-    LOG_A("JSON parse error: %s", error.c_str());
-    return false;
-  }
-
-  if (doc.containsKey("energy")) {
-    data.energy.price    = doc["energy"]["price"]    | 0.0;
-    data.energy.unit     = "DKK/kWh";
-    data.energy.priceMin = doc["energy"]["priceMin"] | 0.0;
-    data.energy.priceMax = doc["energy"]["priceMax"] | 0.0;
-  }
-
-  if (doc.containsKey("weather")) {
-    data.weather.temp        = doc["weather"]["temp"]      | 0.0;
-    data.weather.feelsLike   = doc["weather"]["feelsLike"] | 0.0;
-    data.weather.description = "Clear";
-    data.weather.humidity    = doc["weather"]["humidity"]  | 0.0;
-    data.weather.windSpeed   = doc["weather"]["windSpeed"] | 0.0;
-  }
-
-  if (doc.containsKey("news")) {
-    data.news.headline = "No news available";
-    data.news.source   = "NewsAPI";
-  }
-
-  data.status.batteryPercent = doc["status"]["batteryPercent"] | 100;
-  data.status.signalStrength = doc["status"]["signalStrength"] | -70;
-  data.status.lastUpdate     = 0;
-
-  return true;
-}
-
-bool ApiClient::parsePreferencesResponse(const char* jsonResponse, uint32_t* refreshMinutes, int* displayMode) {
-  StaticJsonDocument<256> doc;
-  DeserializationError error = deserializeJson(doc, jsonResponse);
-
-  if (error) {
-    LOG_A("Preferences parse error: %s", error.c_str());
-    return false;
-  }
-
-  if (doc.containsKey("refreshMinutes")) {
-    *refreshMinutes = doc["refreshMinutes"] | REFRESH_MINUTES;
-  }
-
-  if (doc.containsKey("displayMode")) {
-    *displayMode = doc["displayMode"] | 0;
-  }
-
-  return true;
+  return status == 200;
 }

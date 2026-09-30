@@ -1,117 +1,79 @@
-
-interface ResolvedRelease {
-  version: string;
-  firmwareUrl: string;
-  bootloaderUrl: string | null;
-  partitionsUrl: string | null;
-  firmwareElecrowUrl: string | null;
-  bootloaderElecrowUrl: string | null;
-  partitionsElecrowUrl: string | null;
-  fetchedAt: number;
-}
-
-let cache: ResolvedRelease | null = null;
-const TTL = 5 * 60 * 1000;
+export const FIRMWARE_ASSETS = [
+  'firmware-factory.bin', 'firmware-elecrow-factory.bin', 'firmware-elecrow-v12-factory.bin',
+  'firmware.bin', 'firmware-elecrow.bin', 'firmware-elecrow-v12.bin',
+  'bootloader.bin', 'partitions.bin', 'bootloader-elecrow.bin', 'partitions-elecrow.bin',
+  'bootloader-elecrow-v12.bin', 'partitions-elecrow-v12.bin',
+] as const;
+export type FirmwareAsset = typeof FIRMWARE_ASSETS[number];
 
 export interface FirmwareRelease {
+  tag: string;
   version: string;
-  firmwareUrl: string;
-  bootloaderUrl: string | null;
-  partitionsUrl: string | null;
-  firmwareElecrowUrl: string | null;
-  bootloaderElecrowUrl: string | null;
-  partitionsElecrowUrl: string | null;
+  assets: Partial<Record<FirmwareAsset, string>>;
 }
 
-export async function fetchLatestFirmwareRelease(): Promise<FirmwareRelease | null> {
+interface GithubRelease {
+  draft: boolean;
+  tag_name: string;
+  assets: Array<{ name: string; browser_download_url: string }>;
+}
+
+const cache = new Map<string, { release: FirmwareRelease; fetchedAt: number }>();
+const TTL = 5 * 60 * 1000;
+
+function resolveRelease(release: GithubRelease): FirmwareRelease | null {
+  if (release.draft || !release.tag_name || !Array.isArray(release.assets)) return null;
+  const assets: FirmwareRelease['assets'] = {};
+  for (const name of FIRMWARE_ASSETS) {
+    const asset = release.assets.find(value => value.name === name);
+    if (asset && /^https:\/\//.test(asset.browser_download_url)) assets[name] = asset.browser_download_url;
+  }
+  // App-only images cannot boot an erased device. Ignore incomplete uploads.
+  if (!assets['firmware-factory.bin'] || !assets['firmware-elecrow-factory.bin'] || !assets['firmware-elecrow-v12-factory.bin']) return null;
+  return { tag: release.tag_name, version: release.tag_name.replace(/^v/, ''), assets };
+}
+
+/** Dev prereleases are intentional. Choose the newest complete build. */
+export async function fetchLatestFirmwareRelease(tag?: string): Promise<FirmwareRelease | null> {
   const repo = process.env.GITHUB_REPO?.trim() || 'scottlinddk/ESP32-e-ink-system';
-  if (!repo) return null;
-
-  const now = Date.now();
-  if (cache && now - cache.fetchedAt < TTL) {
-    return {
-      version: cache.version,
-      firmwareUrl: cache.firmwareUrl,
-      bootloaderUrl: cache.bootloaderUrl,
-      partitionsUrl: cache.partitionsUrl,
-      firmwareElecrowUrl: cache.firmwareElecrowUrl,
-      bootloaderElecrowUrl: cache.bootloaderElecrowUrl,
-      partitionsElecrowUrl: cache.partitionsElecrowUrl,
-    };
-  }
-
-  const headers: Record<string, string> = { 'User-Agent': 'esp32-e-ink-backend' };
+  const key = `${repo}:${tag ?? 'latest'}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.fetchedAt < TTL) return hit.release;
+  const headers: Record<string, string> = { 'User-Agent': 'esp32-e-ink-backend', Accept: 'application/vnd.github+json' };
   const token = process.env.GITHUB_TOKEN?.trim();
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
-  const res = await fetch(`https://api.github.com/repos/${repo}/releases`, { headers });
-  if (!res.ok) return null;
-
-  const releases = (await res.json()) as Array<{
-    draft: boolean;
-    tag_name: string;
-    assets: Array<{ name: string; browser_download_url: string }>;
-  }>;
-
-  const release = releases.find(r => !r.draft);
-  if (!release) return null;
-
-  const asset = release.assets.find(a => a.name === 'firmware.bin');
-  if (!asset) return null;
-
-  cache = {
-    version: release.tag_name.replace(/^v/, ''),
-    firmwareUrl: asset.browser_download_url,
-    bootloaderUrl: release.assets.find(a => a.name === 'bootloader.bin')?.browser_download_url ?? null,
-    partitionsUrl: release.assets.find(a => a.name === 'partitions.bin')?.browser_download_url ?? null,
-    firmwareElecrowUrl: release.assets.find(a => a.name === 'firmware-elecrow.bin')?.browser_download_url ?? null,
-    bootloaderElecrowUrl: release.assets.find(a => a.name === 'bootloader-elecrow.bin')?.browser_download_url ?? null,
-    partitionsElecrowUrl: release.assets.find(a => a.name === 'partitions-elecrow.bin')?.browser_download_url ?? null,
-    fetchedAt: now,
-  };
-  return {
-    version: cache.version,
-    firmwareUrl: cache.firmwareUrl,
-    bootloaderUrl: cache.bootloaderUrl,
-    partitionsUrl: cache.partitionsUrl,
-    firmwareElecrowUrl: cache.firmwareElecrowUrl,
-    bootloaderElecrowUrl: cache.bootloaderElecrowUrl,
-    partitionsElecrowUrl: cache.partitionsElecrowUrl,
-  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const endpoint = tag ? `releases/tags/${encodeURIComponent(tag)}` : 'releases?per_page=30';
+  const response = await fetch(`https://api.github.com/repos/${repo}/${endpoint}`, {
+    headers, signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) return null;
+  const payload = await response.json();
+  const releases: GithubRelease[] = tag ? [payload] : Array.isArray(payload) ? payload : [];
+  const release = releases.map(resolveRelease).find(value => value !== null) ?? null;
+  if (release) {
+    if (cache.size >= 64) cache.delete(cache.keys().next().value!);
+    cache.set(key, { release, fetchedAt: Date.now() });
+  }
+  return release;
 }
 
-/**
- * Build an esp-web-tools manifest from a GitHub release.
- *
- * When proxyBase is provided (e.g. "https://example.com/api") binary paths
- * are rewritten to same-origin proxy endpoints instead of direct GitHub CDN
- * URLs.  This eliminates cross-origin fetch issues in the browser when
- * esp-web-tools downloads the firmware parts.
- *
- * Set the BACKEND_PUBLIC_BASE_URL environment variable in production so the
- * backend knows its own public-facing base URL (including any path prefix
- * added by a reverse proxy, e.g. "/api").
- */
-export function buildManifestFromRelease(release: FirmwareRelease, proxyBase?: string): object {
-  const bin = (ghUrl: string, name: string) =>
-    proxyBase ? `${proxyBase}/firmware/${name}` : ghUrl;
-
-  const esp32Parts: Array<{ path: string; offset: number }> = [];
-  if (release.bootloaderUrl) esp32Parts.push({ path: bin(release.bootloaderUrl, 'bootloader.bin'), offset: 4096 });
-  if (release.partitionsUrl) esp32Parts.push({ path: bin(release.partitionsUrl, 'partitions.bin'), offset: 32768 });
-  esp32Parts.push({ path: bin(release.firmwareUrl, 'firmware.bin'), offset: 65536 });
-
-  const builds: Array<{ chipFamily: string; parts: Array<{ path: string; offset: number }> }> = [
-    { chipFamily: 'ESP32', parts: esp32Parts },
-  ];
-
-  if (release.firmwareElecrowUrl) {
-    const esp32s3Parts: Array<{ path: string; offset: number }> = [];
-    if (release.bootloaderElecrowUrl) esp32s3Parts.push({ path: bin(release.bootloaderElecrowUrl, 'bootloader-elecrow.bin'), offset: 0 });
-    if (release.partitionsElecrowUrl) esp32s3Parts.push({ path: bin(release.partitionsElecrowUrl, 'partitions-elecrow.bin'), offset: 32768 });
-    esp32s3Parts.push({ path: bin(release.firmwareElecrowUrl, 'firmware-elecrow.bin'), offset: 65536 });
-    builds.push({ chipFamily: 'ESP32-S3', parts: esp32s3Parts });
-  }
-
-  return { name: `ESP32 Display v${release.version}`, new_install_prompt_erase: true, builds };
+/** Paths are relative to /firmware/ unless a public backend base is configured. */
+export function buildManifestFromRelease(release: FirmwareRelease, proxyBase?: string, panel: 'original' | 'v12' = 'original') {
+  const prefix = proxyBase ? `${proxyBase.replace(/\/$/, '')}/firmware/` : '';
+  const part = (name: FirmwareAsset) => ({
+    path: `${prefix}releases/${encodeURIComponent(release.tag)}/${name}`,
+    offset: 0,
+  });
+  return {
+    name: 'ESP32 E-Ink Display',
+    version: release.version,
+    new_install_prompt_erase: true,
+    new_install_improv_wait_time: 0,
+    builds: panel === 'v12' ? [
+      { chipFamily: 'ESP32-S3', parts: [part('firmware-elecrow-v12-factory.bin')] },
+    ] : [
+      { chipFamily: 'ESP32', parts: [part('firmware-factory.bin')] },
+      { chipFamily: 'ESP32-S3', parts: [part('firmware-elecrow-factory.bin')] },
+    ],
+  };
 }

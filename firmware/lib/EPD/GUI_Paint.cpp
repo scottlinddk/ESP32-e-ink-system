@@ -24,6 +24,7 @@ void Paint_NewImage(uint8_t *image, UWORD width, UWORD height,
 }
 
 void Paint_Clear(UWORD color) {
+    if (!s_canvas.image) return;
     uint8_t fill = (color == BLACK) ? 0x00 : 0xFF;
     memset(s_canvas.image, fill, s_canvas.widthBytes * s_canvas.height);
 }
@@ -36,7 +37,7 @@ void Paint_Clear(UWORD color) {
 // declared in GUI_Paint.h.
 
 void Paint_DrawPixel(UWORD x, UWORD y, UWORD color) {
-    if (x >= s_canvas.width || y >= s_canvas.height) return;
+    if (!s_canvas.image || x >= s_canvas.width || y >= s_canvas.height) return;
 
     UWORD byteIdx = y * s_canvas.widthBytes + x / 8;
     UBYTE bitMask = 0x80 >> (x % 8);
