@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile and run protocol/display tests without a board. Requires C++17 or Zig."""
+"""Compile and run protocol/display/Wi-Fi tests without a board. Requires C++17 or Zig."""
 import argparse
 import os
 from pathlib import Path
@@ -24,13 +24,15 @@ def main():
     cases = [
         ("bitmap", "bitmap_test.cpp", [], []),
         ("feed-validation", "feed_validation_test.cpp", [], []),
+        ("wifi-manager", "wifi_manager_test.cpp", [firmware / "src/wifi_manager.cpp"],
+         ["-I" + str(firmware / "tests/wifi_stubs")]),
         ("ssd1680", "epd_test.cpp", driver, []),
         ("jd79661", "epd_test.cpp", driver, ["-DELECROW_PANEL_JD79661"]),
     ]
     with tempfile.TemporaryDirectory(prefix="eink-host-tests-") as tmp:
         for name, test, sources, flags in cases:
             output = Path(tmp) / (name + (".exe" if os.name == "nt" else ""))
-            subprocess.run(compiler + common + flags + [str(firmware / "tests" / test)]
+            subprocess.run(compiler + flags + common + [str(firmware / "tests" / test)]
                            + list(map(str, sources)) + ["-o", str(output)], check=True)
             subprocess.run([str(output)], check=True)
             print(f"PASS: {name}", flush=True)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <WiFi.h>
+#include <atomic>
 
 class WiFiManager {
 public:
@@ -27,10 +28,21 @@ public:
   // Get human-readable WiFi status
   const char* getStatusString();
 
+  // Stable, non-secret explanation for the local setup portal after failure.
+  const char* getConnectionError() const;
+
 private:
   const char* _ssid;
   const char* _password;
+  const char* _connectionError;
+  bool _initialized;
+
+  // There is one station interface. Its callback runs on the Arduino event task;
+  // share only atomic values, never a mutable message buffer, with the main task.
+  static std::atomic<uint32_t> _disconnectState;
+  static wifi_event_id_t _eventId;
+  static void recordDisconnectReason(uint32_t reason);
   
   // WiFi event callbacks
-  static void eventCallback(WiFiEvent_t event);
+  static void eventCallback(WiFiEvent_t event, WiFiEventInfo_t info);
 };

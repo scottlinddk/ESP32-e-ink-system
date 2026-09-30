@@ -16,10 +16,13 @@ The bundled Elecrow driver is in `lib/EPD`; no vendor library download is requir
 
 1. Register a device in the web app and create its **Automatic updates** device token. Keep the device UUID and `einkd_...` token available.
 2. Install the matching factory image. After installation, press RESET if the device does not restart.
-3. Join `ESP32-Display-XXXXXX` and open `http://192.168.4.1` if the setup page does not appear.
-4. Enter your 2.4 GHz Wi-Fi, the HTTPS backend base URL, device UUID, and device token. Save and return to your normal Wi-Fi.
+3. Join `ESP32-Display-XXXXXX` and stay connected despite the no-internet warning. Open `http://192.168.4.1` if the setup page does not appear.
+4. Enter your 2.4 GHz Wi-Fi, the HTTPS backend base URL, device UUID, and device token. Use **Show Wi-Fi password** to check your entry. Save and return to your normal Wi-Fi.
+5. Saving only confirms the settings were stored. Check **Devices → Automatic updates → Last report** to confirm the device reaches the server. If it does not, open the USB installer's **Logs & Console** at 115200 baud and reset the display. If setup Wi-Fi returns, reconnect to read the connection error and correct the settings.
 
 The token is entered during setup and stored on the device; release binaries contain no Wi-Fi or account credentials. See [device delivery](../docs/DEVICE_DELIVERY.md) for the feed and token lifecycle.
+
+Reinstalling a complete factory image replaces the saved settings, even if the installer's erase option is off. Keep your device UUID and token available and repeat setup after flashing.
 
 ## Build and debug
 
@@ -38,6 +41,8 @@ For V1.2, substitute `elecrow_213_v12`; for Waveshare, `esp32dev`. PlatformIO di
 A stock build reads `config.h.example`. To change local defaults, copy it to `firmware/config.h`, which is ignored by Git. `src/config.h` resolves the local override or the example consistently. Runtime Wi-Fi and device credentials belong in the setup portal.
 
 The CrowPanel has 8 MB QSPI flash and 8 MB OPI PSRAM. Its USB-C socket is connected through a CH340 UART bridge; serial logs must use UART0 (`ARDUINO_USB_CDC_ON_BOOT=0`). GPIO7 powers the display and must be high while updating. GPIO2 is the menu/setup button.
+
+The pinned ESP-IDF 4.4.7 needs an explicit `WPA3_SAE_PWE_BOTH` station setting to connect to WPA3 access points requiring H2E. The Wi-Fi manager applies [Espressif advisory AR2026-003, issue 4.1](https://documentation.espressif.com/AR2026-003_OTA_Bug_Advisory_for_WPA3-SAE_H2E_Configuration_Issues_in_ESP-IDF_EN.html) before connecting, preserving the configured authentication threshold and PMF policy. An `AUTH_FAIL` log still requires checking the network password and access point settings; it does not establish a single cause.
 
 | Signal | CrowPanel GPIO | Waveshare / ESP32 GPIO |
 |---|---:|---:|

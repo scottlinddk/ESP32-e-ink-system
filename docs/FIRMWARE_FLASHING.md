@@ -5,11 +5,11 @@
 1. Use desktop Chrome or Edge. Open the app's **Flash** page over HTTPS (or localhost for development).
 2. Select your board. **CrowPanel original / SSD1680** and **CrowPanel V1.2 / JD79661** use different drivers despite both containing ESP32-S3 chips. Check the board's revision label and Elecrow purchase documentation. If unclear, check the vendor's source for that revision before installing.
 3. Connect the display directly using a USB data cable. Close Arduino Serial Monitor, PlatformIO monitor, and other browser tabs using the serial port.
-4. Click **Install firmware**, select the board's USB serial port, and follow the installer. An empty board needs the complete factory image. Erasing also removes saved device configuration, so keep the device token available.
+4. Click **Install firmware**, select the board's USB serial port, and follow the installer. These complete factory images overwrite saved Wi-Fi and device settings even if erase is not selected. Keep the device UUID and token available and repeat setup after flashing.
 5. Wait for installation to finish. Press RESET if the board remains in download mode.
 6. Join `ESP32-Display-XXXXXX`, then open `http://192.168.4.1` if the captive portal does not appear. Keep connected even if the computer reports no internet access.
-7. Enter the 2.4 GHz Wi-Fi credentials, HTTPS backend base URL, registered device UUID, and the `einkd_...` token created in the dashboard under **Devices → Automatic updates**. Save, then return to normal Wi-Fi.
-8. Confirm that the panel shows your saved layout and the dashboard receives a device acknowledgement. Review 115200-baud serial logs if either fails.
+7. Enter the 2.4 GHz Wi-Fi credentials, HTTPS backend base URL, registered device UUID, and the `einkd_...` token created in the dashboard under **Devices → Automatic updates**. Use **Show Wi-Fi password** to check the entry. Save, then return to normal Wi-Fi. The saved page confirms storage, not a successful connection, and does not update after restart.
+8. Confirm that the panel shows your saved layout and **Devices → Automatic updates → Last report** updates. If either fails, open the USB installer's **Logs & Console** at 115200 baud and reset the display. If setup Wi-Fi returns, reconnect to read the connection error and correct the settings.
 
 A successful USB transfer only verifies that flash memory was written. A working setup also needs the correct panel driver, network, TLS time synchronization, device token, and server-rendered 250 × 122 monochrome BMP.
 
@@ -30,7 +30,7 @@ For a CrowPanel, hold **BOOT**, press and release **RESET**, release BOOT, and r
 | Upload succeeds but screen does not refresh | Confirm original SSD1680 versus V1.2 JD79661, GPIO7 display power, and serial BUSY-timeout errors. |
 | Serial monitor is silent | Press RESET and use 115200 baud; CrowPanel uses the external UART bridge, with USB CDC On Boot disabled. |
 | No setup hotspot | Check serial output; previously saved settings may already be in use. Use the firmware's setup reset button or reinstall with erase. |
-| Wi-Fi cannot connect | Use 2.4 GHz Wi-Fi and re-enter the password. |
+| Wi-Fi cannot connect | Reconnect to setup Wi-Fi and read the failure banner. Use 2.4 GHz Wi-Fi and check the password with Show Wi-Fi password. Authentication rejection can also indicate incompatible access point security settings; inspect the serial reason before changing the network. |
 | TLS/time error | Permit NTP (UDP 123); verify the API hostname and certificate chain. |
 | HTTP 401/403/404 | Verify backend URL, device UUID, and device token, and ensure the device still exists. |
 
