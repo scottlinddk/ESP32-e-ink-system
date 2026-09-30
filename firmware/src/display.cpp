@@ -30,7 +30,13 @@ DisplayManager::DisplayManager() {}
 
 void DisplayManager::begin() {
   const bool ready = EPD_7IN5_Init();
-  LOG_D("Elecrow EPD %s: %d x %d", ready ? "initialized" : "unavailable", EPD_W, EPD_H);
+#ifdef ELECROW_PANEL_JD79661
+  const char* controller = "JD79661 (V1.2)";
+#else
+  const char* controller = "SSD1680 (original)";
+#endif
+  LOG_D("Elecrow %s driver %s: %d x %d; panel refresh not yet verified",
+    controller, ready ? "configured" : "unavailable", EPD_W, EPD_H);
 }
 
 void DisplayManager::clear() {
@@ -75,8 +81,8 @@ void DisplayManager::showLoading(const char* message) {
   if (message) {
     drawCenteredText(55, message, &Font12);
   }
-  elecrowFlush();
-  LOG_D("Loading screen: %s", message ? message : "");
+  const bool refreshed = elecrowFlush();
+  LOG_D("Loading screen %s: %s", refreshed ? "updated" : "refresh failed", message ? message : "");
 }
 
 void DisplayManager::showError(const char* title, const char* message) {
@@ -85,8 +91,8 @@ void DisplayManager::showError(const char* title, const char* message) {
   if (message) {
     drawCenteredText(50, message, &Font12);
   }
-  elecrowFlush();
-  LOG_D("Error: %s - %s", title, message ? message : "");
+  const bool refreshed = elecrowFlush();
+  LOG_D("Error screen %s: %s - %s", refreshed ? "updated" : "refresh failed", title, message ? message : "");
 }
 
 void DisplayManager::showData(const DisplayData& data) {

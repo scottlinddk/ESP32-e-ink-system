@@ -59,7 +59,7 @@ export function FlashPage() {
         <p className="mt-3 text-sm text-fg2">Both CrowPanel revisions use ESP32-S3. USB detection cannot distinguish their display controllers. Check the product revision before installing.</p>
         {panel && !manifestUrl && !error && <p role="status" className="mt-4">Checking the firmware release…</p>}
         {error && <div role="alert" className="mt-4"><p>{error}</p><button className="underline mt-2" onClick={() => setAttempt(value => value + 1)}>Retry</button></div>}
-        {manifestUrl && secure && supported && <div className="mt-4"><p className="text-sm mb-3">Firmware: {version}. For a first installation or recovery, choose erase when prompted. Erasing removes saved Wi-Fi and device credentials.</p><esp-web-install-button key={panel} manifest={manifestUrl}><button slot="activate" className="bg-accent text-fg-on px-5 py-3 rounded-sm">Install firmware</button></esp-web-install-button></div>}
+        {manifestUrl && secure && supported && <div className="mt-4"><p className="text-sm mb-3">Firmware: {version}. For a first installation or recovery, choose erase when prompted. These factory images replace saved Wi-Fi and device credentials even without erase. Keep your device UUID and token ready and repeat setup after installing.</p><esp-web-install-button key={panel} manifest={manifestUrl}><button slot="activate" className="bg-accent text-fg-on px-5 py-3 rounded-sm">Install firmware</button></esp-web-install-button></div>}
       </section>
 
       <section className="border border-divider rounded-md p-5 mb-6">
@@ -72,11 +72,12 @@ export function FlashPage() {
         <h2 className="text-h5 mb-3">3. Configure Wi-Fi</h2>
         <ol className="list-decimal pl-5 space-y-2">
           <li>After installation, press RESET if the board remains in download mode.</li>
-          <li>Join the display Wi-Fi network named <code>ESP32-Display-XXXXXX</code>.</li>
+          <li>Join the display Wi-Fi network named <code>ESP32-Display-XXXXXX</code>. Stay connected when your computer or phone warns that it has no internet.</li>
           <li>Open <a className="underline" href="http://192.168.4.1" target="_blank" rel="noreferrer">http://192.168.4.1</a> if the setup page does not open automatically.</li>
-          <li>Enter your 2.4 GHz Wi-Fi details and the API URL, device UUID, and device token from Automatic updates. Save to restart.</li>
-          <li>Reconnect your computer to your normal network. Save your dashboard layout; the display fetches updates over Wi-Fi.</li>
+          <li>Enter your 2.4 GHz Wi-Fi details and the API URL, device UUID, and device token from Automatic updates. Use Show Wi-Fi password to check your entry, then save to restart.</li>
+          <li>Reconnect your computer to your normal network. Saving confirms that settings were stored; it does not verify the connection. Save your dashboard layout and check <strong>Last report</strong> under Devices → Automatic updates.</li>
         </ol>
+        <p className="mt-3 text-sm text-fg2">If no report appears, open the USB installer's <strong>Logs &amp; Console</strong> at 115200 baud and reset the board. If the setup network returns, join it again to read the connection error. Authentication failures can mean an incorrect password or incompatible access point security settings.</p>
         <p className="mt-3 text-sm text-fg2">This firmware uses the Wi-Fi setup portal. Bluetooth configuration and “Push to Display” apply only to separately installed OpenDisplay firmware.</p>
       </section>
 

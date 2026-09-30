@@ -16,12 +16,12 @@ class ProvisioningManager {
 public:
   ProvisioningManager();
   bool loadCredentials(DeviceCredentials& credentials);
-  void startProvisioningAP(uint32_t timeoutSeconds = 0);
+  void startProvisioningAP(uint32_t timeoutSeconds = 0, const char* failureReason = nullptr);
 private:
   Preferences prefs;
   DNSServer dns;
   AsyncWebServer server;
   volatile bool done;
-  String formPage();
+  String formPage(const char* failureReason);
   bool saveCredentials(const DeviceCredentials& credentials);
 };
