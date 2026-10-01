@@ -43,7 +43,7 @@ const options: swaggerJsdoc.Options = {
             device_id: { type: 'string', example: 'ESP-A1B2C3' },
             device_name: { type: 'string', example: 'Living Room Display' },
             license_key: { type: 'string', example: 'DSPL-A1B2-C3D4-E5F6' },
-            firmware_version: { type: 'string', example: '1.0.0' },
+            firmware_version: { type: 'string', nullable: true, example: '1.0.0' },
             last_seen_at: { type: 'string', format: 'date-time', nullable: true },
           },
         },

@@ -79,7 +79,17 @@ Heartbeat example:
 }
 ```
 
-`firmware_version` is required (1–64 safe version characters). Optional battery is 0–100 percent; RSSI is an integer from -150 to 0 dBm; the applied hash must be a lowercase SHA-256 hex digest. Unknown fields are rejected. The example hash is a placeholder. Omit `last_applied_hash` until the driver confirms application. Reports describe what the client said, not independently verified physical state. A frame download does not update `lastSeenAt` or acknowledge an image. The reference bridge reports its own `display-bridge/1.0` version and cannot measure panel battery/RSSI.
+`firmware_version` is required (1–64 safe version characters). Optional battery is 0–100 percent; RSSI is an integer from -150 to 0 dBm. Unknown fields are rejected. The example hash is a placeholder.
+
+`last_applied_hash` has three meanings:
+
+- A lowercase SHA-256 hex digest reports the image that the driver confirmed was applied.
+- Explicit `null` reports an unknown current panel image and clears any previously stored applied hash. Send this after a failed or interrupted refresh that invalidates an earlier confirmation.
+- Omitting the field leaves the stored applied hash unchanged, for compatibility with existing clients. Omission does not clear an earlier confirmation; a client without any confirmed image can send `null` explicitly.
+
+For example, `{ "firmware_version": "1.1.0", "last_applied_hash": null }` records a heartbeat without claiming that the previous image is still applied. A later confirmed refresh can report a new digest. Deploy this nullable-hash API contract before updating clients to send explicit `null`.
+
+Reports describe what the client said, not independently verified physical state. A frame download does not update `lastSeenAt` or acknowledge an image. The reference bridge reports its own `display-bridge/1.0` version and cannot measure panel battery/RSSI.
 
 ## Verification
 

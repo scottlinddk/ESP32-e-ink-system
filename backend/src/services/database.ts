@@ -144,12 +144,29 @@ export async function getDevices(userId: string): Promise<Device[]> {
   const db = getSupabaseClient();
   const { data, error } = await db
     .from('devices')
-    .select('*')
+    // The one-to-one delivery relation supplies telemetry in the same query.
+    // Never select its credential hash or expose the relation in the API response.
+    .select('*, device_delivery(owner_id, last_seen_at, firmware_version)')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
 
   if (error) throw error;
-  return (data ?? []) as Device[];
+  return (data ?? []).map((row) => {
+    const { device_delivery, ...device } = row;
+    // Reassignment must not carry a previous owner's delivery reports across.
+    const report = device_delivery?.owner_id === userId ? device_delivery : null;
+    const legacySeen = device.last_seen_at ? Date.parse(device.last_seen_at) : NaN;
+    const reportSeen = report?.last_seen_at ? Date.parse(report.last_seen_at) : NaN;
+    const hasLegacyReport = Number.isFinite(legacySeen);
+    const useDelivery = Number.isFinite(reportSeen) && (!hasLegacyReport || reportSeen >= legacySeen);
+    return {
+      ...device,
+      last_seen_at: useDelivery ? report.last_seen_at : hasLegacyReport ? device.last_seen_at : null,
+      // Old registrations defaulted to 1.0.0 before any device had connected.
+      // Keep real legacy reports, but never present that default as telemetry.
+      firmware_version: useDelivery ? report.firmware_version : hasLegacyReport ? device.firmware_version : null,
+    } as Device;
+  });
 }
 
 export async function createDevice(
@@ -166,7 +183,7 @@ export async function createDevice(
       device_id: deviceId,
       device_name: deviceName,
       ble_name: bleName,
-      firmware_version: '1.0.0',
+      firmware_version: null,
     })
     .select()
     .single();

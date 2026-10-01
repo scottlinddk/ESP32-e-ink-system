@@ -25,7 +25,11 @@ function DeliverySettings({ deviceId }: { deviceId: string }) {
       if (revoke) { await revokeDeviceDeliveryToken(await token(), deviceId); return ''; }
       return (await createDeviceDeliveryToken(await token(), deviceId)).token;
     },
-    onSuccess: (created) => { setSecret(created); void queryClient.invalidateQueries({ queryKey }); },
+    onSuccess: (created) => {
+      setSecret(created);
+      void queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey: ['devices', user?.id] });
+    },
     onError: (err: Error) => setError(err.message),
   });
   const report = status.data;
@@ -40,7 +44,10 @@ function DeliverySettings({ deviceId }: { deviceId: string }) {
         <div className="flex gap-2 flex-wrap">
           <Button size="sm" loading={change.isPending} disabled={!isSignedIn} onClick={() => change.mutate(false)}>{report?.configured ? (da ? 'Erstat token' : 'Replace token') : (da ? 'Opret token' : 'Create token')}</Button>
           {report?.configured && <Button size="sm" variant="danger-outlined" disabled={change.isPending} onClick={() => change.mutate(true)}>{da ? 'Tilbagekald token' : 'Revoke token'}</Button>}
-          <Button size="sm" variant="text" onClick={() => status.refetch()}>{da ? 'Opdatér status' : 'Refresh status'}</Button>
+          <Button size="sm" variant="text" onClick={() => {
+            void status.refetch();
+            void queryClient.invalidateQueries({ queryKey: ['devices', user?.id] });
+          }}>{da ? 'Opdatér status' : 'Refresh status'}</Button>
         </div>
         {secret && <div className="grid gap-2">
           <p className="m-0">{da ? 'Kopiér nu. Tokenet vises kun denne gang. Indsæt det som Device token på displayets opsætningsside.' : 'Copy now. This token is shown only once. Paste it into Device token on the display setup page.'}</p>

@@ -101,6 +101,36 @@ describe('authenticated device delivery', () => {
     expect(invalid.status).toBe(400);
     expect(state.deliveries.get('device-a')?.battery_percent).toBe(45);
   });
+  it('clears an earlier applied image on explicit null, while omitted hashes from older clients remain unchanged', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-01T12:00:00Z'));
+    const token = await create();
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const heartbeat = (fields: Record<string, unknown>) => fetch(`${base}/device-feed/device-a/heartbeat`, {
+      method: 'POST', headers, body: JSON.stringify({ firmware_version: 'test/1.1', ...fields }),
+    });
+    const status = async () => (await fetch(`${base}/devices/device-a/delivery`, { headers: ownerHeaders })).json();
+    const hash = 'ab'.repeat(32);
+    expect((await heartbeat({ last_applied_hash: hash, battery_percent: 45 })).status).toBe(200);
+    expect(await status()).toMatchObject({ lastAppliedHash: hash, lastSeenAt: '2026-10-01T12:00:00.000Z' });
+
+    vi.setSystemTime(new Date('2026-10-01T12:01:00Z'));
+    expect((await heartbeat({})).status).toBe(200);
+    expect(await status()).toMatchObject({ lastAppliedHash: hash, lastSeenAt: '2026-10-01T12:01:00.000Z' });
+
+    vi.setSystemTime(new Date('2026-10-01T12:02:00Z'));
+    expect((await heartbeat({ last_applied_hash: null })).status).toBe(200);
+    expect(state.deliveries.get('device-a')?.last_applied_hash).toBeNull();
+    expect(await status()).toMatchObject({ lastAppliedHash: null, batteryPercent: 45, lastSeenAt: '2026-10-01T12:02:00.000Z' });
+
+    const recoveredHash = 'cd'.repeat(32);
+    expect((await heartbeat({ last_applied_hash: recoveredHash })).status).toBe(200);
+    expect(await status()).toMatchObject({ lastAppliedHash: recoveredHash });
+  });
+  it('accepts an explicitly unknown applied image without changing the meaning of omission', () => {
+    expect(validateHeartbeat({ firmware_version: 'v1', last_applied_hash: null })).toEqual({ firmware_version: 'v1', last_applied_hash: null });
+    expect(validateHeartbeat({ firmware_version: 'v1' })).not.toHaveProperty('last_applied_hash');
+  });
   it('runs the real reference client against the API and withholds applied ACKs in file-only mode', async () => {
     const token = await create(); const directory = await mkdtemp(join(tmpdir(), 'eink-api-'));
     try {
@@ -137,7 +167,7 @@ describe('authenticated device delivery', () => {
     expect(response.status).toBe(200); expect(response.headers.get('retry-after')).toBe('1');
     expect(Buffer.from(await response.arrayBuffer())).toEqual(renderDisplayDataRaw(data, page, selected));
   });
-  it.each([{ firmware_version: '' }, { firmware_version: 'v1', battery_percent: 101 }, { firmware_version: 'v1', rssi: -151 }, { firmware_version: 'v1', rssi: -1.5 }, { firmware_version: 'v1', last_applied_hash: 'invalid' }, { firmware_version: 'v1', user_id: 'other' }])('rejects malformed telemetry %j', (body) => {
+  it.each([{ firmware_version: '' }, { firmware_version: 'v1', battery_percent: 101 }, { firmware_version: 'v1', rssi: -151 }, { firmware_version: 'v1', rssi: -1.5 }, { firmware_version: 'v1', last_applied_hash: 'invalid' }, { firmware_version: 'v1', last_applied_hash: '' }, { firmware_version: 'v1', last_applied_hash: false }, { firmware_version: 'v1', last_applied_hash: 0 }, { firmware_version: 'v1', last_applied_hash: 'AB'.repeat(32) }, { firmware_version: 'v1', user_id: 'other' }])('rejects malformed telemetry %j', (body) => {
     expect(() => validateHeartbeat(body)).toThrow();
   });
 });
