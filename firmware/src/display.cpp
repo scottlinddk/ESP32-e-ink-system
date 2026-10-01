@@ -41,8 +41,8 @@ void DisplayManager::begin() {
 
 void DisplayManager::clear() {
   Paint_Clear(WHITE);
-  EPD_7IN5_Display();
-  LOG_D("Display cleared");
+  const bool refreshed = EPD_7IN5_Display();
+  LOG_D("Clear screen %s", refreshed ? "controller cycle completed" : "refresh failed");
 }
 
 // Flush internal image buffer to display
@@ -82,7 +82,7 @@ void DisplayManager::showLoading(const char* message) {
     drawCenteredText(55, message, &Font12);
   }
   const bool refreshed = elecrowFlush();
-  LOG_D("Loading screen %s: %s", refreshed ? "updated" : "refresh failed", message ? message : "");
+  LOG_D("Loading screen %s: %s", refreshed ? "controller cycle completed" : "refresh failed", message ? message : "");
 }
 
 void DisplayManager::showError(const char* title, const char* message) {
@@ -92,15 +92,16 @@ void DisplayManager::showError(const char* title, const char* message) {
     drawCenteredText(50, message, &Font12);
   }
   const bool refreshed = elecrowFlush();
-  LOG_D("Error screen %s: %s - %s", refreshed ? "updated" : "refresh failed", title, message ? message : "");
+  LOG_D("Error screen %s: %s - %s", refreshed ? "controller cycle completed" : "refresh failed", title, message ? message : "");
 }
 
 void DisplayManager::showData(const DisplayData& data) {
   Paint_Clear(WHITE);
   layoutEnergyPrices(data);
   layoutStatusBar(data);
-  elecrowFlush();
-  LOG_D("Data displayed - Energy: %.2f, Temp: %.1f", data.energy.price, data.weather.temp);
+  const bool refreshed = elecrowFlush();
+  LOG_D("Data screen %s - Energy: %.2f, Temp: %.1f",
+    refreshed ? "controller cycle completed" : "refresh failed", data.energy.price, data.weather.temp);
 }
 
 void DisplayManager::showTestPattern() {
@@ -111,8 +112,8 @@ void DisplayManager::showTestPattern() {
   drawCenteredText(52, "Status: OK", &Font12);
   drawLine(0, 70, EPD_W, 70);
   drawCenteredText(76, "Press reset to continue", &Font8);
-  elecrowFlush();
-  LOG_D("Test pattern displayed");
+  const bool refreshed = elecrowFlush();
+  LOG_D("Test pattern %s", refreshed ? "controller cycle completed" : "refresh failed");
 }
 
 bool DisplayManager::showBitmap(const uint8_t* bmpData, size_t len) {

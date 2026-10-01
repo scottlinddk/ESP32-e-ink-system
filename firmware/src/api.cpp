@@ -102,8 +102,10 @@ bool ApiClient::heartbeat(const char* baseUrl, const char* deviceId, const char*
   JsonDocument doc;
   doc["firmware_version"] = FIRMWARE_VERSION;
   doc["rssi"] = constrain(rssi, -150, 0);
-  // Only acknowledge after the panel driver confirms refresh completion.
+  // A failed/unknown frame must clear an older acknowledgement on the server.
+  // Deploy the API's nullable last_applied_hash contract before this firmware.
   if (feed::validHash(appliedHash)) doc["last_applied_hash"] = appliedHash;
+  else doc["last_applied_hash"] = nullptr;
   String payload;
   serializeJson(doc, payload);
   http.addHeader("Content-Type", "application/json");

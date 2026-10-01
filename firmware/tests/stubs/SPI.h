@@ -5,15 +5,18 @@
 #define SPI_MODE0 0
 struct SPISettings { SPISettings(int, int, int) {} };
 struct SpiCommand { uint8_t address; std::vector<uint8_t> bytes; };
+void testTransferByte(uint8_t value);
 struct TestSPI {
     std::vector<SpiCommand> commands;
-    void begin(int, int, int, int) {}
+    unsigned starts = 0;
+    unsigned transfers = 0;
+    void begin(int, int, int, int) { ++starts; }
     void beginTransaction(SPISettings) {}
     void endTransaction() {}
     void end() {}
     uint8_t transfer(uint8_t value) {
-        if (testPins[13] == LOW) commands.push_back({value, {}});
-        else commands.back().bytes.push_back(value);
+        ++transfers;
+        testTransferByte(value);
         return 0;
     }
 };
