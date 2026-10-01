@@ -19,12 +19,14 @@ import { fmtAgo } from '../lib/mockData';
 import type { Device } from '../types';
 import { DeviceDeliveryCard } from '../components/dashboard/DeviceDeliveryCard';
 
-function lastSeenMin(last_seen_at: string | null): number {
-  if (!last_seen_at) return 99999;
-  return Math.floor((Date.now() - new Date(last_seen_at).getTime()) / 60000);
+function lastSeenMin(last_seen_at: string | null): number | null {
+  const timestamp = last_seen_at ? Date.parse(last_seen_at) : NaN;
+  if (!Number.isFinite(timestamp)) return null;
+  return Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
 }
 
-function deviceStatus(min: number, t: ReturnType<typeof useApp>['t']) {
+function deviceStatus(min: number | null, t: ReturnType<typeof useApp>['t']) {
+  if (min === null) return { variant: 'default' as const, label: t.unknown };
   if (min < 60) return { variant: 'success' as const, label: t.online };
   if (min < 1440) return { variant: 'warning' as const, label: t.idle };
   return { variant: 'error' as const, label: t.offline };
@@ -182,8 +184,8 @@ function DevicesForUser() {
                   <div className="flex flex-wrap gap-y-1 gap-x-[18px] mt-1.5">
                     {[
                       { label: t.deviceId, value: d.ble_name ?? d.device_id, copy: true },
-                      { label: t.firmware, value: `v${d.firmware_version}` },
-                      { label: t.lastSeen, value: fmtAgo(min, app.lang) },
+                      { label: t.firmware, value: d.firmware_version ? `v${d.firmware_version.replace(/^v/, '')}` : t.unknown },
+                      { label: t.lastSeen, value: min === null ? t.never : fmtAgo(min, app.lang) },
                     ].map((kv) => (
                       <span key={kv.label} className="text-xs text-fg2 flex items-center gap-1.5 [&_b]:font-normal [&_b]:text-fg1 [&_b]:font-mono">
                         {kv.label} <b>{kv.value}</b>

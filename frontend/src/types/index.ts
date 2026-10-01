@@ -187,7 +187,7 @@ export interface Device {
   device_name: string;
   ble_name: string | null;
   license_key: string | null;
-  firmware_version: string;
+  firmware_version: string | null;
   last_seen_at: string | null;
 }
 
