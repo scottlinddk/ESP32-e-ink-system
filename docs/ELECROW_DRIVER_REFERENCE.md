@@ -16,6 +16,7 @@ The audit used Elecrow repository commit
 - [GPIO SPI transfer](https://github.com/Elecrow-RD/CrowPanel-ESP32-2.13-E-paper-HMI-Display-with-122-250/blob/11291e3e9a868be8943232b065f3e264dfaeeae3/factory_soucecode/2.1.3_tow/main/spi.cpp) and [pin definitions](https://github.com/Elecrow-RD/CrowPanel-ESP32-2.13-E-paper-HMI-Display-with-122-250/blob/11291e3e9a868be8943232b065f3e264dfaeeae3/factory_soucecode/2.1.3_tow/main/spi.h).
 - [Factory caller, GPIO7 power and refresh/sleep lifecycle](https://github.com/Elecrow-RD/CrowPanel-ESP32-2.13-E-paper-HMI-Display-with-122-250/blob/11291e3e9a868be8943232b065f3e264dfaeeae3/factory_soucecode/2.1.3_tow/main/main.ino).
 - [Original V1.0 binary package and Burning Options screenshot](https://github.com/Elecrow-RD/CrowPanel-ESP32-2.13-E-paper-HMI-Display-with-122-250/tree/11291e3e9a868be8943232b065f3e264dfaeeae3/factory_firmware/Epaper-2.13(E)%20-V1.0).
+- [SSD1680 datasheet](https://github.com/Elecrow-RD/CrowPanel-ESP32-2.13-E-paper-HMI-Display-with-122-250/blob/11291e3e9a868be8943232b065f3e264dfaeeae3/Datasheet/SSD1680_Datasheet%20(1).pdf), page 39, Figure 9-1: wait 10 ms after software reset (`0x12`) before continuing initialization.
 
 The published source and binary are corresponding vendor references, not a
 reproducibly verified source/binary pair. The original factory source was last
@@ -42,7 +43,9 @@ install at offset zero, as described in [flashing and recovery](FIRMWARE_FLASHIN
 ## Driver behavior
 
 The original SSD1680 transfer now follows the vendor's GPIO-driven, MSB-first,
-rising-edge SPI sequence and 10 ms reset pulses. Full refresh writes `0xF4` to
+rising-edge SPI sequence and 10 ms reset pulses. Software reset also waits
+10 ms before polling BUSY, as required by the datasheet; an initially idle
+sample must not skip a delayed reset BUSY assertion. Full refresh writes `0xF4` to
 update control `0x22`, then activates with `0x20`; this leaves the boost and clock
 enabled until a separate sleep. The setup path sleeps the panel after drawing
 its local loading screen, before opening a potentially indefinite setup portal.
@@ -79,7 +82,8 @@ controller acknowledgement; neither confirms visible pixels.
 ## Verification and remaining hardware work
 
 Host tests decode the original path's GPIO edges and check payload orientation,
-reset timing and vendor command ordering. Time-driven BUSY traces cover both
+reset timing and vendor command ordering, including a delayed software-reset
+BUSY pulse that must finish before configuration is sent. Time-driven BUSY traces cover both
 controllers with immediate and delayed assertion, normal release, a line stuck
 inactive, a line stuck active, failure latching, sleep/reinitialization and
 32-bit clock rollover. These tests cannot establish physical refresh or prove

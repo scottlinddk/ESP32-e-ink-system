@@ -188,6 +188,9 @@ bool EPD_7IN5_Init() {
 #else
     if (!waitIdle("hardware reset")) return false;
     command(0x12);
+    // SSD1680 datasheet Figure 9-1 requires 10 ms after SWRESET. BUSY may
+    // assert after the command, so an immediate idle sample is not sufficient.
+    delay(10);
     if (!waitIdle("software reset")) return false;
     reg(0x01, {0xF9, 0x00, 0x00}); // 250 gate lines, not 122
     reg(0x11, {0x03});

@@ -33,6 +33,9 @@ bool forceActive = false;
 uint8_t shiftByte = 0;
 unsigned shiftBits = 0;
 unsigned clockEdges = 0;
+bool softwareResetPending = false;
+uint32_t softwareResetAt = 0;
+unsigned softwareResetBusySamples = 0;
 #endif
 
 void activation() {
@@ -85,6 +88,16 @@ void testTransferByte(uint8_t value) {
     if (testPins[PIN_DC] == LOW) {
         SPI.commands.push_back({value, {}});
 #ifndef ELECROW_PANEL_JD79661
+        if (value == 0x12) {
+            softwareResetAt = millis();
+            softwareResetPending = true;
+        } else if (softwareResetPending) {
+            // No configuration command may precede the datasheet's 10 ms
+            // guard or arrive while the delayed reset BUSY pulse is active.
+            assert(millis() - softwareResetAt >= 10);
+            assert(testReadPin(PIN_BUSY) == IDLE);
+            softwareResetPending = false;
+        }
         if (value == 0x20) activation();
 #endif
     } else {
@@ -102,6 +115,7 @@ void testWritePin(int pin, int value) {
     pinWrites.push_back({pin, value, millis()});
     if (pin == PIN_RST && value == LOW) activated = false;
 #ifndef ELECROW_PANEL_JD79661
+    if (pin == PIN_RST && value == LOW) softwareResetPending = false;
     // Decode actual GPIO edges as the display would, independent of the driver's
     // helper names. This detects bit order, per-byte CS and clock regressions.
     if (pin == PIN_CS && value == LOW) {
@@ -126,6 +140,18 @@ void testWritePin(int pin, int value) {
 int testReadPin(int pin) {
     if (pin != PIN_BUSY) return testPins[pin];
     if (forceActive) return ACTIVE;
+#ifndef ELECROW_PANEL_JD79661
+    // Reset initially looks idle, asserts after 2 ms and finishes at 14 ms.
+    // This catches code that samples once immediately and starts configuring.
+    if (softwareResetPending) {
+        const uint32_t elapsed = millis() - softwareResetAt;
+        if (elapsed >= 2 && elapsed < 14) {
+            ++softwareResetBusySamples;
+            return ACTIVE;
+        }
+        return IDLE;
+    }
+#endif
     if (!activated || response == Response::NeverAssert) return IDLE;
     const uint32_t elapsed = millis() - activatedAt;
     if (elapsed < assertDelay) return IDLE;
@@ -152,6 +178,7 @@ int main() {
     assert(lastCommand(0x44).bytes == std::vector<uint8_t>({0, 15}));
     assert(lastCommand(0x45).bytes == std::vector<uint8_t>({0, 0, 249, 0}));
     assert(SPI.starts == 0 && SPI.transfers == 0 && clockEdges > 0);
+    assert(softwareResetBusySamples > 0);
     std::vector<PinWrite> resets;
     for (const auto& write : pinWrites) if (write.pin == PIN_RST) resets.push_back(write);
     assert(resets.size() == 3);
