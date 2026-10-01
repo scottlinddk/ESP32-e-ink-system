@@ -26,7 +26,8 @@ export interface Heartbeat {
   firmware_version: string;
   battery_percent?: number;
   rssi?: number;
-  last_applied_hash?: string;
+  // Omitted means unchanged (legacy clients); null explicitly clears an unknown panel state.
+  last_applied_hash?: string | null;
 }
 export class DeviceNotFound extends Error {}
 export const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
@@ -87,12 +88,14 @@ export function validateHeartbeat(body: unknown): Heartbeat {
   if (typeof row.firmware_version !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._+/-]{0,63}$/.test(row.firmware_version)) throw new Error('Invalid firmware version');
   if (row.battery_percent !== undefined && (typeof row.battery_percent !== 'number' || !Number.isFinite(row.battery_percent) || row.battery_percent < 0 || row.battery_percent > 100)) throw new Error('Battery must be between 0 and 100 percent');
   if (row.rssi !== undefined && (typeof row.rssi !== 'number' || !Number.isInteger(row.rssi) || row.rssi < -150 || row.rssi > 0)) throw new Error('RSSI must be an integer between -150 and 0');
-  if (row.last_applied_hash !== undefined && (typeof row.last_applied_hash !== 'string' || !/^[0-9a-f]{64}$/.test(row.last_applied_hash))) throw new Error('Invalid applied image hash');
+  if (row.last_applied_hash !== undefined && row.last_applied_hash !== null && (typeof row.last_applied_hash !== 'string' || !/^[0-9a-f]{64}$/.test(row.last_applied_hash))) throw new Error('Invalid applied image hash');
   return row as unknown as Heartbeat;
 }
 
 /** A fetch never counts as a heartbeat or as successful application to a panel. */
 export async function recordHeartbeat(deviceId: string, heartbeat: Heartbeat): Promise<void> {
+  // Preserve explicit nulls so a failed refresh can invalidate an earlier ACK.
+  // Fields omitted by older clients retain their previously reported values.
   const { error } = await getSupabaseClient().from('device_delivery').update({ ...heartbeat, last_seen_at: new Date().toISOString() }).eq('device_id', deviceId);
   if (error) throw new Error('Unable to record heartbeat');
 }
