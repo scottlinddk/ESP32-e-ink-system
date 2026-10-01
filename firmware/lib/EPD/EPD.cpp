@@ -10,39 +10,84 @@ static bool s_alternateLut = false;
 static bool s_sleeping = false;
 static bool s_canvasBound = false;
 
+#ifdef ELECROW_PANEL_JD79661
+static constexpr int BUSY_LEVEL = LOW;
+static constexpr const char* CONTROLLER = "JD79661";
+#else
+static constexpr int BUSY_LEVEL = HIGH;
+static constexpr const char* CONTROLLER = "SSD1680";
+#endif
+static constexpr uint32_t BUSY_ASSERT_TIMEOUT_MS = 1000;
+static constexpr uint32_t BUSY_RELEASE_TIMEOUT_MS = 15000;
+
+static void transferByte(uint8_t value) {
+#ifdef ELECROW_PANEL_JD79661
+    SPI.transfer(value);
+#else
+    // Original Elecrow factory spi.cpp: MSB first, sample on the rising edge.
+    // Keep this path aligned with the reference while diagnosing actual panels.
+    for (uint8_t bit = 0; bit < 8; ++bit) {
+        digitalWrite(PIN_CLK, LOW);
+        digitalWrite(PIN_MOSI, value & 0x80 ? HIGH : LOW);
+        digitalWrite(PIN_CLK, HIGH);
+        value <<= 1;
+    }
+#endif
+}
 static void command(uint8_t value) {
     digitalWrite(PIN_DC, LOW);
     digitalWrite(PIN_CS, LOW);
-    SPI.transfer(value);
+    transferByte(value);
     digitalWrite(PIN_CS, HIGH);
+    digitalWrite(PIN_DC, HIGH);
 }
 static void data(uint8_t value) {
     digitalWrite(PIN_DC, HIGH);
     digitalWrite(PIN_CS, LOW);
-    SPI.transfer(value);
+    transferByte(value);
     digitalWrite(PIN_CS, HIGH);
 }
 static void reg(uint8_t address, std::initializer_list<uint8_t> values) {
     command(address);
     for (uint8_t value : values) data(value);
 }
-static bool waitReady() {
-#ifdef ELECROW_PANEL_JD79661
-    const int busyLevel = LOW;
-#else
-    const int busyLevel = HIGH;
-#endif
-    // Allow the controller to assert BUSY after a refresh command.
-    delay(10);
+static bool busyFailure(const char* stage, const char* reason, uint32_t elapsed) {
+    Serial.printf("[EPD] %s %s: %s after %lu ms; BUSY GPIO%d=%d active=%d, power GPIO%d=%d, reset GPIO%d=%d\n",
+        CONTROLLER, stage, reason, static_cast<unsigned long>(elapsed),
+        PIN_BUSY, digitalRead(PIN_BUSY), BUSY_LEVEL,
+        PIN_POWER, digitalRead(PIN_POWER), PIN_RST, digitalRead(PIN_RST));
+    s_ready = false;
+    return false;
+}
+
+// Reset/configuration can already be idle by the time they are sampled.
+static bool waitIdle(const char* stage) {
     const uint32_t start = millis();
-    while (digitalRead(PIN_BUSY) == busyLevel) {
-        if (millis() - start >= 15000) {
-            Serial.println("[EPD] BUSY timeout; check panel revision, power and connection");
-            s_ready = false;
-            return false;
-        }
+    while (digitalRead(PIN_BUSY) == BUSY_LEVEL) {
+        if (millis() - start >= BUSY_RELEASE_TIMEOUT_MS)
+            return busyFailure(stage, "BUSY did not release", millis() - start);
         delay(10);
     }
+    // Match the original factory EPD_READBUSY post-idle settling guard.
+    delayMicroseconds(100);
+    return true;
+}
+
+// A permanently inactive (or wrong-polarity) BUSY pin is not a refresh ack.
+// Observe assertion after activation and then release before acknowledging a
+// frame. This checks the controller signal, not the visible image on the panel.
+static bool waitRefreshCycle() {
+    const uint32_t start = millis();
+    while (digitalRead(PIN_BUSY) != BUSY_LEVEL) {
+        if (millis() - start >= BUSY_ASSERT_TIMEOUT_MS)
+            return busyFailure("refresh", "BUSY did not assert", millis() - start);
+        delay(1);
+    }
+    const uint32_t asserted = millis();
+    if (!waitIdle("refresh")) return false;
+    Serial.printf("[EPD] %s refresh BUSY cycle observed: asserted after %lu ms, active for %lu ms\n",
+        CONTROLLER, static_cast<unsigned long>(asserted - start),
+        static_cast<unsigned long>(millis() - asserted));
     return true;
 }
 
@@ -101,14 +146,27 @@ bool EPD_7IN5_Init() {
     pinMode(PIN_RST, OUTPUT);
     pinMode(PIN_BUSY, INPUT);
     digitalWrite(PIN_CS, HIGH);
+#ifdef ELECROW_PANEL_JD79661
     SPI.begin(PIN_CLK, PIN_MISO, PIN_MOSI, PIN_CS);
     SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0));
+#else
+    pinMode(PIN_CLK, OUTPUT);
+    pinMode(PIN_MOSI, OUTPUT);
+    digitalWrite(PIN_CLK, LOW);
+#endif
     digitalWrite(PIN_RST, HIGH);
     delay(10);
     digitalWrite(PIN_RST, LOW);
+#ifdef ELECROW_PANEL_JD79661
     delay(100);
     digitalWrite(PIN_RST, HIGH);
     delay(100);
+#else
+    // Original factory EPD_HW_SW_RESET uses 10 ms low and 10 ms high.
+    delay(10);
+    digitalWrite(PIN_RST, HIGH);
+    delay(10);
+#endif
     s_ready = true;
     s_sleeping = false;
 #ifdef ELECROW_PANEL_JD79661
@@ -128,38 +186,47 @@ bool EPD_7IN5_Init() {
     reg(0x50, {0xB7});
     writeFrame(0x10, true);
 #else
-    if (!waitReady()) return false;
+    if (!waitIdle("hardware reset")) return false;
     command(0x12);
-    if (!waitReady()) return false;
+    // SSD1680 datasheet Figure 9-1 requires 10 ms after SWRESET. BUSY may
+    // assert after the command, so an immediate idle sample is not sufficient.
+    delay(10);
+    if (!waitIdle("software reset")) return false;
     reg(0x01, {0xF9, 0x00, 0x00}); // 250 gate lines, not 122
     reg(0x11, {0x03});
     reg(0x44, {0x00, 0x0F});       // 16 native bytes per row
     reg(0x45, {0x00, 0x00, 0xF9, 0x00});
     reg(0x3C, {0x01});
+    if (!waitIdle("border configuration")) return false;
     reg(0x18, {0x80});
     reg(0x4E, {0x00});
     reg(0x4F, {0x00, 0x00});
     writeFrame(0x26, true);
 #endif
-    return waitReady();
+    return waitIdle("initialization");
 }
 
 bool EPD_7IN5_Display() {
     if (s_sleeping && !EPD_7IN5_Init()) return false;
     if (!s_ready) return false;
+    if (!waitIdle("before refresh")) return false;
 #ifdef ELECROW_PANEL_JD79661
     reg(0x50, {0xD7});
     writeFrame(0x13);
     writeLut();
+    if (!waitIdle("before activation")) return false;
     reg(0x17, {0xA5});
 #else
     reg(0x4E, {0x00});
     reg(0x4F, {0x00, 0x00});
     writeFrame(0x24);
-    reg(0x22, {0xF7});
+    if (!waitIdle("before activation")) return false;
+    // Original factory full update keeps DC/DC and oscillator on (0xF4).
+    // Sleep is issued separately when this application finishes its work.
+    reg(0x22, {0xF4});
     command(0x20);
 #endif
-    return waitReady();
+    return waitRefreshCycle();
 }
 void EPD_7IN5_Clear() {
     Paint_Clear(WHITE);
@@ -171,11 +238,14 @@ void EPD_7IN5_Sleep() {
         reg(0x07, {0xA5});
 #else
         reg(0x10, {0x01});
+        reg(0x3C, {0x01});
 #endif
         delay(100);
     }
+#ifdef ELECROW_PANEL_JD79661
     SPI.endTransaction();
     SPI.end();
+#endif
     s_ready = false;
     s_sleeping = true;
 }

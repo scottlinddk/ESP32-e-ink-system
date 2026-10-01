@@ -56,6 +56,12 @@ The pinned ESP-IDF 4.4.7 needs an explicit `WPA3_SAE_PWE_BOTH` station setting t
 
 The SSD1680 and JD79661 controllers require different commands and BUSY polarity. A build that uploads successfully but does not refresh the display may target the wrong revision. Do not infer the panel controller only from the ESP32-S3 chip name.
 
+Both drivers require a BUSY assertion/release cycle before acknowledging a frame.
+The log and reported hash describe controller progress; verify the actual image
+on the panel. See the [pinned Elecrow reference and verification notes](../docs/ELECROW_DRIVER_REFERENCE.md)
+for the original SSD1680 sequence, failure diagnostics, host-test coverage, and
+the API-first deployment requirement for explicit unknown/failed frame reports.
+
 ## Browser release packaging
 
 ```sh

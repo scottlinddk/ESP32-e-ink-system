@@ -27,7 +27,8 @@ For a CrowPanel, hold **BOOT**, press and release **RESET**, release BOOT, and r
 | Connection timeout | Enter BOOT/RESET download mode; disconnect unneeded USB hubs. |
 | Wrong chip family | Select the intended board; do not flash classic ESP32 files on ESP32-S3. |
 | Firmware unavailable | The backend needs a complete published factory-image release. Old app-only releases are deliberately unavailable for browser installation. |
-| Upload succeeds but screen does not refresh | Confirm original SSD1680 versus V1.2 JD79661, GPIO7 display power, and serial BUSY-timeout errors. |
+| Upload succeeds but screen does not refresh | Confirm original SSD1680 versus V1.2 JD79661 and inspect the controller/stage/BUSY diagnostics. GPIO7 readback is not a measurement of the panel power rail. See the [Elecrow reference and hardware checks](ELECROW_DRIVER_REFERENCE.md). |
+| Controller cycle reported but screen stays unchanged | Verify the actual panel image and controller selection. BUSY progress and a reported hash do not prove visible pixels. |
 | Serial monitor is silent | Press RESET and use 115200 baud; CrowPanel uses the external UART bridge, with USB CDC On Boot disabled. |
 | No setup hotspot | Check serial output; previously saved settings may already be in use. Use the firmware's setup reset button or reinstall with erase. |
 | Wi-Fi cannot connect | Reconnect to setup Wi-Fi and read the failure banner. Use 2.4 GHz Wi-Fi and check the password with Show Wi-Fi password. Authentication rejection can also indicate incompatible access point security settings; inspect the serial reason before changing the network. |

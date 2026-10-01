@@ -25,6 +25,9 @@ void openSetup(uint32_t timeoutSeconds = 0, const char* failureReason = nullptr)
   appliedHash[0] = 0;
   if (failureReason) Serial.printf("[Main] Setup recovery: %s\n", failureReason);
   display.showLoading("Setup: ESP32-Display\nOpen 192.168.4.1");
+  // The original SSD1680 full refresh leaves its boost/clock enabled. The
+  // setup portal may stay open indefinitely; the retained image needs no power.
+  display.sleep();
   provisioning.startProvisioningAP(timeoutSeconds, failureReason);
 }
 
@@ -76,7 +79,11 @@ void pollDisplay() {
     success = display.showBitmap(bmp, static_cast<size_t>(frame.length));
     if (success) {
       strlcpy(appliedHash, frame.hash, sizeof(appliedHash));
+#ifdef ELECROW_EPAPER_213
+      Serial.println("[Main] Display controller refresh cycle completed; visible image not verified");
+#else
       Serial.println("[Main] Display refresh completed");
+#endif
     }
     else Serial.println("[Main] Display rejected BMP or failed to refresh");
   } else if (frame.httpCode == 204 || (frame.httpCode == 304 && feed::validHash(appliedHash))) {
