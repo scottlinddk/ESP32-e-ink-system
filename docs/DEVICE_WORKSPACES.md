@@ -22,6 +22,27 @@ account settings remain intact. Devices without their own configuration continue
 to inherit account settings. A device configuration never follows a device into
 another owner's account.
 
+## Slideshow on one device
+
+In **Display mode and slideshow** on the selected device's dashboard, choose
+**Slideshow** to rotate through all its named layouts in their saved order. Set a
+duration for each layout from 60 to 86400 seconds (one minute to 24 hours), arrange
+the order, and choose **Save display mode**. Slideshow mode needs at least one
+named layout and supports up to 12. Add, rename or remove layouts in **Saved
+layouts**. Other devices keep their own mode and schedule.
+
+**Single layout** returns to the layout you previously selected. Changing modes
+preserves that selection, the saved layouts, their order and their durations.
+During a slideshow, selecting a layout for editing or preview does not pin that
+layout on the physical display.
+
+Quiet hours follow this device's configured **Quiet-hours time zone** and can cross midnight. The
+server holds the page selected at the start of the quiet window until it ends.
+Saving settings does not wake a sleeping device: it receives changes at its next
+poll, which may be at the end of quiet hours. A device that polls less frequently
+than the layout durations can skip pages. See [slideshow timing and quiet
+hours](DISPLAY_SCHEDULES.md) for the rotation and refresh rules.
+
 ## Database deployment
 
 Apply `backend/src/db/migrations/018_device_displays.sql` before configuring

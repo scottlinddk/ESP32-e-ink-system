@@ -12,7 +12,7 @@ import imageRouter from '../routes/image';
 import previewRouter from '../routes/display-data';
 import { feedRouter } from '../routes/deviceDelivery';
 import { errorHandler } from '../middleware/errorHandler';
-import type { DisplayLayout, DisplaySchedule, User } from '../types';
+import type { DisplayData, DisplayLayout, DisplaySchedule, User, UserPreferences } from '../types';
 
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
@@ -177,6 +177,7 @@ describe('device presentation API and render paths', () => {
   afterAll(async () => { await new Promise<void>((resolve) => server.close(() => resolve())); });
   const get = (path: string) => fetch(base + path, { headers });
   const put = (body: unknown, id = A) => fetch(`${base}/devices/${id}/display`, { method: 'PUT', headers, body: JSON.stringify(body) });
+  const frame = (id = A, format = 'bmp') => fetch(`${base}/device-feed/${id}/frame?format=${format}`, { headers: { Authorization: 'Bearer device-token' } });
 
   it('requires authentication and validates ownership before reading private preferences', async () => {
     expect((await fetch(`${base}/devices/${A}/display`)).status).toBe(401);
@@ -227,6 +228,125 @@ describe('device presentation API and render paths', () => {
     const preferences = await resolveDevicePreferences('owner', A);
     expect(resolveDisplaySchedule(preferences, new Date(0)).layout).toEqual(baseLayout);
     expect(resolveDisplaySchedule(preferences, new Date(60000)).layout).toEqual(otherLayout);
+  });
+
+  it('delivers independent page order and durations with matching BMP/raw previews at exact boundaries', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const start = Date.parse('2026-10-02T12:00:00Z');
+    vi.setSystemTime(start);
+    const pages = [schedule.pages[0], { ...schedule.pages[1], duration_seconds: 120 }];
+    expect((await put({ display_schedule: { ...schedule, enabled: true, pages } }, A)).status).toBe(200);
+    expect((await put({ display_schedule: { ...schedule, enabled: true, pages: [...pages].reverse() } }, B)).status).toBe(200);
+    for (const [offset, pageA, pageB, delayA, delayB] of [
+      [0, 'price', 'weather', 60, 120],
+      [59_999, 'price', 'weather', 1, 61],
+      [60_000, 'weather', 'weather', 120, 60],
+      [120_000, 'weather', 'price', 60, 60],
+      [180_000, 'price', 'weather', 60, 120],
+    ] as const) {
+      vi.setSystemTime(start + offset);
+      for (const [id, pageId, delay] of [[A, pageA, delayA], [B, pageB, delayB]] as const) {
+        const data = await (await get(`/preview?device_id=${id}`)).json() as DisplayData;
+        expect(data.schedule).toMatchObject({ pageId, quiet: false });
+        for (const format of ['bmp', 'raw']) {
+          const delivered = await frame(id, format);
+          const preview = await get(`/image/preview${format === 'raw' ? '/raw' : ''}?device_id=${id}`);
+          expect(delivered.status).toBe(200);
+          expect(delivered.headers.get('retry-after')).toBe(String(delay));
+          expect(Buffer.from(await delivered.arrayBuffer())).toEqual(Buffer.from(await preview.arrayBuffer()));
+        }
+      }
+    }
+    // Per-device changes never rewrite the account-level template or its order.
+    expect((await resolveDevicePreferences('owner')).display_schedule).toEqual(schedule);
+  });
+
+  it('pins a collected page through a fetch crossing its boundary and asks the device to retry promptly', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-02T12:00:59Z'));
+    expect((await put({ display_schedule: { ...schedule, enabled: true } })).status).toBe(200);
+    const before = Buffer.from(await (await get(`/image/preview?device_id=${A}`)).arrayBuffer());
+    const collect = vi.mocked(buildDisplayData).getMockImplementation()!;
+    vi.mocked(buildDisplayData).mockImplementationOnce(async (...args) => {
+      const data = await collect(...args);
+      vi.setSystemTime(new Date('2026-10-02T12:01:01.250Z'));
+      return data;
+    });
+    const crossing = await frame();
+    expect(crossing.status).toBe(200);
+    expect(crossing.headers.get('retry-after')).toBe('1');
+    expect(Buffer.from(await crossing.arrayBuffer())).toEqual(before);
+    const next = await frame();
+    const after = Buffer.from(await next.arrayBuffer());
+    expect(next.headers.get('retry-after')).toBe('59');
+    expect(after).not.toEqual(before);
+    expect(after).toEqual(Buffer.from(await (await get(`/image/preview?device_id=${A}`)).arrayBuffer()));
+  });
+
+  it('uses the shorter source refresh interval within a long page', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-02T12:00:00Z'));
+    const pages = schedule.pages.map((page) => ({ ...page, duration_seconds: 300 }));
+    expect((await put({ display_schedule: { ...schedule, enabled: true, pages }, refresh_interval_minutes: 2 })).status).toBe(200);
+    expect((await frame()).headers.get('retry-after')).toBe('120');
+    vi.setSystemTime(new Date('2026-10-02T12:04:59.500Z'));
+    expect((await frame()).headers.get('retry-after')).toBe('1');
+  });
+
+  it.each([
+    ['2026-03-28T21:00:00Z', 8 * 3600],
+    ['2026-10-24T20:00:00Z', 10 * 3600],
+  ])('pauses only the selected device across its local DST quiet window at %s', async (at, seconds) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(at));
+    const quiet = { enabled: true, start: '22:00', end: '07:00' };
+    expect((await put({ display_schedule: { ...schedule, enabled: true, timezone: 'Europe/Copenhagen', quiet_hours: quiet } }, A)).status).toBe(200);
+    expect((await put({ display_schedule: { ...schedule, enabled: true, timezone: 'UTC', quiet_hours: quiet } }, B)).status).toBe(200);
+    const paused = await frame(A);
+    expect(paused.status).toBe(204); expect(await paused.text()).toBe('');
+    expect(paused.headers.get('retry-after')).toBe(String(seconds));
+    expect(buildDisplayData).not.toHaveBeenCalled(); expect(getApiKeys).not.toHaveBeenCalled();
+    const awake = await frame(B);
+    expect(awake.status).toBe(200);
+    expect(buildDisplayData).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(Date.parse(at) + seconds * 1000);
+    expect((await frame(A)).status).toBe(200);
+  });
+
+  it('suppresses a frame if collection enters this device’s quiet hours', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-02T21:59:59.500Z'));
+    expect((await put({ display_schedule: { ...schedule, enabled: true,
+      quiet_hours: { enabled: true, start: '22:00', end: '07:00' } } })).status).toBe(200);
+    const collect = vi.mocked(buildDisplayData).getMockImplementation()!;
+    vi.mocked(buildDisplayData).mockImplementationOnce(async (...args) => {
+      const data = await collect(...args);
+      vi.setSystemTime(new Date('2026-10-02T22:00:00.500Z'));
+      return data;
+    });
+    const response = await frame();
+    expect(response.status).toBe(204);
+    expect(response.headers.get('retry-after')).toBe('32400');
+    expect(response.headers.get('etag')).toBeNull(); expect(await response.text()).toBe('');
+  });
+
+  it('restores the selected fixed layout when rotation stops and preserves pages when it resumes', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-02T12:00:00Z'));
+    const rotating = { ...schedule, enabled: true };
+    expect((await put({ active_layout_id: 'weather', display_schedule: rotating, refresh_interval_minutes: 4 }, A)).status).toBe(200);
+    expect((await put({ display_schedule: rotating }, B)).status).toBe(200);
+    const rotatingPixels = Buffer.from(await (await frame(A)).arrayBuffer());
+    expect((await put({ display_schedule: { ...rotating, enabled: false } }, A)).status).toBe(200);
+    const fixed = await frame(A); const fixedPixels = Buffer.from(await fixed.arrayBuffer());
+    expect(fixed.headers.get('retry-after')).toBe('240');
+    expect(fixedPixels).not.toEqual(rotatingPixels);
+    expect(fixedPixels).toEqual(Buffer.from(await (await get(`/image/preview?device_id=${A}`)).arrayBuffer()));
+    expect(Buffer.from(await (await frame(B)).arrayBuffer())).toEqual(rotatingPixels);
+    expect((await put({ display_schedule: rotating }, A)).status).toBe(200);
+    expect(Buffer.from(await (await frame(A)).arrayBuffer())).toEqual(rotatingPixels);
+    const saved = await (await get(`/devices/${A}/display`)).json() as { preferences: UserPreferences };
+    expect(saved.preferences).toMatchObject({ active_layout_id: 'weather', display_schedule: rotating });
   });
 
   it('uses selected-device dimensions for a draft without modifying saved presentation', async () => {

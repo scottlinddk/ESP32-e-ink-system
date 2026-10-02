@@ -13,6 +13,7 @@ import { TemplatesCard } from '../components/dashboard/TemplatesCard';
 import { ScheduleCard } from '../components/dashboard/ScheduleCard';
 import { CustomContentCard } from '../components/dashboard/CustomContentCard';
 import { DeviceLayoutsCard } from '../components/dashboard/DeviceLayoutsCard';
+import { DeviceSlideshowCard } from '../components/dashboard/DeviceSlideshowCard';
 import { usePreferences } from '../hooks/usePreferences';
 import { getDevices } from '../lib/api';
 import { Card } from '../components/ui/card';
@@ -82,7 +83,7 @@ function DeviceWorkspace({ deviceId, name }: { deviceId: string; name: string })
     <p className="text-sm text-fg2">{da ? 'Layouts, skærmprofil og tidszone her gælder kun denne enhed. Første gang du gemmer, kopieres kontoens standardindstillinger til enheden.' : 'Layouts, display profile and time zone here apply only to this device. Your first save copies the account defaults to this device.'}</p>
     {query.isPending ? <p role="status">{t.loading}</p> : query.isError || !query.data ? <p role="alert">{da ? 'Kunne ikke hente enhedens indstillinger.' : 'Could not load this device’s settings.'} <Button onClick={() => void query.refetch()}>{t.retry}</Button></p> :
       <div className="grid grid-cols-[minmax(0,1fr)_380px] gap-5 items-start max-[1080px]:grid-cols-1">
-        <div className="flex flex-col gap-5 min-w-0"><DeviceLayoutsCard deviceId={deviceId} /><DisplayTimezoneCard deviceId={deviceId} /><DisplayProfileCard deviceId={deviceId} /></div>
+        <div className="flex flex-col gap-5 min-w-0"><DeviceLayoutsCard deviceId={deviceId} /><DeviceSlideshowCard deviceId={deviceId} /><DisplayTimezoneCard deviceId={deviceId} /><DisplayProfileCard deviceId={deviceId} /></div>
         <div className="max-[1080px]:static max-[1080px]:order-first sticky top-[calc(64px+var(--space-5))]"><PreviewCard deviceId={deviceId} deviceName={name} /></div>
       </div>}
   </section>;
