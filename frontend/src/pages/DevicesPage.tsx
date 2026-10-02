@@ -187,6 +187,7 @@ function DevicesForUser() {
             return (
               <div
                 key={d.id}
+                id={`device-${d.id}`}
                 className="grid grid-cols-[48px_1fr_auto] gap-4 px-5 py-4 items-center [&+&]:border-t [&+&]:border-divider max-[560px]:grid-cols-1 max-[560px]:gap-3"
               >
                 <div className="w-12 h-12 rounded-md bg-black/[0.10] text-fg2 flex items-center justify-center [&_.material-symbols-outlined]:text-[24px]">

@@ -211,9 +211,17 @@ export async function getDevices(token: string): Promise<{ devices: Device[] }> 
 export interface DeviceDeliveryStatus {
   configured: boolean; rotatedAt: string | null; lastSeenAt: string | null;
   firmwareVersion: string | null; batteryPercent: number | null; rssi: number | null; lastAppliedHash: string | null;
+  refreshRequestId: string | null; refreshRequestedAt: string | null; refreshAppliedAt: string | null;
 }
-export async function getDeviceDeliveryStatus(token: string, id: string): Promise<DeviceDeliveryStatus> {
-  return request(`/api/devices/${encodeURIComponent(id)}/delivery`, { token });
+export async function getDeviceDeliveryStatus(token: string, id: string, signal?: AbortSignal): Promise<DeviceDeliveryStatus> {
+  const result = await request<DeviceDeliveryStatus>(`/api/devices/${encodeURIComponent(id)}/delivery`, { token, signal });
+  signal?.throwIfAborted();
+  return result;
+}
+export async function requestDeviceRefresh(token: string, id: string, signal?: AbortSignal): Promise<DeviceDeliveryStatus> {
+  const result = await request<DeviceDeliveryStatus>(`/api/devices/${encodeURIComponent(id)}/refresh`, { method: 'POST', token, signal });
+  signal?.throwIfAborted();
+  return result;
 }
 export async function createDeviceDeliveryToken(token: string, id: string): Promise<{ token: string }> {
   return request(`/api/devices/${encodeURIComponent(id)}/delivery/token`, { method: 'POST', token });

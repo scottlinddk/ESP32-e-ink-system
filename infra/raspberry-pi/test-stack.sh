@@ -119,7 +119,7 @@ PY
 
 "${compose[@]}" exec -T postgres psql -X -v ON_ERROR_STOP=1 -U eink_admin -d postgres -c 'CREATE DATABASE eink_source'
 # Supabase compatibility roles created by target bootstrap are cluster-wide;
-# both fixture databases therefore apply the unchanged migrations through 018.
+# both fixture databases therefore apply the unchanged migrations through 019.
 "${compose[@]}" exec -T postgres bash -euc 'export LC_ALL=C; for migration in /migrations/*.sql; do psql -X -v ON_ERROR_STOP=1 -U eink_admin -d eink_source -f "$migration"; done'
 "${compose[@]}" exec -T postgres psql -X -v ON_ERROR_STOP=1 -U eink_admin -d eink_source <<'SQL'
 INSERT INTO users (id, email, display_name) VALUES ('00000000-0000-4000-8000-000000000001', 'fixture@example.invalid', E'Unicode æøå, "quotes"\nand newline');
@@ -141,6 +141,8 @@ INSERT INTO custom_webhooks (user_id, token_hash, token_created_at, rows, observ
 VALUES ('00000000-0000-4000-8000-000000000001', repeat('a', 64), '2026-09-28T10:01:02.123456Z', '[{"label":"Køkken","value":"21.5","unit":"°C"}]', '2026-09-28T09:59:59Z', '2026-09-28T10:01:03Z');
 INSERT INTO device_delivery (device_id, owner_id, token_hash, rotated_at, revoked_at, last_seen_at, firmware_version, battery_percent, rssi, last_applied_hash)
 VALUES ('00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001', repeat('b', 64), '2026-09-28T10:01:02.123456Z', NULL, '2026-09-28T10:02:03.654321Z', 'ci-delivery', 72.5, -65, repeat('c', 64));
+UPDATE device_delivery SET refresh_request_id = '00000000-0000-4000-8000-000000000009',
+  refresh_requested_at = '2026-10-02T10:01:02.123456Z', refresh_applied_at = '2026-10-02T10:02:03.654321Z';
 INSERT INTO device_displays (device_id, owner_id, layout, display_schedule, active_layout_id, display_profile, display_timezone, refresh_interval_minutes, revision, updated_at)
 SELECT '00000000-0000-4000-8000-000000000004', user_id, layout, display_schedule, 'fixture', display_profile, 'Europe/Copenhagen', 15, 3, '2026-10-02T10:01:02.123456Z'
 FROM user_preferences WHERE user_id = '00000000-0000-4000-8000-000000000001';

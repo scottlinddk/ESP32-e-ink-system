@@ -12,6 +12,7 @@ import { Icon } from '../ui/Logo';
 import { fetchPreviewBmp, fetchPreviewFrame } from '../../lib/api';
 import { bleImagePush, BleSelectionCancelledError } from '../../lib/bleImagePush';
 import { deviceLayoutPath } from '../../lib/deviceLayouts';
+import { DeviceRefreshControl } from './DeviceRefreshControl';
 
 type PushState = 'idle' | 'selecting' | 'fetching' | 'pushing' | 'refreshing' | 'done' | 'error';
 
@@ -181,6 +182,7 @@ function DevicePreview({ deviceId, deviceName, hardwareId, expectedDeviceName }:
         </div>
         {imageSrc && <a href={imageSrc} download="display.bmp" className="text-xs underline">{da ? 'Download skærmbillede (BMP)' : 'Download display image (BMP)'}</a>}
         <p className="text-xs text-fg2 m-0">{da ? 'Forhåndsvisningen viser serverens gengivne billede. Den bekræfter ikke, hvad den fysiske skærm har modtaget.' : 'The preview shows the server-rendered image. It does not confirm what the physical display has received.'}</p>
+        {deviceId && <DeviceRefreshControl deviceId={deviceId} deviceName={deviceName} hardwareId={hardwareId} timezone={timezone} />}
         {pushState === 'done' && <p role="status" className="text-xs text-fg2 m-0">{pushedName}: {t.pushComplete}</p>}
         {pushError && <p role={pushState === 'error' ? 'alert' : 'status'} className="text-xs text-warning m-0">{pushError}</p>}
         <details className="dashboard-preview-help">

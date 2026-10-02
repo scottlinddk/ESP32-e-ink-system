@@ -2,7 +2,7 @@
 
 Apply `backend/src/db/migrations/015_device_delivery.sql` and configure the backend's Supabase **service role** key. The new `device_delivery` table has RLS enabled and denies `anon`/`authenticated` access; tokens and telemetry never become columns on the legacy `devices` table.
 
-When upgrading the complete feature set, apply missing migrations in order: `009_display_profile.sql`, `010_rss.sql`, `011_custom_content.sql`, `012_calendar.sql`, `013_display_schedule.sql`, `014_custom_webhook.sql`, `015_device_delivery.sql`, then `016_display_timezone.sql`. Earlier installations must also have their preceding migrations. Automated validation uses isolated fixtures and mocked database services; these changes have not been applied to a live Supabase database or verified on a physical panel.
+When upgrading the complete feature set, apply missing migrations in order through `019_device_refresh.sql`, including `016_display_timezone.sql`, `017_energy_price_settings.sql` and `018_device_displays.sql`. Earlier installations must also have their preceding migrations. Automated validation uses isolated fixtures and mocked database services; it does not verify production SQL or a physical panel.
 
 In **Devices → Automatic updates**, create a token for the registered device. Copy it immediately: only its SHA-256 hash is stored. Creating another token invalidates the previous token; **Revoke token** stops future frame/heartbeat requests. Management endpoints require the owning Clerk account. Frame/heartbeat tokens cannot read preferences or manage other devices.
 
@@ -58,6 +58,7 @@ Paths below include the public `/api` prefix. All device requests carry `Authori
 | GET `/api/devices/:id/delivery` | Owning Clerk account | Configured status and reported telemetry; no token or credential hash |
 | POST `/api/devices/:id/delivery/token` | Owning Clerk account | New token, returned once; invalidates old token |
 | DELETE `/api/devices/:id/delivery/token` | Owning Clerk account | Revocation |
+| POST `/api/devices/:id/refresh` | Owning Clerk account | 202 with delivery status; queues a screen update for a configured device |
 | GET `/api/device-feed/:id/frame?format=bmp` | Device token | 1-bit top-down BMP |
 | GET `/api/device-feed/:id/frame?format=raw` | Device token | Row-major `ceil(width/8)` bytes per row, MSB-first, 1=white |
 | POST `/api/device-feed/:id/heartbeat` | Device token | Validated telemetry; `{ "accepted": true }` |
@@ -90,6 +91,39 @@ Heartbeat example:
 For example, `{ "firmware_version": "1.1.0", "last_applied_hash": null }` records a heartbeat without claiming that the previous image is still applied. A later confirmed refresh can report a new digest. Deploy this nullable-hash API contract before updating clients to send explicit `null`.
 
 Reports describe what the client said, not independently verified physical state. A frame download does not update `lastSeenAt` or acknowledge an image. The reference bridge reports its own `display-bridge/1.0` version and cannot measure panel battery/RSSI.
+
+## Manual screen refresh
+
+The selected device's dashboard offers **Update device screen**. This queues one
+request for its next check-in; it cannot wake hardware from deep sleep. Its saved
+layout and latest available provider data are rendered when the request is served.
+The next scheduled check-in may be after quiet hours if the device is already asleep.
+The usual provider caches remain in effect. A new request replaces the previous
+request for that device. Token rotation clears request tracking.
+
+Migration `019_device_refresh.sql` adds three nullable, service-only delivery
+fields: `refresh_request_id`, `refresh_requested_at`, and `refresh_applied_at`.
+The management status returns their camel-case equivalents. A request is pending
+while its ID is present and its applied timestamp is null. Requesting a refresh
+requires an active delivery token. An installation without migration 019 can
+continue ordinary delivery, but receives an actionable error when queuing a
+manual refresh.
+
+For a pending request, the feed sends a 200 image and `X-Refresh-Request-ID: <uuid>`
+even if its ETag matches. It overrides quiet hours for that request only. Fetching
+the frame never clears it. After a successful physical driver refresh, send
+`refresh_request_id` with the matching UUID and a valid `last_applied_hash` in the
+heartbeat. A missing/null hash cannot acknowledge a request. The server applies
+the acknowledgement only to the matching pending request and owner, so a late
+acknowledgement cannot clear a newer request.
+
+The bundled firmware remembers the last applied request ID and image hash across
+timer sleep. A new request forces a full refresh even for identical pixels. If an
+acknowledgement is lost and the server repeats the same ID and image, it retries
+the acknowledgement without another physical refresh. The reference bridge does
+the same while its process remains running. Its file-only mode never acknowledges
+a physical update. Old clients can fetch the image but cannot complete this
+request protocol; update the backend before installing the new firmware.
 
 ## Verification
 
