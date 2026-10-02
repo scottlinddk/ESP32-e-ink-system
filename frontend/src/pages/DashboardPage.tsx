@@ -132,7 +132,7 @@ function DeviceWorkspace({ device }: { device: Device }) {
       {/* Keep panels mounted so switching views preserves unsaved form edits. */}
       <div id="workspace-overview" hidden={view !== 'overview'}>
         <div className="dashboard-overview-grid">
-          <PreviewCard deviceId={deviceId} deviceName={device.device_name} />
+          <PreviewCard deviceId={deviceId} deviceName={device.device_name} hardwareId={device.device_id} expectedDeviceName={device.ble_name} />
           <div className="dashboard-overview-aside">
             <Card className="dashboard-details-card" icon="tune" title={da ? 'Dit display, indstillet' : 'Your display, at a glance'} desc={da ? 'Gemte indstillinger for denne enhed.' : 'Saved settings for this device.'}>
               <dl className="dashboard-details-list">

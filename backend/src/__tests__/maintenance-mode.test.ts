@@ -86,6 +86,16 @@ describe('database migration maintenance mode', () => {
     for (const result of vi.mocked(createRateLimiter).mock.results) expect(result.value).not.toHaveBeenCalled();
   });
 
+  it('exposes preview identity and dimensions to an allowed browser origin', async () => {
+    const response = await fetch(`${baseUrl}/api/image/preview`, { headers: { Origin: 'https://esp32.scottlind.dk' } });
+    const exposed = response.headers.get('access-control-expose-headers')?.toLowerCase().split(',');
+    expect(exposed).toEqual(expect.arrayContaining([
+      'x-preview-device-id', 'x-preview-layout-id', 'x-preview-layout-name', 'x-preview-mode',
+      'x-preview-rendered-at', 'x-preview-quiet', 'x-preview-next-transition',
+      'x-display-width', 'x-display-height', 'x-display-rotation', 'x-display-encoding', 'x-display-row-bytes',
+    ]));
+  });
+
   it('resumes normal routing when maintenance is disabled', async () => {
     vi.stubEnv('DATABASE_MAINTENANCE_MODE', 'false');
     const response = await fetch(`${baseUrl}/checkout`, { method: 'POST' });

@@ -361,4 +361,83 @@ describe('device presentation API and render paths', () => {
     expect(buildDisplayData).toHaveBeenCalledWith('owner', expect.objectContaining({ display_schedule: null, active_layout_id: null }), expect.any(Object));
     expect((await fetch(`${base}/image/preview/draft`, { method: 'POST', headers, body: JSON.stringify({ device_id: FOREIGN, layout: baseLayout }) })).status).toBe(404);
   });
+
+  it('identifies fixed-device, shared-base and draft images with native profile metadata', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const renderedAt = '2026-10-02T12:00:00.000Z'; vi.setSystemTime(new Date(renderedAt));
+    expect((await put({ active_layout_id: 'weather', display_profile: { width: 400, height: 300, rotation: 90, colorMode: 'bw' } })).status).toBe(200);
+    for (const path of ['/image/preview', '/image/preview/raw']) {
+      const fixed = await get(`${path}?device_id=${A}`);
+      expect(fixed.status).toBe(200);
+      expect(Object.fromEntries(fixed.headers)).toMatchObject({
+        'x-preview-device-id': A, 'x-preview-layout-id': 'weather', 'x-preview-layout-name': 'Weather',
+        'x-preview-mode': 'single', 'x-preview-rendered-at': renderedAt, 'x-preview-quiet': 'false',
+        'x-display-width': '400', 'x-display-height': '300', 'x-display-rotation': '90',
+        'x-display-encoding': 'mono-msb-white1', 'x-display-row-bytes': '50',
+      });
+      expect(fixed.headers.get('x-preview-next-transition')).toBeNull();
+      const shared = await get(path);
+      expect(Object.fromEntries(shared.headers)).toMatchObject({
+        'x-preview-device-id': '', 'x-preview-layout-id': '', 'x-preview-layout-name': 'Base%20layout',
+        'x-preview-mode': 'single', 'x-preview-rendered-at': renderedAt,
+        'x-display-width': '250', 'x-display-height': '122', 'x-display-rotation': '0',
+      });
+    }
+    const draft = await fetch(`${base}/image/preview/draft`, { method: 'POST', headers, body: JSON.stringify({ device_id: A, layout: baseLayout }) });
+    expect(Object.fromEntries(draft.headers)).toMatchObject({
+      'x-preview-device-id': A, 'x-preview-layout-id': '', 'x-preview-layout-name': 'Draft',
+      'x-preview-mode': 'draft', 'x-preview-quiet': 'false', 'x-preview-rendered-at': renderedAt,
+      'x-display-width': '400', 'x-display-height': '300', 'x-display-rotation': '90',
+    });
+    expect(draft.headers.get('x-preview-next-transition')).toBeNull();
+  });
+
+  it.each(['/image/preview', '/image/preview/raw'])('keeps %s metadata paired with the rendered page across a transition', async (path) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const before = new Date('2026-10-02T12:00:59Z'); vi.setSystemTime(before);
+    const pageName = 'Køkken ☀ / Pris\r\nIngen header';
+    const pages = [{ ...schedule.pages[0], name: pageName }, schedule.pages[1]];
+    expect((await put({ display_schedule: { ...schedule, enabled: true, pages } })).status).toBe(200);
+    const original = await get(`${path}?device_id=${A}`);
+    const expectedPixels = Buffer.from(await original.arrayBuffer());
+    const collect = vi.mocked(buildDisplayData).getMockImplementation()!;
+    vi.mocked(buildDisplayData).mockImplementationOnce(async (...args) => {
+      const data = await collect(...args);
+      vi.setSystemTime(new Date('2026-10-02T12:01:01Z'));
+      return data;
+    });
+    const response = await get(`${path}?device_id=${A}`);
+    expect(response.status).toBe(200);
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(expectedPixels);
+    expect(Object.fromEntries(response.headers)).toMatchObject({
+      'x-preview-device-id': A, 'x-preview-layout-id': 'price', 'x-preview-layout-name': encodeURIComponent(pageName),
+      'x-preview-mode': 'slideshow', 'x-preview-quiet': 'false',
+      'x-preview-rendered-at': '2026-10-02T12:01:01.000Z', 'x-preview-next-transition': '2026-10-02T12:01:00.000Z',
+    });
+    const next = await get(`${path}?device_id=${A}`);
+    expect(next.headers.get('x-preview-layout-id')).toBe('weather');
+    expect(Buffer.from(await next.arrayBuffer())).not.toEqual(expectedPixels);
+  });
+
+  it('reports quiet-hour preview state while drafts remain independent of the schedule', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-02T22:30:00Z'));
+    expect((await put({ display_schedule: { ...schedule, enabled: true,
+      quiet_hours: { enabled: true, start: '22:00', end: '07:00' } } })).status).toBe(200);
+    const quiet = await get(`/image/preview?device_id=${A}`);
+    expect(quiet.status).toBe(200);
+    expect(Object.fromEntries(quiet.headers)).toMatchObject({
+      'x-preview-mode': 'slideshow', 'x-preview-quiet': 'true', 'x-preview-next-transition': '2026-10-03T07:00:00.000Z',
+    });
+    const draft = await fetch(`${base}/image/preview/draft`, { method: 'POST', headers, body: JSON.stringify({ device_id: A, layout: baseLayout }) });
+    expect(draft.headers.get('x-preview-mode')).toBe('draft'); expect(draft.headers.get('x-preview-quiet')).toBe('false');
+    expect(draft.headers.get('x-preview-next-transition')).toBeNull();
+  });
+
+  it('encodes malformed Unicode names safely rather than failing image generation', async () => {
+    expect((await put({ active_layout_id: 'price', display_schedule: { ...schedule,
+      pages: [{ ...schedule.pages[0], name: 'Name\ud800' }] } })).status).toBe(200);
+    const response = await get(`/image/preview?device_id=${A}`);
+    expect(response.status).toBe(200);
+    expect(decodeURIComponent(response.headers.get('x-preview-layout-name')!)).toBe('Name�');
+  });
 });

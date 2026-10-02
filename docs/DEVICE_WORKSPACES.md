@@ -43,6 +43,19 @@ poll, which may be at the end of quiet hours. A device that polls less frequentl
 than the layout durations can skip pages. See [slideshow timing and quiet
 hours](DISPLAY_SCHEDULES.md) for the rotation and refresh rules.
 
+## Reading the live preview
+
+The preview names the selected device and its hardware identifier. Its layout
+label, image dimensions and render timestamp come from the same server response
+as the image. During a slideshow, the label describes the page actually rendered,
+even if collecting source data crosses a page transition. **Edit layout** opens
+that page. An error marks a retained image as stale.
+
+**Refresh preview** reloads the browser image. It does not confirm that a physical
+screen has changed. **Push to display** uses Bluetooth setup mode; select the
+registered device. Leaving the workspace cancels the transfer. When a Bluetooth
+name is registered, a different selected name is rejected before image transfer.
+
 ## Database deployment
 
 Apply `backend/src/db/migrations/018_device_displays.sql` before configuring
