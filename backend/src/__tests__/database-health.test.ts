@@ -11,6 +11,7 @@ import { errorHandler } from '../middleware/errorHandler';
 vi.mock('../services/database', () => ({ getSupabaseClient: vi.fn() }));
 
 const CHALLENGE = '<!DOCTYPE html><html lang="en-US"><head><title>Just a moment...</title>';
+const GATEWAY_404 = '<html><head><title>404 Not Found</title></head><body>nginx</body></html>';
 
 function clientReturning(result: { error: unknown } | Error) {
   const abortSignal = vi.fn(() =>
@@ -27,6 +28,9 @@ describe('classifyDatabaseError', () => {
     [{ code: 'PGRST301', message: 'No suitable key or wrong key type' }, 'token_rejected'],
     [{ code: 'PGRST303', message: 'JWT expired' }, 'token_rejected'],
     [{ message: CHALLENGE }, 'gateway_challenge'],
+    [{ message: '<html><script src="/cdn-cgi/challenge-platform/h/g/orchestrate/chl_page/v1"></script></html>' }, 'gateway_challenge'],
+    [{ message: GATEWAY_404 }, 'gateway_error'],
+    [{ message: '<!DOCTYPE html><title>502 Bad Gateway</title>' }, 'gateway_error'],
     [{ message: 'TypeError: fetch failed' }, 'unreachable'],
     [new Error('connect ECONNREFUSED 127.0.0.1:3080'), 'unreachable'],
   ])('classifies %j', (error, expected) => {
@@ -64,6 +68,11 @@ describe('checkDatabase', () => {
   it('reports a bot-protection challenge', async () => {
     clientReturning({ error: { message: CHALLENGE } });
     expect(await checkDatabase()).toEqual({ ok: false, reason: 'gateway_challenge' });
+  });
+
+  it('distinguishes an HTML proxy error from a bot-protection challenge', async () => {
+    clientReturning({ error: { message: GATEWAY_404 } });
+    expect(await checkDatabase()).toEqual({ ok: false, reason: 'gateway_error' });
   });
 
   it('reports an unreachable gateway when the request throws', async () => {

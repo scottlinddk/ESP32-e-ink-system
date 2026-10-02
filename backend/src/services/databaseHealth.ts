@@ -7,6 +7,7 @@ import { getSupabaseClient } from './database';
 export type DatabaseFailure =
   | 'token_rejected'
   | 'gateway_challenge'
+  | 'gateway_error'
   | 'unreachable'
   | 'not_configured'
   | 'error';
@@ -16,6 +17,8 @@ export const DATABASE_FAILURE_HINTS: Record<DatabaseFailure, string> = {
     'The database rejected the service token. SUPABASE_SERVICE_ROLE_KEY must be the token from the Pi backend.env, signed with its JWT_SECRET.',
   gateway_challenge:
     'The database gateway answered with a bot-protection challenge page. Server-to-server requests to SUPABASE_URL are being challenged (for example by Cloudflare Bot Fight Mode).',
+  gateway_error:
+    'The database gateway returned HTML instead of PostgREST JSON. Check the reverse proxy routes and reload its current configuration, including the device_displays route.',
   unreachable:
     'The database gateway could not be reached. Check the tunnel, the Raspberry Pi and SUPABASE_URL.',
   not_configured: 'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must both be set.',
@@ -34,9 +37,10 @@ export function classifyDatabaseError(err: unknown): DatabaseFailure | null {
   const text = typeof message === 'string' ? message : '';
 
   if (typeof code === 'string' && TOKEN_ERROR_CODES.has(code)) return 'token_rejected';
-  if (/<!doctype html|<html|just a moment|challenges\.cloudflare\.com/i.test(text)) {
+  if (/just a moment|challenges\.cloudflare\.com|\/cdn-cgi\/challenge-platform\//i.test(text)) {
     return 'gateway_challenge';
   }
+  if (/<!doctype html|<html/i.test(text)) return 'gateway_error';
   if (/fetch failed|econnrefused|enotfound|etimedout|econnreset|network/i.test(text)) {
     return 'unreachable';
   }

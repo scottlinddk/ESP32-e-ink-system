@@ -12,6 +12,8 @@ import { buildDisplayData, DEFAULT_PREFS } from '../services/displayData';
 import { recordHeartbeat, tokenHash, validateHeartbeat } from '../services/deviceDelivery';
 import { errorHandler } from '../middleware/errorHandler';
 import { renderDisplayDataRaw } from '../utils/bmpGenerator';
+import { logger } from '../lib/logger';
+import { DATABASE_FAILURE_HINTS } from '../services/databaseHealth';
 // @ts-expect-error The standalone reference client is deliberately dependency-free JavaScript.
 import { createPoller } from '../../../tools/display-client.mjs';
 
@@ -24,6 +26,7 @@ vi.mock('../middleware/auth', () => ({ requireAuth: (req: express.Request, res: 
   req.clerkUserId = owner; next();
 } }));
 vi.mock('../routes/preferences-helpers', () => ({ getOrCreateUserFromClerk: async (id: string) => id }));
+vi.mock('../lib/logger', () => ({ logger: { error: vi.fn(), warn: vi.fn() } }));
 vi.mock('../services/displayData', async (original) => ({ ...await original<typeof import('../services/displayData')>(), buildDisplayData: vi.fn() }));
 vi.mock('../services/database', () => ({ getApiKeys: vi.fn(), getPreferences: vi.fn(), getSupabaseClient: () => ({ from: (table: string) => {
   const filters: Array<[string, unknown]> = []; let operation = ''; let update: Record<string, unknown> = {}; let selected = '*';
@@ -103,6 +106,18 @@ describe('authenticated device delivery', () => {
     const bmp = await frame(token, {}, 'device-a', 'bmp'); const bmpBytes = Buffer.from(await bmp.arrayBuffer());
     expect(bmpBytes.toString('ascii', 0, 2)).toBe('BM'); expect(bmpBytes.readInt32LE(18)).toBe(250);
     expect(state.deliveries.get('device-a')?.last_applied_hash).toBeNull();
+  });
+  it('logs a safe gateway reason when frame preferences receive an HTML proxy error', async () => {
+    const token = await create();
+    vi.mocked(getPreferences).mockRejectedValueOnce({ message: `<html><title>404 Not Found</title><body>private upstream detail ${token}</body></html>` });
+    const response = await frame(token);
+    expect(response.status).toBe(503);
+    expect(response.headers.get('retry-after')).toBe('60');
+    expect(await response.json()).toEqual({ error: 'Unable to render display frame' });
+    expect(logger.error).toHaveBeenCalledWith(
+      { reason: 'gateway_error', hint: DATABASE_FAILURE_HINTS.gateway_error }, 'Device frame request failed');
+    expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toMatch(/private upstream detail|<html>|einkd_/);
+    expect((await heartbeat(token)).status).toBe(200);
   });
   it('validates reports and returns reported telemetry to the owner', async () => {
     const token = await create(); const report = { firmware_version: 'test/1.0', battery_percent: 45, rssi: -73, last_applied_hash: 'ab'.repeat(32) };

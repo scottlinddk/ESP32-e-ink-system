@@ -206,6 +206,17 @@ against the Pi HTTPS origin with `--write-test` before deploying the new backend
 It checks presentation JSON, revision updates, constraints, rename preservation,
 ownership-transfer reset, and cleanup of its uniquely named fixture rows.
 
+If device settings and frame requests return 503 while heartbeats and account
+previews still work, check the gateway route before changing device credentials.
+An unauthenticated GET to `/rest/v1/device_displays?select=device_id&limit=1`
+should return a JSON 401, just like `/rest/v1/devices?select=id&limit=1`. An HTML
+404 for only `device_displays` means that route is not reaching PostgREST. Verify
+the deployed `nginx.conf` includes `device_displays`, then recreate the gateway
+with the command above. Verify whether migration 018 is already applied before
+running it. Older backend diagnostics mislabeled every HTML gateway response as
+a bot-protection challenge; an ordinary Nginx 404 does not justify changing
+Cloudflare security settings. Run the authenticated SDK smoke test after repair.
+
 `device_displays` contains presentation settings and has RLS enabled with no
 browser-client grants. No existing device is backfilled: until its first save it
 inherits its owner's account presentation. A device ownership change deletes its
