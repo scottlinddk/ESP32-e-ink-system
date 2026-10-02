@@ -10,6 +10,8 @@ import { renderDisplayData, renderDisplayDataRaw } from '../utils/bmpGenerator';
 import { frameMetadata } from '../utils/displayProfile';
 import { layoutForDisplayData, resolveDisplaySchedule } from '../services/displaySchedule';
 import { createRateLimiter } from '../middleware/rateLimit';
+import { classifyDatabaseError, DATABASE_FAILURE_HINTS } from '../services/databaseHealth';
+import { logger } from '../lib/logger';
 
 export const managementRouter = Router();
 managementRouter.use(requireAuth);
@@ -96,7 +98,11 @@ feedRouter.get('/:id/frame', async (req, res) => {
     // turn a forced refresh back into 304 when the original ETag still matches.
     res.setHeader('Content-Length', frame.length);
     res.end(frame);
-  } catch { res.setHeader('Retry-After', '60'); res.status(503).json({ error: 'Unable to render display frame' }); }
+  } catch (error) {
+    const reason = classifyDatabaseError(error) ?? 'error';
+    logger.error({ reason, hint: DATABASE_FAILURE_HINTS[reason] }, 'Device frame request failed');
+    res.setHeader('Retry-After', '60'); res.status(503).json({ error: 'Unable to render display frame' });
+  }
 });
 
 feedRouter.post('/:id/heartbeat', async (req, res) => {

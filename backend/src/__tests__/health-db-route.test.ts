@@ -35,7 +35,7 @@ describe('GET /health/db', () => {
     expect(await response.json()).toEqual({ status: 'ok' });
   });
 
-  it.each(['token_rejected', 'gateway_challenge', 'unreachable', 'not_configured', 'error'] as const)(
+  it.each(['token_rejected', 'gateway_challenge', 'gateway_error', 'unreachable', 'not_configured', 'error'] as const)(
     'returns 503 with only the coarse reason %s',
     async (reason) => {
       vi.mocked(checkDatabase).mockResolvedValue({ ok: false, reason });
