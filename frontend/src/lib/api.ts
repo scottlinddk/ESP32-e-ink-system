@@ -1,6 +1,6 @@
 import { DisplayProfile, frameMetadata } from './displayProfile';
 import { buildAuthHeaders } from './auth';
-import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout, CustomWebhookStatus } from '../types';
+import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout, CustomWebhookStatus, WeatherData } from '../types';
 
 // Both Vercel and Vite route /api/* to the backend and strip the /api prefix.
 // VITE_API_BASE_URL configures Vite's proxy target, not a browser URL.
@@ -9,7 +9,8 @@ const BASE_URL = '';
 class ApiError extends Error {
   constructor(
     public readonly status: number,
-    message: string
+    message: string,
+    public readonly code?: string
   ) {
     super(message);
     this.name = 'ApiError';
@@ -35,13 +36,15 @@ async function request<T>(
 
   if (!response.ok) {
     let message = `HTTP ${response.status}`;
+    let code: string | undefined;
     try {
-      const body = (await response.json()) as { error?: string };
-      message = body.error ?? message;
+      const body = (await response.json()) as { error?: unknown; code?: unknown };
+      if (typeof body.error === 'string') message = body.error;
+      if (typeof body.code === 'string') code = body.code;
     } catch {
       // ignore JSON parse errors
     }
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, message, code);
   }
 
   if (response.status === 204) return undefined as T;
@@ -89,6 +92,10 @@ export async function saveLayout(
   layout: DisplayLayout
 ): Promise<void> {
   await savePreferences(token, { layout });
+}
+
+export function testWeather(token: string, location: string, signal?: AbortSignal): Promise<{ weather: WeatherData }> {
+  return request('/api/preferences/weather/test', { token, method: 'POST', body: JSON.stringify({ location }), signal });
 }
 
 export async function getCalendarCredentialStatus(token: string): Promise<{ configured: boolean }> {

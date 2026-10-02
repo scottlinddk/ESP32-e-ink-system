@@ -6,6 +6,7 @@ import { LayoutValidationError, parseDisplayLayout } from './layoutValidation';
 import { DisplaySchedule, parseDisplaySchedule, ScheduleValidationError } from './scheduleValidation';
 import { parseDisplayTimezone } from './displayTimezone';
 import { parseEnergyPriceSettings } from './energyPriceSettings';
+import { normalizeWeatherLocation } from './weatherLocation';
 
 export const TEMPLATE_MAX_BYTES = 32768;
 export const TEMPLATE_SETTING_KEYS = [
@@ -69,11 +70,9 @@ export function parseDisplayTemplate(input: unknown): DisplayTemplate {
     } else if (key === 'energy_price_location') {
       check(value === 'DK1' || value === 'DK2', 'Electricity area must be DK1 or DK2.');
     } else if (key === 'weather_location') {
-      check(typeof value === 'string' && value.length <= 64, 'Weather location must be latitude,longitude.');
-      const parts = value.split(',');
-      const coordinate = /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)$/;
-      check(parts.length === 2 && parts.every((part) => coordinate.test(part.trim()))
-        && Math.abs(Number(parts[0])) <= 90 && Math.abs(Number(parts[1])) <= 180, 'Weather coordinates are outside valid latitude/longitude ranges.');
+      try { settings[key] = normalizeWeatherLocation(value); }
+      catch (error) { throw new TemplateValidationError((error as Error).message); }
+      continue;
     } else if (key === 'news_language') {
       check(typeof value === 'string' && ['da', 'en', 'de', 'sv', 'no', 'fi'].includes(value), 'Unsupported news language.');
     } else if (key.startsWith('calendar_')) {

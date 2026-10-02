@@ -4,6 +4,7 @@ import { bitmapGlyph, normalizeBitmapText, wrapBitmapText } from './bitmapText';
 import { drawCustomImage } from './customContent';
 import { renderWebhookWidget } from './webhookRenderer';
 import { DEFAULT_DISPLAY_TIMEZONE } from './displayTimezone';
+import { WEATHER_ERROR_LABELS } from './weatherErrors';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -325,7 +326,8 @@ function renderEnergyWidget(
 function renderWeatherWidget(
   canvas: BmpCanvas,
   bounds: WidgetBounds,
-  weather?: DisplayData['weather']
+  weather?: DisplayData['weather'],
+  problem?: DisplayData['weatherError'],
 ): void {
   const { x, y, width, height } = bounds;
   if (y > 0) canvas.drawHLine(x, y, width);
@@ -338,7 +340,11 @@ function renderWeatherWidget(
       canvas.drawText(`Wind: ${windSpeed.toFixed(1)} m/s`, x + 2, textY + 11, maxW);
     }
   } else {
-    canvas.drawText('Weather: unavailable', x + 2, textY, maxW);
+    const errorLabel = problem ? WEATHER_ERROR_LABELS[problem.code] : 'Unavailable';
+    canvas.drawText(height < 21 ? errorLabel : 'Weather', x + 2, textY, maxW);
+    if (height >= 21) {
+      canvas.drawText(errorLabel, x + 2, textY + 11, maxW);
+    }
   }
 }
 
@@ -536,7 +542,7 @@ function populateCanvas(
           if (data.customImage) drawCustomImage(canvas, bounds, data.customImage, { x: 0, y: 0, width: canvas.width, height: canvas.height });
           break;
         case 'energy':  renderEnergyWidget(canvas, bounds, data.price); break;
-        case 'weather': renderWeatherWidget(canvas, bounds, data.weather); break;
+        case 'weather': renderWeatherWidget(canvas, bounds, data.weather, data.weatherError); break;
         case 'news':    renderNewsWidget(canvas, bounds, data.news); break;
         case 'monta':   renderMontaWidget(canvas, bounds, data.monta, preferences?.monta_fields ?? undefined); break;
         case 'zaptec':  renderZaptecWidget(canvas, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined); break;

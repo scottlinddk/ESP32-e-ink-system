@@ -13,6 +13,25 @@ import {
 
 const STRIDE = 32;
 
+describe('weather error rendering', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+  it.each(['missing_key', 'invalid_location', 'invalid_key', 'rate_limited', 'timeout', 'invalid_response', 'unavailable'] as const)(
+    'renders a short safe %s explanation in bitmap and raw output', (code) => {
+      const weather: DisplayLayout = { version: 1, cols: 10, rows: 6, widgets: [{ i: 'weather', x: 0, y: 0, w: 5, h: 2 }] };
+      const data = { nextRefresh: 1000, weatherError: { code, message: 'SECRET provider message' } };
+      const draw = vi.spyOn(BmpCanvas.prototype, 'drawText');
+      const raw = renderDisplayDataRaw(data, weather);
+      expect(renderDisplayData(data, weather).subarray(62)).toEqual(raw);
+      expect(draw.mock.calls.map(([text]) => text).join(' ')).not.toContain('SECRET');
+      expect(draw.mock.calls[0][0]).toBe('Weather');
+      expect(draw.mock.calls[1][0].length).toBeLessThanOrEqual(15);
+      draw.mockClear();
+      renderDisplayDataRaw(data, { ...weather, widgets: [{ ...weather.widgets[0], h: 1 }] });
+      expect(draw.mock.calls).toHaveLength(1);
+      expect(draw.mock.calls[0][0]).not.toBe('Weather');
+    });
+});
+
 describe('electricity price basis rendering', () => {
   afterEach(() => { vi.restoreAllMocks(); });
   it('labels consumer estimates and keeps cents visible in a half-width widget', () => {
