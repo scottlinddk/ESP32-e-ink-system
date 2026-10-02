@@ -32,7 +32,10 @@ function check(result, label) {
 }
 function checkFields(actual, expected, label) {
   for (const [field, value] of Object.entries(expected)) {
-    if (!isDeepStrictEqual(actual[field], value)) throw new Error(`${label}: ${field} did not round trip`);
+    // PostgREST represents UTC timestamps with +00:00; JavaScript emits Z.
+    const equal = field.endsWith('_at') && typeof value === 'string'
+      ? Date.parse(actual[field]) === Date.parse(value) : isDeepStrictEqual(actual[field], value);
+    if (!equal) throw new Error(`${label}: ${field} did not round trip`);
   }
 }
 const primaryKeys = {
