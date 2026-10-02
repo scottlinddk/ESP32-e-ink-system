@@ -12,7 +12,7 @@ Tokens are bound to both the device and issuing owner. Reassigning a device inva
 
 The firmware in `firmware/` implements the BMP device-feed protocol directly for Waveshare 2.13-inch HAT V2, original CrowPanel 2.13-inch SSD1680, and CrowPanel V1.2 JD79661. Install the matching factory image from the web **Flash** page, then enter the HTTPS API origin (optionally ending in `/api`), device UUID and token in its setup hotspot. Select a 250 × 122 display profile with rotation 0. It verifies TLS, frame metadata, SHA-256 and BMP bounds, preserves the panel for 204/304 responses, and reports RSSI and a hash only after the display driver completes the refresh.
 
-This firmware uses NTP for TLS certificate time validation and sleeps until the next bounded retry interval. Invalid credentials reopen the setup portal; holding the CrowPanel menu button during reset or waking with it also opens setup. Battery reporting and automatic OTA are disabled. See the [flashing guide](FIRMWARE_FLASHING.md) for recovery, CA maintenance and hardware verification. The browser Bluetooth workflow requires OpenDisplay firmware instead.
+This firmware uses NTP for TLS certificate time validation and sleeps until the next bounded retry interval. Invalid credentials reopen the setup portal; holding the CrowPanel menu button during reset or waking with it also opens setup. Battery reporting and automatic OTA are disabled. See the [flashing guide](FIRMWARE_FLASHING.md) for recovery, CA maintenance and hardware verification. Physical/first-boot setup also enables manual Bluetooth image delivery as `EInk-XXXXXX`; automatic error recovery does not.
 
 ## Reference bridge
 
@@ -31,7 +31,7 @@ $env:DISPLAY_OUTPUT_FILE = 'C:\display\frame.bmp'
 node tools/display-client.mjs
 ```
 
-The 250×122 example above is for file-only output. A valid server image does not establish support in a physical panel or external driver; in particular, the current browser BLE path rejects a 250-pixel row because the upstream transfer encoding requires byte-aligned widths. Before attaching a driver, choose dimensions and a panel that it actually supports and verify its width/row-packing limits.
+The 250×122 example above is for file-only output. A valid server image does not establish support in a physical panel or external driver. The bundled Bluetooth service supports padded 250-pixel rows; the separate OpenDisplay path still rejects non-byte-aligned rows because installed firmware versions vary. Before attaching a driver, choose dimensions and a panel that it actually supports and verify its width/row-packing limits.
 
 Keep credentials in your service manager's protected environment, not a committed script. A local development server can use `http://127.0.0.1:3001` with `ALLOW_HTTP_LOCALHOST=1`; HTTPS is mandatory for other hosts. `DISPLAY_ONCE=1` performs one check and exits with a failure code on error. The client remembers its ETag/applied hash for the lifetime of its process; restarting fetches and reapplies the current frame.
 

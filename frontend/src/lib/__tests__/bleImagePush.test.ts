@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bleImagePush as push, BleSelectionCancelledError } from '../bleImagePush';
+import { bleImagePush as push, BleSelectionCancelledError, EINK_SERVICE_UUID, EINK_CHARACTERISTIC_UUID } from '../bleImagePush';
 import { readPanelConfig } from '../openDisplayConfig';
 vi.mock('../openDisplayConfig', () => ({ readPanelConfig: vi.fn() }));
 const DISPLAY_PIXEL_BYTES = 32 * 122;
 const bleImagePush: typeof push = (opts) => push({ profile: {width:256,height:122,rotation:0,colorMode:'bw'}, ...opts });
 
-function setupDevice() {
+function setupDevice(bundled = false) {
+  vi.mocked(readPanelConfig).mockClear();
   vi.mocked(readPanelConfig).mockResolvedValue({width:256,height:122,color:0});
   const handlers = new Set<() => void>();
   const deviceHandlers = new Set<() => void>();
@@ -13,6 +14,8 @@ function setupDevice() {
   const characteristic = {
     value: undefined as DataView | undefined,
     writeValueWithResponse: write,
+    readValue: vi.fn().mockResolvedValue(new DataView(new Uint8Array([1, 250, 0, 122, 0, 0]).buffer)),
+    startNotifications: vi.fn().mockResolvedValue(undefined),
     addEventListener: vi.fn((_: string, listener: () => void) => handlers.add(listener)),
     removeEventListener: vi.fn((_: string, listener: () => void) => handlers.delete(listener)),
   };
@@ -31,7 +34,10 @@ function setupDevice() {
     connected: false,
     connect: vi.fn(),
     disconnect: vi.fn(),
-    getPrimaryService: vi.fn().mockResolvedValue(service),
+    getPrimaryService: vi.fn(async (uuid: string) => {
+      if (!bundled && uuid === EINK_SERVICE_UUID) throw new DOMException('Service unavailable', 'NotFoundError');
+      return service;
+    }),
   };
   gatt.connect.mockImplementation(async () => { gatt.connected = true; return gatt; });
   gatt.disconnect.mockImplementation(() => { gatt.connected = false; });
@@ -327,7 +333,7 @@ describe('panel compatibility', () => {
   });
   it('rejects known upstream truncation on non-byte-aligned panels', async () => {
     const {write} = setupDevice(); vi.mocked(readPanelConfig).mockResolvedValue({width:250,height:122,color:0});
-    await expect(push({loadPixels:async()=>new Uint8Array(DISPLAY_PIXEL_BYTES)})).rejects.toThrow('not byte-aligned'); expect(write).not.toHaveBeenCalled();
+    await expect(push({loadPixels:async()=>new Uint8Array(DISPLAY_PIXEL_BYTES)})).rejects.toThrow('row-padding'); expect(write).not.toHaveBeenCalled();
   });
   it('accepts frame metadata atomically from the image response', async () => {
     const {write} = setupDevice(); vi.mocked(readPanelConfig).mockResolvedValue({width:800,height:480,color:0});
@@ -338,5 +344,61 @@ describe('panel compatibility', () => {
     const {write,gatt} = setupDevice(); vi.mocked(readPanelConfig).mockRejectedValue(new Error('Configuration missing'));
     await expect(bleImagePush({loadPixels:async()=>new Uint8Array(DISPLAY_PIXEL_BYTES)})).rejects.toThrow('Configuration missing');
     expect(write).not.toHaveBeenCalled(); expect(gatt.disconnect).toHaveBeenCalled();
+  });
+});
+
+describe('bundled firmware manual Bluetooth', () => {
+  it('discovers EInk devices and sends all padded 250x122 pixels using minimum-MTU writes', async () => {
+    const { requestDevice, write, service, characteristic, gatt } = setupDevice(true);
+    const pixels = Uint8Array.from({ length: DISPLAY_PIXEL_BYTES }, (_, i) => i % 256);
+    const result = await push({ loadPixels: async () => pixels });
+    expect(result.refreshConfirmed).toBe(true);
+    expect(requestDevice).toHaveBeenCalledWith(expect.objectContaining({
+      filters: expect.arrayContaining([{ namePrefix: 'EInk-' }, { services: [EINK_SERVICE_UUID] }]),
+    }));
+    expect(service.getCharacteristic).toHaveBeenCalledWith(EINK_CHARACTERISTIC_UUID);
+    expect(characteristic.readValue).toHaveBeenCalledOnce();
+    expect(characteristic.startNotifications).toHaveBeenCalledOnce();
+    expect(readPanelConfig).not.toHaveBeenCalled();
+    const frames = write.mock.calls.map(([frame]) => frame as Uint8Array);
+    expect(frames.every(frame => frame.length <= 20)).toBe(true);
+    expect(frames.slice(1, -1).flatMap(frame => Array.from(frame.slice(2)))).toEqual(Array.from(pixels));
+    expect(Array.from(frames.at(-1)!)).toEqual([0, 0x72, 0]);
+    expect(gatt.disconnect).toHaveBeenCalledOnce();
+  });
+  it.each([{ bytes: [] }, { bytes: [2, 250, 0, 122, 0, 0] }, { bytes: [1, 250, 0, 122, 0] }])('rejects unknown capabilities $bytes before image commands', async ({ bytes }) => {
+    const { characteristic, write, gatt } = setupDevice(true);
+    characteristic.readValue.mockResolvedValue(new DataView(new Uint8Array(bytes).buffer));
+    await expect(push({ loadPixels: async () => new Uint8Array(DISPLAY_PIXEL_BYTES) })).rejects.toThrow('Unsupported bundled');
+    expect(write).not.toHaveBeenCalled(); expect(gatt.disconnect).toHaveBeenCalledOnce();
+  });
+  it('does not fall back to another protocol after a Bluetooth transport error', async () => {
+    const { gatt, write } = setupDevice(true);
+    gatt.getPrimaryService.mockRejectedValue(new DOMException('Radio disconnected', 'NetworkError'));
+    await expect(push({ loadPixels: async () => new Uint8Array(DISPLAY_PIXEL_BYTES) })).rejects.toThrow('Radio disconnected');
+    expect(gatt.getPrimaryService).toHaveBeenCalledOnce(); expect(write).not.toHaveBeenCalled();
+  });
+  it('reports authentication refusal instead of accepting a three-byte command echo', async () => {
+    const { write, characteristic, handlers } = setupDevice(true);
+    write.mockImplementation(async () => {
+      characteristic.value = new DataView(new Uint8Array([0, 0x70, 0xfe]).buffer);
+      handlers.forEach(listener => listener());
+    });
+    await expect(push({ loadPixels: async () => new Uint8Array(DISPLAY_PIXEL_BYTES) })).rejects.toThrow('encryption key');
+    expect(write).toHaveBeenCalledOnce();
+  });
+  it.each(['read', 'subscribe'])('bounds bundled capability %s and prevents writes after late completion', async stage => {
+    vi.useFakeTimers();
+    const { characteristic, write, gatt } = setupDevice(true);
+    let finish!: () => void;
+    if (stage === 'read') characteristic.readValue.mockImplementation(() => new Promise(resolve => {
+      finish = () => resolve(new DataView(new Uint8Array([1, 250, 0, 122, 0, 0]).buffer));
+    }));
+    else characteristic.startNotifications.mockImplementation(() => new Promise(resolve => { finish = () => resolve(undefined); }));
+    const failure = expect(push({ loadPixels: async () => new Uint8Array(DISPLAY_PIXEL_BYTES) })).rejects.toThrow('capabilities timed out');
+    await vi.advanceTimersByTimeAsync(5001); await failure;
+    finish(); await vi.advanceTimersByTimeAsync(0);
+    expect(write).not.toHaveBeenCalled(); expect(gatt.disconnect).toHaveBeenCalledOnce();
+    if (stage === 'read') expect(characteristic.startNotifications).not.toHaveBeenCalled();
   });
 });

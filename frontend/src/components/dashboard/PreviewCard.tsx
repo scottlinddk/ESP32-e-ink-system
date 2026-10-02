@@ -143,6 +143,7 @@ export function PreviewCard() {
           </Button>
         </div>
         {imageSrc && <a href={imageSrc} download="display.bmp" className="text-xs underline">Download display image (BMP)</a>}
+        <p className="text-xs text-fg2 m-0">{t.pushSetup}</p>
         {!bluetoothSupported && <p className="text-xs text-fg2 m-0">{t.pushUnsupported}</p>}
         {pushState === 'done' && <p role="status" className="text-xs text-fg2 m-0">{t.pushComplete}</p>}
         {pushError && <p role={pushState === 'error' ? 'alert' : 'status'} className="text-xs text-warning m-0">{pushError}</p>}

@@ -78,7 +78,7 @@ export function FlashPage() {
           <li>Reconnect your computer to your normal network. Saving confirms that settings were stored; it does not verify the connection. Save your dashboard layout and check <strong>Last report</strong> under Devices → Automatic updates.</li>
         </ol>
         <p className="mt-3 text-sm text-fg2">If no report appears, open the USB installer's <strong>Logs &amp; Console</strong> at 115200 baud and reset the board. If the setup network returns, join it again to read the connection error. Authentication failures can mean an incorrect password or incompatible access point security settings.</p>
-        <p className="mt-3 text-sm text-fg2">This firmware uses the Wi-Fi setup portal. Bluetooth configuration and “Push to Display” apply only to separately installed OpenDisplay firmware.</p>
+        <p className="mt-3 text-sm text-fg2">This firmware supports automatic Wi-Fi updates and manual Bluetooth pushes. Hold MENU while resetting (Waveshare: press BOOT within 3 seconds after releasing reset), then select EInk-… when pushing from the dashboard. Keep the computer on its normal internet connection; Wi-Fi credentials are configured through the setup portal.</p>
       </section>
 
       <section className="border border-divider rounded-md p-5">

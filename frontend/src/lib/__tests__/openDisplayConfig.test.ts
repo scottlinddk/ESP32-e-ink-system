@@ -61,6 +61,21 @@ describe('OpenDisplay configuration',()=>{
     expect(char.writeValueWithResponse).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
   });
+  it.each([{ bytes: [0, 0x40, 0xfe] }, { bytes: [0xfe, 0x40] }])('explains authentication refusal $bytes immediately', async ({ bytes }) => {
+    const handlers = new Set<() => void>();
+    const char = {
+      value: undefined as DataView | undefined,
+      addEventListener: vi.fn((_: string, handler: () => void) => handlers.add(handler)),
+      removeEventListener: vi.fn((_: string, handler: () => void) => handlers.delete(handler)),
+      startNotifications: vi.fn().mockResolvedValue(undefined),
+      writeValueWithResponse: vi.fn(async () => {
+        char.value = new DataView(new Uint8Array(bytes).buffer);
+        handlers.forEach(handler => handler());
+      }),
+    };
+    await expect(readPanelConfig(char as unknown as BluetoothRemoteGATTCharacteristic)).rejects.toThrow('encryption key');
+    expect(handlers.size).toBe(0);
+  });
   it.each(['nack', 'sequence', 'oversize', 'overflow'])('rejects %s responses and cleans up while the ATT write hangs', async kind => {
     vi.useFakeTimers();
     const handlers = new Set<() => void>();

@@ -15,7 +15,7 @@ Use **Pages and schedule** to save named layouts, choose their order and duratio
 
 The JSON preview, BMP preview and Bluetooth payload share one live-data pipeline. Unavailable sources are shown as unavailable, without invented weather or headlines. Widget drawing is clipped to its assigned area so long content cannot overwrite neighboring widgets.
 
-The image renderer supports validated monochrome panel sizes and clockwise rotation, defaulting to **250 × 122**. Choose native dimensions on the Dashboard. Bluetooth verifies the connected panel; current OpenDisplay direct-write firmware requires a byte-aligned width, so 250-pixel output is available as a BMP download rather than sent through that unsafe path. See [display profiles](docs/DISPLAY_PROFILES.md) and [the researched feature comparison](docs/PROJECT_COMPARISON_2026-09-28.md). A profile does not install a new board driver.
+The image renderer supports validated monochrome panel sizes and clockwise rotation, defaulting to **250 × 122**. Choose native dimensions on the Dashboard. The bundled firmware accepts row-padded 250 × 122 Bluetooth pushes in manual setup mode. The separate OpenDisplay path retains its byte-aligned width requirement. See [display profiles](docs/DISPLAY_PROFILES.md) and [Bluetooth setup](docs/BLUETOOTH_DELIVERY.md). A profile does not install a new board driver.
 
 ## Data sources
 
@@ -44,7 +44,7 @@ Electricity uses Energinet's [DayAheadPrices dataset](https://www.energidataserv
 
 The public **Flash** page installs complete firmware over USB from desktop Chrome or Edge. Choose the original CrowPanel 2.13-inch **SSD1680** panel or **V1.2 / JD79661** revision before connecting; both use ESP32-S3, so automatic chip detection cannot distinguish them. A Waveshare 2.13-inch HAT V2 on classic ESP32 is also supported.
 
-This firmware fetches saved layouts over Wi-Fi using a registered device UUID and token from **Devices → Automatic updates**. After installation, join its `ESP32-Display-XXXXXX` hotspot and enter the network and device settings. The dashboard's Bluetooth push workflow requires separately installed OpenDisplay firmware.
+This firmware fetches saved layouts over Wi-Fi using a registered device UUID and token from **Devices → Automatic updates**. After installation, join its `ESP32-Display-XXXXXX` hotspot and enter the network and device settings. For a manual Bluetooth push, hold MENU while resetting (Waveshare: press BOOT within 3 seconds after releasing reset), keep your computer on its normal internet connection, and select `EInk-XXXXXX` from the dashboard's Bluetooth picker. First-boot setup also enables Bluetooth.
 
 See the [browser flashing and recovery guide](docs/FIRMWARE_FLASHING.md) and [firmware build instructions](firmware/README.md). Local factory artifacts can be tested from `/flash` before publishing by setting backend `FIRMWARE_RELEASE_DIR` to their absolute output directory.
 

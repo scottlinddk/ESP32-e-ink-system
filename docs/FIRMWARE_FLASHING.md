@@ -13,7 +13,9 @@
 
 A successful USB transfer only verifies that flash memory was written. A working setup also needs the correct panel driver, network, TLS time synchronization, device token, and server-rendered 250 × 122 monochrome BMP.
 
-The bundled firmware uses Wi-Fi polling. The dashboard's Bluetooth push feature requires OpenDisplay firmware and does not configure this firmware.
+The bundled firmware uses Wi-Fi polling and supports manual Bluetooth image pushes in setup mode. Hold MENU while resetting (Waveshare: press BOOT within 3 seconds after releasing reset), then select `EInk-XXXXXX` from the dashboard. Keep your browser on its normal internet connection. Bluetooth does not configure Wi-Fi credentials; use the setup portal for those. See [Bluetooth delivery](BLUETOOTH_DELIVERY.md).
+
+The Waveshare/generic ESP32 build now uses a 3 MiB application partition to fit Wi-Fi and Bluetooth. Upgrading an older installation requires a **complete USB/factory image reinstall**, including its partition table; uploading only `firmware.bin` is insufficient. The USB installer provides the complete image. Automatic OTA remains disabled.
 
 ## If the USB installer cannot connect
 

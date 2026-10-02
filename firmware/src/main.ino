@@ -4,6 +4,7 @@
 #include "api.h"
 #include "provisioning.h"
 #include "feed_validation.h"
+#include "manual_ble.h"
 #include <time.h>
 
 WiFiManager wifiManager;
@@ -24,11 +25,14 @@ constexpr int SETUP_BUTTON = 0;
 void openSetup(uint32_t timeoutSeconds = 0, const char* failureReason = nullptr) {
   appliedHash[0] = 0;
   if (failureReason) Serial.printf("[Main] Setup recovery: %s\n", failureReason);
-  display.showLoading("Setup: ESP32-Display\nOpen 192.168.4.1");
+  const bool manual = failureReason == nullptr;
+  display.showLoading(manual ? "WiFi: ESP32-Display\nBLE: EInk-..." : "Setup: ESP32-Display\nOpen 192.168.4.1");
   // The original SSD1680 full refresh leaves its boost/clock enabled. The
   // setup portal may stay open indefinitely; the retained image needs no power.
   display.sleep();
-  provisioning.startProvisioningAP(timeoutSeconds, failureReason);
+  if (manual) beginManualBluetooth();
+  provisioning.startProvisioningAP(timeoutSeconds, failureReason,
+    manual ? +[]() { pollManualBluetooth(display); } : nullptr);
 }
 
 void sleepUntilNextPoll() {
@@ -117,13 +121,26 @@ void setup() {
   delay(150);
   Serial.printf("\n[Main] ESP32 Display %s; flash %u bytes\n", FIRMWARE_VERSION, ESP.getFlashChipSize());
   pinMode(SETUP_BUTTON, INPUT_PULLUP);
+  bool setupRequested = digitalRead(SETUP_BUTTON) == LOW;
+#ifndef ELECROW_EPAPER_213
+  // GPIO0 is a boot strap: hold BOOT only AFTER reset has been released.
+  // Give cold boots a short entry window without delaying automatic timer wakes.
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED) {
+    const uint32_t started = millis();
+    Serial.println("[Main] Press BOOT within 3 seconds for manual setup/Bluetooth");
+    while (!setupRequested && millis() - started < 3000) {
+      setupRequested = digitalRead(SETUP_BUTTON) == LOW;
+      delay(10);
+    }
+  }
+#endif
   // Only a timer wake is known to retain the previously rendered frame.
   if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_TIMER) {
     appliedHash[0] = 0;
     failedPolls = 0;
   }
   display.begin();
-  if (digitalRead(SETUP_BUTTON) == LOW || esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0 || !provisioning.loadCredentials(credentials)) {
+  if (setupRequested || digitalRead(SETUP_BUTTON) == LOW || esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0 || !provisioning.loadCredentials(credentials)) {
     Serial.println("[Main] Setup requested or saved settings unavailable");
     openSetup();
     return;

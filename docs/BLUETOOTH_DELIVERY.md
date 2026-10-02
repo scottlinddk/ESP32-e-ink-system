@@ -1,6 +1,18 @@
 # Bluetooth delivery confirmation
 
+## Bundled firmware
+
+Install the current firmware for your board using `/flash`. On a configured CrowPanel, hold **MENU** while pressing reset. On Waveshare, release reset and press **BOOT within 3 seconds** (holding BOOT during reset enters the ROM installer instead). An unconfigured first boot also enters setup. Keep the browser on its normal internet connection and choose **EInk-XXXXXX** in Dashboard → Push to display. Do not join the setup hotspot for a Bluetooth push. Use a saved 250 × 122 profile. BLE accepts a manual image without Wi-Fi credentials or a registered automatic-delivery device.
+
+Bluetooth runs only during this physical/first-boot setup mode. Ordinary Wi-Fi polling, sleep, and automatic network-error recovery do not enable the BLE receiver. Nearby browsers can send an image while setup is open; reset or power off the unit when finished. A manually sent image remains until another image or setup screen replaces it. Automatic updates require saving Wi-Fi/device credentials through the portal and restarting.
+
+The dedicated service is `c9c10001-7a6b-4c31-8a98-89e539e43805`, with read/write/notify characteristic `c9c10002-7a6b-4c31-8a98-89e539e43805`. Its six-byte readable capabilities are `[version=1, width:u16 LE, height:u16 LE, color=0]`. START/DATA/END and ACK/refresh notifications use the command words below. Each write is at most 20 bytes (two-byte command plus 18 bytes), requiring no enlarged MTU. Frames contain exactly 3,904 bytes: 122 rows of 32 bytes, MSB-first, white=1; the six unused bits at each row's end are ignored. END must request full refresh. A partial, oversized, disconnected or 30-second-idle transfer is discarded. The firmware queues BLE commands and renders a complete frame through its existing BMP validator on the setup loop, then reports refresh success or failure.
+
+## OpenDisplay compatibility
+
 The browser opens the device picker directly from the button click, then loads an authenticated image and checks its metadata against the connected panel. Unknown configuration packet formats and incompatible panels fail before image writes. The configuration parser also accepts the upstream legacy 65-byte Wi-Fi packet when it is the final packet.
+
+OpenDisplay devices still use their separate service and configuration protocol. This client conservatively rejects non-byte-aligned OpenDisplay profiles because installed firmware versions differ in row padding; the bundled service above supports 250 × 122 without that restriction. Encrypted OpenDisplay devices report that an authenticated client is needed. The obsolete unused Wi-Fi configuration writer has been removed.
 
 Direct-write commands and acknowledgements use big-endian command words. Configuration lengths, sequence numbers and dimensions use little-endian integers. Every START, DATA and explicit END write must receive its matching application acknowledgement (an exact command echo or its high-bit variant). An ATT write response alone is not delivery confirmation. NACKs fail the operation.
 
@@ -10,4 +22,4 @@ Image loading is bounded to 30 seconds; connection and each discovery operation 
 
 Every exit removes notification/disconnect listeners and clears timers. Timed-out subscription and connection promises cannot initiate later commands; a connection that arrives late is disconnected. Browser Bluetooth operations themselves cannot be cancelled, so an already-issued ATT write may finish after timeout, but it cannot advance the transfer.
 
-Protocol references: [OpenDisplay Python SDK](https://github.com/OpenDisplay/py-opendisplay) (`opendisplay/device.py`, `protocol/commands.py`, `protocol/responses.py`, `protocol/config_parser.py`) and [OpenDisplay firmware](https://github.com/OpenDisplay/Firmware) (`include/opendisplay_structs.h`). Tests use synthetic notifications and hanging browser promises; physical-panel testing still requires hardware.
+Protocol references: [OpenDisplay Python SDK](https://github.com/OpenDisplay/py-opendisplay) (`opendisplay/device.py`, `protocol/commands.py`, `protocol/responses.py`, `protocol/config_parser.py`) and [OpenDisplay firmware](https://github.com/OpenDisplay/Firmware) (`include/opendisplay_structs.h`). Frontend tests cover both services, row-padded payloads, 20-byte writes, synthetic notifications and hanging browser promises. `python firmware/scripts/run_host_tests.py` checks the receiver's framing, bounds, expiry and BMP orientation. Physical radio connection and panel refresh still require hardware verification.
