@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { createHash } from 'node:crypto';
 import { requireAuth } from '../middleware/auth';
 import { getOrCreateUserFromClerk } from './preferences-helpers';
-import { authenticateDevice, DeviceNotFound, getDeliveryStatus, recordHeartbeat, revokeDeviceToken, rotateDeviceToken, validateHeartbeat } from '../services/deviceDelivery';
+import { authenticateDevice, DeviceNotFound, getDeliveryStatus, getPendingRefresh, recordHeartbeat, requestDeviceRefresh, revokeDeviceToken, rotateDeviceToken, tokenHash, validateHeartbeat } from '../services/deviceDelivery';
 import { getApiKeys } from '../services/database';
 import { buildDisplayData } from '../services/displayData';
 import { resolveDevicePreferences } from '../services/deviceDisplays';
@@ -27,6 +27,10 @@ managementRouter.delete('/:id/delivery/token', async (req, res) => {
     await revokeDeviceToken(await getOrCreateUserFromClerk(req.clerkUserId!), req.params.id);
     res.json({ configured: false });
   } catch (error) { res.status(error instanceof DeviceNotFound ? 404 : 500).json({ error: 'Unable to revoke device token' }); }
+});
+managementRouter.post('/:id/refresh', async (req, res, next) => {
+  try { res.status(202).json(await requestDeviceRefresh(await getOrCreateUserFromClerk(req.clerkUserId!), req.params.id)); }
+  catch (error) { next(error); }
 });
 
 export const feedRouter = Router();
@@ -59,16 +63,17 @@ feedRouter.get('/:id/frame', async (req, res) => {
   try {
     const startedAt = Date.now();
     const owner = res.locals.deviceOwner as string;
+    const refreshRequestId = await getPendingRefresh(owner, req.params.id, tokenHash(req.get('authorization')!.slice(7)));
     const prefs = await resolveDevicePreferences(owner, req.params.id);
     const schedule = resolveDisplaySchedule(prefs);
-    if (schedule.schedule?.quiet) {
+    if (!refreshRequestId && schedule.schedule?.quiet) {
       res.setHeader('Retry-After', String(remainingRetry(schedule.nextRefresh, Date.now(), schedule.schedule.nextTransitionAt)));
       res.status(204).end(); return;
     }
     const keys = await getApiKeys(owner);
     const data = await buildDisplayData(owner, prefs, Object.fromEntries(keys.map((key) => [key.provider, key.api_key])));
     const afterFetch = resolveDisplaySchedule(prefs);
-    if (afterFetch.schedule?.quiet) {
+    if (!refreshRequestId && afterFetch.schedule?.quiet) {
       res.setHeader('Retry-After', String(remainingRetry(afterFetch.nextRefresh, Date.now(), afterFetch.schedule.nextTransitionAt)));
       res.status(204).end(); return;
     }
@@ -84,9 +89,13 @@ feedRouter.get('/:id/frame', async (req, res) => {
       'X-Display-Rotation': String(metadata.rotation), 'X-Display-Row-Bytes': String(metadata.rowBytes),
       'X-Display-Encoding': metadata.encoding, 'X-Refresh-Mode': 'full',
     });
-    if ((req.get('if-none-match') ?? '').split(',').some((tag) => tag.trim().replace(/^W\//, '') === etag)) { res.status(304).end(); return; }
+    if (refreshRequestId) res.setHeader('X-Refresh-Request-ID', refreshRequestId);
+    if (!refreshRequestId && (req.get('if-none-match') ?? '').split(',').some((tag) => tag.trim().replace(/^W\//, '') === etag)) { res.status(304).end(); return; }
     res.type(format === 'bmp' ? 'image/bmp' : 'application/octet-stream');
-    res.send(frame);
+    // Conditional delivery is handled above. Express send() would independently
+    // turn a forced refresh back into 304 when the original ETag still matches.
+    res.setHeader('Content-Length', frame.length);
+    res.end(frame);
   } catch { res.setHeader('Retry-After', '60'); res.status(503).json({ error: 'Unable to render display frame' }); }
 });
 
@@ -95,7 +104,7 @@ feedRouter.post('/:id/heartbeat', async (req, res) => {
   try { heartbeat = validateHeartbeat(req.body); }
   catch (error) { res.status(400).json({ error: (error as Error).message }); return; }
   try {
-    await recordHeartbeat(req.params.id, heartbeat);
+    await recordHeartbeat(res.locals.deviceOwner as string, req.params.id, tokenHash(req.get('authorization')!.slice(7)), heartbeat);
     res.setHeader('Cache-Control', 'no-store');
     res.json({ accepted: true });
   } catch { res.setHeader('Retry-After', '60'); res.status(503).json({ error: 'Unable to record heartbeat' }); }

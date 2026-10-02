@@ -11,7 +11,7 @@ A quiet, glanceable home dashboard for Danish electricity prices, weather, news,
 
 The [integration setup guide](docs/INTEGRATIONS.md) maps every source to its widget, including calendar subscriptions and Home Assistant sensor updates. Dashboard contains the preview, display settings, notes/images, templates and schedule; integration credentials and source controls are on **Integrations**.
 
-The [device workspace guide](docs/DEVICE_WORKSPACES.md) explains per-device layouts, switching layouts and migration 018. Shared content and legacy defaults are labelled separately from the selected device's settings.
+The [device workspace guide](docs/DEVICE_WORKSPACES.md) explains per-device layouts, slideshows, live previews, manual screen refresh and migrations 018–019. Shared content and legacy defaults are labelled separately from the selected device's settings.
 
 See the [integration and widget audit](docs/INTEGRATION_AUDIT.md) for supported behavior, provider compatibility fixes and validation limits.
 

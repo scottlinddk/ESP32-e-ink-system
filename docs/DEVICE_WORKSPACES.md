@@ -56,10 +56,28 @@ screen has changed. **Push to display** uses Bluetooth setup mode; select the
 registered device. Leaving the workspace cancels the transfer. When a Bluetooth
 name is registered, a different selected name is rejected before image transfer.
 
+## Requesting a screen update
+
+Choose **Update device screen** on the selected device's dashboard to queue a full
+refresh using its saved layout and latest available source data. Automatic updates
+must be configured for that device first. **Queued** means the server is waiting
+for its next check-in; the website cannot wake a sleeping ESP32. Quiet hours are
+overridden for this one request when the device connects, then resume normally.
+If the device is already asleep until quiet hours end, that remains its next
+scheduled check-in. Provider cache and publishing intervals still apply.
+
+The request is marked applied only after a compatible client reports that its
+display driver completed the refresh. Downloading an image or refreshing the
+browser preview does not acknowledge the request. Install firmware with manual
+refresh acknowledgement support; older firmware may display the image while the
+request remains queued. See [device delivery](DEVICE_DELIVERY.md) for setup and
+the acknowledgement protocol.
+
 ## Database deployment
 
 Apply `backend/src/db/migrations/018_device_displays.sql` before configuring
-devices. Existing installations should apply only migrations they have not
+devices and `019_device_refresh.sql` before requesting screen updates.
+Existing installations should apply only migrations they have not
 already run. Raspberry Pi installations use the migration runbook in
 `infra/raspberry-pi/README.md`; the same SQL migration is used for hosted PostgreSQL.
 

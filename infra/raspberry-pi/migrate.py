@@ -39,7 +39,7 @@ def columns(required: dict[str, str], optional: dict[str, str]) -> dict[str, tup
 
 
 TS = "timestamp with time zone"
-# The final schema after all tracked migrations through 018_device_displays.
+# The final schema after all tracked migrations through 019_device_refresh.
 # Do not automatically repair a live source.
 EXPECTED_COLUMNS = {
     "users": columns({"id": "uuid", "email": "text"}, {"display_name": "text", "created_at": TS, "updated_at": TS}),
@@ -72,6 +72,7 @@ EXPECTED_COLUMNS = {
     "device_delivery": columns({"device_id": "uuid", "owner_id": "uuid", "rotated_at": TS}, {
         "token_hash": "text", "revoked_at": TS, "last_seen_at": TS, "firmware_version": "text",
         "battery_percent": "double precision", "rssi": "integer", "last_applied_hash": "text",
+        "refresh_request_id": "uuid", "refresh_requested_at": TS, "refresh_applied_at": TS,
     }),
     "device_displays": columns({
         "device_id": "uuid", "owner_id": "uuid", "display_timezone": "text",

@@ -67,7 +67,7 @@ export function createPoller(options) {
   const version = options.firmwareVersion ?? 'display-bridge/1.0';
   if (!/^[A-Za-z0-9][A-Za-z0-9._+/-]{0,63}$/.test(version)) throw new Error('Invalid firmware version');
   const endpoint = `${base.href.replace(/\/$/, '')}/device-feed/${encodeURIComponent(options.deviceId)}`;
-  let etag; let downloadedHash; let appliedHash;
+  let etag; let downloadedHash; let appliedHash; let appliedRefreshRequestId;
   const request = async (path, init = {}) => {
     let response;
     try {
@@ -83,8 +83,12 @@ export function createPoller(options) {
     }
     return response;
   };
-  const heartbeat = async () => {
-    const response = await request('/heartbeat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firmware_version: version, ...(appliedHash ? { last_applied_hash: appliedHash } : {}) }) });
+  const heartbeat = async (refreshRequestId) => {
+    const response = await request('/heartbeat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      firmware_version: version,
+      ...(driver ? { last_applied_hash: appliedHash ?? null } : {}),
+      ...(appliedHash && refreshRequestId ? { refresh_request_id: refreshRequestId } : {}),
+    }) });
     if (response.status !== 200) throw new DeliveryError('Heartbeat was not accepted');
     const body = await boundedBody(response, 8192);
     let accepted = false;
@@ -112,6 +116,12 @@ export function createPoller(options) {
         if (!etag || response.headers.get('etag') !== etag) throw new DeliveryError('Unexpected unchanged-frame response');
         await heartbeat(); return result('unchanged');
       }
+      // A request header on 204/304 never acknowledges a physical refresh.
+      const refreshRequestId = response.headers.get('x-refresh-request-id');
+      if (refreshRequestId !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(refreshRequestId)) {
+        await response.body?.cancel();
+        throw new DeliveryError('Invalid refresh request ID');
+      }
       const bytes = await boundedBody(response);
       const digest = hash(bytes);
       if (response.headers.get('x-image-sha256') !== digest || response.headers.get('etag') !== `"${digest}"`) throw new DeliveryError('Frame hash does not match');
@@ -122,9 +132,19 @@ export function createPoller(options) {
         if (bytes.length !== length || bytes.toString('ascii', 0, 2) !== 'BM' || bytes.readUInt32LE(2) !== length || bytes.readUInt32LE(10) !== 62 || bytes.readUInt32LE(14) !== 40 || bytes.readInt32LE(18) !== frame.width || bytes.readInt32LE(22) !== -frame.height || bytes.readUInt16LE(26) !== 1 || bytes.readUInt16LE(28) !== 1 || bytes.readUInt32LE(30) !== 0 || !bytes.subarray(54, 62).equals(Buffer.from([0, 0, 0, 0, 255, 255, 255, 0]))) throw new DeliveryError('Invalid monochrome BMP');
       }
       await atomicWrite(file, bytes);
-      if (driver && appliedHash !== digest) { await runDriver(driver, file, frame); appliedHash = digest; }
+      if (driver) {
+        if (appliedHash !== digest || (refreshRequestId && appliedRefreshRequestId !== refreshRequestId)) {
+          // Driver failure can leave a partially drawn panel. Forget both ACKs
+          // and its ETag before invoking it; only successful completion restores them.
+          appliedHash = undefined; appliedRefreshRequestId = undefined;
+          etag = undefined; downloadedHash = undefined;
+          await runDriver(driver, file, frame);
+          appliedHash = digest;
+        }
+        appliedRefreshRequestId = refreshRequestId ?? undefined;
+      }
       etag = `"${digest}"`; downloadedHash = digest;
-      await heartbeat();
+      await heartbeat(appliedRefreshRequestId);
       return result('updated');
     },
   };
