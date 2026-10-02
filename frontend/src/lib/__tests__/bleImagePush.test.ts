@@ -41,7 +41,7 @@ function setupDevice(bundled = false) {
   };
   gatt.connect.mockImplementation(async () => { gatt.connected = true; return gatt; });
   gatt.disconnect.mockImplementation(() => { gatt.connected = false; });
-  const device = { gatt,
+  const device = { gatt, name: bundled ? 'EInk-test' : 'ODtest',
     addEventListener: vi.fn((_: string, listener: () => void) => deviceHandlers.add(listener)),
     removeEventListener: vi.fn((_: string, listener: () => void) => deviceHandlers.delete(listener)),
   } as unknown as BluetoothDevice;
@@ -322,6 +322,89 @@ describe('application acknowledgements and deadlines', () => {
     const failure = expect(bleImagePush({ loadPixels })).rejects.toThrow('discovery timed out');
     await vi.advanceTimersByTimeAsync(10_001); await failure;
     expect(gatt.disconnect).toHaveBeenCalledOnce(); expect(write).not.toHaveBeenCalled();
+  });
+});
+
+describe('device identity and caller cancellation', () => {
+  it.each(['ODother', 'odtest', undefined])('rejects radio %s before loading or connecting', async name => {
+    const { device, gatt, write } = setupDevice();
+    Object.defineProperty(device, 'name', { value: name });
+    const loadPixels = vi.fn();
+    await expect(bleImagePush({ loadPixels, expectedDeviceName: 'ODtest' })).rejects.toThrow('does not match registered display "ODtest"');
+    expect(loadPixels).not.toHaveBeenCalled();
+    expect(gatt.connect).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('returns the matching radio and removes the caller abort listener after success', async () => {
+    const { device } = setupDevice();
+    const controller = new AbortController();
+    const add = vi.spyOn(controller.signal, 'addEventListener');
+    const remove = vi.spyOn(controller.signal, 'removeEventListener');
+    const result = await bleImagePush({ loadPixels: async () => new Uint8Array(DISPLAY_PIXEL_BYTES), expectedDeviceName: 'ODtest', signal: controller.signal });
+    expect(result.device).toBe(device);
+    expect(result.device.name).toBe('ODtest');
+    expect(remove).toHaveBeenCalledWith('abort', add.mock.calls[0][1]);
+  });
+
+  it('does not open the picker when already cancelled', async () => {
+    const { requestDevice, gatt } = setupDevice();
+    const loadPixels = vi.fn();
+    const controller = new AbortController();
+    controller.abort();
+    await expect(bleImagePush({ loadPixels, signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(requestDevice).not.toHaveBeenCalled();
+    expect(loadPixels).not.toHaveBeenCalled();
+    expect(gatt.connect).not.toHaveBeenCalled();
+  });
+
+  it.each(['picker', 'image', 'connect', 'write', 'refresh'])('cancels during %s and ignores late completion', async stage => {
+    vi.useFakeTimers();
+    const { device, gatt, requestDevice, write, emit, reply, handlers, deviceHandlers } = setupDevice();
+    const controller = new AbortController();
+    const add = vi.spyOn(controller.signal, 'addEventListener');
+    const remove = vi.spyOn(controller.signal, 'removeEventListener');
+    const loadPixels = vi.fn().mockResolvedValue(new Uint8Array(DISPLAY_PIXEL_BYTES));
+    let finish = () => emit(0x73);
+    if (stage === 'picker') requestDevice.mockImplementation(() => new Promise(resolve => { finish = () => resolve(device); }));
+    if (stage === 'image') loadPixels.mockImplementation(() => new Promise(resolve => { finish = () => resolve(new Uint8Array(DISPLAY_PIXEL_BYTES)); }));
+    if (stage === 'connect') gatt.connect.mockImplementation(() => new Promise(resolve => {
+      finish = () => { gatt.connected = true; resolve(gatt); };
+    }));
+    if (stage === 'write') write.mockImplementation((frame: Uint8Array) => {
+      if (frame[1] === 0x71) {
+        emit(0x71);
+        return new Promise<void>(resolve => { finish = resolve; });
+      }
+      reply(frame);
+      return Promise.resolve();
+    });
+    if (stage === 'refresh') write.mockImplementation(async (frame: Uint8Array) => emit(frame[1]));
+    const failure = new DOMException('Selected device changed', 'AbortError');
+    const transfer = bleImagePush({ loadPixels, signal: controller.signal });
+    const rejected = expect(transfer).rejects.toBe(failure);
+    await vi.advanceTimersByTimeAsync(0);
+    if (stage === 'picker') expect(loadPixels).not.toHaveBeenCalled();
+    if (stage === 'image') expect(loadPixels).toHaveBeenCalledOnce();
+    if (stage === 'connect') expect(gatt.connect).toHaveBeenCalledOnce();
+    if (stage === 'write') expect(write.mock.calls.at(-1)![0][1]).toBe(0x71);
+    if (stage === 'refresh') expect(write.mock.calls.at(-1)![0][1]).toBe(0x72);
+    controller.abort(failure);
+    await rejected;
+    const writes = write.mock.calls.length;
+    finish();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(write).toHaveBeenCalledTimes(writes);
+    expect(gatt.connected).toBe(false);
+    expect(handlers.size).toBe(0);
+    expect(deviceHandlers.size).toBe(0);
+    expect(remove).toHaveBeenCalledWith('abort', add.mock.calls[0][1]);
+    expect(vi.getTimerCount()).toBe(0);
+    if (stage === 'picker' || stage === 'image') {
+      expect(gatt.connect).not.toHaveBeenCalled();
+      expect(write).not.toHaveBeenCalled();
+    } else expect(gatt.disconnect).toHaveBeenCalledOnce();
+    if (stage === 'connect') expect(gatt.getPrimaryService).not.toHaveBeenCalled();
   });
 });
 

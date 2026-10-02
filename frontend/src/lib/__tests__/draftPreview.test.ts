@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDraftPreview, EMPTY_DRAFT_PREVIEW } from '../draftPreview';
 import { fetchDraftPreviewBmp } from '../api';
 import type { DisplayLayout } from '../../types';
+import { previewHeaders } from './previewFixtures';
 
 beforeEach(() => {
   vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:draft');
@@ -70,7 +71,7 @@ describe('draft preview lifecycle', () => {
 describe('draft preview API', () => {
   const layout: DisplayLayout = { version: 1, cols: 10, rows: 6, widgets: [] };
   it('sends the authenticated draft and passes cancellation to fetch', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(new Blob(['bmp']), { headers: { 'Content-Type': 'image/bmp' } }));
+    const fetchMock = vi.fn().mockResolvedValue(new Response(new Blob(['bmp']), { headers: previewHeaders('', true) }));
     vi.stubGlobal('fetch', fetchMock);
     const signal = new AbortController().signal;
     expect((await fetchDraftPreviewBmp('user-token', layout, signal)).size).toBe(3);

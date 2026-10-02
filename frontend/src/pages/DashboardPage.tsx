@@ -18,6 +18,7 @@ import { usePreferences } from '../hooks/usePreferences';
 import { getDevices } from '../lib/api';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import type { Device } from '../types';
 
 export function DashboardPage() {
   const { user, isSignedIn } = useAuth();
@@ -51,7 +52,7 @@ function AccountDashboard() {
             onChange={(event) => { const next = new URLSearchParams(params); if (event.target.value) next.set('device', event.target.value); else next.delete('device'); setParams(next); }}>
             <option value="">{da ? 'Vælg en enhed…' : 'Select a device…'}</option>
             {selectedId && !selected && <option value={selectedId}>{da ? 'Enheden er ikke tilgængelig' : 'Device unavailable'}</option>}
-            {devices.data?.devices.map((device) => <option key={device.id} value={device.id}>{device.device_name}</option>)}
+            {devices.data?.devices.map((device) => <option key={device.id} value={device.id}>{device.device_name} · {device.device_id} · {device.id.slice(0, 8)}</option>)}
           </select>
         </label>
         {devices.isPending && <p role="status">{t.loadingDevices}</p>}
@@ -61,7 +62,7 @@ function AccountDashboard() {
             : (da ? 'Vælg en enhed for at se dens layouts og aktuelle forhåndsvisning.' : 'Choose a device to see its layouts and current preview.')} <Link to="/devices" className="underline">{t.nav.devices}</Link>
         </p>}
       </Card>
-      {selected && !devices.isError && <DeviceWorkspace key={`${user?.id}:${selected.id}`} deviceId={selected.id} name={selected.device_name} />}
+      {selected && !devices.isError && <DeviceWorkspace key={`${user?.id}:${selected.id}`} device={selected} />}
       <details className="mt-6 border border-divider rounded-md p-4">
         <summary className="cursor-pointer font-medium">{da ? 'Fælles indhold og standardindstillinger' : 'Shared content and defaults'}</summary>
         <p className="text-sm text-fg2">{da
@@ -74,17 +75,20 @@ function AccountDashboard() {
   );
 }
 
-function DeviceWorkspace({ deviceId, name }: { deviceId: string; name: string }) {
+function DeviceWorkspace({ device }: { device: Device }) {
+  const deviceId = device.id;
+  const name = device.device_name;
   const { lang, t } = useApp();
   const query = usePreferences(deviceId);
   const da = lang === 'da';
   return <section aria-label={`${da ? 'Enhed' : 'Device'}: ${name}`}>
     <h2 className="text-h2 font-light mt-0">{name}</h2>
+    <p className="text-xs text-fg2 break-all">{da ? 'Hardware-ID' : 'Hardware ID'}: <code>{device.device_id}</code> · UUID: <code>{deviceId}</code></p>
     <p className="text-sm text-fg2">{da ? 'Layouts, skærmprofil og tidszone her gælder kun denne enhed. Første gang du gemmer, kopieres kontoens standardindstillinger til enheden.' : 'Layouts, display profile and time zone here apply only to this device. Your first save copies the account defaults to this device.'}</p>
     {query.isPending ? <p role="status">{t.loading}</p> : query.isError || !query.data ? <p role="alert">{da ? 'Kunne ikke hente enhedens indstillinger.' : 'Could not load this device’s settings.'} <Button onClick={() => void query.refetch()}>{t.retry}</Button></p> :
       <div className="grid grid-cols-[minmax(0,1fr)_380px] gap-5 items-start max-[1080px]:grid-cols-1">
         <div className="flex flex-col gap-5 min-w-0"><DeviceLayoutsCard deviceId={deviceId} /><DeviceSlideshowCard deviceId={deviceId} /><DisplayTimezoneCard deviceId={deviceId} /><DisplayProfileCard deviceId={deviceId} /></div>
-        <div className="max-[1080px]:static max-[1080px]:order-first sticky top-[calc(64px+var(--space-5))]"><PreviewCard deviceId={deviceId} deviceName={name} /></div>
+        <div className="max-[1080px]:static max-[1080px]:order-first sticky top-[calc(64px+var(--space-5))]"><PreviewCard deviceId={deviceId} deviceName={name} hardwareId={device.device_id} expectedDeviceName={device.ble_name} /></div>
       </div>}
   </section>;
 }

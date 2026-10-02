@@ -1,5 +1,6 @@
 import { DisplayProfile, frameMetadata } from './displayProfile';
 import { buildAuthHeaders } from './auth';
+import { readPreviewMetadata, type PreviewImage } from './previewMetadata';
 import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout, CustomWebhookStatus, WeatherData } from '../types';
 
 // Both Vercel and Vite route /api/* to the backend and strip the /api prefix.
@@ -290,13 +291,19 @@ export async function getPreviewData(token: string, deviceId?: string): Promise<
  * Fetches the server-rendered 1-bit BMP for the authenticated user.
  * The view creates and releases its own object URL from the returned Blob.
  */
-export async function fetchPreviewBmp(token: string, signal?: AbortSignal, deviceId?: string): Promise<Blob> {
+export async function fetchPreviewBmp(token: string, signal?: AbortSignal, deviceId?: string): Promise<PreviewImage> {
   const response = await fetch(`${BASE_URL}/api/image/preview${deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : ''}`, {
     headers: { Authorization: `Bearer ${token}` },
     signal,
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.blob();
+  try {
+    signal?.throwIfAborted();
+    const metadata = readPreviewMetadata(response.headers, deviceId);
+    const blob = await response.blob();
+    signal?.throwIfAborted();
+    return { blob, metadata };
+  } catch (error) { void response.body?.cancel().catch(() => {}); throw error; }
 }
 
 /** Render a layout draft using the signed-in user's saved source settings. */
@@ -312,7 +319,13 @@ export async function fetchDraftPreviewBmp(token: string, layout: DisplayLayout,
     try { message = (await response.json()).error ?? message; } catch { /* Keep HTTP status. */ }
     throw new ApiError(response.status, message);
   }
-  return response.blob();
+  try {
+    signal?.throwIfAborted();
+    readPreviewMetadata(response.headers, deviceId, true);
+    const blob = await response.blob();
+    signal?.throwIfAborted();
+    return blob;
+  } catch (error) { void response.body?.cancel().catch(() => {}); throw error; }
 }
 
 /**
@@ -353,12 +366,15 @@ export function deleteCustomWebhookToken(token: string): Promise<void> {
   return request('/api/custom-webhook/token', { token, method: 'DELETE' });
 }
 
-export async function fetchPreviewFrame(token: string, deviceId?: string): Promise<{ pixels: Uint8Array; profile: DisplayProfile }> {
-  const response = await fetch(`${BASE_URL}/api/image/preview/raw${deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : ''}`, { headers: { Authorization: `Bearer ${token}` } });
+export async function fetchPreviewFrame(token: string, deviceId?: string, signal?: AbortSignal): Promise<{ pixels: Uint8Array; profile: DisplayProfile }> {
+  const response = await fetch(`${BASE_URL}/api/image/preview/raw${deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : ''}`, { headers: { Authorization: `Bearer ${token}` }, signal });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const profile = { width: Number(response.headers.get('X-Display-Width')), height: Number(response.headers.get('X-Display-Height')), rotation: Number(response.headers.get('X-Display-Rotation')), colorMode: 'bw' } as DisplayProfile;
-  const meta = frameMetadata(profile);
-  const pixels = new Uint8Array(await response.arrayBuffer());
-  if (response.headers.get('X-Display-Encoding') !== meta.encoding || Number(response.headers.get('X-Display-Row-Bytes')) !== meta.rowBytes || pixels.length !== meta.byteLength) throw new Error('Invalid display image metadata');
-  return { pixels, profile };
+  try {
+    signal?.throwIfAborted();
+    const { profile } = readPreviewMetadata(response.headers, deviceId);
+    const pixels = new Uint8Array(await response.arrayBuffer());
+    signal?.throwIfAborted();
+    if (pixels.length !== frameMetadata(profile).byteLength) throw new Error('Invalid display image metadata');
+    return { pixels, profile };
+  } catch (error) { void response.body?.cancel().catch(() => {}); throw error; }
 }

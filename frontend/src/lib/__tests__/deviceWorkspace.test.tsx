@@ -32,6 +32,9 @@ describe('selected device workspaces', () => {
   it('names the selected device, renders only its saved layouts, and keeps editor links scoped', () => {
     const html = render('/dashboard?device=kitchen');
     expect(html).toContain('Device: Kitchen display');
+    expect(html).toContain('Kitchen display · hardware · kitchen');
+    expect(html).toContain('Office display · other · office');
+    expect(html).toContain('Hardware ID: <code>hardware</code>');
     expect(html).toContain('kitchen saved layout');
     expect(html).not.toContain('office saved layout');
     expect(html).toContain('/layout?device=kitchen&amp;page=kitchen-one');
