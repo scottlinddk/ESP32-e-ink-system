@@ -37,11 +37,11 @@ describe('portable display template schema', () => {
     const prefs = {
       ...DEFAULT_PREFS, layout: STARTER_TEMPLATES[0].template.settings.layout,
       display_profile: { width: 400, height: 300, rotation: 90, colorMode: 'bw' },
-      display_schedule: schedule,
+      display_schedule: schedule, display_timezone: 'America/New_York',
     } as UserPreferences;
     const exported = exportDisplayTemplate(prefs);
     expect(parseDisplayTemplate(JSON.parse(JSON.stringify(exported)))).toEqual(exported);
-    expect(exported.settings).toMatchObject({ layout: prefs.layout, display_profile: prefs.display_profile, display_schedule: schedule });
+    expect(exported.settings).toMatchObject({ layout: prefs.layout, display_profile: prefs.display_profile, display_schedule: schedule, display_timezone: 'America/New_York' });
   });
 
   it('exports migrated rows with a null profile as the default profile', () => {
@@ -105,6 +105,7 @@ describe('portable display template schema', () => {
     withSettings(null), withSettings([]), withSettings({}), withSettings({ user_id: 'victim' }),
     withSettings({ api_key: 'secret' }), withSettings({ calendar_url: 'https://private' }), withSettings({ show_weather: 'true' }),
     withSettings({ show_custom_webhook: 'true' }), withSettings({ show_custom_webhook: null }),
+    ...['', 'Invalid/Zone', '+01:00', null, 12].map((display_timezone) => withSettings({ display_timezone })),
     ...[0, 1441, 1.5, '60', null].map((custom_webhook_ttl_minutes) => withSettings({ custom_webhook_ttl_minutes })),
     withSettings({ customWebhook: { rows: [{ label: 'private', value: 'private' }] } }),
     withSettings({ token_hash: 'secret' }), withSettings({ integration_token: 'secret' }),

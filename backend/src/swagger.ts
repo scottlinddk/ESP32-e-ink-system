@@ -50,6 +50,7 @@ const options: swaggerJsdoc.Options = {
         UserPreferences: {
           type: 'object',
           properties: {
+            display_timezone: { type: 'string', maxLength: 64, default: 'Europe/Copenhagen', description: 'IANA time zone for the display clock and preview timestamp; independent of calendar and quiet hours' },
             show_energy_price: { type: 'boolean' },
             show_weather: { type: 'boolean' },
             show_news: { type: 'boolean' },

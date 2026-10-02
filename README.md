@@ -13,6 +13,8 @@ Use **Layout templates** on the Dashboard to export settings, review a JSON impo
 
 Use **Pages and schedule** to save named layouts, choose their order and duration, and configure local quiet hours. Server requests select the active page; browser Bluetooth still requires manual pushes. See the [schedule guide](docs/DISPLAY_SCHEDULES.md) for timing rules and the required migration.
 
+Use **Display time zone** on the Dashboard to set the status clock and preview timestamp, or select **Use browser time zone**. The default is `Europe/Copenhagen`; daylight saving time follows the selected IANA zone. Calendar event times and scheduled quiet hours retain their separately labelled time zones. Apply `016_display_timezone.sql` before deploying this setting.
+
 The JSON preview, BMP preview and Bluetooth payload share one live-data pipeline. Unavailable sources are shown as unavailable, without invented weather or headlines. Widget drawing is clipped to its assigned area so long content cannot overwrite neighboring widgets.
 
 The image renderer supports validated monochrome panel sizes and clockwise rotation, defaulting to **250 × 122**. Choose native dimensions on the Dashboard. The bundled firmware accepts row-padded 250 × 122 Bluetooth pushes in manual setup mode. The separate OpenDisplay path retains its byte-aligned width requirement. See [display profiles](docs/DISPLAY_PROFILES.md) and [Bluetooth setup](docs/BLUETOOTH_DELIVERY.md). A profile does not install a new board driver.

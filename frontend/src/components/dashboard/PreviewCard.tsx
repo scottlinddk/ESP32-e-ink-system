@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useApp } from '../../lib/appContext';
 import { useAuth } from '../../hooks/useAuth';
+import { usePreferences } from '../../hooks/usePreferences';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Spinner } from '../ui/Spinner';
@@ -17,6 +18,8 @@ export function PreviewCard() {
   const { t } = useApp();
   const navigate = useNavigate();
   const { getToken, isSignedIn, user } = useAuth();
+  const { data: preferences } = usePreferences();
+  const timezone = preferences?.display_timezone ?? 'Europe/Copenhagen';
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [pushState, setPushState] = useState<PushState>('idle');
   const [pushProgress, setPushProgress] = useState(0);
@@ -114,7 +117,7 @@ export function PreviewCard() {
 
         <div className="flex flex-wrap justify-between gap-2 text-xs text-fg3" aria-live="polite">
           {updatedAt && (
-            <span>{t.lastUpdated} <time dateTime={updatedAt.toISOString()}>{updatedAt.toLocaleString(t.locale)}</time></span>
+            <span>{t.lastUpdated} <time dateTime={updatedAt.toISOString()}>{updatedAt.toLocaleString(t.locale, { timeZone: timezone })}</time> · {timezone}</span>
           )}
           {preview.isFetching && <span>{t.previewLoading}</span>}
         </div>

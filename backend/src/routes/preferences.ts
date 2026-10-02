@@ -16,6 +16,7 @@ import { LayoutValidationError } from '../utils/layoutValidation';
 import { validatePublicHttpsUrl } from '../utils/publicFeedFetch';
 import calendarRouter from './calendar';
 import { validateCalendarOptions } from '../services/calendar';
+import { DEFAULT_DISPLAY_TIMEZONE, parseDisplayTimezone } from '../utils/displayTimezone';
 import { parseCustomContentUpdates } from '../utils/customContent';
 import { parseWebhookPreferences } from '../services/customWebhook';
 
@@ -189,6 +190,7 @@ router.get(
 
       // Return defaults if no preferences set yet
       const defaultPrefs: UserPreferences = {
+        display_timezone: DEFAULT_DISPLAY_TIMEZONE,
         show_custom_webhook: false,
         custom_webhook_ttl_minutes: 60,
         show_custom_text: false,
@@ -240,6 +242,7 @@ router.post(
       }
 
       const allowedFields: (keyof UserPreferences)[] = [
+        'display_timezone',
         'display_schedule',
         'show_energy_price',
         'show_weather',
@@ -271,6 +274,7 @@ router.post(
       }
       let updates: Partial<UserPreferences>;
       try {
+        if (req.body.display_timezone !== undefined) parseDisplayTimezone(req.body.display_timezone);
         updates = { ...parseCustomContentUpdates(req.body), ...parseWebhookPreferences(req.body) };
       } catch (error) {
         res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid custom content' });

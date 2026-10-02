@@ -13,6 +13,29 @@ import {
 
 const STRIDE = 32;
 
+describe('display status time zone', () => {
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+  it.each([
+    ['2026-01-15T12:00:00Z', 'Europe/Copenhagen', '13:00'],
+    ['2026-07-15T12:00:00Z', 'Europe/Copenhagen', '14:00'],
+    ['2026-07-15T12:00:00Z', 'UTC', '12:00'],
+    ['2026-07-15T12:00:00Z', 'America/New_York', '08:00'],
+    ['2026-07-15T22:00:00Z', 'Europe/Copenhagen', '00:00'],
+    ['2026-07-15T12:00:00Z', undefined, '14:00'],
+  ])('renders %s in %s as %s in both output formats', (instant, display_timezone, expected) => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date(instant!));
+    const draw = vi.spyOn(BmpCanvas.prototype, 'drawText');
+    const prefs = { monta_fields: [], zaptec_fields: [], display_timezone };
+    const statusLayout: DisplayLayout = { version: 1, cols: 10, rows: 6, widgets: [{ i: 'status', x: 0, y: 0, w: 10, h: 1 }] };
+    const raw = renderDisplayDataRaw({ nextRefresh: 300_000 }, statusLayout, prefs);
+    const bmp = renderDisplayData({ nextRefresh: 300_000 }, statusLayout, prefs);
+    expect(draw.mock.calls.map(([text]) => text)).toEqual([
+      `Refresh: 5min  ${expected}`, `Refresh: 5min  ${expected}`,
+    ]);
+    expect(bmp.subarray(62)).toEqual(raw);
+  });
+});
+
 describe('news feed rendering', () => {
   const newsLayout: DisplayLayout = { version: 1, cols: 10, rows: 6, widgets: [{ i: 'news', x: 0, y: 0, w: 10, h: 6 }] };
   it('renders additional headlines when the news widget has room', () => {

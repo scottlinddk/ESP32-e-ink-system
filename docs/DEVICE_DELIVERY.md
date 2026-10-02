@@ -2,7 +2,7 @@
 
 Apply `backend/src/db/migrations/015_device_delivery.sql` and configure the backend's Supabase **service role** key. The new `device_delivery` table has RLS enabled and denies `anon`/`authenticated` access; tokens and telemetry never become columns on the legacy `devices` table.
 
-When upgrading the complete feature set, apply missing migrations in order: `009_display_profile.sql`, `010_rss.sql`, `011_custom_content.sql`, `012_calendar.sql`, `013_display_schedule.sql`, `014_custom_webhook.sql`, then `015_device_delivery.sql`. Earlier installations must also have their preceding migrations. Automated validation uses isolated fixtures and mocked database services; these changes have not been applied to a live Supabase database or verified on a physical panel.
+When upgrading the complete feature set, apply missing migrations in order: `009_display_profile.sql`, `010_rss.sql`, `011_custom_content.sql`, `012_calendar.sql`, `013_display_schedule.sql`, `014_custom_webhook.sql`, `015_device_delivery.sql`, then `016_display_timezone.sql`. Earlier installations must also have their preceding migrations. Automated validation uses isolated fixtures and mocked database services; these changes have not been applied to a live Supabase database or verified on a physical panel.
 
 In **Devices → Automatic updates**, create a token for the registered device. Copy it immediately: only its SHA-256 hash is stored. Creating another token invalidates the previous token; **Revoke token** stops future frame/heartbeat requests. Management endpoints require the owning Clerk account. Frame/heartbeat tokens cannot read preferences or manage other devices.
 

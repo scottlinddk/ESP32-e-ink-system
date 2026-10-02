@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../hooks/useAuth';
 import { useApp } from '../../lib/appContext';
+import { usePreferences } from '../../hooks/usePreferences';
 import { createDeviceDeliveryToken, getDeviceDeliveryStatus, revokeDeviceDeliveryToken } from '../../lib/api';
 import { Button } from '../ui/button';
 
@@ -12,6 +13,8 @@ export function DeviceDeliveryCard({ deviceId }: { deviceId: string }) {
 function DeliverySettings({ deviceId }: { deviceId: string }) {
   const { user, getToken, isSignedIn } = useAuth();
   const { lang } = useApp();
+  const { data: preferences } = usePreferences();
+  const timezone = preferences?.display_timezone ?? 'Europe/Copenhagen';
   const da = lang === 'da';
   const queryClient = useQueryClient();
   const queryKey = ['device-delivery', user?.id, deviceId];
@@ -57,7 +60,7 @@ function DeliverySettings({ deviceId }: { deviceId: string }) {
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 m-0 text-fg2">
           <dt>API URL</dt><dd className="m-0 font-mono break-all select-all">{apiBase}</dd>
           <dt>Device UUID</dt><dd className="m-0 font-mono break-all select-all">{deviceId}</dd>
-          <dt>{da ? 'Seneste rapport' : 'Last report'}</dt><dd className="m-0">{report?.lastSeenAt ? new Date(report.lastSeenAt).toLocaleString() : (da ? 'Aldrig' : 'Never')}</dd>
+          <dt>{da ? 'Seneste rapport' : 'Last report'}</dt><dd className="m-0">{report?.lastSeenAt ? `${new Date(report.lastSeenAt).toLocaleString(da ? 'da-DK' : 'en-GB', { timeZone: timezone })} · ${timezone}` : (da ? 'Aldrig' : 'Never')}</dd>
           <dt>{da ? 'Rapporteret firmware' : 'Reported firmware'}</dt><dd className="m-0">{report?.firmwareVersion ?? '—'}</dd>
           <dt>{da ? 'Rapporteret batteri' : 'Reported battery'}</dt><dd className="m-0">{report?.batteryPercent == null ? '—' : `${report.batteryPercent}%`}</dd>
           <dt>RSSI</dt><dd className="m-0">{report?.rssi == null ? '—' : `${report.rssi} dBm`}</dd>

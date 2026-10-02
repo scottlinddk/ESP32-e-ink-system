@@ -37,6 +37,7 @@ export const DEFAULT_LAYOUT: DisplayLayout = {
 };
 
 export interface UserPreferences {
+  display_timezone?: string;
   show_custom_webhook?: boolean;
   custom_webhook_ttl_minutes?: number;
   display_schedule?: DisplaySchedule | null;

@@ -117,7 +117,7 @@ class SchemaTests(unittest.TestCase):
     def test_new_preference_fields_and_nullability_are_required(self):
         required = {"news_source", "news_feed_url", "news_item_limit", "show_custom_text", "custom_text",
                     "show_custom_image", "show_calendar", "calendar_timezone", "calendar_days", "calendar_item_limit",
-                    "show_custom_webhook", "custom_webhook_ttl_minutes"}
+                    "show_custom_webhook", "custom_webhook_ttl_minutes", "display_timezone"}
         optional = {"display_profile", "custom_image", "display_schedule"}
         for name in required | optional:
             with self.subTest(column=name):
@@ -125,6 +125,14 @@ class SchemaTests(unittest.TestCase):
                 self.assertEqual(next(field["nullable"] for field in fields if field["name"] == name), name in optional)
                 with self.assertRaisesRegex(migrate.MigrationError, "missing columns"):
                     migrate.check_schema("user_preferences", [field for field in fields if field["name"] != name])
+
+    def test_display_timezone_default_must_be_copenhagen(self):
+        fields = schema("user_preferences")
+        zone = next(field for field in fields if field["name"] == "display_timezone")
+        self.assertEqual(zone["default"], "'Europe/Copenhagen'::text")
+        zone["default"] = "'UTC'::text"
+        with self.assertRaises(migrate.MigrationError):
+            migrate.check_schema("user_preferences", fields)
 
     def test_every_tracked_check_is_required_and_bounds_cannot_be_weakened(self):
         self.assertEqual({table: len(checks) for table, checks in migrate.EXPECTED_CHECKS.items()},
