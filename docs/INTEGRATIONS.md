@@ -12,13 +12,17 @@ Each source needs both saved source settings and its widget in the **layout edit
 | RSS / Atom | News headlines | Select RSS / Atom, enter a public HTTPS feed, and choose 1–10 headlines. No key. Widget size determines how many fit. |
 | Monta | Monta | Save client ID and client secret for an API client with access to the relevant charge points. Enable Monta and choose the displayed fields. [Authentication](https://docs.public-api.monta.com/reference/authentication) |
 | Zaptec | Zaptec | Save the username and password for an account authorized to read the chargers. Enable Zaptec and choose the displayed fields. [Authentication](https://docs.zaptec.com/docs/api-authentication) |
-| Notion | Notion | Create an internal connection with read access and share the database with that connection. The current credential form accepts legacy `secret_` tokens and a database ID only; modern `ntn_` tokens and data-source compatibility are tracked in [#136](https://github.com/scottlinddk/ESP32-e-ink-system/issues/136). [Connection setup](https://developers.notion.com/guides/get-started/internal-connections) |
+| Notion | Notion | Create an internal connection with read access and share the original database with it. Save its `ntn_` or legacy `secret_` token and database ID or original Notion link. A database with multiple data sources also needs the desired data source ID. [Connection setup](https://developers.notion.com/guides/get-started/internal-connections) |
 | ICS calendar | Calendar | Save a subscription URL, enable Calendar, and choose the event timezone, 1–30 day window and 1–10 event limit. See below. |
 | Home Assistant / custom webhook | Custom sensors | Create a dedicated token, configure outbound JSON updates, and enable the sensor source. [Complete example](CUSTOM_WEBHOOK.md) |
 
 NewsAPI's [published sources](https://newsapi.org/docs/endpoints/sources) do not list Danish or Finnish coverage. For Danish headlines, select a publisher's public RSS feed rather than assuming a Danish NewsAPI key will supply them. Feed URLs are ordinary preferences; use the separate Calendar form for secret calendar subscription URLs.
 
 **My note**, **My image**, and **Status** are built-in widgets. Notes/images are configured on Dashboard; Status uses the selected display timezone. They do not require an external integration. See [custom content](CUSTOM_CONTENT.md). Calendar and quiet-hours timezones are independent of the display clock.
+
+Monta's optional daily figure is the reported energy of sessions **created today in the display timezone**. It is not energy metered since midnight: a session can span days. Zaptec shows the first actively charging charger and its reported session energy; an unknown measurement is shown as `?`, not zero. The provider lists are bounded to 500 items per request sequence.
+
+Notion resolves the database's data source before querying its items. A single source is selected automatically; multiple sources require an explicit choice. Copy the source ID using Notion's data-source menu or retrieve it from the [database API](https://developers.notion.com/reference/retrieve-a-database). A view ID is not a data source ID. Optional status filters require the exact property and status names. The preview provides a setup diagnostic if access or source selection is missing.
 
 ## Calendar subscriptions
 
@@ -30,6 +34,8 @@ Use a subscription feed, not the calendar's HTML page or a sharing invitation:
 
 The app encrypts the saved feed URL and does not include it in preferences or exported templates. It must be reachable by the backend over public HTTPS without a browser login. Private LAN hosts, embedded HTTP credentials, compressed responses and unsupported calendar formats cannot be read. The existing calendar limits are described in [README](../README.md#data-sources). Removing the saved address stops fetching it; invalidating a published/secret URL at the calendar provider also prevents future access through that URL.
 
+Known Outlook Windows timezone names are converted using the installed calendar parser's mapping. Unknown timezone names remain unsupported; they are never silently interpreted in the server's timezone.
+
 ## Home Assistant
 
 Create a token in the Home Assistant card and copy it while it is shown. The page provides the deployed HTTPS ingestion address and examples for `secrets.yaml`, a REST command, and a five-minute automation. Replace the sample entities with your own and choose a freshness lifetime longer than the update interval. On localhost, use your deployed app address; Home Assistant cannot reach your computer's `localhost` through its own loopback address.
@@ -39,3 +45,5 @@ Test the REST action in Home Assistant, then refresh the card's status. Add **Cu
 ## Checking setup
 
 Saving credentials records configuration; it does not establish provider access. Use the Weather test where available and inspect the saved preview for other sources. Empty results and failed requests are different: an empty agenda has no upcoming events; an unavailable agenda could not be loaded. A stale sensor snapshot keeps its readings with a visible stale label. Keep API keys, database tokens and secret calendar URLs out of reusable templates.
+
+Switching a source off leaves its layout area blank. Remove or resize the widget separately to reclaim the space. The [audit inventory](INTEGRATION_AUDIT.md) lists every supported widget and its verification limits.

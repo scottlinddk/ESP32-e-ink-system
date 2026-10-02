@@ -254,14 +254,18 @@ export function DisplayCard() {
             onToggle={() => set({ news: { ...p.news, on: !p.news.on } })}
           >
             <div className="grid grid-cols-2 gap-3.5 max-[820px]:grid-cols-1">
-              {p.news.source !== 'rss' && <Field label={t.contentLang} htmlFor="nl">
+              {p.news.source !== 'rss' && <Field label={app.lang === 'da' ? 'NewsAPI-dækning' : 'NewsAPI coverage'} htmlFor="nl">
                 <Select
                   id="nl"
                   value={p.news.lang}
                   onChange={(e) => set({ news: { ...p.news, lang: e.target.value } })}
                   options={[
-                    { value: 'da', label: t.langDanish },
-                    { value: 'en', label: t.langEnglish },
+                    { value: 'da', label: app.lang === 'da' ? 'Dansk (brug RSS)' : 'Danish (use RSS)' },
+                    { value: 'fi', label: app.lang === 'da' ? 'Finsk (brug RSS)' : 'Finnish (use RSS)' },
+                    { value: 'en', label: app.lang === 'da' ? 'Engelsk (USA)' : 'English (United States)' },
+                    { value: 'de', label: app.lang === 'da' ? 'Tysk (Tyskland)' : 'German (Germany)' },
+                    { value: 'sv', label: app.lang === 'da' ? 'Svensk (Sverige)' : 'Swedish (Sweden)' },
+                    { value: 'no', label: app.lang === 'da' ? 'Norsk (Norge)' : 'Norwegian (Norway)' },
                   ]}
                 />
               </Field>}
@@ -276,6 +280,9 @@ export function DisplayCard() {
                   ]}
                 />
               </Field>
+              {p.news.source !== 'rss' && !['en', 'de', 'sv', 'no'].includes(p.news.lang) && <p role="alert" className="text-xs text-fg2 m-0 col-span-full">{app.lang === 'da'
+                ? 'NewsAPI understøtter ikke dansk eller finsk dækning. Vælg RSS / Atom og et offentligt feed fra dit nyhedsmedie, eller vælg en understøttet NewsAPI-dækning.'
+                : 'NewsAPI does not support Danish or Finnish coverage. Select RSS / Atom and a public feed from your news publisher, or choose supported NewsAPI coverage.'}</p>}
               {p.news.source === 'rss' && <>
                 <Field label={app.lang === 'da' ? 'Feed-adresse (HTTPS)' : 'Feed URL (HTTPS)'} htmlFor="news-feed-url">
                   <Input id="news-feed-url" type="url" maxLength={2048} value={p.news.feedUrl ?? ''}

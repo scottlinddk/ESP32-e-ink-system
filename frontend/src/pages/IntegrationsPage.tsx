@@ -45,8 +45,8 @@ export function IntegrationsPage() {
     },
     {
       id: 'notion', name: 'Notion', widget: t.srcNotion, setup: '#credentials-notion',
-      text: da ? 'Opret en intern forbindelse med læseadgang, og tilføj den til databasen i Notion. Gem token og database-ID; statusfilter er valgfrit. Aktivér derefter Notion under Datakilder. Den nuværende version accepterer kun ældre secret_-tokens; nye ntn_-tokens understøttes endnu ikke.'
-        : 'Create an internal connection with read access and add it to the database in Notion. Save its token and database ID; the status filter is optional. Then enable Notion under Data sources. This version accepts only legacy secret_ tokens; new ntn_ tokens are not supported yet.',
+      text: da ? 'Opret en intern forbindelse med læseadgang, og tilføj den til den oprindelige database i Notion. Gem en ntn_- eller secret_-token og database-ID eller link. Én datakilde vælges automatisk; ved flere skal du også kopiere datakilde-ID fra Manage data sources. Statusfilter er valgfrit og kræver en egenskab af typen Status. Aktivér derefter Notion under Datakilder.'
+        : 'Create an internal connection with read access and add it to the original database in Notion. Save an ntn_ or secret_ token and database ID or link. One data source is selected automatically; for several, also copy its ID from Manage data sources. The optional filter requires a Status-type property. Then enable Notion under Data sources.',
       url: 'https://developers.notion.com/guides/get-started/internal-connections',
     },
   ];

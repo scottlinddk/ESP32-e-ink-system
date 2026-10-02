@@ -402,6 +402,12 @@ GET /api/display-data/abc123?licenseKey=LK-xyz-789
 
 Fields are only included if the corresponding `show_*` preference is enabled.
 
+Enabled NewsAPI failures return `newsError: { code, message }` instead of headlines. Codes include `unsupported_coverage` (Danish/Finnish: choose RSS), `missing_key`, `invalid_key`, `rate_limited`, `timeout`, `invalid_response`, and `unavailable`. RSS failures use the same safe diagnostic shape. A successful empty feed remains `news: []`.
+
+Notion failures return `notionError: { code, message }`, including `data_source_required`, `invalid_data_source`, `invalid_configuration`, `invalid_token`, `access_denied`, `invalid_response`, `rate_limited`, `timeout`, or `unavailable`. Messages contain no provider response bodies, credentials or private IDs. Its configured token and database ID/link are saved through `POST /api/preferences/ev-credentials` with `{ "provider": "notion", "credentials": { "token": "ntn_...", "databaseId": "...", "dataSourceId": "..." } }`. `dataSourceId` is optional for single-source databases; status/property filters remain optional. The response reports configured status without credentials.
+
+Monta's `todayKwh` is the energy reported for sessions created today in `display_timezone`, not energy metered since midnight. Monta session energy/start/duration and Zaptec session energy can be `null` when unknown. Zaptec `startDateTime` remains `null`; state observation 718 is not a timestamp. An explicitly disabled source is also suppressed in BMP/raw rendering.
+
 `nextRefresh` is in milliseconds — the device should deep sleep for this duration.
 
 **Response 401:** Missing or invalid `licenseKey`

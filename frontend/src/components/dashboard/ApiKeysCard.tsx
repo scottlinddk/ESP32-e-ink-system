@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../../lib/appContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useApiKeys } from '../../hooks/usePreferences';
+import { notionCredentialsForSave } from '../../lib/notionCredentials';
 import { saveApiKey, deleteApiKey, saveEvCredentials, getEvCredentialStatus, deleteEvCredentials } from '../../lib/api';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -223,7 +224,7 @@ function NotionCredentialsSection() {
     mutationFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      return saveEvCredentials(token, 'notion', fields);
+      return saveEvCredentials(token, 'notion', notionCredentialsForSave(fields));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: statusKey });
@@ -248,10 +249,13 @@ function NotionCredentialsSection() {
   });
 
   function validate(): boolean {
-    if (!fields.token?.trim()) { setErr('Integration token is required.'); return false; }
-    if (!fields.token.startsWith('secret_')) { setErr('Token must start with "secret_".'); return false; }
-    if (!fields.databaseId?.trim()) { setErr('Database ID is required.'); return false; }
-    return true;
+    try { notionCredentialsForSave(fields); return true; }
+    catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      setErr(code === 'token' ? t.notionInvalidToken : code === 'database' ? t.notionInvalidDatabase
+        : code === 'source' ? t.notionInvalidSource : code === 'filter' ? t.notionInvalidFilter : t.notionInvalidProperty);
+      return false;
+    }
   }
 
   function openDialog() { if (disabled) return; setFields({}); setErr(''); setOpen(true); }
@@ -308,15 +312,22 @@ function NotionCredentialsSection() {
         <Field label={t.notionDatabaseId} htmlFor="notion-dbid">
           <Input
             id="notion-dbid"
+            maxLength={2048}
             mono
             value={fields.databaseId ?? ''}
             placeholder={t.notionDatabaseIdPh}
             onChange={(e) => { setFields((f) => ({ ...f, databaseId: e.target.value })); }}
           />
         </Field>
+        <Field label={t.notionDataSourceId} htmlFor="notion-source-id" helper={t.notionDataSourceHelp}>
+          <Input id="notion-source-id" mono maxLength={36} value={fields.dataSourceId ?? ''}
+            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            onChange={(event) => setFields((current) => ({ ...current, dataSourceId: event.target.value }))} />
+        </Field>
         <Field label={t.notionStatusProp} htmlFor="notion-status-prop">
           <Input
             id="notion-status-prop"
+            maxLength={100}
             value={fields.statusProperty ?? ''}
             placeholder={t.notionStatusPropPh}
             onChange={(e) => { setFields((f) => ({ ...f, statusProperty: e.target.value })); }}
@@ -325,6 +336,7 @@ function NotionCredentialsSection() {
         <Field label={t.notionFilterStatus} htmlFor="notion-filter">
           <Input
             id="notion-filter"
+            maxLength={100}
             value={fields.filterStatus ?? ''}
             placeholder={t.notionFilterStatusPh}
             onChange={(e) => { setFields((f) => ({ ...f, filterStatus: e.target.value })); }}

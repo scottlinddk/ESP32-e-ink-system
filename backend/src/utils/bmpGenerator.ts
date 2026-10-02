@@ -5,6 +5,7 @@ import { drawCustomImage } from './customContent';
 import { renderWebhookWidget } from './webhookRenderer';
 import { DEFAULT_DISPLAY_TIMEZONE } from './displayTimezone';
 import { WEATHER_ERROR_LABELS } from './weatherErrors';
+import { NEWS_ERROR_LABELS } from './newsErrors';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -351,7 +352,8 @@ function renderWeatherWidget(
 function renderNewsWidget(
   canvas: BmpCanvas,
   bounds: WidgetBounds,
-  news?: DisplayData['news']
+  news?: DisplayData['news'],
+  problem?: DisplayData['newsError'],
 ): void {
   const { x, y, width, height } = bounds;
   if (y > 0) canvas.drawHLine(x, y, width);
@@ -363,7 +365,7 @@ function renderNewsWidget(
       textY = canvas.drawWrappedText(item.title, x + 2, textY, maxW, 10) + 2;
     }
   } else {
-    canvas.drawText(news ? 'No headlines' : 'News: unavailable', x + 2, textY, maxW);
+    canvas.drawText(news ? 'No headlines' : problem ? NEWS_ERROR_LABELS[problem.code] : 'News: unavailable', x + 2, textY, maxW);
   }
 }
 
@@ -397,7 +399,7 @@ function renderMontaWidget(
     if (data.activeSessions.length > 0) {
       const s = data.activeSessions[0];
       canvas.drawText(
-        `${s.energyDeliveredKwh.toFixed(1)}kWh  ${s.durationMin}min`,
+        `${s.energyDeliveredKwh === null ? '?' : s.energyDeliveredKwh.toFixed(1)}kWh  ${s.durationMin ?? '?'}min`,
         x + 2,
         textY,
         maxW
@@ -407,7 +409,7 @@ function renderMontaWidget(
   }
 
   if (fields.includes('today_stats') && data.todayKwh !== null && textY < y + height - 8) {
-    canvas.drawText(`Today: ${data.todayKwh.toFixed(1)} kWh`, x + 2, textY, maxW);
+    canvas.drawWrappedText(`Created today: ${data.todayKwh.toFixed(1)} kWh`, x + 2, textY, maxW);
   }
 }
 
@@ -434,8 +436,8 @@ function renderZaptecWidget(
   textY += 10;
 
   if (fields.includes('charger_status') && data.chargers.length > 0) {
-    const available = data.chargers.filter((c) => c.operatingMode === 2 || c.operatingMode === 3).length;
-    const charging = data.chargers.filter((c) => c.operatingMode === 5).length;
+    const available = data.chargers.filter((c) => c.operatingMode === 1).length;
+    const charging = data.chargers.filter((c) => c.operatingMode === 3).length;
     canvas.drawText(`${available} avail  ${charging} charging`, x + 2, textY, maxW);
     textY += 10;
   }
@@ -443,7 +445,7 @@ function renderZaptecWidget(
   if (fields.includes('active_session') && data.activeSession && textY < y + height - 8) {
     const s = data.activeSession;
     canvas.drawText(
-      `${s.energyDeliveredKwh.toFixed(1)}kWh  ${s.chargerName}`,
+      `${s.energyDeliveredKwh === null ? '?' : s.energyDeliveredKwh.toFixed(1)}kWh  ${s.chargerName}`,
       x + 2,
       textY,
       maxW
@@ -454,7 +456,8 @@ function renderZaptecWidget(
 function renderNotionWidget(
   canvas: BmpCanvas,
   bounds: WidgetBounds,
-  data?: DisplayData['notion']
+  data?: DisplayData['notion'],
+  problem?: DisplayData['notionError'],
 ): void {
   const { x, y, width, height } = bounds;
   if (y > 0) canvas.drawHLine(x, y, width);
@@ -462,7 +465,12 @@ function renderNotionWidget(
   let textY = y + 2;
 
   if (!data) {
-    canvas.drawText('Notion: unavailable', x + 2, textY, maxW);
+    const labels: Record<string, string> = {
+      data_source_required: 'Select data source', invalid_data_source: 'Check source ID',
+      invalid_configuration: 'Check Notion setup', invalid_token: 'Check Notion key',
+      access_denied: 'Share database', rate_limited: 'Notion API limit', timeout: 'Notion timed out',
+    };
+    canvas.drawWrappedText(labels[problem?.code ?? ''] ?? 'Notion: unavailable', x + 2, textY, maxW);
     return;
   }
 
@@ -521,7 +529,14 @@ function renderStatusWidget(
 
 // ── Main render entry point ───────────────────────────────────────────────────
 
-type RenderPreferences = Pick<UserPreferences, 'monta_fields' | 'zaptec_fields' | 'display_profile' | 'display_timezone'>;
+const WIDGET_ENABLED_SETTING = {
+  energy: 'show_energy_price', weather: 'show_weather', news: 'show_news',
+  monta: 'show_monta', zaptec: 'show_zaptec', notion: 'show_notion', calendar: 'show_calendar',
+  'custom-text': 'show_custom_text', 'custom-image': 'show_custom_image', 'custom-webhook': 'show_custom_webhook',
+} as const;
+type RenderPreferences = Partial<Pick<UserPreferences,
+  'monta_fields' | 'zaptec_fields' | 'display_profile' | 'display_timezone'
+  | typeof WIDGET_ENABLED_SETTING[keyof typeof WIDGET_ENABLED_SETTING]>>;
 
 function populateCanvas(
   canvas: BmpCanvas,
@@ -531,6 +546,8 @@ function populateCanvas(
 ): void {
   const effectiveLayout = layout ?? DEFAULT_LAYOUT;
   for (const widget of effectiveLayout.widgets) {
+    const setting = WIDGET_ENABLED_SETTING[widget.i as keyof typeof WIDGET_ENABLED_SETTING];
+    if (setting && preferences?.[setting] === false) continue;
     const bounds = getWidgetBounds(widget, canvas);
     canvas.withClip(bounds, () => {
       switch (widget.i) {
@@ -543,10 +560,10 @@ function populateCanvas(
           break;
         case 'energy':  renderEnergyWidget(canvas, bounds, data.price); break;
         case 'weather': renderWeatherWidget(canvas, bounds, data.weather, data.weatherError); break;
-        case 'news':    renderNewsWidget(canvas, bounds, data.news); break;
+        case 'news':    renderNewsWidget(canvas, bounds, data.news, data.newsError); break;
         case 'monta':   renderMontaWidget(canvas, bounds, data.monta, preferences?.monta_fields ?? undefined); break;
         case 'zaptec':  renderZaptecWidget(canvas, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined); break;
-        case 'notion':  renderNotionWidget(canvas, bounds, data.notion); break;
+        case 'notion':  renderNotionWidget(canvas, bounds, data.notion, data.notionError); break;
         case 'calendar': renderCalendarWidget(canvas, bounds, data.calendar); break;
         case 'status':  renderStatusWidget(canvas, bounds, data.nextRefresh, preferences?.display_timezone); break;
       }

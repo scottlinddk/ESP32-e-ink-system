@@ -17,7 +17,7 @@ import { LoadBox } from '../components/ui/Spinner';
 import { Empty } from '../components/ui/Empty';
 import { Icon } from '../components/ui/Logo';
 
-const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar'] as const;
+const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'status'] as const;
 
 export function LayoutEditorPage() {
   const app = useApp();

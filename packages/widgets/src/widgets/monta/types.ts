@@ -4,6 +4,7 @@ export interface MontaWidgetConfig {
   showChargerStatus: boolean;
   showActiveSession: boolean;
   showTodayStats: boolean;
+  timeZone?: string;
 }
 
 export interface MontaChargePoint {
@@ -14,9 +15,9 @@ export interface MontaChargePoint {
 
 export interface MontaSession {
   id: string;
-  energyDeliveredKwh: number;
-  startedAt: string;
-  durationMin: number;
+  energyDeliveredKwh: number | null;
+  startedAt: string | null;
+  durationMin: number | null;
 }
 
 export interface MontaData {

@@ -1,4 +1,3 @@
-import { parseDisplayProfile } from '../utils/displayProfile';
 import { Router, Request, Response, NextFunction } from 'express';
 import { requireAuth } from '../middleware/auth';
 import {
@@ -11,18 +10,18 @@ import {
 import { getOrCreateUserFromClerk } from './preferences-helpers';
 import { UserPreferences } from '../types/index';
 import templatesRouter from './templates';
-import { parseDisplaySchedule, ScheduleValidationError } from '../utils/scheduleValidation';
+import { ScheduleValidationError } from '../utils/scheduleValidation';
 import { LayoutValidationError } from '../utils/layoutValidation';
 import { validatePublicHttpsUrl } from '../utils/publicFeedFetch';
 import calendarRouter from './calendar';
-import { validateCalendarOptions } from '../services/calendar';
-import { DEFAULT_DISPLAY_TIMEZONE, parseDisplayTimezone } from '../utils/displayTimezone';
+import { DEFAULT_DISPLAY_TIMEZONE } from '../utils/displayTimezone';
 import { parseCustomContentUpdates } from '../utils/customContent';
 import { parseWebhookPreferences } from '../services/customWebhook';
-import { parseEnergyPriceSettings } from '../utils/energyPriceSettings';
+import { parseDisplayTemplate, TEMPLATE_SETTING_KEYS } from '../utils/displayTemplates';
 import { normalizeWeatherLocation } from '../utils/weatherLocation';
 import { WeatherSourceError, weatherProblem } from '../utils/weatherErrors';
 import { fetchWeather } from '../services/weather';
+import { normalizeNotionCredentials } from '../utils/notionCredentials';
 
 /**
  * @swagger
@@ -246,101 +245,35 @@ router.post(
         return;
       }
 
-      const allowedFields: (keyof UserPreferences)[] = [
-        'display_timezone',
-        'display_schedule',
-        'show_energy_price',
-        'show_weather',
-        'show_news',
-        'show_air_quality',
-        'show_monta',
-        'show_zaptec',
-        'energy_price_location',
-        'news_language',
-        'news_source',
-        'news_feed_url',
-        'news_item_limit',
-        'refresh_interval_minutes',
-        'layout',
-        'display_profile',
-        'monta_fields',
-        'zaptec_fields',
-        'show_notion',
-        'show_calendar',
-        'calendar_timezone',
-        'calendar_days',
-        'calendar_item_limit',
-      ];
-
-      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
-        res.status(400).json({ error: 'Preferences must be an object' });
-        return;
-      }
       let updates: Partial<UserPreferences>;
       try {
-        if (req.body.display_timezone !== undefined) parseDisplayTimezone(req.body.display_timezone);
-        updates = { ...parseCustomContentUpdates(req.body), ...parseWebhookPreferences(req.body) };
-        if (req.body.weather_location !== undefined) {
-          updates.weather_location = normalizeWeatherLocation(req.body.weather_location);
-        }
-        if (req.body.energy_price_settings !== undefined) {
-          updates.energy_price_settings = parseEnergyPriceSettings(req.body.energy_price_settings);
-        }
-        if (req.body.energy_price_location !== undefined && !['DK1', 'DK2'].includes(req.body.energy_price_location)) {
-          throw new Error('Energy price area must be DK1 or DK2');
-        }
+        const settings = Object.fromEntries(TEMPLATE_SETTING_KEYS
+          .filter((key) => req.body[key] !== undefined).map((key) => [key, req.body[key]]));
+        updates = {
+          ...(Object.keys(settings).length ? parseDisplayTemplate({ format: 'esp32-eink-template', version: 1, settings }).settings : {}),
+          ...parseCustomContentUpdates(req.body), ...parseWebhookPreferences(req.body),
+        };
       } catch (error) {
-        res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid custom content' });
+        res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid preferences' });
         return;
       }
-      if (req.body.show_calendar !== undefined && typeof req.body.show_calendar !== 'boolean') {
-        res.status(400).json({ error: 'show_calendar must be a boolean' }); return;
-      }
-      try {
-        validateCalendarOptions({
-          timezone: req.body.calendar_timezone === undefined ? 'Europe/Copenhagen' : req.body.calendar_timezone,
-          days: req.body.calendar_days === undefined ? 7 : req.body.calendar_days,
-          limit: req.body.calendar_item_limit === undefined ? 5 : req.body.calendar_item_limit,
-        });
-      } catch (error) { res.status(400).json({ error: (error as Error).message }); return; }
-
-      const { news_source, news_feed_url, news_item_limit } = req.body;
-      if (news_source !== undefined && !['newsapi', 'rss'].includes(news_source)) {
-        res.status(400).json({ error: 'news_source must be newsapi or rss' }); return;
-      }
-      if (news_item_limit !== undefined && (!Number.isInteger(news_item_limit) || news_item_limit < 1 || news_item_limit > 10)) {
-        res.status(400).json({ error: 'news_item_limit must be an integer between 1 and 10' }); return;
-      }
+      const { news_source, news_feed_url, show_news } = req.body;
       if (news_feed_url !== undefined) {
         try {
           if (typeof news_feed_url !== 'string') throw new Error('Feed URL must be a string');
           if (news_feed_url !== '') validatePublicHttpsUrl(news_feed_url);
+          updates.news_feed_url = news_feed_url;
         } catch (error) {
           res.status(400).json({ error: (error as Error).message }); return;
         }
       }
-      for (const field of allowedFields) {
-        if (req.body[field] !== undefined) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (updates as Record<string, any>)[field] = req.body[field];
-        }
-      }
-
-      if (updates.display_schedule !== undefined && updates.display_schedule !== null) {
-        updates.display_schedule = parseDisplaySchedule(updates.display_schedule);
-      }
-
       const userId = await getOrCreateUserFromClerk(req.clerkUserId!);
-      if (req.body.display_profile !== undefined) {
-        try { updates.display_profile = parseDisplayProfile(req.body.display_profile); }
-        catch (error) { res.status(400).json({ error: (error as Error).message }); return; }
-      }
-      if (news_source === 'rss' || news_feed_url === '') {
+      if (news_source === 'rss' || news_feed_url === '' || show_news === true) {
         const current = await getPreferences(userId);
-        if ((news_source ?? current?.news_source) === 'rss' && !(news_feed_url ?? current?.news_feed_url)) {
+        if ((show_news ?? current?.show_news ?? true) && (news_source ?? current?.news_source) === 'rss'
+          && !(news_feed_url ?? current?.news_feed_url)) {
           res.status(400).json({ error: 'A feed URL is required for RSS/Atom' }); return;
         }
-
       }
       const prefs = await upsertPreferences(userId, updates);
       res.json({ preferences: prefs });
@@ -518,7 +451,7 @@ router.post(
       const clerkUserId = req.clerkUserId!;
       const userId = await getOrCreateUserFromClerk(clerkUserId);
 
-      const { provider, credentials } = req.body as {
+      const { provider, credentials } = (req.body ?? {}) as {
         provider?: string;
         credentials?: Record<string, string>;
       };
@@ -529,33 +462,27 @@ router.post(
         return;
       }
 
-      if (!credentials || typeof credentials !== 'object') {
+      if (!credentials || typeof credentials !== 'object' || Array.isArray(credentials)) {
         res.status(400).json({ error: 'credentials must be an object' });
         return;
       }
 
-      if (provider === 'monta') {
-        if (!credentials.clientId || !credentials.clientSecret) {
-          res.status(400).json({ error: 'Monta credentials require clientId and clientSecret' });
-          return;
+      let serialised: string;
+      try {
+        if (provider === 'notion') {
+          serialised = JSON.stringify(normalizeNotionCredentials(credentials));
+        } else {
+          const fields = provider === 'monta' ? ['clientId', 'clientSecret'] : ['username', 'password'];
+          if (fields.some((field) => typeof credentials[field] !== 'string'
+            || !credentials[field].trim() || credentials[field].length > 4096)) {
+            throw new Error(`${provider} requires non-empty text for ${fields.join(' and ')} (at most 4096 characters each).`);
+          }
+          serialised = JSON.stringify(Object.fromEntries(fields.map((field) => [field,
+            field === 'password' ? credentials[field] : credentials[field].trim()])));
         }
-      } else if (provider === 'zaptec') {
-        if (!credentials.username || !credentials.password) {
-          res.status(400).json({ error: 'Zaptec credentials require username and password' });
-          return;
-        }
-      } else if (provider === 'notion') {
-        if (!credentials.token || !credentials.databaseId) {
-          res.status(400).json({ error: 'Notion credentials require token and databaseId' });
-          return;
-        }
-        if (!credentials.token.startsWith('secret_')) {
-          res.status(400).json({ error: 'Notion integration token must start with "secret_"' });
-          return;
-        }
+      } catch (error) {
+        res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid credentials' }); return;
       }
-
-      const serialised = JSON.stringify(credentials);
       const key = await upsertApiKey(userId, provider, serialised);
 
       res.json({

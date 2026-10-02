@@ -9,13 +9,13 @@ export interface ZaptecWidgetConfig {
 export interface ZaptecCharger {
   id: string;
   name: string;
-  operatingMode: number; // 2=Disconnected, 3=Connected, 5=Charging, 6=Completed
+  operatingMode: number; // 1=Disconnected, 2=Requesting, 3=Charging, 5=Finished
 }
 
 export interface ZaptecSession {
   id: string;
-  energyDeliveredKwh: number;
-  startDateTime: string;
+  energyDeliveredKwh: number | null;
+  startDateTime: string | null;
   chargerName: string;
 }
 
