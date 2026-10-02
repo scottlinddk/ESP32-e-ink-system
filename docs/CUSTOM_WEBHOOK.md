@@ -6,7 +6,7 @@ the backend service-role database credential; alternate PostgREST installations
 must grant their dedicated backend role table access and RLS bypass. Do not
 grant the table to anonymous or authenticated browser roles.
 
-On the Dashboard, create an integration token under **Home Assistant and custom
+On Integrations, create an integration token under **Home Assistant and custom
 sensors**, copy it into your integration's secret store, and enable the source.
 Set its freshness lifetime (1–1440 minutes). Add **Custom sensors** to the layout
 and save. The server stores a SHA-256 hash of the random token, not its plaintext.
@@ -111,7 +111,7 @@ interval):
 ```
 
 Test `rest_command.update_eink_sensors` in Home Assistant's developer actions,
-then use **Refresh status** in the Dashboard. Do not send a Clerk session token
+then use **Refresh status** on Integrations. Do not send a Clerk session token
 to this endpoint or publish your integration token in configuration examples.
 
 References: [RESTful Command](https://www.home-assistant.io/integrations/rest_command/),

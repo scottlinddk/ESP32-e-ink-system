@@ -1,11 +1,12 @@
 // =========================================================================
 // DisplayCard.tsx — "What to display" source toggles
 // =========================================================================
-import React, { useState, ReactNode } from 'react';
+import React, { useEffect, useRef, useState, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { useApp } from '../../lib/appContext';
-import { useSavePreferences } from '../../hooks/usePreferences';
-import type { UserPreferences } from '../../types';
+import { usePreferences, useSavePreferences } from '../../hooks/usePreferences';
+import type { Preferences } from '../../types';
+import { sourcePreferences, sourcePreferencesToApi } from '../../lib/sourcePreferences';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Field } from '../ui/Field';
@@ -71,43 +72,19 @@ function SourceRow({ icon, name, hint, checked, onToggle, children }: SourceRowP
   );
 }
 
-export function DisplayCard({ loading }: { loading: boolean }) {
+export function DisplayCard() {
   const app = useApp();
   const t = app.t;
-  const rawPrefs = app.prefs;
-  // Ensure EV prefs always exist, even if loaded from stale localStorage
-  const p = {
-    ...rawPrefs,
-    monta: rawPrefs.monta ?? { on: false, fields: ['charger_status', 'active_session'] },
-    zaptec: rawPrefs.zaptec ?? { on: false, fields: ['charger_status', 'active_session'] },
-    notion: rawPrefs.notion ?? { on: false },
-  };
+  const query = usePreferences();
+  const [draft, setDraft] = useState<Preferences | null>(null);
+  const p = sourcePreferences(query.data, draft);
   const savePrefs = useSavePreferences();
   const [locating, setLocating] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const disabled = query.isPending || query.isError || !query.data || savePrefs.isPending;
 
-  const set = (patch: Partial<typeof p>) => app.setPrefs({ ...p, ...patch });
-
-  function prefsToApi(prefs: typeof p): Partial<UserPreferences> {
-    return {
-      show_energy_price: prefs.energy.on,
-      energy_price_location: prefs.energy.zone,
-      energy_price_settings: energyPriceSettingsForSave(prefs.energy.on, prefs.energy.priceSettings),
-      show_weather: prefs.weather.on,
-      // A disabled source keeps its saved location, including when a hidden
-      // draft contains incomplete coordinates.
-      ...(prefs.weather.on ? { weather_location: prefs.weather.location } : {}),
-      show_news: prefs.news.on,
-      news_language: prefs.news.lang,
-      news_source: prefs.news.source === 'rss' ? 'rss' : 'newsapi',
-      news_feed_url: (prefs.news.feedUrl ?? '').trim(),
-      news_item_limit: prefs.news.itemLimit ?? 3,
-      show_monta: prefs.monta.on,
-      monta_fields: prefs.monta.fields,
-      show_zaptec: prefs.zaptec.on,
-      zaptec_fields: prefs.zaptec.fields,
-      show_notion: prefs.notion.on,
-    };
-  }
+  const set = (patch: Partial<Preferences>) => setDraft((current) => ({ ...sourcePreferences(query.data, current), ...patch }));
 
   function toggleEvField(
     provider: 'monta' | 'zaptec',
@@ -121,14 +98,16 @@ export function DisplayCard({ loading }: { loading: boolean }) {
   }
 
   function save() {
+    if (disabled) return;
     if (p.energy.on && !validEnergyPriceSettings(p.energy.priceSettings ?? { mode: 'spot' })) {
       app.toast({ type: 'error', title: t.saveFailed, msg: app.lang === 'da'
         ? 'Vælg et netselskab med 13-cifret GLN, 1–5 forskellige tarifkoder (højst 20 tegn hver) og et tillæg mellem −1000 og 1000 øre/kWh.'
         : 'Choose a grid company with a 13-digit GLN, 1–5 unique tariff codes (up to 20 characters each), and a markup between −1000 and 1000 øre/kWh.' });
       return;
     }
-    savePrefs.mutate(prefsToApi(p), {
+    savePrefs.mutate(sourcePreferencesToApi(p), {
       onSuccess: () => {
+        setDraft(null);
         app.toast({ type: 'success', title: t.saved, msg: t.savedMsg });
       },
       onError: (error) => {
@@ -155,11 +134,19 @@ export function DisplayCard({ loading }: { loading: boolean }) {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        if (!mounted.current) return;
         const { latitude, longitude } = pos.coords;
-        set({ weather: { ...p.weather, location: formatWeatherCoordinates(latitude, longitude) } });
-        setLocating(false);
+        try {
+          const location = formatWeatherCoordinates(latitude, longitude);
+          setDraft((current) => {
+            const value = sourcePreferences(query.data, current);
+            return { ...value, weather: { ...value.weather, location } };
+          });
+        } catch { app.toast({ type: 'error', title: t.locationUnavailable }); }
+        finally { setLocating(false); }
       },
       () => {
+        if (!mounted.current) return;
         setLocating(false);
         app.toast({ type: 'error', title: t.locationUnavailable });
       },
@@ -175,12 +162,14 @@ export function DisplayCard({ loading }: { loading: boolean }) {
       title={t.displayTitle}
       desc={t.displayDesc}
       footer={
-        <Button onClick={save} loading={saving} icon={saving ? undefined : 'save'}>
+        <><Button variant="text" disabled={disabled || !draft} onClick={() => setDraft(null)}>{t.discardSourceChanges}</Button>
+        <Button onClick={save} disabled={disabled || locating} loading={saving} icon={saving ? undefined : 'save'}>
           {saving ? t.saving : t.save}
-        </Button>
+        </Button></>
       }
     >
-      {loading ? (
+      {query.isError && <p role="alert" className="text-sm text-warning mt-0">{t.prefsError} <Button variant="text" onClick={() => query.refetch()}>{t.retry}</Button></p>}
+      {!query.data ? (!query.isError &&
         <div className="flex flex-col gap-4">
           {[0, 1, 2].map((i) => (
             <div key={i} className="flex gap-3.5 items-center py-1.5">
@@ -194,7 +183,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
           ))}
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
+        <fieldset disabled={disabled} className="flex flex-col gap-3 border-0 m-0 p-0 min-w-0">
           <SourceRow
             icon="bolt"
             name={t.srcEnergy}
@@ -356,7 +345,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
               ))}
             </div>
           </SourceRow>
-        </div>
+        </fieldset>
       )}
     </Card>
   );

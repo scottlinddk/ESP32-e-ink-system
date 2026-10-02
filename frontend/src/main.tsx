@@ -11,6 +11,7 @@ import { ProgressBar } from './components/common/LoadingSpinner';
 // Lazy-loaded page chunks — each becomes its own JS chunk
 const FlashPage = lazy(() => import('./pages/FlashPage').then((m) => ({ default: m.FlashPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage').then((m) => ({ default: m.IntegrationsPage })));
 const LayoutEditorPage = lazy(() => import('./pages/LayoutEditorPage').then((m) => ({ default: m.LayoutEditorPage })));
 const DevicesPage = lazy(() => import('./pages/DevicesPage').then((m) => ({ default: m.DevicesPage })));
 const FirmwarePage = lazy(() => import('./pages/FirmwarePage').then((m) => ({ default: m.FirmwarePage })));
@@ -47,6 +48,7 @@ createRoot(rootElement).render(
               <Route element={<App />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/integrations" element={<IntegrationsPage />} />
                 <Route path="/layout" element={<LayoutEditorPage />} />
                 <Route path="/devices" element={<DevicesPage />} />
                 <Route path="/firmware" element={<FirmwarePage />} />

@@ -52,7 +52,7 @@ function AppShell() {
         )}
         <Sidebar open={app.navOpen} />
         <main className="flex-1 min-w-0 overflow-y-auto">
-          <Outlet />
+          <Outlet key={clerkUser?.id ?? 'signed-out'} />
         </main>
       </div>
       <ToastStack toasts={app.toasts} dismiss={app.dismiss} />

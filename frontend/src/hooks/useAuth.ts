@@ -1,4 +1,4 @@
-import { useAuth as useClerkAuth, useUser } from '@clerk/clerk-react';
+import { useAuth as useClerkAuth, useClerk, useUser } from '@clerk/clerk-react';
 import { useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { loginUser } from '../lib/api';
@@ -9,12 +9,17 @@ import { loginUser } from '../lib/api';
 export function useAuth() {
   const { isLoaded, isSignedIn, getToken, signOut } = useClerkAuth();
   const { user } = useUser();
+  const clerk = useClerk();
   const queryClient = useQueryClient();
 
   const getAuthToken = useCallback(async (): Promise<string | null> => {
-    if (!isSignedIn) return null;
-    return getToken();
-  }, [isSignedIn, getToken]);
+    const owner = user?.id;
+    if (!isSignedIn || !owner || clerk.user?.id !== owner) return null;
+    const token = await getToken();
+    // Check Clerk's live account, so route navigation can reuse in-flight queries
+    // but an old form can never continue with another account's token.
+    return clerk.user?.id === owner ? token : null;
+  }, [isSignedIn, getToken, user?.id, clerk]);
 
   const handleSignOut = useCallback(async () => {
     await signOut();

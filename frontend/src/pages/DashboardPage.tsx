@@ -3,18 +3,14 @@ import { DisplayTimezoneCard } from '../components/dashboard/DisplayTimezoneCard
 // =========================================================================
 // DashboardPage.tsx
 // =========================================================================
-import React, { useEffect } from 'react';
+import React from 'react';
+import { Link } from 'react-router-dom';
 import { useApp } from '../lib/appContext';
-import { usePreferences } from '../hooks/usePreferences';
 import { useAuth } from '../hooks/useAuth';
-import { DisplayCard } from '../components/dashboard/DisplayCard';
-import { ApiKeysCard } from '../components/dashboard/ApiKeysCard';
 import { PreviewCard } from '../components/dashboard/PreviewCard';
-import { CalendarCard } from '../components/dashboard/CalendarCard';
 import { TemplatesCard } from '../components/dashboard/TemplatesCard';
 import { ScheduleCard } from '../components/dashboard/ScheduleCard';
 import { CustomContentCard } from '../components/dashboard/CustomContentCard';
-import { CustomWebhookCard } from '../components/dashboard/CustomWebhookCard';
 
 export function DashboardPage() {
   const { user, isSignedIn } = useAuth();
@@ -25,57 +21,18 @@ export function DashboardPage() {
 function AccountDashboard() {
   const app = useApp();
   const t = app.t;
-  const { data: serverPrefs, isLoading } = usePreferences();
-
-  // Sync server preferences into context on first successful load
-  useEffect(() => {
-    if (!serverPrefs) return;
-    app.setPrefs({
-      energy: {
-        on: serverPrefs.show_energy_price,
-        zone: serverPrefs.energy_price_location || app.prefs.energy.zone,
-        priceSettings: serverPrefs.energy_price_settings ?? { mode: 'spot' },
-      },
-      weather: {
-        on: serverPrefs.show_weather,
-        location: serverPrefs.weather_location || app.prefs.weather.location,
-      },
-      news: {
-        on: serverPrefs.show_news,
-        lang: serverPrefs.news_language || app.prefs.news.lang,
-        source: serverPrefs.news_source ?? 'newsapi',
-        feedUrl: serverPrefs.news_feed_url ?? '',
-        itemLimit: serverPrefs.news_item_limit ?? 3,
-      },
-      monta: {
-        on: serverPrefs.show_monta ?? false,
-        fields: serverPrefs.monta_fields ?? app.prefs.monta.fields,
-      },
-      zaptec: {
-        on: serverPrefs.show_zaptec ?? false,
-        fields: serverPrefs.zaptec_fields ?? app.prefs.zaptec.fields,
-      },
-      notion: {
-        on: serverPrefs.show_notion ?? false,
-      },
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverPrefs]);
 
   return (
     <div className="max-w-[1180px] mx-auto px-6 pt-6 pb-20 animate-fade-up max-[820px]:px-4 max-[820px]:pt-5 max-[820px]:pb-16">
       <header className="mb-5">
         <h1 className="text-h2 font-light tracking-tight m-0 mb-1.5">{t.dashTitle}</h1>
         <p className="text-fg2 text-body m-0">{t.dashSub}</p>
+        <Link to="/integrations" className="inline-block mt-3 text-sm underline">{t.configureIntegrations}</Link>
       </header>
       <div className="grid grid-cols-[minmax(0,1fr)_380px] gap-5 items-start max-[1080px]:grid-cols-1">
         <div className="flex flex-col gap-5 min-w-0">
-          <DisplayCard loading={isLoading} />
           <DisplayTimezoneCard />
-          <CalendarCard />
           <CustomContentCard />
-          <CustomWebhookCard />
-          <ApiKeysCard />
           <TemplatesCard />
           <ScheduleCard />
           <DisplayProfileCard />

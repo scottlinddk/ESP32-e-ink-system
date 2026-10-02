@@ -1,7 +1,7 @@
 // =========================================================================
 // ApiKeysCard.tsx — API keys manager
 // =========================================================================
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../../lib/appContext';
 import { useAuth } from '../../hooks/useAuth';
@@ -31,15 +31,16 @@ interface EvCredentialsSectionProps {
 function EvCredentialsSection({ provider }: EvCredentialsSectionProps) {
   const app = useApp();
   const t = app.t;
-  const { getToken, user } = useAuth();
+  const { getToken, user, isSignedIn } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [err, setErr] = useState('');
 
   const statusKey = ['ev-credentials', provider, user?.id];
-  const { data: status } = useQuery({
+  const statusQuery = useQuery({
     queryKey: statusKey,
+    enabled: isSignedIn && !!user?.id,
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
@@ -76,6 +77,7 @@ function EvCredentialsSection({ provider }: EvCredentialsSectionProps) {
   });
 
   function openDialog() {
+    if (disabled) return;
     setFields({});
     setErr('');
     setOpen(true);
@@ -97,34 +99,38 @@ function EvCredentialsSection({ provider }: EvCredentialsSectionProps) {
   }
 
   function save() {
-    if (!validate()) return;
+    if (disabled || !validate()) return;
     saveMutation.mutate();
   }
 
-  const configured = status?.configured ?? false;
+  const configured = statusQuery.data?.configured ?? false;
+  const known = isSignedIn && !!user?.id && statusQuery.data !== undefined && !statusQuery.isPending && !statusQuery.isError;
+  const disabled = !known || saveMutation.isPending || removeMutation.isPending;
   const isMonta = provider === 'monta';
   const title = isMonta ? t.montaCredTitle : t.zaptecCredTitle;
   const desc = isMonta ? t.montaCredDesc : t.zaptecCredDesc;
 
   return (
-    <div className="bg-surface rounded-md border border-border px-4 py-3.5">
+    <div id={`credentials-${provider}`} className="bg-surface rounded-md border border-border px-4 py-3.5 scroll-mt-20">
       <div className="flex items-center justify-between mb-2.5">
         <div className="font-medium">{title}</div>
-        <Chip variant={configured ? 'success' : 'error'} dot>
-          {configured ? t.evCredConfigured : t.evCredNotConfigured}
+        <Chip variant={!known ? 'default' : configured ? 'success' : 'error'} dot>
+          {!known ? (statusQuery.isError ? (app.lang === 'da' ? 'Kunne ikke indlæse status' : 'Could not load status') : (app.lang === 'da' ? 'Indlæser…' : 'Loading…')) : configured ? t.evCredConfigured : t.evCredNotConfigured}
         </Chip>
       </div>
+      {statusQuery.isError && <Button variant="text" size="sm" disabled={!isSignedIn || statusQuery.isFetching} onClick={() => void statusQuery.refetch()}>{app.lang === 'da' ? 'Prøv igen' : 'Retry'}</Button>}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-xs text-fg3">{desc}</span>
         <div className="flex gap-2">
-          <Button variant="outlined" size="sm" icon="edit" onClick={openDialog}>
+          <Button variant="outlined" size="sm" icon="edit" onClick={openDialog} disabled={disabled}>
             {configured ? t.updateKey : t.addKey}
           </Button>
           {configured && (
             <Button
               variant="text"
               size="sm"
-              onClick={() => removeMutation.mutate()}
+              onClick={() => { if (!disabled) removeMutation.mutate(); }}
+              disabled={disabled}
               loading={removeMutation.isPending}
             >
               {t.evCredRemove}
@@ -141,7 +147,7 @@ function EvCredentialsSection({ provider }: EvCredentialsSectionProps) {
         footer={
           <>
             <Button variant="text" onClick={() => setOpen(false)}>{t.cancel}</Button>
-            <Button onClick={save} loading={saveMutation.isPending}>{t.evCredSave}</Button>
+            <Button onClick={save} disabled={disabled} loading={saveMutation.isPending}>{t.evCredSave}</Button>
           </>
         }
       >
@@ -196,15 +202,16 @@ function EvCredentialsSection({ provider }: EvCredentialsSectionProps) {
 function NotionCredentialsSection() {
   const app = useApp();
   const t = app.t;
-  const { getToken, user } = useAuth();
+  const { getToken, user, isSignedIn } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [err, setErr] = useState('');
 
   const statusKey = ['ev-credentials', 'notion', user?.id];
-  const { data: status } = useQuery({
+  const statusQuery = useQuery({
     queryKey: statusKey,
+    enabled: isSignedIn && !!user?.id,
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
@@ -247,26 +254,29 @@ function NotionCredentialsSection() {
     return true;
   }
 
-  function openDialog() { setFields({}); setErr(''); setOpen(true); }
+  function openDialog() { if (disabled) return; setFields({}); setErr(''); setOpen(true); }
 
-  const configured = status?.configured ?? false;
+  const configured = statusQuery.data?.configured ?? false;
+  const known = isSignedIn && !!user?.id && statusQuery.data !== undefined && !statusQuery.isPending && !statusQuery.isError;
+  const disabled = !known || saveMutation.isPending || removeMutation.isPending;
 
   return (
-    <div className="bg-surface rounded-md border border-border px-4 py-3.5">
+    <div id="credentials-notion" className="bg-surface rounded-md border border-border px-4 py-3.5 scroll-mt-20">
       <div className="flex items-center justify-between mb-2.5">
         <div className="font-medium">{t.notionCredTitle}</div>
-        <Chip variant={configured ? 'success' : 'error'} dot>
-          {configured ? t.evCredConfigured : t.evCredNotConfigured}
+        <Chip variant={!known ? 'default' : configured ? 'success' : 'error'} dot>
+          {!known ? (statusQuery.isError ? (app.lang === 'da' ? 'Kunne ikke indlæse status' : 'Could not load status') : (app.lang === 'da' ? 'Indlæser…' : 'Loading…')) : configured ? t.evCredConfigured : t.evCredNotConfigured}
         </Chip>
       </div>
+      {statusQuery.isError && <Button variant="text" size="sm" disabled={!isSignedIn || statusQuery.isFetching} onClick={() => void statusQuery.refetch()}>{app.lang === 'da' ? 'Prøv igen' : 'Retry'}</Button>}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-xs text-fg3">{t.notionCredDesc}</span>
         <div className="flex gap-2">
-          <Button variant="outlined" size="sm" icon="edit" onClick={openDialog}>
+          <Button variant="outlined" size="sm" icon="edit" onClick={openDialog} disabled={disabled}>
             {configured ? t.updateKey : t.addKey}
           </Button>
           {configured && (
-            <Button variant="text" size="sm" onClick={() => removeMutation.mutate()} loading={removeMutation.isPending}>
+            <Button variant="text" size="sm" disabled={disabled} onClick={() => { if (!disabled) removeMutation.mutate(); }} loading={removeMutation.isPending}>
               {t.evCredRemove}
             </Button>
           )}
@@ -281,7 +291,7 @@ function NotionCredentialsSection() {
         footer={
           <>
             <Button variant="text" onClick={() => setOpen(false)}>{t.cancel}</Button>
-            <Button onClick={() => { if (validate()) saveMutation.mutate(); }} loading={saveMutation.isPending}>{t.evCredSave}</Button>
+            <Button onClick={() => { if (!disabled && validate()) saveMutation.mutate(); }} disabled={disabled} loading={saveMutation.isPending}>{t.evCredSave}</Button>
           </>
         }
       >
@@ -328,25 +338,15 @@ function NotionCredentialsSection() {
 export function ApiKeysCard() {
   const app = useApp();
   const t = app.t;
-  const { getToken } = useAuth();
+  const { getToken, user, isSignedIn } = useAuth();
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<string | null>(null);
   const [keyInput, setKeyInput] = useState('');
   const [err, setErr] = useState('');
 
-  const { data } = useApiKeys();
-
-  useEffect(() => {
-    const updated: Record<string, { status: string; key: string }> = {
-      openweather: { status: 'none', key: '' },
-      newsapi: { status: 'none', key: '' },
-    };
-    for (const k of data ?? []) {
-      const frontendId = k.provider === 'openweathermap' ? 'openweather' : k.provider;
-      updated[frontendId] = { status: 'connected', key: k.api_key };
-    }
-    app.setApiKeys(updated);
-  }, [data]);
+  const statusQuery = useApiKeys();
+  const { data } = statusQuery;
+  const known = isSignedIn && !!user?.id && data !== undefined && !statusQuery.isPending && !statusQuery.isError;
 
   const saveMutation = useMutation({
     mutationFn: async ({ provider, key }: { provider: string; key: string }) => {
@@ -377,15 +377,19 @@ export function ApiKeysCard() {
     onError: (e: Error) => { app.toast({ type: 'error', title: e.message }); },
   });
 
-  function openDialog(id: string) { setDialog(id); setKeyInput(''); setErr(''); }
+  const disabled = !known || saveMutation.isPending || deleteMutation.isPending;
+
+  function openDialog(id: string) { if (disabled) return; setDialog(id); setKeyInput(''); setErr(''); }
 
   function saveKey() {
+    if (disabled || !dialog) return;
     if (keyInput.trim().length < 16) { setErr(t.keyInvalidLen); return; }
     const backendProvider = PROVIDER_MAP[dialog!] ?? dialog!;
     saveMutation.mutate({ provider: backendProvider, key: keyInput.trim() });
   }
 
   function removeKey(id: string) {
+    if (disabled) return;
     const backendProvider = PROVIDER_MAP[id] ?? id;
     deleteMutation.mutate(backendProvider);
   }
@@ -409,13 +413,14 @@ export function ApiKeysCard() {
           )?.api_key ?? '';
 
           return (
-            <div key={svc.id} className="bg-surface rounded-md border border-border px-4 py-3.5">
+            <div id={`credentials-${svc.id}`} key={svc.id} className="bg-surface rounded-md border border-border px-4 py-3.5 scroll-mt-20">
               <div className="flex items-center justify-between mb-2.5">
                 <div className="font-medium">{svc.name}</div>
-                <Chip variant={connected ? 'success' : 'error'} dot>
-                  {connected ? (svc.id === 'openweather' ? t.keyConfigured : t.statusConnected) : t.statusNotConfigured}
+                <Chip variant={!known ? 'default' : connected ? 'success' : 'error'} dot>
+                  {!known ? (statusQuery.isError ? (app.lang === 'da' ? 'Kunne ikke indlæse status' : 'Could not load status') : (app.lang === 'da' ? 'Indlæser…' : 'Loading…')) : connected ? t.keyConfigured : t.statusNotConfigured}
                 </Chip>
               </div>
+              {statusQuery.isError && <Button variant="text" size="sm" disabled={!isSignedIn || statusQuery.isFetching} onClick={() => void statusQuery.refetch()}>{app.lang === 'da' ? 'Prøv igen' : 'Retry'}</Button>}
               {svc.id === 'openweather' && <p className="text-xs text-fg2 mt-0 mb-3">{t.weatherKeyHelp}</p>}
               {connected ? (
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -423,8 +428,8 @@ export function ApiKeysCard() {
                     {maskedKey}
                   </code>
                   <div className="flex gap-2">
-                    <Button variant="outlined" size="sm" onClick={() => openDialog(svc.id)}>{t.updateKey}</Button>
-                    <Button variant="text" size="sm" onClick={() => removeKey(svc.id)}>{t.removeKey}</Button>
+                    <Button variant="outlined" size="sm" disabled={disabled} onClick={() => openDialog(svc.id)}>{t.updateKey}</Button>
+                    <Button variant="text" size="sm" disabled={disabled} onClick={() => removeKey(svc.id)}>{t.removeKey}</Button>
                   </div>
                 </div>
               ) : (
@@ -436,7 +441,7 @@ export function ApiKeysCard() {
                       {svc.url}
                     </a>
                   </span>
-                  <Button variant="outlined" size="sm" icon="add" onClick={() => openDialog(svc.id)}>{t.addKey}</Button>
+                  <Button variant="outlined" size="sm" icon="add" disabled={disabled} onClick={() => openDialog(svc.id)}>{t.addKey}</Button>
                 </div>
               )}
             </div>
@@ -452,7 +457,7 @@ export function ApiKeysCard() {
         footer={
           <>
             <Button variant="text" onClick={() => setDialog(null)}>{t.cancel}</Button>
-            <Button onClick={saveKey} loading={saveMutation.isPending}>{t.saveKey}</Button>
+            <Button onClick={saveKey} disabled={disabled} loading={saveMutation.isPending}>{t.saveKey}</Button>
           </>
         }
       >
