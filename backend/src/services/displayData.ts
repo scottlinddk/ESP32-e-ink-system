@@ -12,6 +12,7 @@ import { resolveDisplaySchedule } from './displaySchedule';
 import { parseCustomImage } from '../utils/customContent';
 import { fetchWebhookData } from './customWebhook';
 import { DEFAULT_DISPLAY_TIMEZONE } from '../utils/displayTimezone';
+import { weatherProblem } from '../utils/weatherErrors';
 
 // JSON previews and display images use the same enabled sources. A failed
 // source stays absent so an unavailable reading is never presented as live data.
@@ -55,6 +56,7 @@ async function withSourceDeadline<T>(load: (signal: AbortSignal) => Promise<T>):
   const deadline = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {
       const error = new Error('Display source timed out');
+      error.name = 'TimeoutError';
       controller.abort(error);
       reject(error);
     }, SOURCE_TIMEOUT_MS);
@@ -121,7 +123,8 @@ export async function buildDisplayData(
           result.weather = weather;
         })
         .catch((err: unknown) => {
-          logger.error({ err }, 'Weather fetch failed');
+          result.weatherError = weatherProblem(err);
+          logger.warn({ code: result.weatherError.code }, 'Weather fetch failed');
         })
     );
   }

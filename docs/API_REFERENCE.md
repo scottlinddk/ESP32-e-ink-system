@@ -102,6 +102,22 @@ Update display preferences (partial updates supported).
 
 **Response 200:** Full updated preferences object (same shape as GET)
 
+### POST /api/preferences/weather/test
+
+Test draft coordinates with the authenticated user's saved OpenWeatherMap key, or the server's `OPENWEATHERMAP_API_KEY` if no account key exists. The request does not save preferences and always bypasses the weather cache. A saved but rejected account key never falls back to the server key.
+
+```json
+{ "location": "57.05,9.92" }
+```
+
+**Response 200:** `{ "weather": { "temp": 12, "condition": "cloudy", "windSpeed": 3, "icon": "04d" } }`. Temperature is Celsius and wind speed is m/s, rounded to whole units.
+
+Failures return `{ "error": "safe explanation", "code": "invalid_key" }`: 400 for `missing_key`, `invalid_location` or `invalid_key`; 502 for `rate_limited`, `unavailable` or `invalid_response`; 504 for `timeout`. Authentication failures retain the normal 401 response. Provider response bodies and request URLs are never included.
+
+Coordinates use decimal points and a comma between latitude (-90..90) and longitude (-180..180). The same validator applies to preference saves and template imports. See [weather setup](WEATHER.md).
+
+When enabled weather fails during preview/device rendering, JSON contains `weatherError: { code, message }` instead of `weather`; the bitmap displays a short diagnosis. Successful readings are cached for one hour per key and normalized location. Testing removes the matching cached reading before contacting the provider.
+
 ### GET /api/preferences/api-keys
 
 List stored API keys (values are masked).

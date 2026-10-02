@@ -71,6 +71,10 @@ export interface WeatherData {
   icon: string;
 }
 
+export type WeatherErrorCode = 'missing_key' | 'invalid_location' | 'invalid_key' | 'rate_limited'
+  | 'unavailable' | 'timeout' | 'invalid_response';
+export interface WeatherProblem { code: WeatherErrorCode; message: string }
+
 export interface NewsItem {
   title: string;
   url: string;
@@ -143,6 +147,7 @@ export interface DisplayData {
   customImage?: CustomImage;
   price?: EnergyPrice;
   weather?: WeatherData;
+  weatherError?: WeatherProblem;
   news?: NewsItem[];
   monta?: MontaData;
   zaptec?: ZaptecData;

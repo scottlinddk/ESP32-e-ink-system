@@ -413,9 +413,10 @@ export function ApiKeysCard() {
               <div className="flex items-center justify-between mb-2.5">
                 <div className="font-medium">{svc.name}</div>
                 <Chip variant={connected ? 'success' : 'error'} dot>
-                  {connected ? t.statusConnected : t.statusNotConfigured}
+                  {connected ? (svc.id === 'openweather' ? t.keyConfigured : t.statusConnected) : t.statusNotConfigured}
                 </Chip>
               </div>
+              {svc.id === 'openweather' && <p className="text-xs text-fg2 mt-0 mb-3">{t.weatherKeyHelp}</p>}
               {connected ? (
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <code className="text-[13px] bg-black/[0.10] px-2.5 py-1.5 rounded-sm font-mono text-fg1">

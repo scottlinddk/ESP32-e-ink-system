@@ -17,6 +17,8 @@ Use **Display time zone** on the Dashboard to set the status clock and preview t
 
 The JSON preview, BMP preview and Bluetooth payload share one live-data pipeline. Unavailable sources are shown as unavailable, without invented weather or headlines. Widget drawing is clipped to its assigned area so long content cannot overwrite neighboring widgets.
 
+Weather has a **Test weather** action and specific setup/error messages. Save an OpenWeatherMap Current Weather key, enter coordinates with decimal points, and test before saving the display settings. See [weather setup and troubleshooting](docs/WEATHER.md).
+
 The image renderer supports validated monochrome panel sizes and clockwise rotation, defaulting to **250 × 122**. Choose native dimensions on the Dashboard. The bundled firmware accepts row-padded 250 × 122 Bluetooth pushes in manual setup mode. The separate OpenDisplay path retains its byte-aligned width requirement. See [display profiles](docs/DISPLAY_PROFILES.md) and [Bluetooth setup](docs/BLUETOOTH_DELIVERY.md). A profile does not install a new board driver.
 
 ## Data sources

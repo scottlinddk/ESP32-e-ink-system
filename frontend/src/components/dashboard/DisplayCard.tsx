@@ -15,6 +15,8 @@ import { Checkbox } from '../ui/checkbox';
 import { Skeleton } from '../ui/Spinner';
 import { Icon } from '../ui/Logo';
 import { EnergyPriceSettingsFields } from './EnergyPriceSettingsFields';
+import { WeatherTest } from './WeatherTest';
+import { formatWeatherCoordinates } from '../../lib/weatherTest';
 import { energyPriceSettingsForSave, validEnergyPriceSettings } from '../../lib/energyPriceSettings';
 const MONTA_FIELDS = [
   { id: 'charger_status', labelKey: 'evFieldChargerStatus' as const },
@@ -91,7 +93,9 @@ export function DisplayCard({ loading }: { loading: boolean }) {
       energy_price_location: prefs.energy.zone,
       energy_price_settings: energyPriceSettingsForSave(prefs.energy.on, prefs.energy.priceSettings),
       show_weather: prefs.weather.on,
-      weather_location: prefs.weather.location,
+      // A disabled source keeps its saved location, including when a hidden
+      // draft contains incomplete coordinates.
+      ...(prefs.weather.on ? { weather_location: prefs.weather.location } : {}),
       show_news: prefs.news.on,
       news_language: prefs.news.lang,
       news_source: prefs.news.source === 'rss' ? 'rss' : 'newsapi',
@@ -144,16 +148,20 @@ export function DisplayCard({ loading }: { loading: boolean }) {
   }
 
   function useLocation() {
+    if (!navigator.geolocation) {
+      app.toast({ type: 'error', title: t.locationUnavailable });
+      return;
+    }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
-        set({ weather: { ...p.weather, location: `${latitude.toFixed(2)}, ${longitude.toFixed(2)}` } });
+        set({ weather: { ...p.weather, location: formatWeatherCoordinates(latitude, longitude) } });
         setLocating(false);
       },
       () => {
         setLocating(false);
-        app.toast({ type: 'error', title: 'Location unavailable' });
+        app.toast({ type: 'error', title: t.locationUnavailable });
       },
       { timeout: 8000 }
     );
@@ -225,10 +233,11 @@ export function DisplayCard({ loading }: { loading: boolean }) {
             onToggle={() => set({ weather: { ...p.weather, on: !p.weather.on } })}
           >
             <div className="grid grid-cols-2 gap-3.5 max-[820px]:grid-cols-1">
-              <Field label={t.location} htmlFor="loc">
+              <Field label={t.location} htmlFor="loc" helper={t.weatherLocationHelp}>
                 <Input
                   id="loc"
                   mono
+                  maxLength={64}
                   value={p.weather.location}
                   placeholder={t.locationPh}
                   onChange={(e) => set({ weather: { ...p.weather, location: e.target.value } })}
@@ -245,6 +254,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
                 </Button>
               </Field>
             </div>
+            <WeatherTest location={p.weather.location} />
           </SourceRow>
 
           <SourceRow

@@ -18,6 +18,8 @@ import displayDataRouter from '../routes/display-data';
 import imageRouter from '../routes/image';
 import { renderDisplayData, renderDisplayDataRaw } from '../utils/bmpGenerator';
 import type { ApiKey, DisplayData, UserPreferences } from '../types/index';
+import { WeatherSourceError, weatherProblem } from '../utils/weatherErrors';
+import { logger } from '../lib/logger';
 
 vi.mock('@clerk/backend', () => ({
   verifyToken: vi.fn(),
@@ -99,6 +101,19 @@ afterEach(() => {
 });
 
 describe('live display data', () => {
+  it('returns safe weather diagnostics while preserving other sources and excludes raw provider errors from logs', async () => {
+    vi.mocked(fetchWeather).mockRejectedValue(new WeatherSourceError('invalid_key'));
+    const data = await buildDisplayData('user-test', prefs, credentials);
+    expect(data.weather).toBeUndefined();
+    expect(data.weatherError).toEqual(weatherProblem(new WeatherSourceError('invalid_key')));
+    expect(data.price).toEqual(liveData.price);
+    vi.mocked(fetchWeather).mockRejectedValue(new Error('SECRET https://weather.example/?appid=SECRET'));
+    const failed = await buildDisplayData('user-test', prefs, credentials);
+    expect(failed.weatherError?.code).toBe('unavailable');
+    expect(JSON.stringify(failed)).not.toContain('SECRET');
+    expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain('SECRET');
+    expect(logger.error).not.toHaveBeenCalled();
+  });
   it('passes saved electricity profiles to the shared render pipeline and preserves tariff failures as unavailable', async () => {
     const energy_price_settings = { mode: 'consumer' as const, gridGln: '5790000705689', gridChargeCodes: ['DT_C_01'], retailerMarkupOre: 5 };
     await buildDisplayData('user-test', { ...prefs, energy_price_settings }, credentials);
@@ -159,6 +174,7 @@ describe('live display data', () => {
     vi.mocked(fetchNews).mockRejectedValue(new Error('News unavailable'));
     vi.mocked(fetchZaptecData).mockRejectedValue(new Error('Charger unavailable'));
     const { weather, news, zaptec, ...availableData } = liveData;
+    availableData.weatherError = weatherProblem(new Error());
     expect(await buildDisplayData('user-test', prefs, credentials)).toEqual(availableData);
   });
 
@@ -187,6 +203,7 @@ describe('live display data', () => {
     await vi.advanceTimersByTimeAsync(10_000);
     const data = await pending;
     const { weather, news, ...availableData } = liveData;
+    availableData.weatherError = weatherProblem(new WeatherSourceError('timeout'));
     expect(data).toEqual(availableData);
     expect(vi.mocked(fetchWeather).mock.calls[0][2]?.aborted).toBe(true);
     expect(vi.mocked(fetchNews).mock.calls[0][2]?.aborted).toBe(true);
@@ -278,6 +295,7 @@ describe('JSON, BMP and Bluetooth endpoints', () => {
     vi.mocked(fetchWeather).mockRejectedValue(new Error('Weather unavailable'));
     vi.mocked(fetchNews).mockRejectedValue(new Error('News unavailable'));
     const { weather, news, ...availableData } = liveData;
+    availableData.weatherError = weatherProblem(new Error());
 
     const jsonResponse = await fetch(`${baseUrl}/preview`, auth);
     expect(await jsonResponse.json()).toEqual(availableData);

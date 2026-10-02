@@ -20,6 +20,9 @@ import { DEFAULT_DISPLAY_TIMEZONE, parseDisplayTimezone } from '../utils/display
 import { parseCustomContentUpdates } from '../utils/customContent';
 import { parseWebhookPreferences } from '../services/customWebhook';
 import { parseEnergyPriceSettings } from '../utils/energyPriceSettings';
+import { normalizeWeatherLocation } from '../utils/weatherLocation';
+import { WeatherSourceError, weatherProblem } from '../utils/weatherErrors';
+import { fetchWeather } from '../services/weather';
 
 /**
  * @swagger
@@ -253,7 +256,6 @@ router.post(
         'show_monta',
         'show_zaptec',
         'energy_price_location',
-        'weather_location',
         'news_language',
         'news_source',
         'news_feed_url',
@@ -278,6 +280,9 @@ router.post(
       try {
         if (req.body.display_timezone !== undefined) parseDisplayTimezone(req.body.display_timezone);
         updates = { ...parseCustomContentUpdates(req.body), ...parseWebhookPreferences(req.body) };
+        if (req.body.weather_location !== undefined) {
+          updates.weather_location = normalizeWeatherLocation(req.body.weather_location);
+        }
         if (req.body.energy_price_settings !== undefined) {
           updates.energy_price_settings = parseEnergyPriceSettings(req.body.energy_price_settings);
         }
@@ -348,6 +353,56 @@ router.post(
     }
   }
 );
+
+/**
+ * @swagger
+ * /api/preferences/weather/test:
+ *   post:
+ *     summary: Test draft weather coordinates with the authenticated user's saved OpenWeatherMap key
+ *     description: Uses the configured server key only when the user has no saved key. Bypasses cached readings. Does not save coordinates or accept credentials in the request. Provider failures return fixed messages without credentials or response bodies.
+ *     tags: [Preferences]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [location]
+ *             properties:
+ *               location:
+ *                 type: string
+ *                 example: '57.05,9.92'
+ *     responses:
+ *       200:
+ *         description: Current metric weather (temperature in Celsius, wind in m/s)
+ *       400:
+ *         description: Missing key, invalid coordinates or rejected/inactive API key; body contains error and code
+ *       401:
+ *         description: Sign-in required
+ *       502:
+ *         description: Provider unavailable, rate limited or invalid response; body contains error and code
+ *       504:
+ *         description: Provider timeout; body contains error and code
+ */
+router.post('/weather/test', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const location = normalizeWeatherLocation(req.body?.location);
+    const userId = await getOrCreateUserFromClerk(req.clerkUserId!);
+    const keys = await getApiKeys(userId);
+    const key = keys.find((entry) => entry.provider === 'openweathermap')?.api_key;
+    const weather = await fetchWeather(location, key, undefined, { bypassCache: true });
+    res.json({ weather });
+  } catch (error) {
+    if (!(error instanceof WeatherSourceError)) { next(error); return; }
+    const problem = weatherProblem(error);
+    const status = problem.code === 'timeout' ? 504
+      : ['missing_key', 'invalid_location', 'invalid_key'].includes(problem.code) ? 400 : 502;
+    res.status(status).json({ error: problem.message, code: problem.code });
+  }
+});
 
 /**
  * GET /api/preferences/api-keys

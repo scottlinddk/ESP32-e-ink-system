@@ -63,8 +63,9 @@ const options: swaggerJsdoc.Options = {
             energy_price_settings: { $ref: '#/components/schemas/EnergyPriceSettings' },
             weather_location: {
               type: 'string',
-              example: '55.3,10.4',
-              description: 'Latitude,Longitude',
+              maxLength: 64,
+              example: '57.05,9.92',
+              description: 'Latitude,longitude using decimal points; latitude -90..90 and longitude -180..180. Normalized when saved.',
             },
             news_language: {
               type: 'string',
@@ -104,11 +105,21 @@ const options: swaggerJsdoc.Options = {
         },
         WeatherData: {
           type: 'object',
+          required: ['temp', 'condition', 'windSpeed', 'icon'],
           properties: {
             temp: { type: 'number', description: 'Temperature in Celsius' },
-            condition: { type: 'string', example: 'Clear' },
+            condition: { type: 'string', example: 'clear' },
             windSpeed: { type: 'number', description: 'Wind speed in m/s' },
             icon: { type: 'string', example: '01d' },
+          },
+        },
+        WeatherProblem: {
+          type: 'object',
+          required: ['code', 'message'],
+          description: 'Safe diagnosis when enabled weather cannot be loaded. Contains no provider response body, key or request URL.',
+          properties: {
+            code: { type: 'string', enum: ['missing_key', 'invalid_location', 'invalid_key', 'rate_limited', 'unavailable', 'timeout', 'invalid_response'] },
+            message: { type: 'string' },
           },
         },
         NewsItem: {
@@ -128,6 +139,7 @@ const options: swaggerJsdoc.Options = {
             },
             price: { $ref: '#/components/schemas/EnergyPrice' },
             weather: { $ref: '#/components/schemas/WeatherData' },
+            weatherError: { $ref: '#/components/schemas/WeatherProblem' },
             news: {
               type: 'array',
               items: { $ref: '#/components/schemas/NewsItem' },

@@ -10,7 +10,7 @@ const providers = [
     clear: clearWeatherCache,
     load: (signal: AbortSignal) => fetchWeather('55.3,10.4', 'test-key', signal),
     isData: (_url: string) => true,
-    response: (_url: string) => ({ main: { temp: 7 }, weather: [{ main: 'Clouds' }], wind: { speed: 3 } }),
+    response: (_url: string) => ({ main: { temp: 7 }, weather: [{ main: 'Clouds', icon: '04d' }], wind: { speed: 3 } }),
   },
   {
     name: 'Monta',
@@ -53,6 +53,7 @@ describe('provider cancellation', () => {
         if (abortBody && provider.isData(input)) controller.abort(error);
         return provider.response(input);
       };
+      if (provider.name === 'weather') return new Response(JSON.stringify(readBody()));
       return {
         ok: true, status: 200, headers: new Headers(),
         json: async () => readBody(),
@@ -61,9 +62,13 @@ describe('provider cancellation', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(provider.load(controller.signal)).rejects.toThrow('Source deadline reached');
+    await expect(provider.load(controller.signal)).rejects.toThrow(provider.name === 'weather'
+      ? 'OpenWeatherMap did not respond in time' : 'Source deadline reached');
     expect(fetchMock.mock.calls.length).toBeGreaterThan(0);
-    for (const call of fetchMock.mock.calls) expect(call[1]?.signal).toBe(controller.signal);
+    for (const call of fetchMock.mock.calls) {
+      if (provider.name === 'weather') expect(call[1]?.signal?.aborted).toBe(true);
+      else expect(call[1]?.signal).toBe(controller.signal);
+    }
 
     abortBody = false;
     await expect(provider.load(new AbortController().signal)).resolves.toBeDefined();
