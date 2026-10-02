@@ -16,7 +16,8 @@ class ProvisioningManager {
 public:
   ProvisioningManager();
   bool loadCredentials(DeviceCredentials& credentials);
-  void startProvisioningAP(uint32_t timeoutSeconds = 0, const char* failureReason = nullptr);
+  void startProvisioningAP(uint32_t timeoutSeconds = 0, const char* failureReason = nullptr,
+    void (*setupLoop)() = nullptr);
 private:
   Preferences prefs;
   DNSServer dns;

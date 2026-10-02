@@ -23,6 +23,7 @@ def main():
     driver = [firmware / "lib/EPD/EPD.cpp", firmware / "lib/EPD/GUI_Paint.cpp"]
     cases = [
         ("bitmap", "bitmap_test.cpp", [], []),
+        ("ble-frame", "ble_frame_test.cpp", [], []),
         ("feed-validation", "feed_validation_test.cpp", [], []),
         ("wifi-manager", "wifi_manager_test.cpp", [firmware / "src/wifi_manager.cpp"],
          ["-I" + str(firmware / "tests/wifi_stubs")]),

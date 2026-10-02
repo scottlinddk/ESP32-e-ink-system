@@ -25,6 +25,14 @@ export class OpenDisplayReplies {
       return;
     }
     const raw = value.getUint16(0, false);
+    if ((raw & 0xff00) === 0xfe00 || (value.byteLength === 3 && value.getUint8(2) === 0xfe)) {
+      this.fail(new Error('This OpenDisplay device requires an encryption key. Use an authenticated OpenDisplay client.'));
+      return;
+    }
+    if (value.byteLength === 3 && value.getUint8(2) === 0xff) {
+      this.fail(new Error('Display rejected the command integrity check.'));
+      return;
+    }
     if ((raw & 0xff00) === 0xff00) {
       this.fail(new Error(`Display rejected command 0x${(raw & 0xff).toString(16)}`));
       return;

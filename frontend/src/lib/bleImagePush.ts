@@ -16,6 +16,8 @@ import { OpenDisplayReplies } from './openDisplayReplies';
 // Bit convention: 1=white, 0=black (matches SSD1680 and BMP convention).
 
 const OD_UUID = '00002446-0000-1000-8000-00805f9b34fb';
+export const EINK_SERVICE_UUID = 'c9c10001-7a6b-4c31-8a98-89e539e43805';
+export const EINK_CHARACTERISTIC_UUID = 'c9c10002-7a6b-4c31-8a98-89e539e43805';
 const CHUNK_SIZE = 230;
 export const DISPLAY_PIXEL_BYTES = 32 * 122;
 
@@ -60,8 +62,8 @@ export async function bleImagePush(opts: BleImagePushOptions): Promise<BleImageP
   let device: BluetoothDevice;
   try {
     device = await navigator.bluetooth.requestDevice({
-      filters: [{ namePrefix: 'OD' }, { namePrefix: 'OpenDisplay' }],
-      optionalServices: [OD_UUID],
+      filters: [{ namePrefix: 'EInk-' }, { services: [EINK_SERVICE_UUID] }, { namePrefix: 'OD' }, { namePrefix: 'OpenDisplay' }],
+      optionalServices: [EINK_SERVICE_UUID, OD_UUID],
     });
   } catch (error) {
     // Only picker cancellation is benign; missing GATT services must surface.
@@ -93,14 +95,31 @@ export async function bleImagePush(opts: BleImagePushOptions): Promise<BleImageP
       if (stopped && connected.connected) connected.disconnect();
       return connected;
     }), 10_000, 'Connecting to the display timed out.');
-    const service = await run(() => server.getPrimaryService(OD_UUID), 10_000, 'Display service discovery timed out.');
-    const char = await run(() => service.getCharacteristic(OD_UUID), 10_000, 'Display characteristic discovery timed out.');
-    const panel = await readPanelConfig(char, controller.signal);
+    // The bundled firmware has its own versioned service and correctly pads
+    // 250-pixel rows. Only a missing service permits the OpenDisplay fallback.
+    let bundled = true;
+    const service = await run(async () => {
+      try { return await server.getPrimaryService(EINK_SERVICE_UUID); }
+      catch (error) {
+        if (!(error instanceof Error) || error.name !== 'NotFoundError' || controller.signal.aborted) throw error;
+        bundled = false;
+        return server.getPrimaryService(OD_UUID);
+      }
+    }, 10_000, 'Display service discovery timed out.');
+    const char = await run(() => service.getCharacteristic(bundled ? EINK_CHARACTERISTIC_UUID : OD_UUID), 10_000, 'Display characteristic discovery timed out.');
+    const panel = bundled ? await run(async () => {
+      const value = await char.readValue();
+      if (value.byteLength !== 6 || value.getUint8(0) !== 1) throw new Error('Unsupported bundled display protocol. Update the device firmware.');
+      if (controller.signal.aborted) throw controller.signal.reason;
+      await char.startNotifications();
+      return { width: value.getUint16(1, true), height: value.getUint16(3, true), color: value.getUint8(5) };
+    }, 5000, 'Reading display capabilities timed out.') : await readPanelConfig(char, controller.signal);
     if (panel.color !== 0 || panel.width !== meta.width || panel.height !== meta.height) {
       throw new Error(`Display mismatch: device is ${panel.width}×${panel.height}, color scheme ${panel.color}. Choose its native monochrome profile before sending.`);
     }
     // Current upstream direct-write firmware truncates non-byte-aligned rows.
-    if (panel.width % 8 !== 0) throw new Error('This panel width is not byte-aligned; current OpenDisplay direct-write firmware can truncate it. Use BMP export with a compatible driver.');
+    if (!bundled && panel.width % 8 !== 0) throw new Error('This OpenDisplay panel needs verified row-padding support. Use the bundled firmware for 250×122 Bluetooth updates, or BMP export with a compatible driver.');
+    const chunkSize = bundled ? 18 : CHUNK_SIZE; // 2-byte opcode + data fits the minimum 20-byte ATT payload.
     const total = pixels.length;
     onProgress?.({ sent: 0, total });
     replies = new OpenDisplayReplies(char, error => controller.abort(error));
@@ -124,7 +143,7 @@ export async function bleImagePush(opts: BleImagePushOptions): Promise<BleImageP
     let offset = 0;
     let autoCompleted = false;
     while (offset < total) {
-      const chunk = pixels.subarray(offset, offset + CHUNK_SIZE);
+      const chunk = pixels.subarray(offset, offset + chunkSize);
       const code = await exchange(0x71, chunk, [0x71, 0x72], 90_000);
       offset += chunk.length;
       onProgress?.({ sent: Math.min(offset, total), total });

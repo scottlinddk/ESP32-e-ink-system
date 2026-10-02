@@ -68,7 +68,7 @@ String ProvisioningManager::formPage(const char* failureReason) {
   return page;
 }
 
-void ProvisioningManager::startProvisioningAP(uint32_t timeoutSeconds, const char* failureReason) {
+void ProvisioningManager::startProvisioningAP(uint32_t timeoutSeconds, const char* failureReason, void (*setupLoop)()) {
   done = false;
   char name[32] = {};
   IPAddress ip(192, 168, 4, 1);
@@ -139,6 +139,7 @@ void ProvisioningManager::startProvisioningAP(uint32_t timeoutSeconds, const cha
   Serial.printf("[Setup] Connect to %s and open %s (stay connected without internet)\n", name, setupUrl.c_str());
   const uint32_t started = millis();
   while (!done) {
+    if (setupLoop) setupLoop();
     if (dnsReady) dns.processNextRequest();
     if (timeoutSeconds && millis() - started >= timeoutSeconds * 1000UL) {
       Serial.println("[Setup] Setup timeout; restarting with stored settings");

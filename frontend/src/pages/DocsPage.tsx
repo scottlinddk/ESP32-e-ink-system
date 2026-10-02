@@ -17,7 +17,7 @@ export function DocsPage() {
           <li>{da ? 'Forbind til ESP32-Display-XXXXXX og åbn http://192.168.4.1. Indtast 2.4 GHz Wi-Fi samt API URL, UUID og token.' : 'Join ESP32-Display-XXXXXX and open http://192.168.4.1. Enter your 2.4 GHz Wi-Fi details, API URL, UUID, and token.'}</li>
           <li>{da ? 'Forbind computeren til dit normale netværk igen. Vælg 250 × 122 med rotation 0° i dashboardet, og gem dit layout.' : 'Reconnect your computer to your normal network. Select 250 × 122 with rotation 0° in the dashboard and save your layout.'}</li>
         </ol>
-        <p className="text-sm text-fg2 mt-4">{da ? 'Bluetooth-knapperne kræver separat OpenDisplay-firmware. Denne firmware bruger Wi-Fi-portalen og henter selv billeder.' : 'Bluetooth controls require separately installed OpenDisplay firmware. This firmware uses the Wi-Fi portal and fetches images automatically.'}</p>
+        <p className="text-sm text-fg2 mt-4">{da ? 'Manuel Bluetooth: hold MENU nede under genstart (Waveshare: tryk BOOT inden for 3 sekunder efter at slippe reset), og vælg EInk-… fra dashboardet. Behold computerens normale internetforbindelse. Automatisk billedhentning og netværksopsætning bruger Wi-Fi.' : 'Manual Bluetooth: hold MENU while resetting (Waveshare: press BOOT within 3 seconds after releasing reset), then choose EInk-… from the dashboard. Keep your computer on its normal internet connection. Automatic image delivery and network setup use Wi-Fi.'}</p>
       </Card>
       <Card flat className="mt-5">
         <h2 className="text-h5 mb-3">{da ? 'Byg fra kildekode og fejlfinding' : 'Build from source and troubleshoot'}</h2>

@@ -38,6 +38,9 @@ export async function readPanelConfig(char: BluetoothRemoteGATTCharacteristic, s
       const value = char.value;
       if (!value || value.byteLength < 2) return;
       const code = value.getUint16(0, false);
+      if (code === 0xfe40 || (value.byteLength === 3 && code === 0x40 && value.getUint8(2) === 0xfe)) {
+        reject(new Error('This OpenDisplay device requires an encryption key. Use an authenticated OpenDisplay client.')); return;
+      }
       if (code === 0xff40) { reject(new Error('Display configuration is unavailable or requires authentication')); return; }
       if (code !== 0x40 && code !== 0x8040) return;
       try {

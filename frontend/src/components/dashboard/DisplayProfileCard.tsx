@@ -22,7 +22,7 @@ export function DisplayProfileCard() {
       </select></label>
       <div className="grid grid-cols-2 gap-3">{(['width','height'] as const).map((key) => <label key={key}>{key === 'width' ? 'Native width' : 'Native height'}<input className="w-full border rounded p-2" type="number" min={64} max={1600} value={profile[key]} onChange={(event) => setProfile({ ...profile, [key]: Number(event.target.value) })} /></label>)}</div>
       <label>Content rotation <select className="w-full border rounded p-2" value={profile.rotation} onChange={(event) => setProfile({ ...profile, rotation: Number(event.target.value) as DisplayProfile['rotation'] })}>{[0,90,180,270].map((angle) => <option key={angle} value={angle}>{angle}° clockwise</option>)}</select></label>
-      <p className="text-xs text-fg2 m-0">Monochrome output. A size preset does not install a panel driver. Current OpenDisplay direct-write firmware requires a width divisible by 8; other widths remain available for BMP export.</p>
+      <p className="text-xs text-fg2 m-0">Monochrome output. The bundled firmware supports 250 × 122 Bluetooth updates in setup mode. The separate OpenDisplay path requires a width divisible by 8. A size preset does not install a panel driver.</p>
       <Button onClick={submit} disabled={save.isPending || preferences.isLoading || preferences.isError}>Save display profile</Button>
       {preferences.isError && <p role="alert">Display settings could not be loaded.</p>}
       {message && <p role="status" className="text-sm">{message}</p>}
