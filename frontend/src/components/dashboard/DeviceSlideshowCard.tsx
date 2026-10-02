@@ -77,9 +77,9 @@ export function DeviceSlideshowCard({ deviceId }: { deviceId: string }) {
           <option value="slideshow" disabled={!schedule.pages.length}>Slideshow</option>
         </select></label>
         <p className="text-xs text-fg2 m-0">{da
-          ? 'Alle gemte layouts indgår i slideshowet i rækkefølgen nedenfor. Tilføj, omdøb eller fjern layouts ovenfor. Fast layout bruger dit senest valgte layout; vælg et andet under Gemte layouts.'
-          : 'All saved layouts take part in the slideshow in the order below. Add, rename or remove layouts above. Single layout uses your last selected layout; choose another under Saved layouts.'}</p>
-        {!schedule.pages.length && <p className="text-sm m-0">{da ? 'Gem mindst ét layout ovenfor for at aktivere slideshow.' : 'Save at least one layout above to enable the slideshow.'}</p>}
+          ? 'Alle gemte layouts indgår i slideshowet i rækkefølgen nedenfor. Tilføj, omdøb eller fjern layouts under Gemte layouts. Fast layout bruger dit senest valgte layout; vælg et andet under Gemte layouts.'
+          : 'All saved layouts take part in the slideshow in the order below. Add, rename or remove layouts in Saved layouts. Single layout uses your last selected layout; choose another in Saved layouts.'}</p>
+        {!schedule.pages.length && <p className="text-sm m-0">{da ? 'Opret mindst ét layout under Gemte layouts for at aktivere slideshow.' : 'Create at least one layout in Saved layouts to enable the slideshow.'}</p>}
         <h3 className="text-sm font-medium m-0">{da ? 'Rækkefølge og varighed' : 'Page order and duration'}</h3>
         <ol className="list-none p-0 m-0 grid gap-2">
           {schedule.pages.map((page, index) => <li key={page.id} className="border border-divider rounded p-3 grid gap-2">

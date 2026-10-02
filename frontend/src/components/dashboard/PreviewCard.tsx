@@ -110,35 +110,30 @@ function DevicePreview({ deviceId, deviceName, hardwareId, expectedDeviceName }:
   const updatedAt = metadata ? new Date(metadata.renderedAt) : null;
 
   return (
-    <Card icon="preview" title={deviceName ? `${t.previewTitle} · ${deviceName}` : t.previewTitle}
+    <Card className="dashboard-preview-card" icon="preview" title={deviceName ? `${t.previewTitle} · ${deviceName}` : t.previewTitle}
       desc={metadata ? `${metadata.profile.width} × ${metadata.profile.height} px · ${metadata.profile.rotation}° · 1-bit` : (da ? 'Servergenereret billede fra gemte indstillinger' : 'Server-rendered image from saved settings')}>
       <div className="flex flex-col gap-3">
-        {deviceId && <p className="text-xs text-fg2 m-0 break-all">{da ? 'Hardware-ID' : 'Hardware ID'}: <code>{hardwareId || '—'}</code><br />UUID: <code>{deviceId}</code></p>}
-        <p className="text-xs text-fg2 m-0">{t.previewSavedSettings}</p>
-        {metadata && <div className="text-xs text-fg2 grid gap-1" aria-live="polite">
-          <strong>{da ? 'Gengivet layout' : 'Rendered layout'}: {metadata.layoutName}</strong>
-          <span>{metadata.mode === 'slideshow' ? 'Slideshow' : (da ? 'Fast layout' : 'Single layout')}{metadata.quiet ? (da ? ' · Stille timer' : ' · Quiet hours') : ''}</span>
-          {metadata.nextTransition && <span>{da ? 'Næste sideskift eller pausegrænse' : 'Next page or quiet-hours boundary'}: <time dateTime={metadata.nextTransition}>{new Date(metadata.nextTransition).toLocaleString(t.locale, { timeZone: timezone })}</time> · {timezone}</span>}
-        </div>}
-        <div className="eink-bezel w-full" aria-busy={preview.isFetching}>
-          {imageSrc ? (
-            <img
-              src={imageSrc}
-              alt={t.previewImageAlt}
-              className="eink-screen"
-              style={{ width: '100%', height: 'auto', imageRendering: 'pixelated', display: 'block' }}
-            />
-          ) : (
-            <div className="eink-screen flex items-center justify-center" style={{ aspectRatio: metadata ? `${metadata.profile.width} / ${metadata.profile.height}` : '250 / 122' }}>
-              <div className="p-5 text-center text-xs flex flex-col items-center gap-2" style={{ color: '#111' }}>
-                {preview.isPending || preview.data ? <><Spinner /><span>{t.previewLoading}</span></> : (
-                  <><Icon name="cloud_off" /><strong>{t.previewError}</strong></>
-                )}
+        <div className="dashboard-preview-stage">
+          <div className="eink-bezel w-full" aria-busy={preview.isFetching}>
+            {imageSrc ? (
+              <img
+                src={imageSrc}
+                alt={t.previewImageAlt}
+                className="eink-screen"
+                style={{ width: '100%', height: 'auto', imageRendering: 'pixelated', display: 'block' }}
+              />
+            ) : (
+              <div className="eink-screen flex items-center justify-center" style={{ aspectRatio: metadata ? `${metadata.profile.width} / ${metadata.profile.height}` : '250 / 122' }}>
+                <div className="p-5 text-center text-xs flex flex-col items-center gap-2" style={{ color: '#111' }}>
+                  {preview.isPending || preview.data ? <><Spinner /><span>{t.previewLoading}</span></> : (
+                    <><Icon name="cloud_off" /><strong>{t.previewError}</strong></>
+                  )}
+                </div>
               </div>
+            )}
+            <div className="absolute bottom-1.5 left-0 right-0 text-center text-[8px] tracking-[0.14em] uppercase text-black/40 font-mono [data-theme='dark']_&:text-white/35">
+              e-ink · monochrome
             </div>
-          )}
-          <div className="absolute bottom-1.5 left-0 right-0 text-center text-[8px] tracking-[0.14em] uppercase text-black/40 font-mono [data-theme='dark']_&:text-white/35">
-            e-ink · monochrome
           </div>
         </div>
 
@@ -149,7 +144,13 @@ function DevicePreview({ deviceId, deviceName, hardwareId, expectedDeviceName }:
           </div>
         )}
 
-        <div className="flex flex-wrap justify-between gap-2 text-xs text-fg3" aria-live="polite">
+        <div className="dashboard-preview-meta text-xs text-fg3" aria-live="polite">
+          <p className="text-fg2 m-0">{t.previewSavedSettings}</p>
+          {metadata && <div className="text-fg2 grid gap-1">
+            <strong>{da ? 'Gengivet layout' : 'Rendered layout'}: {metadata.layoutName}</strong>
+            <span>{metadata.mode === 'slideshow' ? 'Slideshow' : (da ? 'Fast layout' : 'Single layout')}{metadata.quiet ? (da ? ' · Stille timer' : ' · Quiet hours') : ''}</span>
+            {metadata.nextTransition && <span>{da ? 'Næste sideskift eller pausegrænse' : 'Next page or quiet-hours boundary'}: <time dateTime={metadata.nextTransition}>{new Date(metadata.nextTransition).toLocaleString(t.locale, { timeZone: timezone })}</time> · {timezone}</span>}
+          </div>}
           {updatedAt && (
             <span>{da ? 'Gengivet' : 'Rendered'} <time dateTime={updatedAt.toISOString()}>{updatedAt.toLocaleString(t.locale, { timeZone: timezone })}</time> · {timezone}</span>
           )}
@@ -157,7 +158,7 @@ function DevicePreview({ deviceId, deviceName, hardwareId, expectedDeviceName }:
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button variant="outlined" size="sm" icon="grid_view" disabled={!metadata} onClick={() => navigate(deviceLayoutPath(deviceId, metadata?.layoutId ?? undefined))}>
+          <Button size="sm" icon="grid_view" disabled={!metadata} onClick={() => navigate(deviceLayoutPath(deviceId, metadata?.layoutId ?? undefined))}>
             {t.layoutEditLayout}
           </Button>
           <Button variant="outlined" size="sm" icon="refresh" onClick={() => void preview.refetch()} disabled={preview.isFetching}>
@@ -179,16 +180,22 @@ function DevicePreview({ deviceId, deviceName, hardwareId, expectedDeviceName }:
               : t.pushToDisplay}
           </Button>
         </div>
-        {imageSrc && <a href={imageSrc} download="display.bmp" className="text-xs underline">Download display image (BMP)</a>}
+        {imageSrc && <a href={imageSrc} download="display.bmp" className="text-xs underline">{da ? 'Download skærmbillede (BMP)' : 'Download display image (BMP)'}</a>}
         <p className="text-xs text-fg2 m-0">{da ? 'Forhåndsvisningen viser serverens gengivne billede. Den bekræfter ikke, hvad den fysiske skærm har modtaget.' : 'The preview shows the server-rendered image. It does not confirm what the physical display has received.'}</p>
         {deviceId && <DeviceRefreshControl deviceId={deviceId} deviceName={deviceName} hardwareId={hardwareId} timezone={timezone} />}
-        <p className="text-xs text-fg2 m-0">{t.pushSetup}</p>
-        <p className="text-xs text-fg2 m-0">{expectedDeviceName
-          ? (da ? `Bluetooth-navnet skal være ${expectedDeviceName}.` : `The Bluetooth name must be ${expectedDeviceName}.`)
-          : (da ? 'Der er ikke gemt et Bluetooth-navn. Vælg den rigtige fysiske skærm i Bluetooth-vælgeren; navnet vises efter overførslen.' : 'No Bluetooth name is registered. Choose the correct physical display in the Bluetooth picker; its name is shown after transfer.')}</p>
-        {!bluetoothSupported && <p className="text-xs text-fg2 m-0">{t.pushUnsupported}</p>}
         {pushState === 'done' && <p role="status" className="text-xs text-fg2 m-0">{pushedName}: {t.pushComplete}</p>}
         {pushError && <p role={pushState === 'error' ? 'alert' : 'status'} className="text-xs text-warning m-0">{pushError}</p>}
+        <details className="dashboard-preview-help">
+          <summary>{da ? 'Enhed og Bluetooth-oplysninger' : 'Device & Bluetooth details'}</summary>
+          <div className="flex flex-col gap-3 mt-3">
+            {deviceId && <p className="text-xs text-fg2 m-0 break-all">{da ? 'Hardware-ID' : 'Hardware ID'}: <code>{hardwareId || '—'}</code><br />UUID: <code>{deviceId}</code></p>}
+            <p className="text-xs text-fg2 m-0">{t.pushSetup}</p>
+            <p className="text-xs text-fg2 m-0">{expectedDeviceName
+              ? (da ? `Bluetooth-navnet skal være ${expectedDeviceName}.` : `The Bluetooth name must be ${expectedDeviceName}.`)
+              : (da ? 'Der er ikke gemt et Bluetooth-navn. Vælg den rigtige fysiske skærm i Bluetooth-vælgeren; navnet vises efter overførslen.' : 'No Bluetooth name is registered. Choose the correct physical display in the Bluetooth picker; its name is shown after transfer.')}</p>
+            {!bluetoothSupported && <p className="text-xs text-fg2 m-0">{t.pushUnsupported}</p>}
+          </div>
+        </details>
       </div>
     </Card>
   );

@@ -31,7 +31,7 @@ export function Card({
   return (
     <section
       className={cn(
-        'bg-surface rounded-md border border-border overflow-hidden',
+        'ui-card bg-surface rounded-md border border-border overflow-hidden',
         !flat && 'shadow-1',
         className
       )}
