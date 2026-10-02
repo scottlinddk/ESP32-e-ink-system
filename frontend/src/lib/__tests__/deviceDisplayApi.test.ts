@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchDraftPreviewBmp, fetchPreviewBmp, fetchPreviewFrame, getPreferences, getPreviewData, savePreferences } from '../api';
 import { DEFAULT_LAYOUT } from '../../types';
+import { previewHeaders } from './previewFixtures';
 
 afterEach(() => { vi.unstubAllGlobals(); });
 describe('device display API scope', () => {
@@ -14,10 +15,8 @@ describe('device display API scope', () => {
   });
   it('passes device identity to BMP, JSON, raw BLE frames and draft previews', async () => {
     const request = vi.fn().mockImplementation(async (url: string) => {
-      if (url.includes('/raw')) return new Response(new Uint8Array(3904), { headers: {
-        'X-Display-Width': '250', 'X-Display-Height': '122', 'X-Display-Rotation': '0', 'X-Display-Encoding': 'mono-msb-white1', 'X-Display-Row-Bytes': '32',
-      } });
-      return new Response(url.startsWith('/api/preview') ? '{}' : 'bmp');
+      if (url.includes('/raw')) return new Response(new Uint8Array(3904), { headers: previewHeaders('device-a') });
+      return new Response(url.startsWith('/api/preview') ? '{}' : 'bmp', { headers: previewHeaders('device-a', url.endsWith('/draft')) });
     });
     vi.stubGlobal('fetch', request);
     const signal = new AbortController().signal;

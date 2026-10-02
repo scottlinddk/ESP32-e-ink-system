@@ -27,6 +27,8 @@ export interface BleImagePushOptions {
   // Loaded after the picker, so requestDevice retains the click's user activation.
   loadPixels: () => Promise<Uint8Array | { pixels: Uint8Array; profile: DisplayProfile }>;
   profile?: DisplayProfile;
+  signal?: AbortSignal;
+  expectedDeviceName?: string;
   onProgress?: (p: PushProgress) => void;
   onRefreshing?: () => void;
 }
@@ -55,32 +57,41 @@ function frame(cmd: number, payload?: Uint8Array): Uint8Array {
 export async function bleImagePush(opts: BleImagePushOptions): Promise<BleImagePushResult> {
   const { loadPixels, onProgress } = opts;
 
+  opts.signal?.throwIfAborted();
   if (!navigator.bluetooth) {
     throw new Error('Web Bluetooth is not supported in this browser. Use Chrome or Edge on desktop.');
   }
 
-  let device: BluetoothDevice;
-  try {
-    device = await navigator.bluetooth.requestDevice({
-      filters: [{ namePrefix: 'EInk-' }, { services: [EINK_SERVICE_UUID] }, { namePrefix: 'OD' }, { namePrefix: 'OpenDisplay' }],
-      optionalServices: [EINK_SERVICE_UUID, OD_UUID],
-    });
-  } catch (error) {
-    // Only picker cancellation is benign; missing GATT services must surface.
-    if (error instanceof Error && error.name === 'NotFoundError') {
-      throw new BleSelectionCancelledError();
-    }
-    throw error;
-  }
-
   const controller = new AbortController();
+  const abort = () => controller.abort(opts.signal?.reason);
+  opts.signal?.addEventListener('abort', abort, { once: true });
+  let device: BluetoothDevice | undefined;
   let stopped = false;
   let replies: OpenDisplayReplies | undefined;
   const disconnected = () => controller.abort(new Error('Display disconnected before refresh was confirmed.'));
-  device.addEventListener('gattserverdisconnected', disconnected);
-  const run = <T>(operation: () => Promise<T>, ms: number, message: string) =>
-    bluetoothDeadline(operation, ms, message, controller.signal);
+  const run = async <T>(operation: () => Promise<T>, ms: number, message: string) => {
+    const result = await bluetoothDeadline(operation, ms, message, controller.signal);
+    controller.signal.throwIfAborted();
+    return result;
+  };
   try {
+    try {
+      // requestDevice still runs synchronously in the click handler. Its native
+      // picker cannot be closed by abort, but a later selection is ignored.
+      device = await run(() => navigator.bluetooth.requestDevice({
+        filters: [{ namePrefix: 'EInk-' }, { services: [EINK_SERVICE_UUID] }, { namePrefix: 'OD' }, { namePrefix: 'OpenDisplay' }],
+        optionalServices: [EINK_SERVICE_UUID, OD_UUID],
+      }), 120_000, 'Selecting a display timed out. Please try again.');
+    } catch (error) {
+      controller.signal.throwIfAborted();
+      // Only picker cancellation is benign; missing GATT services must surface.
+      if (error instanceof Error && error.name === 'NotFoundError') throw new BleSelectionCancelledError();
+      throw error;
+    }
+    if (opts.expectedDeviceName !== undefined && device.name !== opts.expectedDeviceName) {
+      throw new Error(`Selected Bluetooth display "${device.name ?? 'unnamed'}" does not match registered display "${opts.expectedDeviceName}". Choose the registered display before sending.`);
+    }
+    device.addEventListener('gattserverdisconnected', disconnected);
     const loaded = await run(loadPixels, 30_000, 'Loading the display image timed out.');
     const pixels = loaded instanceof Uint8Array ? loaded : loaded.pixels;
     const meta = frameMetadata(loaded instanceof Uint8Array ? opts.profile ?? DEFAULT_DISPLAY_PROFILE : loaded.profile);
@@ -89,10 +100,10 @@ export async function bleImagePush(opts: BleImagePushOptions): Promise<BleImageP
     }
     if (!device.gatt) throw new Error('The selected display does not support a Bluetooth GATT connection.');
 
-    const server = await run(() => device.gatt!.connect().then(connected => {
+    const server = await run(() => device!.gatt!.connect().then(connected => {
       // connect() itself cannot be cancelled. Release a connection that arrives
       // after its deadline, without starting discovery or any image writes.
-      if (stopped && connected.connected) connected.disconnect();
+      if ((stopped || controller.signal.aborted) && connected.connected) connected.disconnect();
       return connected;
     }), 10_000, 'Connecting to the display timed out.');
     // The bundled firmware has its own versioned service and correctly pads
@@ -114,6 +125,7 @@ export async function bleImagePush(opts: BleImagePushOptions): Promise<BleImageP
       await char.startNotifications();
       return { width: value.getUint16(1, true), height: value.getUint16(3, true), color: value.getUint8(5) };
     }, 5000, 'Reading display capabilities timed out.') : await readPanelConfig(char, controller.signal);
+    controller.signal.throwIfAborted();
     if (panel.color !== 0 || panel.width !== meta.width || panel.height !== meta.height) {
       throw new Error(`Display mismatch: device is ${panel.width}×${panel.height}, color scheme ${panel.color}. Choose its native monochrome profile before sending.`);
     }
@@ -156,16 +168,18 @@ export async function bleImagePush(opts: BleImagePushOptions): Promise<BleImageP
 
     // Firmware can auto-END when its image buffer fills. Sending another END
     // then is invalid. Otherwise explicitly request a full refresh.
+    controller.signal.throwIfAborted();
     opts.onRefreshing?.();
     if (!autoCompleted) await exchange(0x72, new Uint8Array([0]), [0x72], 90_000);
     await run(() => replies!.next([0x73]), 90_000, 'Image transmitted, but display refresh was not confirmed before the deadline.');
     return { device, refreshConfirmed: true };
   } finally {
     stopped = true;
+    opts.signal?.removeEventListener('abort', abort);
     controller.abort(new Error('Bluetooth transfer closed'));
     replies?.dispose();
-    device.removeEventListener('gattserverdisconnected', disconnected);
+    device?.removeEventListener('gattserverdisconnected', disconnected);
     // Release the connection after success and after partially transferred frames.
-    if (device.gatt?.connected) device.gatt.disconnect();
+    if (device?.gatt?.connected) device.gatt.disconnect();
   }
 }

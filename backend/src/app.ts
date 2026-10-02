@@ -53,7 +53,8 @@ app.use(
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    exposedHeaders: ['X-Display-Width', 'X-Display-Height', 'X-Display-Rotation', 'X-Display-Encoding', 'X-Display-Row-Bytes'],
+    exposedHeaders: ['X-Display-Width', 'X-Display-Height', 'X-Display-Rotation', 'X-Display-Encoding', 'X-Display-Row-Bytes',
+      'X-Preview-Device-ID', 'X-Preview-Layout-ID', 'X-Preview-Layout-Name', 'X-Preview-Mode', 'X-Preview-Rendered-At', 'X-Preview-Quiet', 'X-Preview-Next-Transition'],
   })
 );
 
