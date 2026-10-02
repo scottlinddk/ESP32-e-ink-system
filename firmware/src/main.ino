@@ -4,6 +4,7 @@
 #include "api.h"
 #include "provisioning.h"
 #include "feed_validation.h"
+#include "applied_frame.h"
 #include "manual_ble.h"
 #include <time.h>
 
@@ -12,7 +13,7 @@ DisplayManager display;
 ApiClient apiClient;
 ProvisioningManager provisioning;
 DeviceCredentials credentials;
-RTC_DATA_ATTR char appliedHash[65] = {};
+RTC_DATA_ATTR feed::AppliedFrame appliedFrame = {};
 RTC_DATA_ATTR uint32_t failedPolls = 0;
 uint32_t nextPollSeconds = 60;
 
@@ -23,7 +24,7 @@ constexpr int SETUP_BUTTON = 0;
 #endif
 
 void openSetup(uint32_t timeoutSeconds = 0, const char* failureReason = nullptr) {
-  appliedHash[0] = 0;
+  appliedFrame.clear();
   if (failureReason) Serial.printf("[Main] Setup recovery: %s\n", failureReason);
   const bool manual = failureReason == nullptr;
   display.showLoading(manual ? "WiFi: ESP32-Display\nBLE: EInk-..." : "Setup: ESP32-Display\nOpen 192.168.4.1");
@@ -67,22 +68,21 @@ void pollDisplay() {
   while (time(nullptr) < 1735689600 && millis() - syncStart < 20000) delay(100);
   if (time(nullptr) < 1735689600) {
     Serial.println("[Main] Time sync failed; check internet/NTP access");
-    if (!feed::validHash(appliedHash)) display.showError("Time sync failed", "Check internet / NTP");
+    if (!feed::validHash(appliedFrame.hash)) display.showError("Time sync failed", "Check internet / NTP");
     sleepUntilNextPoll();
     return;
   }
   Serial.println("[Main] Clock ready; requesting device frame");
   static uint8_t bmp[8192];  // Keep the frame off the ESP32's 8 KiB loop stack.
   FrameResult frame = apiClient.fetchFrame(credentials.apiUrl, credentials.deviceId,
-    credentials.token, appliedHash, bmp, sizeof(bmp));
+    credentials.token, appliedFrame.hash, bmp, sizeof(bmp));
   Serial.printf("[Main] Frame response: HTTP %d, %d image bytes\n", frame.httpCode, frame.length);
   bool success = false;
   if (frame.length > 0) {
-    // Drawing replaces any previously applied frame, including on partial failure.
-    appliedHash[0] = 0;
-    success = display.showBitmap(bmp, static_cast<size_t>(frame.length));
+    success = appliedFrame.apply(frame.hash, frame.refreshRequestId, [&]() {
+      return display.showBitmap(bmp, static_cast<size_t>(frame.length));
+    });
     if (success) {
-      strlcpy(appliedHash, frame.hash, sizeof(appliedHash));
 #ifdef ELECROW_EPAPER_213
       Serial.println("[Main] Display controller refresh cycle completed; visible image not verified");
 #else
@@ -90,11 +90,11 @@ void pollDisplay() {
 #endif
     }
     else Serial.println("[Main] Display rejected BMP or failed to refresh");
-  } else if (frame.httpCode == 204 || (frame.httpCode == 304 && feed::validHash(appliedHash))) {
+  } else if (frame.httpCode == 204 || (frame.httpCode == 304 && feed::validHash(appliedFrame.hash))) {
     success = true;  // Quiet or unchanged: leave the panel untouched.
   } else {
     Serial.printf("[Main] %s\n", frame.error);
-    if (!feed::validHash(appliedHash)) display.showError("Update failed", frame.error);
+    if (!feed::validHash(appliedFrame.hash)) display.showError("Update failed", frame.error);
   }
   if (frame.httpCode == 401 || frame.httpCode == 403) {
     Serial.println("[Main] Device token rejected; open setup to replace it");
@@ -108,7 +108,9 @@ void pollDisplay() {
     failedPolls = min(failedPolls + 1, static_cast<uint32_t>(7));
     nextPollSeconds = max(frame.retrySeconds, min(static_cast<uint32_t>(3600), static_cast<uint32_t>(30UL << failedPolls)));
   }
-  if (!apiClient.heartbeat(credentials.apiUrl, credentials.deviceId, credentials.token, appliedHash, WiFi.RSSI()))
+  // Request ACKs belong only to validated 200 frames, including lost-ACK retries.
+  const char* requestAck = success && frame.length > 0 ? appliedFrame.refreshRequestId : nullptr;
+  if (!apiClient.heartbeat(credentials.apiUrl, credentials.deviceId, credentials.token, appliedFrame.hash, WiFi.RSSI(), requestAck))
     Serial.println("[Main] Heartbeat failed");
   else Serial.println("[Main] Heartbeat accepted by server");
   const uint32_t elapsed = (millis() - frame.receivedAt) / 1000;
@@ -136,7 +138,7 @@ void setup() {
 #endif
   // Only a timer wake is known to retain the previously rendered frame.
   if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_TIMER) {
-    appliedHash[0] = 0;
+    appliedFrame.clear();
     failedPolls = 0;
   }
   display.begin();

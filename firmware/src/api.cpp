@@ -36,7 +36,7 @@ FrameResult ApiClient::fetchFrame(const char* baseUrl, const char* deviceId, con
     return result;
   }
   const char* headers[] = {"Retry-After", "X-Image-SHA256", "X-Display-Width", "X-Display-Height",
-    "X-Display-Rotation", "X-Display-Row-Bytes", "X-Display-Encoding", "X-Refresh-Mode", "Content-Type", "Transfer-Encoding"};
+    "X-Display-Rotation", "X-Display-Row-Bytes", "X-Display-Encoding", "X-Refresh-Mode", "X-Refresh-Request-ID", "Content-Type", "Transfer-Encoding"};
   http.collectHeaders(headers, sizeof(headers) / sizeof(headers[0]));
   if (feed::validHash(appliedHash)) http.addHeader("If-None-Match", String('"') + appliedHash + '"');
   result.httpCode = http.GET();
@@ -48,6 +48,14 @@ FrameResult ApiClient::fetchFrame(const char* baseUrl, const char* deviceId, con
   }
   if (result.httpCode != 200) {
     snprintf(result.error, sizeof(result.error), "Frame request failed (HTTP %d)", result.httpCode);
+    http.end();
+    return result;
+  }
+  // Only a successful full-frame response can request a physical refresh.
+  // Ignore this header on quiet/unchanged responses; they cannot prove an apply.
+  String requestId = http.header("X-Refresh-Request-ID");
+  if (requestId.length() && !feed::validDeviceId(requestId.c_str())) {
+    strlcpy(result.error, "Invalid refresh request ID", sizeof(result.error));
     http.end();
     return result;
   }
@@ -91,12 +99,13 @@ FrameResult ApiClient::fetchFrame(const char* baseUrl, const char* deviceId, con
     strlcpy(result.error, "Frame checksum mismatch", sizeof(result.error));
     return result;
   }
+  strlcpy(result.refreshRequestId, requestId.c_str(), sizeof(result.refreshRequestId));
   result.length = expected;
   return result;
 }
 
 bool ApiClient::heartbeat(const char* baseUrl, const char* deviceId, const char* token,
-                          const char* appliedHash, int rssi) {
+                          const char* appliedHash, int rssi, const char* refreshRequestId) {
   HTTPClient http;
   if (!begin(http, baseUrl, deviceId, token, "/heartbeat")) return false;
   JsonDocument doc;
@@ -106,6 +115,7 @@ bool ApiClient::heartbeat(const char* baseUrl, const char* deviceId, const char*
   // Deploy the API's nullable last_applied_hash contract before this firmware.
   if (feed::validHash(appliedHash)) doc["last_applied_hash"] = appliedHash;
   else doc["last_applied_hash"] = nullptr;
+  if (feed::validHash(appliedHash) && feed::validDeviceId(refreshRequestId)) doc["refresh_request_id"] = refreshRequestId;
   String payload;
   serializeJson(doc, payload);
   http.addHeader("Content-Type", "application/json");

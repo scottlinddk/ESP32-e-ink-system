@@ -12,6 +12,7 @@ import { Icon } from '../ui/Logo';
 import { fetchPreviewBmp, fetchPreviewFrame } from '../../lib/api';
 import { bleImagePush, BleSelectionCancelledError } from '../../lib/bleImagePush';
 import { deviceLayoutPath } from '../../lib/deviceLayouts';
+import { DeviceRefreshControl } from './DeviceRefreshControl';
 
 type PushState = 'idle' | 'selecting' | 'fetching' | 'pushing' | 'refreshing' | 'done' | 'error';
 
@@ -180,6 +181,7 @@ function DevicePreview({ deviceId, deviceName, hardwareId, expectedDeviceName }:
         </div>
         {imageSrc && <a href={imageSrc} download="display.bmp" className="text-xs underline">Download display image (BMP)</a>}
         <p className="text-xs text-fg2 m-0">{da ? 'Forhåndsvisningen viser serverens gengivne billede. Den bekræfter ikke, hvad den fysiske skærm har modtaget.' : 'The preview shows the server-rendered image. It does not confirm what the physical display has received.'}</p>
+        {deviceId && <DeviceRefreshControl deviceId={deviceId} deviceName={deviceName} hardwareId={hardwareId} timezone={timezone} />}
         <p className="text-xs text-fg2 m-0">{t.pushSetup}</p>
         <p className="text-xs text-fg2 m-0">{expectedDeviceName
           ? (da ? `Bluetooth-navnet skal være ${expectedDeviceName}.` : `The Bluetooth name must be ${expectedDeviceName}.`)

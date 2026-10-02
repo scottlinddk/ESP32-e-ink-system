@@ -72,6 +72,11 @@ def write_manifest(directory, manifest):
 
 
 class SchemaTests(unittest.TestCase):
+    def test_pre019_delivery_schema_is_rejected(self):
+        fields = [field for field in schema("device_delivery") if not field["name"].startswith("refresh_")]
+        with self.assertRaises(migrate.MigrationError):
+            migrate.check_schema("device_delivery", fields)
+
     def test_repository_schema_accepted(self):
         for table in migrate.TABLES:
             migrate.check_schema(table, schema(table))
@@ -118,7 +123,8 @@ class SchemaTests(unittest.TestCase):
         expected = {
             "custom_webhooks": {"user_id", "token_hash", "token_created_at", "rows", "observed_at", "received_at"},
             "device_delivery": {"device_id", "owner_id", "token_hash", "rotated_at", "revoked_at", "last_seen_at",
-                                "firmware_version", "battery_percent", "rssi", "last_applied_hash"},
+                                "firmware_version", "battery_percent", "rssi", "last_applied_hash",
+                                "refresh_request_id", "refresh_requested_at", "refresh_applied_at"},
             "device_displays": {"device_id", "owner_id", "layout", "display_schedule", "active_layout_id", "display_profile",
                                 "display_timezone", "refresh_interval_minutes", "revision", "updated_at"},
         }

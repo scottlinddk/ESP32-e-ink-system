@@ -7,6 +7,7 @@ struct FrameResult {
   uint32_t retrySeconds = 60;
   uint32_t receivedAt = 0;
   char hash[65] = {};
+  char refreshRequestId[37] = {};
   char error[128] = {};
 };
 class ApiClient {
@@ -15,7 +16,7 @@ public:
   FrameResult fetchFrame(const char* baseUrl, const char* deviceId, const char* token,
                          const char* appliedHash, uint8_t* buffer, size_t capacity);
   bool heartbeat(const char* baseUrl, const char* deviceId, const char* token,
-                 const char* appliedHash, int rssi);
+                 const char* appliedHash, int rssi, const char* refreshRequestId = nullptr);
 private:
   WiFiClientSecure client;
   bool begin(HTTPClient& http, const char* baseUrl, const char* deviceId,

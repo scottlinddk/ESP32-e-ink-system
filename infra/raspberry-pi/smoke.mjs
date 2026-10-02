@@ -101,6 +101,11 @@ try {
     check(await db.from('device_delivery').upsert(delivery, { onConflict: 'device_id' }).select().single(), 'Delivery upsert');
     const deliveryUpdate = { token_hash: rotatedHash, battery_percent: 71.25, rssi: -70, last_applied_hash: rotatedHash };
     checkFields(check(await db.from('device_delivery').upsert({ ...delivery, ...deliveryUpdate }, { onConflict: 'device_id' }).select().single(), 'Delivery conflict update'), deliveryUpdate, 'Delivery conflict update');
+    const refreshRequest = { refresh_request_id: randomUUID(), refresh_requested_at: timestamp, refresh_applied_at: null };
+    checkFields(check(await db.from('device_delivery').update(refreshRequest).eq('device_id', fixtureDeviceId).eq('owner_id', fixtureId).select().single(), 'Queue screen refresh'), refreshRequest, 'Queue screen refresh');
+    const staleAck = check(await db.from('device_delivery').update({ refresh_applied_at: timestamp }).eq('device_id', fixtureDeviceId).eq('owner_id', fixtureId).eq('refresh_request_id', randomUUID()).select(), 'Stale refresh ACK');
+    if (staleAck.length !== 0) throw new Error('Stale refresh ACK matched a newer request');
+    checkFields(check(await db.from('device_delivery').update({ refresh_applied_at: timestamp }).eq('device_id', fixtureDeviceId).eq('owner_id', fixtureId).eq('refresh_request_id', refreshRequest.refresh_request_id).select().single(), 'Refresh ACK'), { ...refreshRequest, refresh_applied_at: timestamp }, 'Refresh ACK');
     checkFields(check(await db.from('device_delivery').update({ token_hash: null, revoked_at: timestamp }).eq('device_id', fixtureDeviceId).eq('owner_id', fixtureId).select().single(), 'Delivery revoke'), { token_hash: null }, 'Delivery revoke');
     const invalidBattery = await db.from('device_delivery').update({ battery_percent: 101 }).eq('device_id', fixtureDeviceId);
     if (invalidBattery.error?.code !== '23514') throw new Error('Delivery battery constraint is missing');

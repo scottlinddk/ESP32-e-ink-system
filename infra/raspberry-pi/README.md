@@ -21,10 +21,11 @@ Investor retains its database, Tailscale routes and private storage. E-ink uses
 Preserve the existing backend `ENCRYPTION_KEY` when moving encrypted provider keys.
 Keep Supabase until the rehearsal, cutover checks and off-device recovery pass.
 
-The current schema includes migration `018_device_displays.sql`. Existing databases
+The current schema includes migration `019_device_refresh.sql`. Existing databases
 must apply it and the updated service permissions before the new backend is deployed;
 the Pi gateway allowlist must also be reloaded. Follow the runbook's
 [018 upgrade steps](../../docs/RASPBERRY_PI_DATABASE_MIGRATION.md#upgrade-an-existing-database-for-device-presentations-018).
+Then apply the [019 screen-refresh upgrade](../../docs/RASPBERRY_PI_DATABASE_MIGRATION.md#upgrade-an-existing-database-for-manual-refresh-019).
 Retain matching older recovery tools for backups made before the tenth table existed.
 
 The default profile targets the confirmed Pi 4B with 4 GB RAM and a 500 GB SSD:

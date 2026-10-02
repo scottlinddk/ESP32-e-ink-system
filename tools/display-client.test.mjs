@@ -10,6 +10,8 @@ import { createPoller, failureDelay, retryAfterSeconds } from './display-client.
 const token = `einkd_${'a'.repeat(43)}`;
 const bytes = Buffer.alloc(8 * 64, 255);
 const digest = createHash('sha256').update(bytes).digest('hex');
+const firstRequestId = '01234567-89ab-4def-8123-456789abcdef';
+const secondRequestId = '01234567-89ab-4def-8123-456789abcdee';
 const headers = { 'X-Display-Width': '64', 'X-Display-Height': '64', 'X-Display-Rotation': '0', 'X-Display-Row-Bytes': '8', 'X-Display-Encoding': 'mono-msb-white1', 'X-Refresh-Mode': 'full', 'X-Image-SHA256': digest, ETag: `"${digest}"`, 'Retry-After': '120' };
 
 async function setup(t, handle) {
@@ -27,7 +29,7 @@ test('file-only client writes atomically, suppresses unchanged downloads and nev
   const { options } = await setup(t, async (req, res) => {
     assert.equal(req.headers.authorization, `Bearer ${token}`);
     if (req.url.endsWith('/heartbeat')) { reports.push(await body(req)); res.end('{"accepted":true}'); return; }
-    etags.push(req.headers['if-none-match']); res.writeHead(req.headers['if-none-match'] ? 304 : 200, headers); res.end(bytes);
+    etags.push(req.headers['if-none-match']); res.writeHead(req.headers['if-none-match'] ? 304 : 200, { ...headers, 'X-Refresh-Request-ID': firstRequestId }); res.end(bytes);
   });
   const poller = createPoller(options);
   assert.equal((await poller.pollOnce()).kind, 'updated');
@@ -43,7 +45,7 @@ test('driver ACK happens only after executable completion and is retained on lat
   const reports = []; let mode = 200;
   const { options, directory } = await setup(t, async (req, res) => {
     if (req.url.endsWith('/heartbeat')) { reports.push(await body(req)); res.end('{"accepted":true}'); return; }
-    res.writeHead(mode, headers); res.end(mode === 200 ? bytes : undefined);
+    res.writeHead(mode, { ...headers, 'X-Refresh-Request-ID': mode === 200 ? firstRequestId : secondRequestId }); res.end(mode === 200 ? bytes : undefined);
   });
   const script = join(directory, 'driver.mjs'); const marker = join(directory, 'applied.txt');
   await writeFile(script, 'import {writeFile} from "node:fs/promises"; await writeFile(process.argv[3], process.argv[2]);');
@@ -52,6 +54,82 @@ test('driver ACK happens only after executable completion and is retained on lat
   mode = 304; assert.equal((await poller.pollOnce()).kind, 'unchanged');
   mode = 204; assert.equal((await poller.pollOnce()).kind, 'quiet');
   assert.deepEqual(reports.map((r) => r.last_applied_hash), [digest, digest, digest]);
+  assert.deepEqual(reports.map((r) => r.refresh_request_id), [firstRequestId, undefined, undefined]);
+});
+
+test('new manual requests force identical pixels, while a lost ACK retries without another driver apply', async (t) => {
+  const reports = []; let requestId = firstRequestId; let rejectHeartbeat = true; let pixels = bytes;
+  const { options, directory } = await setup(t, async (req, res) => {
+    if (req.url.endsWith('/heartbeat')) {
+      reports.push(await body(req));
+      res.writeHead(rejectHeartbeat ? 500 : 200); res.end('{"accepted":true}');
+      rejectHeartbeat = false; return;
+    }
+    const imageHash = createHash('sha256').update(pixels).digest('hex');
+    res.writeHead(200, { ...headers, 'X-Image-SHA256': imageHash, ETag: `"${imageHash}"`, ...(requestId ? { 'X-Refresh-Request-ID': requestId } : {}) });
+    res.end(pixels);
+  });
+  const script = join(directory, 'driver.mjs'); const marker = join(directory, 'applies.txt');
+  await writeFile(script, 'import {appendFile} from "node:fs/promises"; await appendFile(process.argv[3], "x");');
+  const poller = createPoller({ ...options, driver: { executable: process.execPath, args: [script, '{file}', marker] } });
+  await assert.rejects(poller.pollOnce(), /failed \(500\)/);
+  assert.equal(await readFile(marker, 'utf8'), 'x');
+  await poller.pollOnce();
+  assert.equal(await readFile(marker, 'utf8'), 'x');
+  requestId = secondRequestId;
+  await poller.pollOnce();
+  assert.equal(await readFile(marker, 'utf8'), 'xx');
+  pixels = Buffer.alloc(bytes.length, 0); // The same ID with changed pixels cannot skip the driver.
+  await poller.pollOnce();
+  assert.equal(await readFile(marker, 'utf8'), 'xxx');
+  requestId = undefined; await poller.pollOnce();
+  assert.equal(await readFile(marker, 'utf8'), 'xxx');
+  assert.equal(reports.at(-1).refresh_request_id, undefined);
+  requestId = secondRequestId; await poller.pollOnce();
+  assert.equal(await readFile(marker, 'utf8'), 'xxxx');
+  assert.deepEqual(reports.slice(0, 3).map(r => r.refresh_request_id), [firstRequestId, firstRequestId, secondRequestId]);
+  assert.ok(reports.every(r => r.last_applied_hash));
+});
+
+test('a failed forced refresh clears prior panel knowledge and retries after quiet time', async (t) => {
+  const reports = []; const etags = []; let requestId = firstRequestId; let mode = 200;
+  const { options, directory } = await setup(t, async (req, res) => {
+    if (req.url.endsWith('/heartbeat')) { reports.push(await body(req)); res.end('{"accepted":true}'); return; }
+    etags.push(req.headers['if-none-match']);
+    res.writeHead(mode, { ...headers, 'X-Refresh-Request-ID': requestId }); res.end(mode === 200 ? bytes : undefined);
+  });
+  const script = join(directory, 'driver.mjs');
+  await writeFile(script, 'process.exit(0)');
+  const poller = createPoller({ ...options, driver: { executable: process.execPath, args: [script, '{file}'] } });
+  await poller.pollOnce();
+  requestId = secondRequestId; await writeFile(script, 'process.exit(1)');
+  await assert.rejects(poller.pollOnce(), /not acknowledged/);
+  assert.equal(reports.length, 1);
+  mode = 204; await poller.pollOnce();
+  assert.equal(reports.at(-1).last_applied_hash, null);
+  assert.equal(reports.at(-1).refresh_request_id, undefined);
+  mode = 200; await writeFile(script, 'process.exit(0)'); await poller.pollOnce();
+  assert.deepEqual(etags, [undefined, `"${digest}"`, undefined, undefined]);
+  assert.equal(reports.at(-1).refresh_request_id, secondRequestId);
+  assert.equal(reports.at(-1).last_applied_hash, digest);
+});
+
+test('rejects malformed refresh request headers before replacing files, running a driver or acknowledging', async (t) => {
+  let requestId; let reports = 0;
+  const { options, directory } = await setup(t, (req, res) => {
+    if (req.url.endsWith('/heartbeat')) { reports++; res.end('{"accepted":true}'); return; }
+    res.writeHead(200, { ...headers, 'X-Refresh-Request-ID': requestId }); res.end(bytes);
+  });
+  const script = join(directory, 'driver.mjs'); const marker = join(directory, 'applies.txt');
+  await writeFile(script, 'import {writeFile} from "node:fs/promises"; await writeFile(process.argv[3], "called");');
+  await writeFile(options.outputFile, 'previous');
+  const poller = createPoller({ ...options, driver: { executable: process.execPath, args: [script, '{file}', marker] } });
+  for (requestId of ['', 'not-a-uuid', `${firstRequestId}extra`, firstRequestId.replace(/.$/, 'g')]) {
+    await assert.rejects(poller.pollOnce(), /Invalid refresh request ID/);
+  }
+  assert.equal(await readFile(options.outputFile, 'utf8'), 'previous');
+  await assert.rejects(readFile(marker), { code: 'ENOENT' });
+  assert.equal(reports, 0);
 });
 
 test('a failed driver is retried without acknowledging or caching the frame', async (t) => {

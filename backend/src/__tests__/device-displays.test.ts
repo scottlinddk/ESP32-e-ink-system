@@ -36,7 +36,7 @@ vi.mock('../services/database', () => ({
   getPreferences: vi.fn(), getApiKeys: vi.fn(), upsertUser: vi.fn(), getUserByEmail: vi.fn(), logApiUsage: vi.fn(),
   getSupabaseClient: () => ({ from: (table: string) => {
     const filters: Array<[string, unknown]> = []; let operation = ''; let values: Record<string, unknown> = {};
-    const read = () => table === 'devices' ? [...state.owners].map(([id, user_id]) => ({ id, user_id })) : [...state.rows.values()];
+    const read = () => table === 'devices' ? [...state.owners].map(([id, user_id]) => ({ id, user_id })) : table === 'device_displays' ? [...state.rows.values()] : [];
     const matches = () => read().filter((row) => filters.every(([key, value]) => (row as Record<string, unknown>)[key] === value));
     const execute = async () => {
       if (table === 'device_displays' && state.error) return { data: null, error: state.error };
@@ -57,6 +57,7 @@ vi.mock('../services/database', () => ({
     };
     const query = {
       select: () => query, eq: (key: string, value: unknown) => { filters.push([key, value]); return query; },
+      is: (key: string, value: unknown) => { filters.push([key, value]); return query; },
       maybeSingle: execute, single: execute,
       insert: (value: Record<string, unknown>) => { operation = 'insert'; values = value; return query; },
       update: (value: Record<string, unknown>) => { operation = 'update'; values = value; return query; },

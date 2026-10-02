@@ -1,5 +1,15 @@
 # Validation record
 
+## Manual refresh migration 019, 2026-10-02
+
+All 55 offline migration/schema tests and the SDK smoke script's JavaScript syntax
+check passed locally. Schema validation requires the three nullable delivery
+tracking columns. The disposable database fixture includes request IDs and both
+timestamps in its export/import/restore checks; SDK smoke exercises queuing and
+conditional acknowledgement, including a stale request ID that must match no row.
+AMD64/ARM64 database CI runs this against PostgreSQL/PostgREST. Production SQL has
+not been applied from this checkout; no database connection was configured.
+
 ## Device presentation migration 018, 2026-10-02
 
 Local offline verification passed: 54 migration/schema tests, 56 Pi credential,
@@ -100,7 +110,7 @@ storage/backup procedures. Its success does not replace the deployment rehearsal
 
 Rehearse on the actual ARM64 host. Confirm:
 
-1. Native ARM64 image pulls, clean initialization through 018 (including both 002 migrations),
+1. Native ARM64 image pulls, clean initialization through 019 (including both 002 migrations),
    SQL permissions, authenticated API access and denied anonymous/invalid access.
 2. Real source inspection against the live Supabase schema; explicit resolution
    of schema drift, extra table dependencies and Storage/firmware URLs.

@@ -221,11 +221,38 @@ require all ten tables and reject older bundles instead of silently losing devic
 settings. Production migration and physical Pi verification must be performed in
 the deployment environment; offline tests do not apply SQL there.
 
+## Upgrade an existing database for manual refresh (019)
+
+After the existing database has migration 018, back it up and apply
+`019_device_refresh.sql`. This adds three nullable tracking columns to the
+service-only `device_delivery` table; it does not change credentials or existing
+reports. Fresh initialization includes this migration automatically. Existing Pi
+installations use the scoped `eink` helper above:
+
+```sh
+eink exec -T postgres psql -X -U eink_admin -d eink --single-transaction \
+  --set ON_ERROR_STOP=1 --file /migrations/019_device_refresh.sql \
+  --file /docker-entrypoint-initdb.d/permissions.sql
+```
+
+The permissions script reloads PostgREST's schema. No gateway allowlist change is
+needed for 019. On hosted PostgreSQL, apply the same SQL and reload the API schema
+using that installation's normal deployment process. Run the SDK smoke test
+against the Pi HTTPS origin with `--write-test`; it now checks request tracking
+and rejection of stale acknowledgements as well as the existing device features.
+Do not rerun 019 once its columns exist.
+
+Keep pre-019 backups with their matching recovery tools. Restore them into their
+original isolated schema before upgrading; current export/import validation
+requires the new columns. Deploy the backend before upgrading clients to send
+`refresh_request_id`. Physical acknowledgement requires the updated ESP32
+firmware or reference bridge with a display driver.
+
 ## Migration gates and data scope (source only)
 
 Applies only when a live source database exists. The transfer allowlist is `users`, `user_preferences`, `api_keys`, `devices`,
 `firmware_versions`, `api_usage`, `custom_webhooks`, `device_delivery`, `device_displays`, and `orders`.
-The target applies all tracked SQL migrations through `018_device_displays.sql`,
+The target applies all tracked SQL migrations through `019_device_refresh.sql`,
 including both `002` migrations. IDs, foreign keys, timestamps, JSONB values,
 encrypted provider credentials, webhook token hashes, device token hashes and
 delivery telemetry are copied without transformation. Device presentation settings, display schedules and
