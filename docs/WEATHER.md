@@ -2,7 +2,7 @@
 
 The Weather widget uses [OpenWeatherMap Current Weather Data](https://openweathermap.org/api/current), with temperature in Celsius and wind speed in m/s.
 
-1. Obtain a key with Current Weather Data access from your OpenWeatherMap account and save it in the app's API key settings.
+1. Open **Integrations**. Obtain a key with Current Weather Data access from your OpenWeatherMap account and save it in the app's API key settings.
 2. Enable Weather and enter latitude,longitude with decimal points, such as `57.05,9.92` for Aalborg. **Use my location** fills these values from the browser's location permission.
 3. Select **Test weather**. This checks the entered coordinates using the saved key and bypasses cached data. It does not save the location or other display settings.
 4. Save the source settings, add the Weather widget in the layout editor, and refresh the preview. Send the new preview over Bluetooth or let the device fetch it on its next scheduled refresh.

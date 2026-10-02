@@ -2,7 +2,7 @@
 
 Apply `backend/src/db/migrations/017_energy_price_settings.sql` before deploying. Existing accounts remain in **Spot** mode, excluding VAT, taxes, grid tariffs and supplier markup. No API key is needed.
 
-In Dashboard → Energy prices, choose **Estimated consumer price**, then the grid company/household tariff from your bill. Enter your electricity supplier's per-kWh markup **excluding VAT**, in øre/kWh; use zero only if your agreement has no markup. Save and refresh the preview. The estimate includes variable electricity costs; **fixed subscriptions and fees are excluded**. It assumes a standard household spot-price contract and standard electricity tax. Fixed-price contracts, special producer tariffs and individual rebates need different settings and are not inferred.
+In Integrations → Energy prices, choose **Estimated consumer price**, then the grid company/household tariff from your bill. Enter your electricity supplier's per-kWh markup **excluding VAT**, in øre/kWh; use zero only if your agreement has no markup. Save and refresh the preview. The estimate includes variable electricity costs; **fixed subscriptions and fees are excluded**. It assumes a standard household spot-price contract and standard electricity tax. Fixed-price contracts, special producer tariffs and individual rebates need different settings and are not inferred.
 
 Presets were checked against live DataHub records and the operators' published household rates on 2026-10-02. Select your actual C category; company name alone is not enough for a special agreement. Presets store identifiers, never frozen rates.
 

@@ -11,9 +11,7 @@ import React, {
 } from 'react';
 import { STRINGS, Lang, Strings } from './strings';
 import type {
-  Preferences,
   AppDevice,
-  ApiKeyEntry,
   ToastData,
   AppUser,
   UsageData,
@@ -43,8 +41,6 @@ export interface AppState {
   online: boolean;
   navOpen: boolean;
   user: AppUser;
-  prefs: Preferences;
-  apiKeys: Record<string, ApiKeyEntry>;
   devices: AppDevice[];
   usage: UsageData;
   t: Strings;
@@ -53,8 +49,6 @@ export interface AppState {
   setLang: (l: Lang) => void;
   toggleTheme: () => void;
   setUser: (u: AppUser) => void;
-  setPrefs: (p: Preferences) => void;
-  setApiKeys: (k: Record<string, ApiKeyEntry>) => void;
   setDevices: (d: AppDevice[]) => void;
   setOnline: (v: boolean) => void;
   setNavOpen: (open: boolean) => void;
@@ -69,15 +63,6 @@ export function useApp(): AppState {
   if (!ctx) throw new Error('useApp must be used inside AppProvider');
   return ctx;
 }
-
-const DEFAULT_PREFS: Preferences = {
-  energy: { on: true, zone: 'DK1', priceSettings: { mode: 'spot' } },
-  weather: { on: true, location: '57.05, 9.92' },
-  news: { on: false, lang: 'da', source: 'newsapi', feedUrl: '', itemLimit: 3 },
-  monta: { on: false, fields: ['charger_status', 'active_session'] },
-  zaptec: { on: false, fields: ['charger_status', 'active_session'] },
-  notion: { on: false },
-};
 
 const DEFAULT_USER: AppUser = {
   name: '',
@@ -94,13 +79,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [online, setOnlineState] = useState<boolean>(true);
   const [navOpen, setNavOpen] = useState<boolean>(false);
   const [user, setUserState] = useState<AppUser>(() => load<AppUser>('user', DEFAULT_USER));
-  const [prefs, setPrefsState] = useState<Preferences>(() => {
-    const stored = load<Partial<Preferences>>('prefs', {});
-    return { ...DEFAULT_PREFS, ...stored, energy: { ...DEFAULT_PREFS.energy, ...stored.energy } };
-  });
-  const [apiKeys, setApiKeysState] = useState<Record<string, ApiKeyEntry>>(() =>
-    load<Record<string, ApiKeyEntry>>('apiKeys', {})
-  );
   const [devices, setDevicesState] = useState<AppDevice[]>(() =>
     load<AppDevice[]>('devices', [])
   );
@@ -111,8 +89,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { save('theme', theme); }, [theme]);
   useEffect(() => { save('lang', lang); }, [lang]);
   useEffect(() => { save('user', user); }, [user]);
-  useEffect(() => { save('prefs', prefs); }, [prefs]);
-  useEffect(() => { save('apiKeys', apiKeys); }, [apiKeys]);
   useEffect(() => { save('devices', devices); }, [devices]);
 
   // Apply data-theme to <html>
@@ -141,8 +117,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     online,
     navOpen,
     user,
-    prefs,
-    apiKeys,
     devices,
     usage: USAGE,
     t,
@@ -150,8 +124,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLang: (l: Lang) => setLangState(l),
     toggleTheme: () => setThemeState((th) => (th === 'dark' ? 'light' : 'dark')),
     setUser: (u: AppUser) => setUserState(u),
-    setPrefs: (p: Preferences) => setPrefsState(p),
-    setApiKeys: (k: Record<string, ApiKeyEntry>) => setApiKeysState(k),
     setDevices: (d: AppDevice[]) => setDevicesState(d),
     setOnline: (v: boolean) => setOnlineState(v),
     setNavOpen,

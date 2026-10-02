@@ -9,6 +9,10 @@ export function DocsPage() {
     <div className="max-w-[760px] mx-auto px-6 pt-6 pb-20">
       <h1 className="text-h2 mb-3">{t.nav.docs}</h1>
       <p className="text-fg2 mb-6">{da ? 'Opsætning af CrowPanel 2.13 med automatisk opdatering via Wi-Fi.' : 'Set up CrowPanel 2.13 for automatic updates over Wi-Fi.'}</p>
+      <Card flat className="mb-5" title={t.nav.integrations}>
+        <p className="text-fg2 mt-0">{t.integrationsSubtitle}</p>
+        <Link to="/integrations" className="text-accent underline">{t.configureIntegrations}</Link>
+      </Card>
       <Card flat>
         <h2 className="text-h5 mb-3">{da ? 'Installér og forbind displayet' : 'Install and connect the display'}</h2>
         <ol className="list-decimal pl-5 space-y-3 text-fg2">
