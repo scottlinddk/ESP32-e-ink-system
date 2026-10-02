@@ -11,10 +11,12 @@ import { logger } from '../lib/logger';
 import { resolveDisplaySchedule } from './displaySchedule';
 import { parseCustomImage } from '../utils/customContent';
 import { fetchWebhookData } from './customWebhook';
+import { DEFAULT_DISPLAY_TIMEZONE } from '../utils/displayTimezone';
 
 // JSON previews and display images use the same enabled sources. A failed
 // source stays absent so an unavailable reading is never presented as live data.
 export const DEFAULT_PREFS: UserPreferences = {
+  display_timezone: DEFAULT_DISPLAY_TIMEZONE,
   show_custom_webhook: false,
   custom_webhook_ttl_minutes: 60,
   show_custom_text: false,

@@ -12,6 +12,7 @@ export function CustomWebhookCard() {
   const { getToken, isSignedIn, user } = useAuth();
   const queryClient = useQueryClient();
   const preferences = usePreferences();
+  const timezone = preferences.data?.display_timezone ?? 'Europe/Copenhagen';
   const save = useSavePreferences();
   const dirty = useRef(false);
   const [enabled, setEnabled] = useState(false);
@@ -71,7 +72,7 @@ export function CustomWebhookCard() {
       {status.isError && <p role="alert">Could not load integration status. <Button variant="text" onClick={() => status.refetch()}>Retry</Button></p>}
       {status.data && <div className="text-sm text-fg2">
         <p className="m-0">{status.data.configured ? 'Token active' : 'No active token'} · {status.data.state === 'fresh' ? 'Readings are fresh' : status.data.state === 'stale' ? 'Readings are stale' : 'Waiting for readings'}</p>
-        {status.data.observedAt && <p className="m-0 mt-1">Observed {new Date(status.data.observedAt).toLocaleString()} · {status.data.rowCount} rows</p>}
+        {status.data.observedAt && <p className="m-0 mt-1">Observed {new Date(status.data.observedAt).toLocaleString(undefined, { timeZone: timezone })} · {timezone} · {status.data.rowCount} rows</p>}
       </div>}
       <div className="flex gap-2 flex-wrap">
         <Button disabled={busy || status.isLoading || status.isError} onClick={() => tokenAction('issue')}>

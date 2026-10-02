@@ -3,6 +3,7 @@ import { DisplayData, DisplayLayout, UserPreferences, WidgetLayout } from '../ty
 import { bitmapGlyph, normalizeBitmapText, wrapBitmapText } from './bitmapText';
 import { drawCustomImage } from './customContent';
 import { renderWebhookWidget } from './webhookRenderer';
+import { DEFAULT_DISPLAY_TIMEZONE } from './displayTimezone';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -494,20 +495,23 @@ function renderCalendarWidget(canvas: BmpCanvas, bounds: WidgetBounds, data?: Di
 function renderStatusWidget(
   canvas: BmpCanvas,
   bounds: WidgetBounds,
-  nextRefresh: number
+  nextRefresh: number,
+  timezone = DEFAULT_DISPLAY_TIMEZONE
 ): void {
   const { x, y, width } = bounds;
   canvas.drawHLine(x, y, width);
   const statusY = y + 2;
   const now = new Date();
-  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const timeStr = new Intl.DateTimeFormat('en-GB', {
+    timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(now);
   const refreshMin = Math.round(nextRefresh / 60000);
   canvas.drawText(`Refresh: ${refreshMin}min  ${timeStr}`, x + 2, statusY, width - 4);
 }
 
 // ── Main render entry point ───────────────────────────────────────────────────
 
-type RenderPreferences = Pick<UserPreferences, 'monta_fields' | 'zaptec_fields' | 'display_profile'>;
+type RenderPreferences = Pick<UserPreferences, 'monta_fields' | 'zaptec_fields' | 'display_profile' | 'display_timezone'>;
 
 function populateCanvas(
   canvas: BmpCanvas,
@@ -534,7 +538,7 @@ function populateCanvas(
         case 'zaptec':  renderZaptecWidget(canvas, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined); break;
         case 'notion':  renderNotionWidget(canvas, bounds, data.notion); break;
         case 'calendar': renderCalendarWidget(canvas, bounds, data.calendar); break;
-        case 'status':  renderStatusWidget(canvas, bounds, data.nextRefresh); break;
+        case 'status':  renderStatusWidget(canvas, bounds, data.nextRefresh, preferences?.display_timezone); break;
       }
     });
   }

@@ -4,9 +4,11 @@ import { validateCalendarOptions } from '../services/calendar';
 import { parseDisplayProfile } from './displayProfile';
 import { LayoutValidationError, parseDisplayLayout } from './layoutValidation';
 import { DisplaySchedule, parseDisplaySchedule, ScheduleValidationError } from './scheduleValidation';
+import { parseDisplayTimezone } from './displayTimezone';
 
 export const TEMPLATE_MAX_BYTES = 32768;
 export const TEMPLATE_SETTING_KEYS = [
+  'display_timezone',
   'show_energy_price', 'show_weather', 'show_news', 'show_air_quality', 'show_monta', 'show_zaptec', 'show_notion', 'show_custom_text', 'show_custom_image', 'show_calendar', 'calendar_timezone', 'calendar_days', 'calendar_item_limit',
   'energy_price_location', 'weather_location', 'news_language', 'news_source', 'news_item_limit', 'refresh_interval_minutes', 'layout', 'monta_fields', 'zaptec_fields', 'display_profile', 'display_schedule',
   'show_custom_webhook', 'custom_webhook_ttl_minutes',
@@ -47,7 +49,11 @@ export function parseDisplayTemplate(input: unknown): DisplayTemplate {
   check(Object.keys(input.settings).length > 0, 'A template must contain at least one setting.');
   const settings: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input.settings)) {
-    if (key === 'show_custom_webhook' || key === 'custom_webhook_ttl_minutes') {
+    if (key === 'display_timezone') {
+      try { settings[key] = parseDisplayTimezone(value); }
+      catch (error) { throw new TemplateValidationError((error as Error).message); }
+      continue;
+    } else if (key === 'show_custom_webhook' || key === 'custom_webhook_ttl_minutes') {
       check(value !== undefined, `${key} must have a value.`);
       try { Object.assign(settings, parseWebhookPreferences({ [key]: value })); }
       catch (error) { throw new TemplateValidationError(error instanceof Error ? error.message : 'Invalid sensor setting.'); }

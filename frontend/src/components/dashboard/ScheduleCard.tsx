@@ -58,10 +58,11 @@ export function ScheduleCard() {
         <fieldset disabled={disabled} className="border-0 p-0 m-0 flex flex-col gap-3">
           <label className="text-sm flex gap-2 items-center"><input type="checkbox" checked={schedule.enabled}
             onChange={(event) => update({ ...schedule, enabled: event.target.checked })} />{da ? 'Aktivér siderotation' : 'Enable page rotation'}</label>
-          <label className="text-sm">{da ? 'Tidszone' : 'Time zone'}
+          <label className="text-sm">{da ? 'Tidszone for stille timer' : 'Quiet-hours time zone'}
             <input className={inputClass} maxLength={64} value={schedule.timezone} placeholder="Europe/Copenhagen"
               onChange={(event) => update({ ...schedule, timezone: event.target.value })} />
           </label>
+          <p className="text-xs text-fg2 m-0">{da ? 'Gælder tidsplanens stille timer og er uafhængig af skærmens statusur og kalender.' : 'Used for scheduled quiet hours, independently of the display status clock and calendar.'}</p>
           <label className="text-sm flex gap-2 items-center"><input type="checkbox" checked={schedule.quiet_hours.enabled}
             onChange={(event) => update({ ...schedule, quiet_hours: { ...schedule.quiet_hours, enabled: event.target.checked } })} />{da ? 'Aktivér stille timer' : 'Enable quiet hours'}</label>
           <div className="grid grid-cols-2 gap-3">

@@ -1,4 +1,5 @@
 import { DisplayProfileCard } from '../components/dashboard/DisplayProfileCard';
+import { DisplayTimezoneCard } from '../components/dashboard/DisplayTimezoneCard';
 // =========================================================================
 // DashboardPage.tsx
 // =========================================================================
@@ -69,6 +70,7 @@ function AccountDashboard() {
       <div className="grid grid-cols-[minmax(0,1fr)_380px] gap-5 items-start max-[1080px]:grid-cols-1">
         <div className="flex flex-col gap-5 min-w-0">
           <DisplayCard loading={isLoading} />
+          <DisplayTimezoneCard />
           <CalendarCard />
           <CustomContentCard />
           <CustomWebhookCard />

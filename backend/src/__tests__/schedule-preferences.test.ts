@@ -5,7 +5,7 @@ import type { AddressInfo } from 'net';
 import { verifyToken } from '@clerk/backend';
 import preferencesRouter from '../routes/preferences';
 import { getOrCreateUserFromClerk } from '../routes/preferences-helpers';
-import { upsertPreferences } from '../services/database';
+import { getPreferences, upsertPreferences } from '../services/database';
 import { DEFAULT_PREFS } from '../services/displayData';
 
 vi.mock('@clerk/backend', () => ({ verifyToken: vi.fn() }));
@@ -24,7 +24,7 @@ beforeEach(() => {
 });
 afterEach(() => { vi.unstubAllEnvs(); });
 
-describe('schedule preference writes', () => {
+describe('schedule and display time zone preferences', () => {
   let server: Server;
   let url: string;
   beforeAll(async () => {
@@ -36,6 +36,28 @@ describe('schedule preference writes', () => {
   function post(body: unknown, auth = true) {
     return fetch(url, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: 'Bearer token' } : {}) } });
   }
+  it('defaults new users to Copenhagen display time', async () => {
+    vi.mocked(getPreferences).mockResolvedValue(null);
+    const response = await fetch(url, { headers: { Authorization: 'Bearer token' } });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ preferences: { display_timezone: 'Europe/Copenhagen' } });
+  });
+  it.each(['Europe/Copenhagen', 'America/New_York', 'UTC', 'Etc/GMT+12'])('persists %s independently of the calendar and schedule', async (display_timezone) => {
+    expect((await post({ display_timezone })).status).toBe(200);
+    expect(upsertPreferences).toHaveBeenCalledWith('owner', { display_timezone });
+  });
+  it.each(['', 'Nope/Invalid', '+01:00', 'Europe/Copenhagen ', 'a'.repeat(65), null, 12, {}, []])('rejects invalid display time zone %j without partial writes', async (display_timezone) => {
+    const response = await post({ display_timezone, show_weather: false });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('IANA display time zone') });
+    expect(getOrCreateUserFromClerk).not.toHaveBeenCalled();
+    expect(upsertPreferences).not.toHaveBeenCalled();
+  });
+  it('returns the saved display zone on subsequent reads', async () => {
+    vi.mocked(getPreferences).mockResolvedValue({ ...DEFAULT_PREFS, display_timezone: 'America/New_York' });
+    const response = await fetch(url, { headers: { Authorization: 'Bearer token' } });
+    expect(await response.json()).toMatchObject({ preferences: { display_timezone: 'America/New_York' } });
+  });
   it('persists a complete validated schedule for the authenticated user', async () => {
     expect((await post({ display_schedule: schedule })).status).toBe(200);
     expect(upsertPreferences).toHaveBeenCalledWith('owner', { display_schedule: schedule });

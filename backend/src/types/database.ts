@@ -641,6 +641,7 @@ export type Database = {
           created_at: string
           default_price_area: string
           default_timezone: string
+          display_timezone: string
           energy_price_location: string | null
           layout: Json | null
           monta_fields: Json | null
@@ -675,6 +676,7 @@ export type Database = {
           show_custom_image?: boolean
           custom_image?: Json | null
           default_timezone?: string
+          display_timezone?: string
           energy_price_location?: string | null
           layout?: Json | null
           monta_fields?: Json | null
@@ -709,6 +711,7 @@ export type Database = {
           show_custom_image?: boolean
           custom_image?: Json | null
           default_timezone?: string
+          display_timezone?: string
           energy_price_location?: string | null
           layout?: Json | null
           monta_fields?: Json | null

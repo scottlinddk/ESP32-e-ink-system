@@ -70,9 +70,10 @@ function CalendarCardContent() {
             <Switch checked={enabled} onChange={(event) => setEnabled(event.target.checked)} disabled={isLoading} label={da ? 'Aktivér kalender' : 'Enable calendar'} />
             {da ? 'Aktivér kalender' : 'Enable calendar'}
           </label>
-          <label htmlFor="calendar-timezone" className="grid gap-1 text-sm">{da ? 'Tidszone' : 'Timezone'}
+          <label htmlFor="calendar-timezone" className="grid gap-1 text-sm">{da ? 'Kalenderens tidszone' : 'Calendar time zone'}
             <Input id="calendar-timezone" value={timezone} onChange={(event) => setTimezone(event.target.value)} required placeholder="Europe/Copenhagen" />
           </label>
+          <p className="text-xs text-fg2 m-0">{da ? 'Gælder aftaletider og er uafhængig af skærmens statusur.' : 'Used for event times, independently of the display status clock.'}</p>
           <div className="grid grid-cols-2 gap-3">
             <label htmlFor="calendar-days" className="grid gap-1 text-sm">{da ? 'Dage frem (1–30)' : 'Days ahead (1–30)'}
               <Input id="calendar-days" type="number" min={1} max={30} required value={days} onChange={(event) => setDays(Number(event.target.value))} />

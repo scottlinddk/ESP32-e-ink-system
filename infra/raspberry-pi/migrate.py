@@ -39,7 +39,7 @@ def columns(required: dict[str, str], optional: dict[str, str]) -> dict[str, tup
 
 
 TS = "timestamp with time zone"
-# The final schema after all tracked migrations through 015_device_delivery.
+# The final schema after all tracked migrations through 016_display_timezone.
 # Do not automatically repair a live source.
 EXPECTED_COLUMNS = {
     "users": columns({"id": "uuid", "email": "text"}, {"display_name": "text", "created_at": TS, "updated_at": TS}),
@@ -48,7 +48,7 @@ EXPECTED_COLUMNS = {
         "news_item_limit": "integer", "show_custom_text": "boolean", "custom_text": "text",
         "show_custom_image": "boolean", "show_calendar": "boolean", "calendar_timezone": "text",
         "calendar_days": "integer", "calendar_item_limit": "integer", "show_custom_webhook": "boolean",
-        "custom_webhook_ttl_minutes": "integer",
+        "custom_webhook_ttl_minutes": "integer", "display_timezone": "text",
     }, {
         "show_energy_price": "boolean", "show_weather": "boolean", "show_news": "boolean",
         "show_air_quality": "boolean", "energy_price_location": "text", "weather_location": "text",
@@ -89,6 +89,7 @@ for _table, _fields in EXPECTED_DEFAULTS.items():
         if _name in _fields:
             _fields[_name] = "now()"
 EXPECTED_DEFAULTS["user_preferences"].update({
+    "display_timezone": "'Europe/Copenhagen'::text",
     "show_energy_price": "true", "show_weather": "true", "show_news": "true", "show_air_quality": "false",
     "energy_price_location": "'DK1'::text", "weather_location": "'55.3,10.4'::text", "news_language": "'da'::text",
     "refresh_interval_minutes": "30", "show_monta": "false", "show_zaptec": "false", "show_notion": "false",
