@@ -68,7 +68,7 @@ async function fetchPrices(priceArea: string): Promise<EnergyPriceData> {
 export const energinetPricesWidget: Widget<EnergyPriceConfig, EnergyPriceData> = {
   meta: {
     id: 'energinet-prices',
-    name: 'Danish Energy Prices',
+    name: 'Danish Spot Prices',
     description: 'Danish day-ahead spot prices in 15-minute intervals, excluding taxes and tariffs.',
     category: 'energy',
   },
@@ -89,13 +89,13 @@ export const energinetPricesWidget: Widget<EnergyPriceConfig, EnergyPriceData> =
 
   render(data: EnergyPriceData, region: PixelRegion, typography: TypographyScale): RenderedWidget {
     const elements: RenderedWidget['elements'] = [];
-    const priceText = `${(data.nowOre / 100).toFixed(2)} DKK/kWh`;
+    const priceText = `Spot: ${(data.nowOre / 100).toFixed(2)} DKK/kWh`;
     const trendArrow = data.trend === 'up' ? '^' : data.trend === 'down' ? 'v' : '-';
 
     elements.push({ kind: 'text', text: priceText, x: 2, y: 2, fontSize: typography.xl });
     elements.push({
       kind: 'text',
-      text: `Avg: ${(data.averageOre / 100).toFixed(2)} ${trendArrow}`,
+      text: `Avg: ${(data.averageOre / 100).toFixed(2)} ${trendArrow}; excl tax/fees`,
       x: 2,
       y: typography.xl + 4,
       fontSize: typography.sm,

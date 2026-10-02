@@ -34,6 +34,7 @@ function AccountDashboard() {
       energy: {
         on: serverPrefs.show_energy_price,
         zone: serverPrefs.energy_price_location || app.prefs.energy.zone,
+        priceSettings: serverPrefs.energy_price_settings ?? { mode: 'spot' },
       },
       weather: {
         on: serverPrefs.show_weather,

@@ -1,85 +1,158 @@
 import { EnergyPrice, EnergidataResponse, CacheEntry } from '../types/index';
+import { EnergyPriceSettings, parseEnergyPriceSettings } from '../utils/energyPriceSettings';
 
-const ENERGINET_BASE_URL = 'https://api.energidataservice.dk/dataset/DayAheadPrices';
+const BASE_URL = 'https://api.energidataservice.dk/dataset/';
 const INTERVAL_MS = 15 * 60 * 1000;
-const cache = new Map<string, CacheEntry<EnergyPrice>>();
-const pending = new Map<string, Promise<EnergyPrice>>();
+const NATIONAL_GLN = '5790000432752';
+const NATIONAL_CODES = ['40000', '41000', 'EA-001']; // Transmission, system, standard electricity tax.
+interface SpotInterval { start: number; price: number }
+interface TariffRecord {
+  GLN_Number: string; ChargeType: string; ChargeTypeCode: string;
+  ValidFrom: string; ValidTo: string | null; ResolutionDuration: string;
+  [key: string]: unknown;
+}
+const spotCache = new Map<string, CacheEntry<SpotInterval[]>>();
+const pendingSpot = new Map<string, Promise<SpotInterval[]>>();
+const tariffCache = new Map<string, { day: string; records: TariffRecord[] }>();
+const pendingTariffs = new Map<string, Promise<TariffRecord[]>>();
 const danishDate = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Europe/Copenhagen', year: 'numeric', month: '2-digit', day: '2-digit',
 });
+const danishHour = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/Copenhagen', hour: '2-digit', hourCycle: 'h23',
+});
 
-function roundPrice(value: number): number {
-  return Math.round(value * 100) / 100;
+async function request(dataset: string, params: URLSearchParams, signal: AbortSignal) {
+  const response = await fetch(`${BASE_URL}${dataset}?${params}`, {
+    headers: { Accept: 'application/json' }, signal,
+  });
+  if (!response.ok) throw new Error(`Energinet API error: ${response.status} ${response.statusText}`);
+  const json = await response.json();
+  signal.throwIfAborted();
+  return json;
 }
 
-async function loadEnergyPrice(priceArea: string, signal?: AbortSignal): Promise<EnergyPrice> {
-  const requestSignal = signal ?? AbortSignal.timeout(10_000);
-  // The API interprets these bounds in Danish local time, including 23/25-hour days.
+async function loadSpot(priceArea: string, signal: AbortSignal): Promise<SpotInterval[]> {
+  // Danish day bounds include all 92/96/100 quarter-hours on DST transition days.
   const params = new URLSearchParams({
     start: 'StartOfDay', end: 'StartOfDay+P1D', limit: '100',
     filter: JSON.stringify({ PriceArea: [priceArea] }), sort: 'TimeUTC asc',
   });
-  const response = await fetch(`${ENERGINET_BASE_URL}?${params}`, {
-    headers: { Accept: 'application/json' },
-    signal: requestSignal,
-  });
-  if (!response.ok) {
-    throw new Error(`Energinet API error: ${response.status} ${response.statusText}`);
-  }
-
-  const json = (await response.json()) as EnergidataResponse;
-  requestSignal.throwIfAborted();
+  const json = await request('DayAheadPrices', params, signal) as EnergidataResponse;
   const now = Date.now();
   const today = danishDate.format(now);
   const records = (Array.isArray(json.records) ? json.records : [])
     .filter((r) => r && r.PriceArea === priceArea
       && typeof r.TimeUTC === 'string' && Number.isFinite(r.DayAheadPriceDKK))
     .map((r) => ({
-      // Energinet's UTC column deliberately omits the Z suffix.
+      // The UTC column deliberately omits its Z suffix. DKK/MWh -> øre/kWh.
       start: Date.parse(/[zZ]|[+-]\d{2}:\d{2}$/.test(r.TimeUTC) ? r.TimeUTC : `${r.TimeUTC}Z`),
-      price: r.DayAheadPriceDKK / 10, // DKK/MWh -> øre/kWh; spot only, no tax/tariffs.
+      price: r.DayAheadPriceDKK / 10,
     }))
     .filter((r) => Number.isFinite(r.start) && danishDate.format(r.start) === today);
-
   const current = records.find((r) => r.start <= now && now < r.start + INTERVAL_MS);
-  if (!current) {
-    throw new Error('No energy price available for the current 15-minute interval');
-  }
+  if (!current) throw new Error('No energy price available for the current 15-minute interval');
+  // Cache source intervals, never a user's calculated price or previous quarter-hour.
+  spotCache.set(priceArea, { data: records, expiresAt: current.start + INTERVAL_MS });
+  return records;
+}
+
+async function fetchSpot(priceArea: string): Promise<SpotInterval[]> {
+  const cached = spotCache.get(priceArea);
+  if (cached && Date.now() < cached.expiresAt) return cached.data;
+  const inFlight = pendingSpot.get(priceArea);
+  if (inFlight) return inFlight;
+  // Public shared requests must outlive an individual caller's cancellation.
+  const promise = loadSpot(priceArea, AbortSignal.timeout(10_000));
+  pendingSpot.set(priceArea, promise);
+  try { return await promise; } finally { pendingSpot.delete(priceArea); }
+}
+
+function tariffTotal(records: TariffRecord[], codes: string[], instant: number): number {
+  const day = danishDate.format(instant);
+  const hour = Number(danishHour.format(instant));
+  return codes.reduce((sum, code) => {
+    // ValidTo is exclusive; validity fields are Danish dates, not UTC instants.
+    const active = records.filter((r) => r.ChargeTypeCode === code
+      && r.ValidFrom.slice(0, 10) <= day && (r.ValidTo === null || day < r.ValidTo.slice(0, 10)))
+      .sort((a, b) => b.ValidFrom.localeCompare(a.ValidFrom))[0];
+    if (!active) throw new Error(`No active electricity tariff for ${code} on ${day}`);
+    if (!['P1D', 'PT1H'].includes(active.ResolutionDuration)) {
+      throw new Error(`Unsupported electricity tariff resolution for ${code}`);
+    }
+    // A null hourly slot uses Price1; zero and negative tariffs remain valid.
+    const price = active.ResolutionDuration === 'P1D' ? active.Price1 : active[`Price${hour + 1}`] ?? active.Price1;
+    if (typeof price !== 'number' || !Number.isFinite(price)) throw new Error(`Invalid electricity tariff for ${code}`);
+    return sum + price * 100; // Published DKK/kWh excluding VAT -> øre/kWh.
+  }, 0);
+}
+
+async function fetchTariffs(gln: string, codes: string[]): Promise<TariffRecord[]> {
+  const day = danishDate.format(Date.now());
+  const key = JSON.stringify([gln, [...codes].sort()]);
+  const cached = tariffCache.get(key);
+  if (cached?.day === day) return cached.records;
+  const pendingKey = day + key;
+  const inFlight = pendingTariffs.get(pendingKey);
+  if (inFlight) return inFlight;
+  const promise = (async () => {
+    // A recent start or small limit drops older prices that are still effective.
+    const params = new URLSearchParams({
+      end: 'StartOfDay+P1D', limit: '0', sort: 'ValidFrom DESC',
+      filter: JSON.stringify({ GLN_Number: [gln], ChargeType: ['D03'], ChargeTypeCode: codes.map((code) => code.replace(/'/g, "''")) }),
+      columns: ['GLN_Number', 'ChargeType', 'ChargeTypeCode', 'ValidFrom', 'ValidTo', 'ResolutionDuration',
+        ...Array.from({ length: 24 }, (_, index) => `Price${index + 1}`)].join(','),
+    });
+    const json = await request('DatahubPricelist', params, AbortSignal.timeout(10_000)) as { records?: TariffRecord[] };
+    const dateField = /^\d{4}-\d{2}-\d{2}(?:T00:00:00(?:\.000)?)?$/;
+    const records: TariffRecord[] = (Array.isArray(json.records) ? json.records : [])
+      .filter((r: TariffRecord) => r && r.GLN_Number === gln && r.ChargeType === 'D03'
+        && codes.includes(r.ChargeTypeCode) && typeof r.ValidFrom === 'string' && dateField.test(r.ValidFrom)
+        && (r.ValidTo === null || typeof r.ValidTo === 'string' && dateField.test(r.ValidTo)));
+    tariffTotal(records, codes, Date.now()); // Never cache a missing/invalid required charge.
+    for (const [oldKey, entry] of tariffCache) if (entry.day !== day) tariffCache.delete(oldKey);
+    tariffCache.set(key, { day, records });
+    return records;
+  })();
+  pendingTariffs.set(pendingKey, promise);
+  try { return await promise; } finally { pendingTariffs.delete(pendingKey); }
+}
+
+export async function fetchEnergyPrice(
+  priceArea: string = 'DK1', signal?: AbortSignal, input: EnergyPriceSettings = { mode: 'spot' },
+): Promise<EnergyPrice> {
+  const requestSignal = signal ?? AbortSignal.timeout(10_000);
+  requestSignal.throwIfAborted();
+  if (priceArea !== 'DK1' && priceArea !== 'DK2') throw new Error('Energy price area must be DK1 or DK2');
+  const settings = parseEnergyPriceSettings(input);
+  const [spot, national, grid] = await Promise.all([
+    fetchSpot(priceArea),
+    settings.mode === 'consumer' ? fetchTariffs(NATIONAL_GLN, NATIONAL_CODES) : [],
+    settings.mode === 'consumer' ? fetchTariffs(settings.gridGln, settings.gridChargeCodes) : [],
+  ]);
+  requestSignal.throwIfAborted();
+  // Apply the tariff at each interval's Danish hour, including both repeated autumn hours.
+  const records = spot.map((r) => ({ ...r, price: settings.mode === 'consumer'
+    ? (r.price + tariffTotal(national, NATIONAL_CODES, r.start)
+      + tariffTotal(grid, settings.gridChargeCodes, r.start) + settings.retailerMarkupOre) * 1.25
+    : r.price }));
+  const now = Date.now();
+  const current = records.find((r) => r.start <= now && now < r.start + INTERVAL_MS);
+  if (!current) throw new Error('No energy price available for the current 15-minute interval');
   const average = records.reduce((sum, r) => sum + r.price, 0) / records.length;
   const difference = current.price - average;
-  const result: EnergyPrice = {
-    now: roundPrice(current.price),
-    average: roundPrice(average),
-    // A zero or negative daily average is valid on the spot market.
+  return {
+    now: Math.round(current.price * 100) / 100,
+    average: Math.round(average * 100) / 100,
+    ...(settings.mode === 'consumer' ? { basis: 'consumer' as const } : {}),
     trend: Math.abs(difference) <= Math.max(Math.abs(average) * 0.05, 0.01)
       ? 'stable' : difference > 0 ? 'up' : 'down',
   };
-
-  // Never serve the previous interval's price after a quarter-hour boundary.
-  cache.set(priceArea, { data: result, expiresAt: current.start + INTERVAL_MS });
-  return result;
-}
-
-export async function fetchEnergyPrice(priceArea: string = 'DK1', signal?: AbortSignal): Promise<EnergyPrice> {
-  signal?.throwIfAborted();
-  if (priceArea !== 'DK1' && priceArea !== 'DK2') {
-    throw new Error('Energy price area must be DK1 or DK2');
-  }
-  const cached = cache.get(priceArea);
-  if (cached && Date.now() < cached.expiresAt) return cached.data;
-
-  // Simultaneous JSON/image requests share one upstream request per area.
-  const inFlight = pending.get(priceArea);
-  if (inFlight) return inFlight;
-  const request = loadEnergyPrice(priceArea, signal);
-  pending.set(priceArea, request);
-  try {
-    return await request;
-  } finally {
-    pending.delete(priceArea);
-  }
 }
 
 export function clearEnergyCache(): void {
-  cache.clear();
+  spotCache.clear();
+  tariffCache.clear();
+  pendingSpot.clear();
+  pendingTariffs.clear();
 }

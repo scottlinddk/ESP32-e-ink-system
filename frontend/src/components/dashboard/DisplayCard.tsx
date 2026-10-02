@@ -14,6 +14,8 @@ import { Select } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { Skeleton } from '../ui/Spinner';
 import { Icon } from '../ui/Logo';
+import { EnergyPriceSettingsFields } from './EnergyPriceSettingsFields';
+import { energyPriceSettingsForSave, validEnergyPriceSettings } from '../../lib/energyPriceSettings';
 const MONTA_FIELDS = [
   { id: 'charger_status', labelKey: 'evFieldChargerStatus' as const },
   { id: 'active_session', labelKey: 'evFieldActiveSession' as const },
@@ -87,6 +89,7 @@ export function DisplayCard({ loading }: { loading: boolean }) {
     return {
       show_energy_price: prefs.energy.on,
       energy_price_location: prefs.energy.zone,
+      energy_price_settings: energyPriceSettingsForSave(prefs.energy.on, prefs.energy.priceSettings),
       show_weather: prefs.weather.on,
       weather_location: prefs.weather.location,
       show_news: prefs.news.on,
@@ -114,6 +117,12 @@ export function DisplayCard({ loading }: { loading: boolean }) {
   }
 
   function save() {
+    if (p.energy.on && !validEnergyPriceSettings(p.energy.priceSettings ?? { mode: 'spot' })) {
+      app.toast({ type: 'error', title: t.saveFailed, msg: app.lang === 'da'
+        ? 'Vælg et netselskab med 13-cifret GLN, 1–5 forskellige tarifkoder (højst 20 tegn hver) og et tillæg mellem −1000 og 1000 øre/kWh.'
+        : 'Choose a grid company with a 13-digit GLN, 1–5 unique tariff codes (up to 20 characters each), and a markup between −1000 and 1000 øre/kWh.' });
+      return;
+    }
     savePrefs.mutate(prefsToApi(p), {
       onSuccess: () => {
         app.toast({ type: 'success', title: t.saved, msg: t.savedMsg });
@@ -183,7 +192,8 @@ export function DisplayCard({ loading }: { loading: boolean }) {
             name={t.srcEnergy}
             hint={t.srcEnergyHint}
             checked={p.energy.on}
-            onToggle={() => set({ energy: { ...p.energy, on: !p.energy.on } })}
+            onToggle={() => set({ energy: { ...p.energy, on: !p.energy.on,
+              priceSettings: energyPriceSettingsForSave(!p.energy.on, p.energy.priceSettings) } })}
           >
             <div className="grid grid-cols-2 gap-3.5 max-[820px]:grid-cols-1">
               <Field label={t.zone} htmlFor="zone">
@@ -198,6 +208,9 @@ export function DisplayCard({ loading }: { loading: boolean }) {
                 />
               </Field>
             </div>
+            <EnergyPriceSettingsFields settings={p.energy.priceSettings ?? { mode: 'spot' }}
+              onChange={(priceSettings) => set({ energy: { ...p.energy, priceSettings } })}
+              onZoneChange={(zone, priceSettings) => set({ energy: { ...p.energy, zone, priceSettings } })} />
             <div className="text-xs text-fg3 flex items-center gap-[5px] [&_.material-symbols-outlined]:text-[15px]">
               <Icon name="schedule" />
               {t.updateEvery}

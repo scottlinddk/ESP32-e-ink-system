@@ -309,9 +309,13 @@ function renderEnergyWidget(
   if (price) {
     const { now, average, trend } = price;
     const arrow = trendArrow(trend);
-    canvas.drawText(`Energy: ${(now / 100).toFixed(2)} DKK/kWh ${arrow}`, x + 2, textY, maxW);
+    const consumer = price.basis === 'consumer';
+    canvas.drawText(`${consumer ? 'Est' : 'Spot'}: ${(now / 100).toFixed(2)} DKK/kWh ${arrow}`, x + 2, textY, maxW);
     if (height >= 20) {
-      canvas.drawText(`Avg: ${(average / 100).toFixed(2)}  Now: ${(now / 100).toFixed(2)}`, x + 2, textY + 11, maxW);
+      canvas.drawText(consumer ? 'Incl VAT; no fixed fees' : 'Excl tax/fees', x + 2, textY + 11, maxW);
+    }
+    if (height >= 31) {
+      canvas.drawText(`Avg: ${(average / 100).toFixed(2)} DKK/kWh`, x + 2, textY + 22, maxW);
     }
   } else {
     canvas.drawText('Energy: unavailable', x + 2, textY, maxW);

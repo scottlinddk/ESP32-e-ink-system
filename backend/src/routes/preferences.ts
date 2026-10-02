@@ -19,6 +19,7 @@ import { validateCalendarOptions } from '../services/calendar';
 import { DEFAULT_DISPLAY_TIMEZONE, parseDisplayTimezone } from '../utils/displayTimezone';
 import { parseCustomContentUpdates } from '../utils/customContent';
 import { parseWebhookPreferences } from '../services/customWebhook';
+import { parseEnergyPriceSettings } from '../utils/energyPriceSettings';
 
 /**
  * @swagger
@@ -209,6 +210,7 @@ router.get(
         calendar_days: 7,
         calendar_item_limit: 5,
         energy_price_location: 'DK1',
+        energy_price_settings: { mode: 'spot' },
         weather_location: '55.3,10.4',
         news_language: 'da',
         news_source: 'newsapi',
@@ -276,6 +278,12 @@ router.post(
       try {
         if (req.body.display_timezone !== undefined) parseDisplayTimezone(req.body.display_timezone);
         updates = { ...parseCustomContentUpdates(req.body), ...parseWebhookPreferences(req.body) };
+        if (req.body.energy_price_settings !== undefined) {
+          updates.energy_price_settings = parseEnergyPriceSettings(req.body.energy_price_settings);
+        }
+        if (req.body.energy_price_location !== undefined && !['DK1', 'DK2'].includes(req.body.energy_price_location)) {
+          throw new Error('Energy price area must be DK1 or DK2');
+        }
       } catch (error) {
         res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid custom content' });
         return;

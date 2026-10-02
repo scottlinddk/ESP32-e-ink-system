@@ -643,6 +643,7 @@ export type Database = {
           default_timezone: string
           display_timezone: string
           energy_price_location: string | null
+          energy_price_settings: Json
           layout: Json | null
           monta_fields: Json | null
           news_language: string | null
@@ -678,6 +679,7 @@ export type Database = {
           default_timezone?: string
           display_timezone?: string
           energy_price_location?: string | null
+          energy_price_settings?: Json
           layout?: Json | null
           monta_fields?: Json | null
           news_language?: string | null
@@ -713,6 +715,7 @@ export type Database = {
           default_timezone?: string
           display_timezone?: string
           energy_price_location?: string | null
+          energy_price_settings?: Json
           layout?: Json | null
           monta_fields?: Json | null
           news_language?: string | null

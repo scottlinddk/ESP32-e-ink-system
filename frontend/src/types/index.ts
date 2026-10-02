@@ -36,6 +36,13 @@ export const DEFAULT_LAYOUT: DisplayLayout = {
   ],
 };
 
+export type EnergyPriceSettings = { mode: 'spot' } | {
+  mode: 'consumer';
+  gridGln: string;
+  gridChargeCodes: string[];
+  retailerMarkupOre: number;
+};
+
 export interface UserPreferences {
   display_timezone?: string;
   show_custom_webhook?: boolean;
@@ -53,6 +60,7 @@ export interface UserPreferences {
   show_monta: boolean;
   show_zaptec: boolean;
   energy_price_location: string; // 'DK1' | 'DK2'
+  energy_price_settings?: EnergyPriceSettings;
   weather_location: string; // 'lat,lng'
   news_language: string; // 'da' | 'en'
   news_source?: 'newsapi' | 'rss';
@@ -70,6 +78,7 @@ export interface UserPreferences {
 }
 
 export interface EnergyPrice {
+  basis?: 'consumer';
   now: number; // øre/kWh
   average: number;
   trend: 'up' | 'down' | 'stable';
@@ -140,7 +149,7 @@ export interface ApiResponse<T> {
 // ---- App-level types for the new design system ----
 
 export interface Preferences {
-  energy: { on: boolean; zone: string };
+  energy: { on: boolean; zone: string; priceSettings?: EnergyPriceSettings };
   weather: { on: boolean; location: string };
   news: { on: boolean; lang: string; source: string; feedUrl?: string; itemLimit?: number };
   monta: { on: boolean; fields: string[] };

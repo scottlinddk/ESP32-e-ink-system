@@ -13,6 +13,20 @@ import {
 
 const STRIDE = 32;
 
+describe('electricity price basis rendering', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+  it('labels consumer estimates and keeps cents visible in a half-width widget', () => {
+    const draw = vi.spyOn(BmpCanvas.prototype, 'drawText');
+    const energy: DisplayLayout = { version: 1, cols: 10, rows: 6, widgets: [{ i: 'energy', x: 0, y: 0, w: 5, h: 2 }] };
+    const first = renderDisplayDataRaw({ nextRefresh: 1000, price: { now: 123, average: 150, trend: 'down', basis: 'consumer' } }, energy);
+    const second = renderDisplayDataRaw({ nextRefresh: 1000, price: { now: 124, average: 150, trend: 'down', basis: 'consumer' } }, energy);
+    expect(first).not.toEqual(second);
+    expect(draw.mock.calls.map(([text]) => text)).toContain('Incl VAT; no fixed fees');
+    renderDisplayDataRaw({ nextRefresh: 1000, price: { now: 123, average: 150, trend: 'down' } }, energy);
+    expect(draw.mock.calls.map(([text]) => text)).toContain('Excl tax/fees');
+  });
+});
+
 describe('display status time zone', () => {
   afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
   it.each([
