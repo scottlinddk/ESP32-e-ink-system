@@ -11,6 +11,8 @@ A quiet, glanceable home dashboard for Danish electricity prices, weather, news,
 
 The [integration setup guide](docs/INTEGRATIONS.md) maps every source to its widget, including calendar subscriptions and Home Assistant sensor updates. Dashboard contains the preview, display settings, notes/images, templates and schedule; integration credentials and source controls are on **Integrations**.
 
+See the [integration and widget audit](docs/INTEGRATION_AUDIT.md) for supported behavior, provider compatibility fixes and validation limits.
+
 Use **Layout templates** on the Dashboard to export settings, review a JSON import or apply a starter layout. Templates omit credentials and private feed URLs; see the [format and compatibility guide](docs/DISPLAY_TEMPLATES.md).
 
 Use **Pages and schedule** to save named layouts, choose their order and duration, and configure local quiet hours. Server requests select the active page; browser Bluetooth still requires manual pushes. See the [schedule guide](docs/DISPLAY_SCHEDULES.md) for timing rules and the required migration.
@@ -31,19 +33,19 @@ The image renderer supports validated monochrome panel sizes and clockwise rotat
 | OpenWeatherMap | Temperature, conditions and wind | API key |
 | NewsAPI | Headlines | API key |
 | RSS / Atom | Headlines from a public HTTPS feed | None |
-| Monta | Charger status, active sessions and daily energy | Client ID and secret |
+| Monta | Charger status, active sessions and energy of sessions created today | Client ID and secret |
 | Zaptec | Charger status, active session and installation | Account credentials |
-| Notion | Database items | Integration token and database ID |
+| Notion | Database items | `ntn_` or legacy `secret_` token and database ID/link; data source ID for a database with multiple sources |
 | Calendar | Upcoming timed/all-day ICS events and recurring appointments | Private HTTPS ICS feed URL, encrypted at rest |
 | Home Assistant / custom webhook | Timestamped sensor readings with freshness status | Dedicated integration token |
 
-For RSS/Atom, select **RSS / Atom** under News headlines, enter a public HTTPS feed URL and save. NewsAPI remains the default for existing accounts. The feed returns up to 1–10 headlines; the display draws as many as fit in the news widget. An empty feed shows “No headlines”; a failed feed shows “News: unavailable”. Apply `010_rss.sql` to existing databases before using these settings.
+For RSS/Atom, select **RSS / Atom** under News headlines, enter a public HTTPS feed URL and save. NewsAPI remains the default for existing accounts, but does not supply Danish or Finnish coverage: choose RSS for those languages. NewsAPI's Developer plan is restricted to development/testing. The feed returns up to 1–10 headlines; the display draws as many as fit in the news widget. An empty feed shows “No headlines”; a failed feed shows a short diagnostic. Apply `010_rss.sql` to existing databases before using these settings.
 
 Feed fetching accepts UTF-8 RSS 2.0 and Atom 1.0, including CDATA/HTML titles and relative links. Requests use public HTTPS on port 443, an 8-second total deadline, a 1 MiB response limit, and at most three redirects. DNS addresses are checked and pinned for each request. Local/private feeds, embedded credentials, compressed responses and XML document types are rejected. Feed URLs are ordinary preferences: use public feeds without secret tokens.
 
 For calendars, apply `012_calendar.sql`, save the subscription URL in **Integrations → Calendar**, enable the source, and add **Calendar** in the layout editor. Select an IANA timezone (for example `Europe/Copenhagen`), a 1–30 day window and 1–10 events. Private URL paths/query tokens are encrypted using `ENCRYPTION_KEY`; credential endpoints return only configured status and the URL is excluded from preferences and key listings. Removing the URL stops calendar fetching.
 
-The agenda uses `node-ical` for UTF-8 ICS 2.0: UTC/IANA TZID and floating times, all-day dates with exclusive end dates, daily/weekly/monthly/yearly RRULEs, EXDATEs, moved instances and cancellations. Floating times use the selected timezone; ongoing events remain visible until they end. RDATE, EXRULE, RANGE overrides, unknown timezones and subdaily rules are rejected explicitly. The calendar uses the same public HTTPS/DNS/size/deadline restrictions as RSS, so local network calendars and compressed responses are unsupported. Parsing/recurrence expansion runs in a worker limited to two seconds, 64 MiB, 500 event components and 5,000 expanded instances. Empty calendars show “No upcoming events”; errors show “Calendar: unavailable”. Physical panel behavior still requires hardware validation.
+The agenda uses `node-ical` for UTF-8 ICS 2.0: UTC/IANA TZID, known Outlook Windows timezone names and floating times, all-day dates with exclusive end dates, daily/weekly/monthly/yearly RRULEs, EXDATEs, moved instances and cancellations. Floating times use the selected timezone; ongoing events remain visible until they end. RDATE, EXRULE, RANGE overrides, unknown timezones and subdaily rules are rejected explicitly. The calendar uses the same public HTTPS/DNS/size/deadline restrictions as RSS, so local network calendars and compressed responses are unsupported. Parsing/recurrence expansion runs in a worker limited to two seconds, 64 MiB, 500 event components and 5,000 expanded instances. Empty calendars show “No upcoming events”; errors show “Calendar: unavailable”. Physical panel behavior still requires hardware validation.
 
 Electricity uses Energinet's [DayAheadPrices dataset](https://www.energidataservice.dk/tso-electricity/DayAheadPrices) for the current **15-minute interval by UTC**. Under Energy prices, choose spot or an estimated consumer price, select your household grid tariff and enter your supplier's markup excluding VAT. Consumer estimates include current grid/national tariffs, electricity tax and VAT, but exclude fixed subscriptions. Existing accounts retain spot mode. Apply `017_energy_price_settings.sql` first; see [electricity setup, coverage and sources](docs/ELECTRICITY_PRICES.md). Zero/negative prices and Danish daylight-saving days are supported, independently of your display clock.
 

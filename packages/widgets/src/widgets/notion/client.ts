@@ -1,11 +1,8 @@
-import { createHash } from 'node:crypto';
-import type { NotionData, NotionRow } from '../types/index';
-import { normalizeNotionCredentials, normalizeNotionId, type NotionCredentials } from '../utils/notionCredentials';
-export type { NotionCredentials } from '../utils/notionCredentials';
+import type { NotionData, NotionRow } from './types';
+import { normalizeNotionCredentials, normalizeNotionId, type NotionCredentials } from './credentials';
+export type { NotionCredentials } from './credentials';
 
-const CACHE_TTL_MS = 15 * 60 * 1000;
 const MAX_RESPONSE_BYTES = 256 * 1024;
-const cache = new Map<string, { signature: string; data: NotionData; expiresAt: number }>();
 const MESSAGES = {
   invalid_configuration: 'Check the Notion database, property and filter settings.',
   invalid_token: 'Notion rejected the integration token. Save a current token.',
@@ -71,16 +68,12 @@ function text(items: unknown, limit: number): string {
   return result.slice(0, limit);
 }
 
-export async function fetchNotionData(userId: string, credentials: NotionCredentials, signal: AbortSignal = AbortSignal.timeout(10_000)): Promise<NotionData> {
+export async function fetchNotionRows(credentials: NotionCredentials, signal: AbortSignal = AbortSignal.timeout(10_000)): Promise<NotionData> {
   try {
     signal.throwIfAborted();
     let creds: NotionCredentials;
     try { creds = normalizeNotionCredentials(credentials); }
     catch { throw new NotionSourceError('invalid_configuration'); }
-    const signature = createHash('sha256').update(JSON.stringify(creds)).digest('hex');
-    for (const [key, entry] of cache) if (entry.expiresAt <= Date.now()) cache.delete(key);
-    const cached = cache.get(userId);
-    if (cached?.signature === signature) return cached.data;
 
     const database = await request(`databases/${creds.databaseId}`, creds.token, signal);
     if (database.object !== 'database' || !Array.isArray(database.data_sources) || !database.data_sources.length) throw new NotionSourceError('invalid_response');
@@ -115,16 +108,10 @@ export async function fetchNotionData(userId: string, credentials: NotionCredent
     });
     const data: NotionData = { rows, ...(database.title ? { databaseName: text(database.title, 40) } : {}) };
     signal.throwIfAborted();
-    if (cache.size >= 200) cache.delete(cache.keys().next().value!);
-    cache.set(userId, { signature, data, expiresAt: Date.now() + CACHE_TTL_MS });
     return data;
   } catch (error) {
     if (signal.aborted) throw new NotionSourceError('timeout');
     if (error instanceof NotionSourceError) throw error;
     throw new NotionSourceError('unavailable');
   }
-}
-
-export function clearNotionCache(userId?: string): void {
-  if (userId) cache.delete(userId); else cache.clear();
 }

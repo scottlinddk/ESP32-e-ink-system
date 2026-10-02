@@ -63,7 +63,9 @@ describe('Integrations page with its real setup forms', () => {
     expect(html).toContain(t.integrationLocalWidgetsHelp);
     expect(html).toContain(lang === 'da' ? 'Find din kalenderadresse' : 'Find your calendar URL');
     expect(html).toContain(lang === 'da' ? 'Opsæt Home Assistant trin for trin' : 'Set up Home Assistant step by step');
-    expect(html).toContain(lang === 'da' ? 'nye ntn_-tokens understøttes endnu ikke' : 'new ntn_ tokens are not supported yet');
+    expect(html).toContain('ntn_');
+    expect(html).toContain('Manage data sources');
+    expect(html).not.toContain('not supported yet');
     expect(html).toContain('href="/layout"');
     expect(html).toContain('href="/dashboard"');
   });

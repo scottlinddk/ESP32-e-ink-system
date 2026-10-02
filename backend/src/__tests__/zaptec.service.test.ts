@@ -1,135 +1,130 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fetchZaptecData, clearZaptecCache, ZAPTEC_MODE } from '../services/zaptec';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearZaptecCache, fetchZaptecData, ZAPTEC_MODE } from '../services/zaptec';
 
-const MOCK_TOKEN = { access_token: 'ztok_test', expires_in: 3600 };
-const MOCK_CHARGERS = {
-  Data: [
-    { Id: 'c1', Name: 'Garage', OperatingMode: 2 },  // disconnected = available
-    { Id: 'c2', Name: 'Driveway', OperatingMode: 5 }, // charging
-  ],
-};
-const MOCK_STATE = [
-  { StateId: 553, ValueAsString: '5200' }, // SessionEnergy = 5200 Wh = 5.2 kWh
-  { StateId: 718, ValueAsString: new Date(Date.now() - 30 * 60_000).toISOString() },
+const credentials = { username: 'owner@example.com', password: 'private-password' };
+const chargers = [
+  { id: 'charger-1', name: 'Garage', operatingMode: 1 },
+  { id: 'charger-2', name: 'Driveway', operatingMode: 3 },
+  { id: 'charger-3', name: 'Finished', operatingMode: 5 },
+  { id: 'charger-4', name: 'Waiting', operatingMode: 2 },
 ];
-const MOCK_INSTALLATIONS = {
-  Data: [{ Name: 'My Home' }],
-};
-
-function makeFetchMock() {
-  return vi.fn().mockImplementation(async (url: string) => {
-    if (String(url).includes('/oauth/token')) {
-      return { ok: true, json: async () => MOCK_TOKEN };
-    }
-    if (String(url).includes('/api/chargers/c2/state')) {
-      return { ok: true, json: async () => MOCK_STATE };
-    }
-    if (String(url).includes('/api/chargers')) {
-      return { ok: true, json: async () => MOCK_CHARGERS };
-    }
-    if (String(url).includes('/api/installations')) {
-      return { ok: true, json: async () => MOCK_INSTALLATIONS };
-    }
-    return { ok: false, status: 404, text: async () => 'Not found' };
+const page = (data: unknown[], pages = 1, totalCount = data.length) => ({ data, pages, totalCount });
+const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status });
+const token = { access_token: 'zaptec-token', expires_in: 3600 };
+const observations = [{ stateId: 553, valueAsString: '5.2' }, { stateId: 718, valueAsString: 'true' }];
+const fetchMock = vi.fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>();
+function defaults() {
+  fetchMock.mockImplementation(async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname === '/oauth/token') return json(token);
+    if (url.pathname === '/api/chargers') return json(page(chargers));
+    if (url.pathname.endsWith('/state')) return json(observations);
+    if (url.pathname === '/api/installation') return json(page([{ id: 'installation-1', name: 'Home' }]));
+    return json({}, 404);
   });
 }
+beforeEach(() => { clearZaptecCache(); fetchMock.mockReset(); defaults(); vi.stubGlobal('fetch', fetchMock); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); clearZaptecCache(); });
+const load = (fields = ['charger_status', 'active_session', 'installation_info'], creds = credentials, user = 'alice') =>
+  fetchZaptecData(user, creds, fields);
 
-describe('fetchZaptecData', () => {
-  beforeEach(() => {
-    clearZaptecCache();
-    vi.stubGlobal('fetch', makeFetchMock());
+describe('Zaptec official API contract', () => {
+  it('uses camelCase data, correct charging mode and a singular installation endpoint', async () => {
+    const result = await load();
+    expect(result.chargers).toEqual(chargers);
+    expect(result.installationName).toBe('Home');
+    expect(result.activeSession).toEqual({ id: 'charger-2', energyDeliveredKwh: 5.2, startDateTime: null, chargerName: 'Driveway' });
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain('https://api.zaptec.com/api/chargers/charger-2/state');
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain('https://api.zaptec.com/api/installation?pageIndex=0&pageSize=100');
+    expect(Object.fromEntries(new URLSearchParams(String(fetchMock.mock.calls[0][1]?.body)))).toEqual({ grant_type: 'password', ...credentials, scope: 'openid' });
   });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    clearZaptecCache();
+  it('maps published mode values without calling finished chargers charging', () => {
+    expect(ZAPTEC_MODE).toEqual({ 0: 'unknown', 1: 'disconnected', 2: 'requesting', 3: 'charging', 5: 'finished' });
   });
-
-  it('fetches newly selected fields immediately and shares equivalent field selections', async () => {
-    const credentials = { username: 'u@e.com', password: 'pw' };
-    await fetchZaptecData('field-user', credentials, ['charger_status']);
-    const data = await fetchZaptecData('field-user', credentials, ['charger_status', 'active_session']);
-    expect(data.activeSession?.energyDeliveredKwh).toBe(5.2);
-    const calls = vi.mocked(fetch).mock.calls.length;
-    await fetchZaptecData('field-user', credentials, ['active_session', 'charger_status']);
-    expect(fetch).toHaveBeenCalledTimes(calls);
+  it('does not request a session for a finished charger', async () => {
+    fetchMock.mockImplementation(async (url) => String(url).endsWith('/oauth/token') ? json(token) : json(page([{ ...chargers[2] }])));
+    expect((await load(['active_session'])).activeSession).toBeNull();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/state'))).toBe(false);
   });
-
-  it('fetches chargers and maps operating modes', async () => {
-    const data = await fetchZaptecData(
-      'user1',
-      { username: 'u@e.com', password: 'pw' },
-      ['charger_status']
-    );
-    expect(data.chargers).toHaveLength(2);
-    expect(data.chargers[0].operatingMode).toBe(2);
-    expect(data.chargers[1].operatingMode).toBe(5);
+  it.each([['0', 0], [null, null], [undefined, null]])('preserves energy observation %s without inventing a start time', async (value, expected) => {
+    fetchMock.mockImplementation(async (url) => String(url).endsWith('/oauth/token') ? json(token)
+      : String(url).endsWith('/state') ? json([{ stateId: 718, valueAsString: 'true' }, ...(value === undefined ? [] : [{ stateId: 553, valueAsString: value }])])
+      : json(page(chargers)));
+    expect((await load(['active_session'])).activeSession).toMatchObject({ energyDeliveredKwh: expected, startDateTime: null });
   });
-
-  it('detects active session from charging charger', async () => {
-    const data = await fetchZaptecData(
-      'user1',
-      { username: 'u@e.com', password: 'pw' },
-      ['charger_status', 'active_session']
-    );
-    expect(data.activeSession).not.toBeNull();
-    expect(data.activeSession!.energyDeliveredKwh).toBeCloseTo(5.2, 1);
-    expect(data.activeSession!.chargerName).toBe('Driveway');
+  it('follows pageIndex pagination rather than truncating counts', async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname === '/oauth/token') return json(token);
+      const index = Number(url.searchParams.get('pageIndex'));
+      return json(page([chargers[index]], 2, 2));
+    });
+    expect((await load(['charger_status'])).chargers).toHaveLength(2);
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain('https://api.zaptec.com/api/chargers?pageIndex=1&pageSize=100');
   });
-
-  it('fetches installation name when installation_info requested', async () => {
-    const data = await fetchZaptecData(
-      'user1',
-      { username: 'u@e.com', password: 'pw' },
-      ['installation_info']
-    );
-    expect(data.installationName).toBe('My Home');
+  it('accepts an explicitly empty nullable data array', async () => {
+    fetchMock.mockImplementation(async (url) => String(url).endsWith('/oauth/token') ? json(token) : json({ data: null, pages: 0, totalCount: 0 }));
+    expect((await load(['charger_status'])).chargers).toEqual([]);
   });
-
-  it('caches results — second call does not re-fetch', async () => {
-    const fetchSpy = vi.mocked(fetch);
-    await fetchZaptecData('user2', { username: 'u@e.com', password: 'pw' }, ['charger_status']);
-    const callsAfterFirst = fetchSpy.mock.calls.length;
-    await fetchZaptecData('user2', { username: 'u@e.com', password: 'pw' }, ['charger_status']);
-    expect(fetchSpy.mock.calls.length).toBe(callsAfterFirst);
-  });
-
-  it('different users have separate caches', async () => {
-    const fetchSpy = vi.mocked(fetch);
-    await fetchZaptecData('userA', { username: 'a@e.com', password: 'pw' }, ['charger_status']);
-    const callsForA = fetchSpy.mock.calls.length;
-    await fetchZaptecData('userB', { username: 'b@e.com', password: 'pw' }, ['charger_status']);
-    expect(fetchSpy.mock.calls.length).toBeGreaterThan(callsForA);
-  });
-
-  it('throws on auth failure', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => 'Bad credentials' })
-    );
-    await expect(
-      fetchZaptecData('user3', { username: 'bad', password: 'bad' }, ['charger_status'])
-    ).rejects.toThrow('Zaptec auth failed');
-  });
-
-  it('returns empty chargers on API failure without throwing', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation(async (url: string) => {
-        if (String(url).includes('/oauth/token')) return { ok: true, json: async () => MOCK_TOKEN };
-        return { ok: false, status: 503, text: async () => 'Unavailable' };
-      })
-    );
-    const data = await fetchZaptecData('user4', { username: 'u@e.com', password: 'pw' }, ['charger_status']);
-    expect(data.chargers).toHaveLength(0);
-    expect(data.activeSession).toBeNull();
+  it('does not label an account-wide charger list with an arbitrary installation name', async () => {
+    fetchMock.mockImplementation(async (url) => String(url).endsWith('/oauth/token') ? json(token)
+      : json(page([{ id: 'home', name: 'Home' }, { id: 'office', name: 'Office' }])));
+    expect((await load(['installation_info'])).installationName).toBeNull();
   });
 });
 
-describe('ZAPTEC_MODE', () => {
-  it('maps known operating modes', () => {
-    expect(ZAPTEC_MODE[5]).toBe('charging');
-    expect(ZAPTEC_MODE[2]).toBe('disconnected');
-    expect(ZAPTEC_MODE[6]).toBe('completed');
+describe('Zaptec validation and cache isolation', () => {
+  it('keys cache by full credentials and fields and isolates account ownership', async () => {
+    await load(); const calls = fetchMock.mock.calls.length;
+    await load(['active_session', 'installation_info', 'charger_status']); expect(fetchMock).toHaveBeenCalledTimes(calls);
+    await load(['charger_status']); expect(fetchMock.mock.calls.length).toBeGreaterThan(calls);
+    await load(undefined, { ...credentials, password: 'rotated-password' });
+    await load(undefined, credentials, 'bob');
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/oauth/token'))).toHaveLength(3);
+    clearZaptecCache('alice');
+    await load();
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/oauth/token'))).toHaveLength(4);
+  });
+  it('does not cache failures or expose raw response bodies', async () => {
+    fetchMock.mockImplementation(async (url) => String(url).endsWith('/oauth/token') ? json(token) : json({ error: 'private-password https://secret' }, 503));
+    await expect(load()).rejects.toThrow('Zaptec request failed (503)');
+    defaults();
+    expect((await load()).chargers).toHaveLength(4);
+  });
+  it.each(['5.2kWh', '', '-1', 'NaN', 'Infinity', 5.2])('rejects malformed session energy %s', async (value) => {
+    fetchMock.mockImplementation(async (url) => String(url).endsWith('/oauth/token') ? json(token)
+      : String(url).endsWith('/state') ? json([{ stateId: 553, valueAsString: value }]) : json(page(chargers)));
+    await expect(load(['active_session'])).rejects.toThrow('invalid session energy');
+  });
+  it.each([{ Data: [] }, page([{ ...chargers[0], operatingMode: '3' }]), page(chargers, 6, 501), page([{ id: null }]), page(chargers, 1, 5)])(
+    'rejects malformed or oversized charger lists', async (body) => {
+      fetchMock.mockImplementation(async (url) => String(url).endsWith('/oauth/token') ? json(token) : json(body));
+      await expect(load(['charger_status'])).rejects.toThrow('Zaptec');
+    },
+  );
+  it('rejects malformed token responses and sanitizes network exceptions', async () => {
+    fetchMock.mockResolvedValue(json({ access_token: 'token', expires_in: '3600' }));
+    await expect(load()).rejects.toThrow('invalid access token');
+    fetchMock.mockRejectedValue(new Error('private-password https://secret'));
+    await expect(load()).rejects.toThrow('Zaptec request failed');
+  });
+  it('cancels a response body and never caches an aborted result', async () => {
+    const controller = new AbortController();
+    const cancel = vi.fn();
+    fetchMock.mockImplementation(async (url) => String(url).endsWith('/oauth/token') ? json(token)
+      : new Response(new ReadableStream({ start() {}, cancel })));
+    const pending = fetchZaptecData('alice', credentials, ['charger_status'], controller.signal);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    controller.abort(new Error('Source deadline reached'));
+    await expect(pending).rejects.toThrow('Source deadline reached');
+    expect(cancel).toHaveBeenCalled();
+    defaults();
+    expect((await load(['charger_status'])).chargers).toHaveLength(4);
+  });
+  it('bounds announced response bytes and releases the rejected body', async () => {
+    const cancel = vi.fn();
+    fetchMock.mockResolvedValue(new Response(new ReadableStream({ start() {}, cancel }), { headers: { 'content-length': '1048577' } }));
+    await expect(load()).rejects.toThrow('response too large');
+    expect(cancel).toHaveBeenCalled();
   });
 });

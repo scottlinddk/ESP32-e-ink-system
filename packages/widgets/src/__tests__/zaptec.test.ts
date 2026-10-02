@@ -77,9 +77,10 @@ describe('zaptecWidget', () => {
     it('renders charger availability counts', () => {
       const data: ZaptecData = {
         chargers: [
-          { id: '1', name: 'C1', operatingMode: 2 }, // disconnected = available
-          { id: '2', name: 'C2', operatingMode: 5 }, // charging
-          { id: '3', name: 'C3', operatingMode: 6 }, // completed
+          { id: '1', name: 'C1', operatingMode: 1 }, // disconnected = available
+          { id: '2', name: 'C2', operatingMode: 3 }, // charging
+          { id: '3', name: 'C3', operatingMode: 5 }, // finished, still occupied
+          { id: '4', name: 'C4', operatingMode: 2 }, // requesting, still occupied
         ],
         activeSession: null,
         installationName: null,
@@ -119,7 +120,7 @@ describe('zaptecWidget', () => {
     });
 
     it('returns error on auth failure', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => 'Unauthorized' }));
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Unauthorized', { status: 401 })));
       const result = await zaptecWidget.fetch(
         { username: 'u@e.com', password: 'pw', showChargerStatus: true, showActiveSession: true, showInstallationInfo: false },
         { widthPx: 250, heightPx: 40 }
@@ -130,19 +131,19 @@ describe('zaptecWidget', () => {
     it('returns ok result with mocked API', async () => {
       const tokenResponse = { access_token: 'test_token', expires_in: 3600 };
       const chargersResponse = {
-        Data: [{ Id: 'c1', Name: 'Charger A', OperatingMode: 2 }],
+        data: [{ id: 'c1', name: 'Charger A', operatingMode: 1 }], pages: 1, totalCount: 1,
       };
 
       vi.stubGlobal(
         'fetch',
         vi.fn().mockImplementation(async (url: string) => {
           if (String(url).includes('/oauth/token')) {
-            return { ok: true, json: async () => tokenResponse };
+            return new Response(JSON.stringify(tokenResponse));
           }
           if (String(url).includes('/api/chargers')) {
-            return { ok: true, json: async () => chargersResponse };
+            return new Response(JSON.stringify(chargersResponse));
           }
-          return { ok: false, status: 404, text: async () => 'Not found' };
+          return new Response('Not found', { status: 404 });
         })
       );
 
@@ -155,7 +156,7 @@ describe('zaptecWidget', () => {
       if (result.ok) {
         expect(result.data.chargers).toHaveLength(1);
         expect(result.data.chargers[0].name).toBe('Charger A');
-        expect(result.data.chargers[0].operatingMode).toBe(2);
+        expect(result.data.chargers[0].operatingMode).toBe(1);
       }
     });
   });

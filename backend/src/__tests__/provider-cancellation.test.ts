@@ -18,7 +18,8 @@ const providers = [
     load: (signal: AbortSignal) => fetchMontaData('cancel-test', { clientId: 'test', clientSecret: 'test' }, ['charger_status'], signal),
     isData: (url: string) => url.includes('charge-points'),
     response: (url: string) => url.includes('/auth/token')
-      ? { access_token: 'test-token', expires_in: 3600 } : { data: [] },
+      ? { accessToken: 'test-token', accessTokenExpirationDate: new Date(Date.now() + 3_600_000).toISOString() }
+      : { data: [], meta: { currentPage: 0, totalPageCount: 0, totalItemCount: 0, itemCount: 0, perPage: 100 } },
   },
   {
     name: 'Zaptec',
@@ -26,14 +27,15 @@ const providers = [
     load: (signal: AbortSignal) => fetchZaptecData('cancel-test', { username: 'test', password: 'test' }, ['charger_status'], signal),
     isData: (url: string) => url.includes('/api/chargers'),
     response: (url: string) => url.includes('/oauth/token')
-      ? { access_token: 'test-token', expires_in: 3600 } : { Data: [] },
+      ? { access_token: 'test-token', expires_in: 3600 } : { data: [], pages: 0, totalCount: 0 },
   },
   {
     name: 'Notion',
     clear: clearNotionCache,
-    load: (signal: AbortSignal) => fetchNotionData('cancel-test', { token: 'test', databaseId: 'a'.repeat(32) }, signal),
-    isData: (_url: string) => true,
-    response: (_url: string) => ({ results: [] }),
+    load: (signal: AbortSignal) => fetchNotionData('cancel-test', { token: 'ntn_test', databaseId: 'a'.repeat(32) }, signal),
+    isData: (url: string) => url.includes('/query'),
+    response: (url: string) => url.includes('/databases/')
+      ? { object: 'database', data_sources: [{ id: 'b'.repeat(32) }] } : { results: [] },
   },
 ];
 
@@ -43,7 +45,7 @@ afterEach(() => {
 });
 
 describe('provider cancellation', () => {
-  it.each(providers)('$name forwards cancellation through body reads and does not cache aborted data', async (provider) => {
+  it.each(providers)('$name forwards request cancellation and does not cache aborted data', async (provider) => {
     provider.clear();
     const controller = new AbortController();
     const error = new Error('Source deadline reached');
@@ -53,17 +55,12 @@ describe('provider cancellation', () => {
         if (abortBody && provider.isData(input)) controller.abort(error);
         return provider.response(input);
       };
-      if (provider.name === 'weather') return new Response(JSON.stringify(readBody()));
-      return {
-        ok: true, status: 200, headers: new Headers(),
-        json: async () => readBody(),
-        text: async () => JSON.stringify(readBody()),
-      };
+      return new Response(JSON.stringify(readBody()));
     });
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(provider.load(controller.signal)).rejects.toThrow(provider.name === 'weather'
-      ? 'OpenWeatherMap did not respond in time' : 'Source deadline reached');
+      ? 'OpenWeatherMap did not respond in time' : provider.name === 'Notion' ? 'Notion did not respond in time' : 'Source deadline reached');
     expect(fetchMock.mock.calls.length).toBeGreaterThan(0);
     for (const call of fetchMock.mock.calls) {
       if (provider.name === 'weather') expect(call[1]?.signal?.aborted).toBe(true);

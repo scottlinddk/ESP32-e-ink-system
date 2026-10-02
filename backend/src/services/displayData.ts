@@ -5,7 +5,7 @@ import { fetchRssNews } from './rss';
 import { fetchCalendar } from './calendar';
 import { fetchMontaData } from './monta';
 import { fetchZaptecData } from './zaptec';
-import { fetchNotionData, NotionCredentials } from './notion';
+import { fetchNotionData, NotionCredentials, NotionSourceError } from './notion';
 import { DisplayData, UserPreferences } from '../types/index';
 import { logger } from '../lib/logger';
 import { resolveDisplaySchedule } from './displaySchedule';
@@ -13,6 +13,7 @@ import { parseCustomImage } from '../utils/customContent';
 import { fetchWebhookData } from './customWebhook';
 import { DEFAULT_DISPLAY_TIMEZONE } from '../utils/displayTimezone';
 import { weatherProblem } from '../utils/weatherErrors';
+import { newsProblem } from '../utils/newsErrors';
 
 // JSON previews and display images use the same enabled sources. A failed
 // source stays absent so an unavailable reading is never presented as live data.
@@ -67,6 +68,9 @@ async function withSourceDeadline<T>(load: (signal: AbortSignal) => Promise<T>):
     return await Promise.race([Promise.resolve().then(() => load(controller.signal)), deadline]);
   } finally {
     clearTimeout(timer);
+    // A provider can fan out to several requests. Cancel remaining siblings
+    // when one fails early, as well as when the overall deadline expires.
+    controller.abort();
   }
 }
 
@@ -139,7 +143,8 @@ export async function buildDisplayData(
           result.news = news;
         })
         .catch((err: unknown) => {
-          logger.error({ err }, 'News fetch failed');
+          result.newsError = newsProblem(err);
+          logger.warn({ code: result.newsError.code }, 'News fetch failed');
         })
     );
   }
@@ -151,7 +156,7 @@ export async function buildDisplayData(
         const creds = JSON.parse(raw) as { clientId: string; clientSecret: string };
         const fields = prefs.monta_fields ?? ['charger_status', 'active_session'];
         tasks.push(
-          withSourceDeadline((signal) => fetchMontaData(userId, creds, fields, signal))
+          withSourceDeadline((signal) => fetchMontaData(userId, creds, fields, signal, prefs.display_timezone))
             .then((monta) => { result.monta = monta; })
             .catch((err: unknown) => { logger.error({ err }, 'Monta fetch failed'); })
         );
@@ -186,7 +191,12 @@ export async function buildDisplayData(
         tasks.push(
           withSourceDeadline((signal) => fetchNotionData(userId, creds, signal))
             .then((notion) => { result.notion = notion; })
-            .catch((err: unknown) => { logger.error({ err }, 'Notion fetch failed'); })
+            .catch((err: unknown) => {
+              const problem = err instanceof NotionSourceError ? err : new NotionSourceError(
+                err instanceof Error && ['TimeoutError', 'AbortError'].includes(err.name) ? 'timeout' : 'unavailable');
+              result.notionError = { code: problem.code, message: problem.message };
+              logger.warn({ code: problem.code }, 'Notion fetch failed');
+            })
         );
       } catch {
         logger.warn('Notion credentials are not valid JSON — skipping');

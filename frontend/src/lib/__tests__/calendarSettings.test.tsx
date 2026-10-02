@@ -73,7 +73,8 @@ describe('calendar setup guide', () => {
     expect(html).toContain('support.apple.com/en-in/guide/icloud/');
     expect(html).toContain('Change webcal:// to https://');
     expect(html).toContain('Anyone with the link can read the calendar');
-    expect(html).toContain('Windows time zone names');
+    expect(html).toContain('known Windows time zone names from Outlook are supported');
+    expect(html).toContain('Unknown or custom time zones');
     expect(html).toContain('href="/layout"');
   });
 

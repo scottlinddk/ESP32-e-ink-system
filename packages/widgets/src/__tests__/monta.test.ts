@@ -117,7 +117,7 @@ describe('montaWidget', () => {
     });
 
     it('returns error result on auth failure', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => 'Unauthorized' }));
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Unauthorized', { status: 401 })));
       const result = await montaWidget.fetch(
         { clientId: 'x', clientSecret: 'y', showChargerStatus: true, showActiveSession: true, showTodayStats: false },
         { widthPx: 250, heightPx: 40 }
@@ -126,11 +126,12 @@ describe('montaWidget', () => {
     });
 
     it('returns ok result with mocked successful API', async () => {
-      const tokenResponse = { access_token: 'test_token', expires_in: 3600 };
+      const tokenResponse = { accessToken: 'test_token', accessTokenExpirationDate: new Date(Date.now() + 3_600_000).toISOString() };
       const chargePointsResponse = {
-        data: [{ id: 'cp1', state: 'Available', name: 'Charger 1' }],
+        data: [{ id: 1, state: 'available', name: 'Charger 1' }],
+        meta: { currentPage: 0, totalPageCount: 1, totalItemCount: 1 },
       };
-      const chargesResponse = { data: [] };
+      const chargesResponse = { data: [], meta: { currentPage: 0, totalPageCount: 0, totalItemCount: 0 } };
 
       let callCount = 0;
       vi.stubGlobal(
@@ -138,15 +139,15 @@ describe('montaWidget', () => {
         vi.fn().mockImplementation(async (url: string) => {
           callCount++;
           if (String(url).includes('/auth/token')) {
-            return { ok: true, json: async () => tokenResponse };
+            return new Response(JSON.stringify(tokenResponse));
           }
           if (String(url).includes('/charges')) {
-            return { ok: true, json: async () => chargesResponse };
+            return new Response(JSON.stringify(chargesResponse));
           }
           if (String(url).includes('/charge-points')) {
-            return { ok: true, json: async () => chargePointsResponse };
+            return new Response(JSON.stringify(chargePointsResponse));
           }
-          return { ok: false, status: 404, text: async () => 'Not found' };
+          return new Response('Not found', { status: 404 });
         })
       );
 

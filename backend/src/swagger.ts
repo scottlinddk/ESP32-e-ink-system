@@ -144,6 +144,16 @@ const options: swaggerJsdoc.Options = {
               type: 'array',
               items: { $ref: '#/components/schemas/NewsItem' },
             },
+            newsError: {
+              type: 'object', required: ['code', 'message'],
+              description: 'Fixed safe diagnostic instead of headlines when an enabled news source fails.',
+              properties: { code: { type: 'string', enum: ['unsupported_coverage', 'missing_key', 'invalid_key', 'rate_limited', 'unavailable', 'timeout', 'invalid_response'] }, message: { type: 'string' } },
+            },
+            notionError: {
+              type: 'object', required: ['code', 'message'],
+              description: 'Fixed safe setup/provider diagnostic instead of Notion items.',
+              properties: { code: { type: 'string', enum: ['invalid_configuration', 'invalid_token', 'access_denied', 'data_source_required', 'invalid_data_source', 'invalid_response', 'rate_limited', 'timeout', 'unavailable'] }, message: { type: 'string' } },
+            },
           },
         },
         ApiKey: {

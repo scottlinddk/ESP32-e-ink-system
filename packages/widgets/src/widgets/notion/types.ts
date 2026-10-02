@@ -1,7 +1,8 @@
 export interface NotionConfig {
   token: string;
   databaseId: string;
-  titleProperty?: string;   // property name to use as title, default "Name"
+  dataSourceId?: string;    // required only when the database contains multiple sources
+  titleProperty?: string;   // default: infer the database's title property
   statusProperty?: string;  // property name to show as subtitle
   filterStatus?: string;    // only show rows where statusProperty equals this
   maxItems?: number;        // default 4

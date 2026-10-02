@@ -83,6 +83,17 @@ describe('news feed rendering', () => {
     expect(renderDisplayDataRaw({ nextRefresh: 60_000, news: [] }, newsLayout))
       .not.toEqual(renderDisplayDataRaw({ nextRefresh: 60_000 }, newsLayout));
   });
+  it('renders fixed NewsAPI and Notion setup labels instead of untrusted error messages', () => {
+    const draw = vi.spyOn(BmpCanvas.prototype, 'drawText');
+    try {
+      const raw = renderDisplayDataRaw({ nextRefresh: 1000, newsError: { code: 'unsupported_coverage', message: 'PRIVATE_KEY' }, notionError: { code: 'data_source_required', message: 'PRIVATE_ID' } },
+        { ...newsLayout, widgets: [{ i: 'news', x: 0, y: 0, w: 10, h: 2 }, { i: 'notion', x: 0, y: 2, w: 10, h: 2 }] });
+      expect(raw.some((byte) => byte !== 255)).toBe(true);
+      const labels = draw.mock.calls.map(([text]) => text).join(' ');
+      expect(labels).toContain('Use RSS feed'); expect(labels).toContain('Select data source');
+      expect(labels).not.toContain('PRIVATE');
+    } finally { draw.mockRestore(); }
+  });
 });
 
 const data: DisplayData = {
@@ -95,7 +106,7 @@ const data: DisplayData = {
     todayKwh: 10,
   },
   zaptec: {
-    chargers: [{ id: 'z1', name: 'Driveway', operatingMode: 5 }],
+    chargers: [{ id: 'z1', name: 'Driveway', operatingMode: 3 }],
     activeSession: { id: 's2', energyDeliveredKwh: 3.5, chargerName: 'Driveway', startDateTime: '2026-09-26T10:00:00Z' },
     installationName: 'Home',
   },
@@ -109,6 +120,45 @@ const data: DisplayData = {
 function layout(...widgets: WidgetLayout[]): DisplayLayout {
   return { version: 1, cols: 10, rows: 6, widgets };
 }
+
+describe('disabled widgets and EV display semantics', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+  it.each([
+    ['energy', 'show_energy_price'], ['weather', 'show_weather'], ['news', 'show_news'],
+    ['monta', 'show_monta'], ['zaptec', 'show_zaptec'], ['notion', 'show_notion'],
+    ['calendar', 'show_calendar'], ['custom-webhook', 'show_custom_webhook'],
+    ['custom-text', 'show_custom_text'], ['custom-image', 'show_custom_image'],
+  ])('leaves disabled %s blank in both bitmap formats, even if data remains', (widget, setting) => {
+    const single = layout({ i: widget, x: 0, y: 0, w: 10, h: 6 });
+    const content = { ...data, customText: 'Private note', customImage: { width: 1, height: 1, pixels: 'AA==', fit: 'contain' as const },
+      customWebhook: { state: 'fresh' as const, rows: [{ label: 'Kitchen', value: '20' }], observedAt: null, receivedAt: null, expiresAt: null } };
+    const raw = renderDisplayDataRaw(content, single, { [setting]: false });
+    expect(raw.every((byte) => byte === 255)).toBe(true);
+    expect(renderDisplayData(content, single, { [setting]: false }).subarray(62)).toEqual(raw);
+    expect(renderDisplayDataRaw(content, single, { [setting]: true })).not.toEqual(raw);
+  });
+  it('retains unavailable output for enabled or legacy unspecified sources', () => {
+    const single = layout({ i: 'weather', x: 0, y: 0, w: 10, h: 6 });
+    expect(renderDisplayDataRaw({ nextRefresh: 1000 }, single, { show_weather: true }))
+      .toEqual(renderDisplayDataRaw({ nextRefresh: 1000 }, single));
+    expect(renderDisplayDataRaw({ nextRefresh: 1000 }, single).some((byte) => byte !== 255)).toBe(true);
+  });
+  it('counts Zaptec charging mode 3 and disconnected mode 1, excluding requesting and finished', () => {
+    const draw = vi.spyOn(BmpCanvas.prototype, 'drawText');
+    renderDisplayDataRaw({ ...data, zaptec: { chargers: [1, 2, 3, 5].map((mode) => ({ id: String(mode), name: 'Charger', operatingMode: mode })), activeSession: null, installationName: null } },
+      layout({ i: 'zaptec', x: 0, y: 0, w: 10, h: 6 }));
+    expect(draw.mock.calls.map(([text]) => text)).toContain('1 avail  1 charging');
+  });
+  it('does not turn missing EV energy or duration into a false zero', () => {
+    const draw = vi.spyOn(BmpCanvas.prototype, 'drawText');
+    renderDisplayDataRaw({ ...data, monta: { chargePoints: [], activeSessions: [{ id: 'm', energyDeliveredKwh: null, startedAt: null, durationMin: null }], todayKwh: null },
+      zaptec: { chargers: [], activeSession: { id: 'z', energyDeliveredKwh: null, startDateTime: null, chargerName: 'Home' }, installationName: null } },
+      layout({ i: 'monta', x: 0, y: 0, w: 10, h: 3 }, { i: 'zaptec', x: 0, y: 3, w: 10, h: 3 }));
+    const labels = draw.mock.calls.map(([text]) => text);
+    expect(labels).toContain('?kWh  ?min'); expect(labels).toContain('?kWh  Home');
+    expect(labels.join(' ')).not.toContain('0.0kWh');
+  });
+});
 
 function isBlack(pixels: Buffer, x: number, y: number): boolean {
   return (pixels[y * STRIDE + Math.floor(x / 8)] & (0x80 >> (x % 8))) === 0;

@@ -11,7 +11,7 @@ import { fetchRssNews } from '../services/rss';
 import { fetchCalendar } from '../services/calendar';
 import { fetchMontaData } from '../services/monta';
 import { fetchZaptecData } from '../services/zaptec';
-import { fetchNotionData } from '../services/notion';
+import { fetchNotionData, NotionSourceError } from '../services/notion';
 import { buildDisplayData, DEFAULT_PREFS } from '../services/displayData';
 import { resolveDisplaySchedule } from '../services/displaySchedule';
 import displayDataRouter from '../routes/display-data';
@@ -19,6 +19,7 @@ import imageRouter from '../routes/image';
 import { renderDisplayData, renderDisplayDataRaw } from '../utils/bmpGenerator';
 import type { ApiKey, DisplayData, UserPreferences } from '../types/index';
 import { WeatherSourceError, weatherProblem } from '../utils/weatherErrors';
+import { NewsSourceError, newsProblem } from '../utils/newsErrors';
 import { logger } from '../lib/logger';
 
 vi.mock('@clerk/backend', () => ({
@@ -40,7 +41,7 @@ vi.mock('../services/rss', () => ({ fetchRssNews: vi.fn() }));
 vi.mock('../services/calendar', () => ({ fetchCalendar: vi.fn() }));
 vi.mock('../services/monta', () => ({ fetchMontaData: vi.fn() }));
 vi.mock('../services/zaptec', () => ({ fetchZaptecData: vi.fn() }));
-vi.mock('../services/notion', () => ({ fetchNotionData: vi.fn() }));
+vi.mock('../services/notion', async (importOriginal) => ({ ...await importOriginal<typeof import('../services/notion')>(), fetchNotionData: vi.fn() }));
 vi.mock('../lib/logger', () => ({ logger: { error: vi.fn(), warn: vi.fn() } }));
 
 const credentials = {
@@ -153,7 +154,7 @@ describe('live display data', () => {
   });
   it('includes every enabled integration and forwards the selected fields and user identity', async () => {
     expect(await buildDisplayData('user-test', prefs, credentials)).toEqual(liveData);
-    expect(fetchMontaData).toHaveBeenCalledWith('user-test', JSON.parse(credentials.monta), ['today_stats'], expect.any(AbortSignal));
+    expect(fetchMontaData).toHaveBeenCalledWith('user-test', JSON.parse(credentials.monta), ['today_stats'], expect.any(AbortSignal), prefs.display_timezone);
     expect(fetchZaptecData).toHaveBeenCalledWith('user-test', JSON.parse(credentials.zaptec), ['active_session'], expect.any(AbortSignal));
     expect(fetchNotionData).toHaveBeenCalledWith('user-test', JSON.parse(credentials.notion), expect.any(AbortSignal));
     expect(fetchWeather).toHaveBeenCalledWith(prefs.weather_location, credentials.openweathermap, expect.any(AbortSignal));
@@ -175,6 +176,7 @@ describe('live display data', () => {
     vi.mocked(fetchZaptecData).mockRejectedValue(new Error('Charger unavailable'));
     const { weather, news, zaptec, ...availableData } = liveData;
     availableData.weatherError = weatherProblem(new Error());
+    availableData.newsError = newsProblem(new Error());
     expect(await buildDisplayData('user-test', prefs, credentials)).toEqual(availableData);
   });
 
@@ -191,6 +193,21 @@ describe('live display data', () => {
     expect(fetchNotionData).not.toHaveBeenCalled();
   });
 
+  it('returns actionable fixed provider diagnostics without logging private error content', async () => {
+    vi.mocked(fetchNews).mockRejectedValue(new NewsSourceError('unsupported_coverage'));
+    vi.mocked(fetchNotionData).mockRejectedValue(new NotionSourceError('data_source_required'));
+    const data = await buildDisplayData('user-test', prefs, credentials);
+    expect(data.newsError?.code).toBe('unsupported_coverage');
+    expect(data.notionError?.code).toBe('data_source_required');
+    vi.mocked(fetchNews).mockRejectedValue(new Error('SECRET_API_KEY'));
+    vi.mocked(fetchNotionData).mockRejectedValue(new Error('SECRET_DATABASE_ID'));
+    const failed = await buildDisplayData('user-test', prefs, credentials);
+    expect(JSON.stringify(failed)).not.toContain('SECRET');
+    expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain('SECRET');
+    expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toContain('SECRET');
+    expect(failed.price).toEqual(liveData.price);
+  });
+
   it('returns healthy sources after 10 seconds even if providers ignore cancellation', async () => {
     vi.useRealTimers();
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
@@ -204,6 +221,7 @@ describe('live display data', () => {
     const data = await pending;
     const { weather, news, ...availableData } = liveData;
     availableData.weatherError = weatherProblem(new WeatherSourceError('timeout'));
+    availableData.newsError = newsProblem(new NewsSourceError('timeout'));
     expect(data).toEqual(availableData);
     expect(vi.mocked(fetchWeather).mock.calls[0][2]?.aborted).toBe(true);
     expect(vi.mocked(fetchNews).mock.calls[0][2]?.aborted).toBe(true);
@@ -216,6 +234,22 @@ describe('live display data', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(data).toEqual(availableData);
+  });
+
+  it('cancels sibling requests when a provider fails before the overall deadline', async () => {
+    const siblingCancelled = vi.fn();
+    let sourceSignal: AbortSignal | undefined;
+    vi.mocked(fetchMontaData).mockImplementation(async (_user, _creds, _fields, signal) => {
+      sourceSignal = signal;
+      // Represent a still-pending parallel request after another field fails.
+      signal!.addEventListener('abort', siblingCancelled, { once: true });
+      throw new Error('One field failed');
+    });
+    const result = await buildDisplayData('user-test', prefs, credentials);
+    expect(result.monta).toBeUndefined();
+    expect(result.price).toEqual(liveData.price);
+    expect(sourceSignal?.aborted).toBe(true);
+    expect(siblingCancelled).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -296,6 +330,7 @@ describe('JSON, BMP and Bluetooth endpoints', () => {
     vi.mocked(fetchNews).mockRejectedValue(new Error('News unavailable'));
     const { weather, news, ...availableData } = liveData;
     availableData.weatherError = weatherProblem(new Error());
+    availableData.newsError = newsProblem(new Error());
 
     const jsonResponse = await fetch(`${baseUrl}/preview`, auth);
     expect(await jsonResponse.json()).toEqual(availableData);

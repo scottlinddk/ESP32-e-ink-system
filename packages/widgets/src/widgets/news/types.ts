@@ -16,7 +16,7 @@ export interface NewsWidgetData {
 }
 
 export interface NewsWidgetConfig {
-  /** Language code: 'da' | 'en' | 'de' | 'sv' | 'no' | 'fi' */
+  /** NewsAPI coverage: en (US), de (DE), sv (SE), no (NO). Danish/Finnish require RSS instead. */
   language: string;
   /** NewsAPI key (resolved from the user's stored keys by the caller) */
   apiKey: string;

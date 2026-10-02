@@ -1,5 +1,6 @@
 import type { DisplayProfile } from '../utils/displayProfile';
 import type { EnergyPriceSettings } from '../utils/energyPriceSettings';
+import type { NewsProblem } from '../utils/newsErrors';
 export interface WidgetLayout {
   i: string;       // 'energy' | 'weather' | 'news' | 'status'
   x: number;       // 0–9
@@ -88,9 +89,9 @@ export interface MontaChargePoint {
 
 export interface MontaSession {
   id: string;
-  energyDeliveredKwh: number;
-  startedAt: string;
-  durationMin: number;
+  energyDeliveredKwh: number | null;
+  startedAt: string | null;
+  durationMin: number | null;
 }
 
 export interface MontaData {
@@ -102,13 +103,13 @@ export interface MontaData {
 export interface ZaptecCharger {
   id: string;
   name: string;
-  operatingMode: number; // 1=Unknown, 2=Disconnected, 3=Connected/Requesting, 5=Charging, 6=Completed
+  operatingMode: number; // 0=Unknown, 1=Disconnected, 2=Requesting, 3=Charging, 5=Finished
 }
 
 export interface ZaptecSession {
   id: string;
-  energyDeliveredKwh: number;
-  startDateTime: string;
+  energyDeliveredKwh: number | null;
+  startDateTime: string | null;
   chargerName: string;
 }
 
@@ -149,9 +150,11 @@ export interface DisplayData {
   weather?: WeatherData;
   weatherError?: WeatherProblem;
   news?: NewsItem[];
+  newsError?: NewsProblem;
   monta?: MontaData;
   zaptec?: ZaptecData;
   notion?: NotionData;
+  notionError?: { code: string; message: string };
   calendar?: CalendarData;
   nextRefresh: number;
 }

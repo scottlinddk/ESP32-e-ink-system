@@ -22,6 +22,23 @@ describe('bounded ICS agenda', () => {
     expect(result.events.map((e) => e.start)).toEqual(['2026-03-28T08:00:00.000Z', '2026-03-29T07:00:00.000Z', '2026-03-31T07:00:00.000Z']);
     expect(result.events.map((e) => e.timeLabel)).toEqual(['09:00', '09:00', '09:00']);
   });
+  it.each([['20260115', '2026-01-14T12:00:00Z', '2026-01-15T08:00:00.000Z'],
+    ['20260715', '2026-07-14T12:00:00Z', '2026-07-15T07:00:00.000Z']])('maps known Outlook Windows zones in %s', async (date, reference, expected) => {
+    const text = feed(event(`DTSTART;TZID="Romance Standard Time":${date}T090000\nDTEND;TZID=Romance Standard Time:${date}T100000\nSUMMARY:Outlook`));
+    const result = await parseCalendar(text, options, new Date(reference));
+    expect(result.events[0]).toMatchObject({ start: expected, timeLabel: '09:00' });
+  });
+  it('keeps Outlook recurrence wall time and exclusions across spring DST', async () => {
+    const result = await parse(feed(event('DTSTART;TZID=Romance Standard Time:20260328T090000\nDTEND;TZID=Romance Standard Time:20260328T100000\nRRULE:FREQ=DAILY;COUNT=4\nEXDATE;TZID="Romance Standard Time":20260330T090000\nSUMMARY:Outlook')));
+    expect(result.events.map((e) => e.start)).toEqual(['2026-03-28T08:00:00.000Z', '2026-03-29T07:00:00.000Z', '2026-03-31T07:00:00.000Z']);
+    expect(result.events.map((e) => e.timeLabel)).toEqual(['09:00', '09:00', '09:00']);
+  });
+  it('keeps Outlook recurrence wall time across autumn DST', async () => {
+    const text = feed(event('DTSTART;TZID=Romance Standard Time:20261024T090000\nRRULE:FREQ=DAILY;COUNT=3\nSUMMARY:Outlook'));
+    const result = await parseCalendar(text, options, new Date('2026-10-23T12:00:00Z'));
+    expect(result.events.map((e) => e.start)).toEqual(['2026-10-24T07:00:00.000Z', '2026-10-25T08:00:00.000Z', '2026-10-26T08:00:00.000Z']);
+    expect(result.events.map((e) => e.timeLabel)).toEqual(['09:00', '09:00', '09:00']);
+  });
   it('suppresses cancelled occurrences, moves overrides, and finds overrides moved into the window', async () => {
     const result = await parse(feed(
       event('DTSTART:20260328T100000Z\nDTEND:20260328T110000Z\nRRULE:FREQ=DAILY;COUNT=30\nSUMMARY:Daily'),
@@ -63,6 +80,8 @@ describe('bounded ICS agenda', () => {
     'BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nEND:VCALENDAR',
     feed(event('DTSTART:20260230T100000Z')),
     feed(event('DTSTART;TZID=Invented/Zone:20260328T100000')),
+    feed(event('DTSTART;TZID=Invented Standard Time:20260328T100000')),
+    feed(event('DTSTART;TZID="tzone://Microsoft/Custom":20260328T100000')),
     feed(event('DTSTART:20260328T100000Z\nRRULE:FREQ=SECONDLY')),
     feed(event('DTSTART:20260328T100000Z\nRDATE:20260330T100000Z')),
     feed(event('DTSTART:20260328T100000Z\nRECURRENCE-ID;RANGE=THISANDFUTURE:20260328T100000Z')),

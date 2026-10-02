@@ -6,6 +6,7 @@ import type { CalendarData, CalendarEvent } from '../types';
 export function runCalendarWorker(): void {
   const { parentPort, workerData } = require('node:worker_threads') as typeof import('node:worker_threads');
   const ical = require(workerData.icalPath) as typeof import('node-ical');
+  const windowsZones = require(require('node:path').join(require('node:path').dirname(workerData.icalPath), 'windowsZones.json')) as Record<string, { iana: string[] }>;
   const { text, timezone, days, limit, now } = workerData as {
     text: string; timezone: string; days: number; limit: number; now: number;
   };
@@ -33,7 +34,7 @@ export function runCalendarWorker(): void {
       if (line === 'VERSION:2.0' && stack.length === 1) version = true;
       if (stack[stack.length - 1] !== 'VEVENT') return line;
       const colon = line.indexOf(':');
-      const property = line.slice(0, colon);
+      let property = line.slice(0, colon);
       const name = property.split(';')[0];
       const value = line.slice(colon + 1);
       eventFields.add(name);
@@ -43,7 +44,13 @@ export function runCalendarWorker(): void {
       if (name === 'RRULE' && !/(?:^|;)FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(?:;|$)/.test(value)) throw new Error();
       if (!['DTSTART', 'DTEND', 'EXDATE', 'RECURRENCE-ID'].includes(name)) return line;
       const tz = /;TZID=(?:"([^"]+)"|([^;]+))/.exec(property);
-      if (tz) new Intl.DateTimeFormat('en', { timeZone: tz[1] ?? tz[2] });
+      if (tz) {
+        const name = tz[1] ?? tz[2];
+        // Reuse node-ical's known Outlook mappings, never its host-zone fallback for Custom zones.
+        const zone = windowsZones[name]?.iana?.[0] ?? name;
+        new Intl.DateTimeFormat('en', { timeZone: zone });
+        property = property.replace(tz[0], `;TZID=${zone}`);
+      }
       for (const date of value.split(',')) {
         const match = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/.exec(date);
         if (!match) throw new Error();
@@ -55,7 +62,7 @@ export function runCalendarWorker(): void {
       // Interpret floating wall-clock times in the user's chosen timezone,
       // independent of the server process timezone. DATE values stay dates.
       if (!tz && /T\d{6}(?:,|$)/.test(value)) return `${property};TZID=${timezone}:${value}`;
-      return line;
+      return `${property}:${value}`;
     });
     if (stack.length || !version) throw new Error();
     const calendar = ical.sync.parseICS(normalized.join('\r\n'));
