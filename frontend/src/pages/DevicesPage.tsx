@@ -2,6 +2,7 @@
 // DevicesPage.tsx
 // =========================================================================
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../lib/appContext';
 import { useAuth } from '../hooks/useAuth';
@@ -18,6 +19,21 @@ import { Icon } from '../components/ui/Logo';
 import { fmtAgo } from '../lib/mockData';
 import type { Device } from '../types';
 import { DeviceDeliveryCard } from '../components/dashboard/DeviceDeliveryCard';
+import { usePreferences } from '../hooks/usePreferences';
+import { deviceDashboardPath } from '../lib/deviceLayouts';
+
+function DeviceLayoutSummary({ deviceId }: { deviceId: string }) {
+  const { lang } = useApp();
+  const da = lang === 'da';
+  const query = usePreferences(deviceId);
+  const prefs = query.data;
+  if (query.isPending) return <p className="text-xs text-fg2">{da ? 'Indlæser layout…' : 'Loading layout…'}</p>;
+  if (query.isError || !prefs) return <p className="text-xs text-fg2">{da ? 'Layout utilgængeligt' : 'Layout unavailable'}</p>;
+  const pages = prefs.display_schedule?.pages ?? [];
+  const title = prefs.display_schedule?.enabled ? `${da ? 'Siderotation' : 'Page rotation'}: ${pages.map((page) => page.name).join(', ')}`
+    : `${da ? 'Layout' : 'Layout'}: ${pages.find((page) => page.id === prefs.active_layout_id)?.name ?? (da ? 'Grundlayout' : 'Base layout')}`;
+  return <p className="text-xs text-fg2 mb-0">{title}</p>;
+}
 
 function lastSeenMin(last_seen_at: string | null): number | null {
   const timestamp = last_seen_at ? Date.parse(last_seen_at) : NaN;
@@ -193,8 +209,10 @@ function DevicesForUser() {
                       </span>
                     ))}
                   </div>
+                  <DeviceLayoutSummary deviceId={d.id} />
                 </div>
                 <div className="flex gap-2 max-[560px]:justify-start">
+                  <Link className="text-sm underline self-center" to={deviceDashboardPath(d.id)}>{app.lang === 'da' ? 'Åbn enhed' : 'Open device'}</Link>
                   <Button variant="outlined" size="sm" icon="edit" onClick={() => openEdit(d)}>{t.edit}</Button>
                   <Button variant="danger-outlined" size="sm" icon="delete" onClick={() => setDialog({ type: 'remove', device: d })}>{t.remove}</Button>
                 </div>

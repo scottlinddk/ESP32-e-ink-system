@@ -2,16 +2,16 @@ import { frameMetadata } from '../utils/displayProfile';
 import { Router, Request, Response, NextFunction } from 'express';
 import { createClerkClient } from '@clerk/backend';
 import {
-  getPreferences,
   getApiKeys,
   getUserByEmail,
   upsertUser,
 } from '../services/database';
-import { buildDisplayData, DEFAULT_PREFS } from '../services/displayData';
+import { buildDisplayData } from '../services/displayData';
 import { renderDisplayData, renderDisplayDataRaw } from '../utils/bmpGenerator';
 import { requireAuth } from '../middleware/auth';
 import { LayoutValidationError, parseDisplayLayout } from '../utils/layoutValidation';
 import { layoutForDisplayData } from '../services/displaySchedule';
+import { parsePreviewDeviceId, resolveDevicePreferences } from '../services/deviceDisplays';
 
 const router = Router();
 
@@ -19,11 +19,12 @@ const router = Router();
 router.post('/preview/draft', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)
-      || Object.keys(req.body).some((key) => key !== 'layout')) {
-      res.status(400).json({ error: 'Submit only the draft layout.' });
+      || Object.keys(req.body).some((key) => !['layout', 'device_id'].includes(key))) {
+      res.status(400).json({ error: 'Submit only the draft layout and optional device_id.' });
       return;
     }
     const layout = parseDisplayLayout(req.body.layout);
+    const deviceId = parsePreviewDeviceId(req.body.device_id);
     const secretKey = process.env.CLERK_SECRET_KEY;
     if (!secretKey) { res.status(500).json({ error: 'Server misconfiguration' }); return; }
     const clerkUser = await createClerkClient({ secretKey }).users.getUser(req.clerkUserId!);
@@ -35,10 +36,10 @@ router.post('/preview/draft', requireAuth, async (req: Request, res: Response, n
     // All data belongs to the verified Clerk identity, never to submitted IDs.
     const user = await getUserByEmail(email);
     if (!user) { res.status(404).json({ error: 'Complete sign-in before previewing a layout.' }); return; }
-    const prefs = (await getPreferences(user.id)) ?? DEFAULT_PREFS;
+    const prefs = await resolveDevicePreferences(user.id, deviceId);
     const keys = await getApiKeys(user.id);
     const apiKeyMap = Object.fromEntries(keys.map((key) => [key.provider, key.api_key]));
-    const draftPrefs = prefs.display_schedule ? { ...prefs, display_schedule: null } : prefs;
+    const draftPrefs = prefs.display_schedule ? { ...prefs, display_schedule: null, ...(prefs.active_layout_id ? { active_layout_id: null } : {}) } : prefs;
     const data = await buildDisplayData(user.id, draftPrefs, apiKeyMap);
     const bmp = renderDisplayData(data, layout, prefs);
     res.setHeader('Content-Type', 'image/bmp');
@@ -91,6 +92,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      const deviceId = parsePreviewDeviceId(req.query.device_id);
       const clerkUserId = req.clerkUserId!;
       const secretKey = process.env.CLERK_SECRET_KEY;
       if (!secretKey) { res.status(500).json({ error: 'Server misconfiguration' }); return; }
@@ -103,7 +105,7 @@ router.get(
       if (!email) { res.status(400).json({ error: 'No email on Clerk user' }); return; }
 
       const user = await upsertUser(email);
-      const prefs = (await getPreferences(user.id)) ?? DEFAULT_PREFS;
+      const prefs = await resolveDevicePreferences(user.id, deviceId);
       const apiKeyRows = await getApiKeys(user.id);
       const apiKeyMap: Record<string, string> = {};
       for (const row of apiKeyRows) apiKeyMap[row.provider] = row.api_key;
@@ -132,6 +134,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      const deviceId = parsePreviewDeviceId(req.query.device_id);
       const clerkUserId = req.clerkUserId!;
 
       const secretKey = process.env.CLERK_SECRET_KEY;
@@ -153,7 +156,7 @@ router.get(
 
       const user = await upsertUser(email);
 
-      const prefs = (await getPreferences(user.id)) ?? DEFAULT_PREFS;
+      const prefs = await resolveDevicePreferences(user.id, deviceId);
       const apiKeyRows = await getApiKeys(user.id);
       const apiKeyMap: Record<string, string> = {};
       for (const row of apiKeyRows) {

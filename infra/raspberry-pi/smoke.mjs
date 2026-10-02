@@ -38,11 +38,12 @@ function checkFields(actual, expected, label) {
 const primaryKeys = {
   users: 'id', user_preferences: 'id', api_keys: 'id', devices: 'id',
   firmware_versions: 'id', api_usage: 'id', custom_webhooks: 'user_id',
-  device_delivery: 'device_id', orders: 'id',
+  device_delivery: 'device_id', device_displays: 'device_id', orders: 'id',
 };
 
 let fixtureId;
 let fixtureDeviceId;
+let transferOwnerId;
 try {
   for (const [table, primaryKey] of Object.entries(primaryKeys)) {
     for (const headers of [{}, { apikey: key }, { Authorization: 'Bearer invalid' }]) {
@@ -54,7 +55,7 @@ try {
   // Empty .single() must retain the error contract used in database.ts.
   const missing = await db.from('users').select('id').eq('id', randomUUID()).single();
   if (missing.error?.code !== 'PGRST116') throw new Error('Missing-row response is incompatible');
-  console.log('PASS: service-token access, denied anonymous/invalid access, all nine table primary keys, missing-row contract.');
+  console.log('PASS: service-token access, denied anonymous/invalid access, all ten table primary keys, missing-row contract.');
 
   if (args.includes('--write-test')) {
     fixtureId = randomUUID();
@@ -105,16 +106,47 @@ try {
     if (invalidBattery.error?.code !== '23514') throw new Error('Delivery battery constraint is missing');
     check(await db.from('device_delivery').delete().eq('device_id', fixtureDeviceId).eq('owner_id', fixtureId).select().single(), 'Delivery delete');
     check(await db.from('device_delivery').insert(delivery), 'Delivery cascade fixture');
+    const presentation = {
+      device_id: fixtureDeviceId, owner_id: fixtureId,
+      layout: { version: 1, cols: 10, rows: 6, widgets: [{ i: 'custom-text', x: 0, y: 0, w: 10, h: 6 }] },
+      display_schedule: newPreferences.display_schedule, active_layout_id: 'smoke',
+      display_profile: newPreferences.display_profile, display_timezone: 'Europe/Copenhagen', refresh_interval_minutes: 15,
+      revision: 1,
+    };
+    checkFields(check(await db.from('device_displays').upsert(presentation, { onConflict: 'device_id' }).select().single(), 'Device presentation'), presentation, 'Device presentation');
+    checkFields(check(await db.from('device_displays').update({ revision: 2 }).eq('device_id', fixtureDeviceId).eq('owner_id', fixtureId).eq('revision', 1).select().single(), 'Presentation revision'), { revision: 2 }, 'Presentation revision');
+    for (const invalid of [{ layout: [] }, { display_schedule: [] }, { display_profile: [] }, { active_layout_id: 'bad/id' }, { display_timezone: '' }, { refresh_interval_minutes: 0 }, { revision: 0 }]) {
+      const rejected = await db.from('device_displays').update(invalid).eq('device_id', fixtureDeviceId);
+      if (rejected.error?.code !== '23514') throw new Error('Device presentation constraint is missing');
+    }
+    check(await db.from('devices').update({ device_name: 'Preserve presentation' }).eq('id', fixtureDeviceId), 'Device rename');
+    checkFields(check(await db.from('device_displays').select('revision').eq('device_id', fixtureDeviceId).single(), 'Presentation after rename'), { revision: 2 }, 'Presentation after rename');
+    transferOwnerId = randomUUID();
+    check(await db.from('users').insert({ id: transferOwnerId, email: `migration-smoke-${transferOwnerId}@example.invalid` }), 'Transfer owner fixture');
+    check(await db.from('devices').update({ user_id: transferOwnerId }).eq('id', fixtureDeviceId), 'Device transfer');
+    if (check(await db.from('device_displays').select('device_id').eq('device_id', fixtureDeviceId).maybeSingle(), 'Transferred presentation') !== null) throw new Error('Device transfer retained previous owner presentation');
+    const staleOwnerWrite = await db.from('device_displays').insert(presentation);
+    if (staleOwnerWrite.error?.code !== '23503') throw new Error('Device presentation accepted a previous owner write');
+    check(await db.from('devices').update({ user_id: fixtureId }).eq('id', fixtureDeviceId), 'Return device ownership');
+    if (check(await db.from('device_displays').select('device_id').eq('device_id', fixtureDeviceId).maybeSingle(), 'Returned presentation') !== null) throw new Error('Returning ownership revived old presentation');
+    check(await db.from('device_displays').insert(presentation), 'Presentation cascade fixture');
     check(await db.from('firmware_versions').insert({ user_id: fixtureId, version: 'smoke', download_path: 'https://example.invalid/smoke.bin' }), 'Firmware');
     check(await db.from('firmware_versions').select('id').eq('user_id', fixtureId).eq('active', true).order('created_at', { ascending: false }).limit(1).single(), 'Latest firmware');
     check(await db.from('api_usage').insert({ user_id: fixtureId, endpoint: 'migration-smoke' }), 'Usage');
     check(await db.from('orders').insert({ user_id: fixtureId, status: 'migration-smoke' }), 'Orders');
-    console.log('PASS: SDK upserts, new preferences, webhook/device tokens and telemetry, CRUD, constraints and nullable device license.');
+    console.log('PASS: SDK upserts, preferences, device presentation ownership reset, tokens and telemetry, CRUD, constraints and nullable device license.');
   }
 } catch (error) {
   console.error(error instanceof Error ? error.message : 'Smoke test failed');
   process.exitCode = 1;
 } finally {
+  if (transferOwnerId) {
+    const cleanup = await db.from('users').delete().eq('id', transferOwnerId);
+    if (cleanup.error) {
+      console.error(`Transfer fixture cleanup failed; delete ONLY users.id=${transferOwnerId} on the Pi after investigation.`);
+      process.exitCode = 1;
+    }
+  }
   if (fixtureId) {
     const result = await db.from('users').delete().eq('id', fixtureId);
     if (result.error) {
@@ -123,11 +155,11 @@ try {
     } else {
       try {
         for (const [table, primaryKey] of Object.entries(primaryKeys)) {
-          const filter = table === 'users' ? 'id' : table === 'device_delivery' ? 'owner_id' : 'user_id';
+          const filter = table === 'users' ? 'id' : ['device_delivery', 'device_displays'].includes(table) ? 'owner_id' : 'user_id';
           const remaining = check(await db.from(table).select(primaryKey).eq(filter, fixtureId).limit(1), `Cleanup ${table}`);
           if (remaining.length) throw new Error(`Dependent fixture remains in ${table}`);
         }
-        console.log('PASS: fixture deleted and cascades verified across all nine tables.');
+        console.log('PASS: fixture deleted and cascades verified across all ten tables.');
       } catch (error) {
         console.error(error instanceof Error ? error.message : 'Cascade verification failed');
         process.exitCode = 1;

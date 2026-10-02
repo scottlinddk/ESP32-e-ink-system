@@ -44,6 +44,7 @@ export type EnergyPriceSettings = { mode: 'spot' } | {
 };
 
 export interface UserPreferences {
+  active_layout_id?: string | null;
   display_timezone?: string;
   show_custom_webhook?: boolean;
   custom_webhook_ttl_minutes?: number;

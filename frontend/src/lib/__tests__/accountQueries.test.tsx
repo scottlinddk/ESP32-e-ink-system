@@ -20,13 +20,13 @@ const preferences = (note: string) => ({ custom_text: note }) as UserPreferences
 describe('account-scoped dashboard queries', () => {
   beforeEach(() => { auth.userId = 'alice'; vi.clearAllMocks(); });
 
-  function probe(client: QueryClient) {
+  function probe(client: QueryClient, deviceId?: string) {
     let mutation: ReturnType<typeof useSavePreferences> | undefined;
     function Contents() {
-      const prefs = usePreferences();
+      const prefs = usePreferences(deviceId);
       const keys = useApiKeys();
       const preview = useDisplayPreview();
-      mutation = useSavePreferences();
+      mutation = useSavePreferences(deviceId);
       return <div>{JSON.stringify({ note: prefs.data?.custom_text, keys: keys.data, preview: preview.data })}</div>;
     }
     const markup = renderToString(<QueryClientProvider client={client}><Contents /></QueryClientProvider>);
@@ -68,6 +68,29 @@ describe('account-scoped dashboard queries', () => {
     await client.invalidateQueries({ queryKey: ['preferences'] });
     expect(client.getQueryState(['preferences', 'alice'])?.isInvalidated).toBe(true);
     expect(client.getQueryState(['preferences', 'bob'])?.isInvalidated).toBe(true);
+    client.clear();
+  });
+
+  it('separates two device caches from account defaults and keeps a late save on the captured device', async () => {
+    const client = new QueryClient();
+    client.setQueryData(['preferences', 'alice'], preferences('Shared'));
+    client.setQueryData(['preferences', 'alice', 'kitchen'], preferences('Kitchen'));
+    client.setQueryData(['preferences', 'alice', 'office'], preferences('Office'));
+    expect(probe(client, 'kitchen').markup).toContain('Kitchen');
+    expect(probe(client, 'office').markup).toContain('Office');
+    expect(probe(client, 'missing').markup).not.toMatch(/Kitchen|Office|Shared/);
+    let finish!: (result: { preferences: UserPreferences }) => void;
+    vi.mocked(savePreferences).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    const pending = probe(client, 'kitchen').mutation.mutateAsync({ display_timezone: 'UTC' });
+    await vi.waitFor(() => expect(savePreferences).toHaveBeenCalledWith('token-alice', { display_timezone: 'UTC' }, 'kitchen'));
+    expect(probe(client, 'office').markup).toContain('Office');
+    finish({ preferences: preferences('Updated kitchen') });
+    await pending;
+    expect(client.getQueryData(['preferences', 'alice', 'kitchen'])).toEqual(preferences('Updated kitchen'));
+    expect(client.getQueryData(['preferences', 'alice', 'office'])).toEqual(preferences('Office'));
+    expect(client.getQueryData(['preferences', 'alice'])).toEqual(preferences('Shared'));
+    auth.userId = 'bob';
+    expect(probe(client, 'kitchen').markup).not.toContain('kitchen');
     client.clear();
   });
 });

@@ -3,8 +3,9 @@ import { createHash } from 'node:crypto';
 import { requireAuth } from '../middleware/auth';
 import { getOrCreateUserFromClerk } from './preferences-helpers';
 import { authenticateDevice, DeviceNotFound, getDeliveryStatus, recordHeartbeat, revokeDeviceToken, rotateDeviceToken, validateHeartbeat } from '../services/deviceDelivery';
-import { getApiKeys, getPreferences } from '../services/database';
-import { buildDisplayData, DEFAULT_PREFS } from '../services/displayData';
+import { getApiKeys } from '../services/database';
+import { buildDisplayData } from '../services/displayData';
+import { resolveDevicePreferences } from '../services/deviceDisplays';
 import { renderDisplayData, renderDisplayDataRaw } from '../utils/bmpGenerator';
 import { frameMetadata } from '../utils/displayProfile';
 import { layoutForDisplayData, resolveDisplaySchedule } from '../services/displaySchedule';
@@ -58,7 +59,7 @@ feedRouter.get('/:id/frame', async (req, res) => {
   try {
     const startedAt = Date.now();
     const owner = res.locals.deviceOwner as string;
-    const prefs = await getPreferences(owner) ?? DEFAULT_PREFS;
+    const prefs = await resolveDevicePreferences(owner, req.params.id);
     const schedule = resolveDisplaySchedule(prefs);
     if (schedule.schedule?.quiet) {
       res.setHeader('Retry-After', String(remainingRetry(schedule.nextRefresh, Date.now(), schedule.schedule.nextTransitionAt)));

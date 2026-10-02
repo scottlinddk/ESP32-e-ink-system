@@ -6,10 +6,12 @@ A quiet, glanceable home dashboard for Danish electricity prices, weather, news,
 
 1. Sign in and open **Integrations** to choose your data sources.
 2. Follow each integration's setup guide, add its credentials if required, and save its source settings.
-3. Arrange widgets in the layout editor and use **Preview layout** to render the unsaved arrangement with your saved data sources. Save when ready; the Dashboard shows the saved display image.
+3. Open a device from **Devices**, create or select a named layout, and arrange its widgets in the layout editor. Use **Preview layout** to render the unsaved arrangement, then save. The Dashboard identifies the selected device.
 4. Use **Push to Display** to select bundled firmware in Bluetooth setup mode or a compatible OpenDisplay device and transfer a fresh image. Transfers are manual; refreshing the browser preview does not update the physical display.
 
 The [integration setup guide](docs/INTEGRATIONS.md) maps every source to its widget, including calendar subscriptions and Home Assistant sensor updates. Dashboard contains the preview, display settings, notes/images, templates and schedule; integration credentials and source controls are on **Integrations**.
+
+The [device workspace guide](docs/DEVICE_WORKSPACES.md) explains per-device layouts, switching layouts and migration 018. Shared content and legacy defaults are labelled separately from the selected device's settings.
 
 See the [integration and widget audit](docs/INTEGRATION_AUDIT.md) for supported behavior, provider compatibility fixes and validation limits.
 

@@ -7,7 +7,7 @@ import { createDraftPreview, EMPTY_DRAFT_PREVIEW, DraftPreviewState } from '../.
 import { Button } from '../ui/button';
 import { Spinner } from '../ui/Spinner';
 
-export function LayoutPreviewPane({ layout }: { layout: DisplayLayout }) {
+export function LayoutPreviewPane({ layout, deviceId }: { layout: DisplayLayout; deviceId?: string }) {
   const { t } = useApp();
   const { getToken, user } = useAuth();
   const [state, setState] = useState<DraftPreviewState>(EMPTY_DRAFT_PREVIEW);
@@ -15,7 +15,7 @@ export function LayoutPreviewPane({ layout }: { layout: DisplayLayout }) {
   const layoutKey = JSON.stringify(layout);
 
   // An edited layout or changed account invalidates the image and in-flight work.
-  useLayoutEffect(() => { preview.reset(); }, [preview, layoutKey, user?.id]);
+  useLayoutEffect(() => { preview.reset(); }, [preview, layoutKey, user?.id, deviceId]);
   useEffect(() => () => preview.dispose(), [preview]);
 
   function renderDraft() {
@@ -23,7 +23,7 @@ export function LayoutPreviewPane({ layout }: { layout: DisplayLayout }) {
       const token = await getToken();
       signal.throwIfAborted();
       if (!token) throw new Error(t.previewSignIn);
-      return fetchDraftPreviewBmp(token, layout, signal);
+      return fetchDraftPreviewBmp(token, layout, signal, deviceId);
     });
   }
 

@@ -30,12 +30,22 @@ def schema(table):
 def triggers(table):
     if table not in ("users", "user_preferences", "devices"):
         return []
-    return [{"name": f"update_{table}_updated_at", "type": 19, "enabled": "O", "function_schema": "public",
+    result = [{"name": f"update_{table}_updated_at", "type": 19, "enabled": "O", "function_schema": "public",
              "function_name": "update_updated_at_column",
              "definition": f"CREATE TRIGGER update_{table}_updated_at BEFORE UPDATE ON public.{table} FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
              "function_language": "plpgsql", "function_security_definer": False, "function_settings": None,
              "function_volatility": "v", "function_strict": False, "function_parallel": "u", "function_return_type": "trigger",
              "function_body_sha256": hashlib.sha256(b"BEGIN NEW.updated_at = now(); RETURN NEW; END;").hexdigest()}]
+    if table == "devices":
+        result.insert(0, {
+            "name": "clear_device_display_on_transfer", "type": 17, "enabled": "O", "function_schema": "public",
+            "function_name": "clear_device_display_on_transfer",
+            "definition": "CREATE TRIGGER clear_device_display_on_transfer AFTER UPDATE OF user_id ON public.devices FOR EACH ROW WHEN (old.user_id IS DISTINCT FROM new.user_id) EXECUTE FUNCTION clear_device_display_on_transfer()",
+            "function_language": "plpgsql", "function_security_definer": True, "function_settings": ["search_path=public"],
+            "function_volatility": "v", "function_strict": False, "function_parallel": "u", "function_return_type": "trigger",
+            "function_body_sha256": hashlib.sha256(b"BEGIN DELETE FROM public.device_displays WHERE device_id = NEW.id; RETURN NEW; END;").hexdigest(),
+        })
+    return result
 
 
 def header(table):
@@ -96,17 +106,21 @@ class SchemaTests(unittest.TestCase):
     def test_current_table_allowlist_and_dependency_order(self):
         self.assertEqual(migrate.TABLES, (
             "users", "user_preferences", "api_keys", "devices", "firmware_versions", "api_usage",
-            "custom_webhooks", "device_delivery", "orders",
+            "custom_webhooks", "device_delivery", "device_displays", "orders",
         ))
         self.assertEqual(migrate.PRIMARY_KEYS["custom_webhooks"], ("user_id",))
         self.assertEqual(migrate.PRIMARY_KEYS["device_delivery"], ("device_id",))
+        self.assertEqual(migrate.PRIMARY_KEYS["device_displays"], ("device_id",))
         self.assertLess(migrate.TABLES.index("devices"), migrate.TABLES.index("device_delivery"))
+        self.assertLess(migrate.TABLES.index("devices"), migrate.TABLES.index("device_displays"))
 
     def test_new_tables_preserve_credentials_and_telemetry_without_synthetic_ids(self):
         expected = {
             "custom_webhooks": {"user_id", "token_hash", "token_created_at", "rows", "observed_at", "received_at"},
             "device_delivery": {"device_id", "owner_id", "token_hash", "rotated_at", "revoked_at", "last_seen_at",
                                 "firmware_version", "battery_percent", "rssi", "last_applied_hash"},
+            "device_displays": {"device_id", "owner_id", "layout", "display_schedule", "active_layout_id", "display_profile",
+                                "display_timezone", "refresh_interval_minutes", "revision", "updated_at"},
         }
         for table, fields in expected.items():
             self.assertEqual(set(migrate.EXPECTED_COLUMNS[table]), fields)
@@ -144,7 +158,7 @@ class SchemaTests(unittest.TestCase):
 
     def test_every_tracked_check_is_required_and_bounds_cannot_be_weakened(self):
         self.assertEqual({table: len(checks) for table, checks in migrate.EXPECTED_CHECKS.items()},
-                         {"user_preferences": 8, "custom_webhooks": 2, "device_delivery": 4})
+                         {"user_preferences": 8, "custom_webhooks": 2, "device_delivery": 4, "device_displays": 7})
         for table in migrate.EXPECTED_CHECKS:
             for index, constraint in enumerate(migrate.EXPECTED_CONSTRAINTS[table]):
                 if constraint["type"] != "c":
@@ -160,7 +174,8 @@ class SchemaTests(unittest.TestCase):
                         migrate.check_relations(table, constraints, triggers(table))
         for table, before, after in (("user_preferences", "<= 1440", "<= 14400"),
                                      ("custom_webhooks", "<= 12", "<= 120"),
-                                     ("device_delivery", "<= 100::", "<= 1000::")):
+                                     ("device_delivery", "<= 100::", "<= 1000::"),
+                                     ("device_displays", "<= 1440", "<= 14400")):
             constraints = copy.deepcopy(migrate.EXPECTED_CONSTRAINTS[table])
             for constraint in constraints:
                 constraint["definition"] = constraint["definition"].replace(before, after)
@@ -199,6 +214,39 @@ class SchemaTests(unittest.TestCase):
             with self.assertRaisesRegex(migrate.MigrationError, "drift"):
                 migrate.check_relations("users", migrate.EXPECTED_CONSTRAINTS["users"], value)
 
+    def test_transfer_reset_trigger_cannot_be_removed_or_weakened(self):
+        with self.assertRaisesRegex(migrate.MigrationError, "Trigger drift"):
+            migrate.check_relations("devices", migrate.EXPECTED_CONSTRAINTS["devices"], triggers("devices")[1:])
+        for changes in ({"type": 19}, {"enabled": "D"}, {"function_security_definer": False},
+                        {"function_settings": None}, {"function_body_sha256": hashlib.sha256(b"RETURN NEW;").hexdigest()},
+                        {"definition": triggers("devices")[0]["definition"].replace("IS DISTINCT FROM", "=")}):
+            value = triggers("devices")
+            value[0].update(changes)
+            with self.assertRaisesRegex(migrate.MigrationError, "Trigger drift"):
+                migrate.check_relations("devices", migrate.EXPECTED_CONSTRAINTS["devices"], value)
+
+    def test_device_display_defaults_and_owner_foreign_keys_are_required(self):
+        for name in ("display_timezone", "refresh_interval_minutes", "revision", "updated_at"):
+            fields = schema("device_displays")
+            next(field for field in fields if field["name"] == name)["default"] = None
+            with self.assertRaisesRegex(migrate.MigrationError, "incompatible default"):
+                migrate.check_schema("device_displays", fields)
+        for key in ("device_id, owner_id", "owner_id"):
+            constraints = [item for item in migrate.EXPECTED_CONSTRAINTS["device_displays"]
+                           if not item["definition"].startswith(f"FOREIGN KEY ({key})")]
+            with self.assertRaisesRegex(migrate.MigrationError, "Constraint drift"):
+                migrate.check_relations("device_displays", constraints, [])
+
+    def test_owner_foreign_key_cannot_be_weakened_to_device_only(self):
+        constraints = copy.deepcopy(migrate.EXPECTED_CONSTRAINTS["device_displays"])
+        owner_key = next(item for item in constraints if item["definition"].startswith("FOREIGN KEY (device_id, owner_id)"))
+        owner_key["definition"] = "FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE"
+        with self.assertRaisesRegex(migrate.MigrationError, "Constraint drift"):
+            migrate.check_relations("device_displays", constraints, [])
+        constraints = [item for item in migrate.EXPECTED_CONSTRAINTS["devices"] if item["definition"] != "UNIQUE (id, user_id)"]
+        with self.assertRaisesRegex(migrate.MigrationError, "Constraint drift"):
+            migrate.check_relations("devices", constraints, triggers("devices"))
+
 
 class BundleTests(unittest.TestCase):
     def setUp(self):
@@ -229,12 +277,12 @@ class BundleTests(unittest.TestCase):
 
     def test_missing_table_file_rejected(self):
         (self.directory / "orders.csv").unlink()
-        with self.assertRaisesRegex(migrate.MigrationError, "9 CSV"):
+        with self.assertRaisesRegex(migrate.MigrationError, "10 CSV"):
             migrate.load_bundle(self.directory)
 
     def test_extra_file_rejected(self):
         (self.directory / "auth.csv").touch()
-        with self.assertRaisesRegex(migrate.MigrationError, "9 CSV"):
+        with self.assertRaisesRegex(migrate.MigrationError, "10 CSV"):
             migrate.load_bundle(self.directory)
 
     def test_manifest_cannot_select_external_file(self):
@@ -244,15 +292,22 @@ class BundleTests(unittest.TestCase):
             migrate.load_bundle(self.directory)
 
     def test_legacy_seven_table_bundle_is_rejected(self):
-        for table in ("custom_webhooks", "device_delivery"):
+        for table in ("custom_webhooks", "device_delivery", "device_displays"):
             self.manifest["tables"].pop(table)
             (self.directory / f"{table}.csv").unlink()
         write_manifest(self.directory, self.manifest)
-        with self.assertRaisesRegex(migrate.MigrationError, "9 CSV"):
+        with self.assertRaisesRegex(migrate.MigrationError, "10 CSV"):
+            migrate.load_bundle(self.directory)
+
+    def test_pre018_nine_table_bundle_is_rejected(self):
+        self.manifest["tables"].pop("device_displays")
+        (self.directory / "device_displays.csv").unlink()
+        write_manifest(self.directory, self.manifest)
+        with self.assertRaisesRegex(migrate.MigrationError, "10 CSV"):
             migrate.load_bundle(self.directory)
 
     def test_webhook_and_delivery_data_are_checksummed(self):
-        for table in ("custom_webhooks", "device_delivery"):
+        for table in ("custom_webhooks", "device_delivery", "device_displays"):
             with self.subTest(table=table):
                 path = self.directory / f"{table}.csv"
                 original = path.read_bytes()
@@ -399,7 +454,7 @@ class TransactionTests(unittest.TestCase):
         self.mocks["verify_rows"].side_effect = migrate.MigrationError("checksum")
         with self.assertRaisesRegex(migrate.MigrationError, "checksum"):
             migrate.import_bundle(self.conn, self.directory)
-        self.assertEqual(self.mocks["copy_in"].call_count, 9)
+        self.assertEqual(self.mocks["copy_in"].call_count, 10)
         self.assertEqual(self.conn.transaction.return_value.__exit__.call_args.args[0], migrate.MigrationError)
 
     def test_corrupt_bundle_does_not_open_transaction(self):
@@ -437,10 +492,10 @@ class GuardAndCLITests(unittest.TestCase):
         with patch.object(migrate, "count_rows", side_effect=lambda conn, table: int(table == "orders")) as count:
             with self.assertRaisesRegex(migrate.MigrationError, "orders"):
                 migrate.check_empty_target(MagicMock())
-            self.assertEqual(count.call_count, 9)
+            self.assertEqual(count.call_count, 10)
 
     def test_nonempty_new_table_blocks_import(self):
-        for table in ("custom_webhooks", "device_delivery"):
+        for table in ("custom_webhooks", "device_delivery", "device_displays"):
             with patch.object(migrate, "count_rows", side_effect=lambda conn, current: int(current == table)):
                 with self.assertRaisesRegex(migrate.MigrationError, table):
                     migrate.check_empty_target(MagicMock())
@@ -485,7 +540,7 @@ class GuardAndCLITests(unittest.TestCase):
 
 class CopyAndVerificationTests(unittest.TestCase):
     def test_copy_orders_complete_rows_by_each_actual_primary_key(self):
-        for table, key in (("users", "id"), ("custom_webhooks", "user_id"), ("device_delivery", "device_id")):
+        for table, key in (("users", "id"), ("custom_webhooks", "user_id"), ("device_delivery", "device_id"), ("device_displays", "device_id")):
             conn = MagicMock()
             copy_call = conn.cursor.return_value.__enter__.return_value.copy
             copy_call.return_value.__enter__.return_value.__iter__.return_value = iter([b"first", b"second"])
@@ -499,7 +554,7 @@ class CopyAndVerificationTests(unittest.TestCase):
             self.assertEqual((digest, size), (hashlib.sha256(b"firstsecond").hexdigest(), 11))
 
     def test_verify_detects_new_table_content_change_even_with_matching_count(self):
-        for changed_table in ("custom_webhooks", "device_delivery"):
+        for changed_table in ("custom_webhooks", "device_delivery", "device_displays"):
             with tempfile.TemporaryDirectory() as directory:
                 manifest = make_bundle(Path(directory))
                 def copied(conn, table):

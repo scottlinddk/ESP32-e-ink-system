@@ -29,17 +29,17 @@ export interface Heartbeat {
   // Omitted means unchanged (legacy clients); null explicitly clears an unknown panel state.
   last_applied_hash?: string | null;
 }
-export class DeviceNotFound extends Error {}
+export class DeviceNotFound extends Error { readonly statusCode = 404; }
 export const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
 
-async function assertOwner(owner: string, deviceId: string): Promise<void> {
+export async function assertDeviceOwner(owner: string, deviceId: string): Promise<void> {
   const { data, error } = await getSupabaseClient().from('devices').select('id').eq('id', deviceId).eq('user_id', owner).maybeSingle();
   if (error) throw new Error('Unable to check device ownership');
   if (!data) throw new DeviceNotFound('Device not found');
 }
 
 export async function getDeliveryStatus(owner: string, deviceId: string): Promise<DeliveryStatus> {
-  await assertOwner(owner, deviceId);
+  await assertDeviceOwner(owner, deviceId);
   const { data, error } = await getSupabaseClient().from('device_delivery').select('*').eq('device_id', deviceId).maybeSingle();
   if (error) throw new Error('Unable to load device delivery status');
   // Credentials/reports issued to an earlier owner never follow a reassignment.
@@ -53,7 +53,7 @@ export async function getDeliveryStatus(owner: string, deviceId: string): Promis
 
 /** Only the creation response contains the plaintext token. Never store/log it. */
 export async function rotateDeviceToken(owner: string, deviceId: string): Promise<string> {
-  await assertOwner(owner, deviceId);
+  await assertDeviceOwner(owner, deviceId);
   const token = `einkd_${randomBytes(32).toString('base64url')}`;
   const { error } = await getSupabaseClient().from('device_delivery').upsert({
     device_id: deviceId, owner_id: owner, token_hash: tokenHash(token), rotated_at: new Date().toISOString(), revoked_at: null,
@@ -64,7 +64,7 @@ export async function rotateDeviceToken(owner: string, deviceId: string): Promis
 }
 
 export async function revokeDeviceToken(owner: string, deviceId: string): Promise<void> {
-  await assertOwner(owner, deviceId);
+  await assertDeviceOwner(owner, deviceId);
   const { error } = await getSupabaseClient().from('device_delivery').update({ token_hash: null, revoked_at: new Date().toISOString() }).eq('device_id', deviceId);
   if (error) throw new Error('Unable to revoke device token');
 }

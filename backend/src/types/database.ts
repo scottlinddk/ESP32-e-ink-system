@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      device_displays: {
+        Row: {
+          device_id: string
+          owner_id: string
+          layout: Json | null
+          display_schedule: Json | null
+          active_layout_id: string | null
+          display_profile: Json | null
+          display_timezone: string
+          refresh_interval_minutes: number
+          revision: number
+          updated_at: string
+        }
+        Insert: {
+          device_id: string
+          owner_id: string
+          layout?: Json | null
+          display_schedule?: Json | null
+          active_layout_id?: string | null
+          display_profile?: Json | null
+          display_timezone?: string
+          refresh_interval_minutes?: number
+          revision?: number
+          updated_at?: string
+        }
+        Update: {
+          device_id?: string
+          owner_id?: string
+          layout?: Json | null
+          display_schedule?: Json | null
+          active_layout_id?: string | null
+          display_profile?: Json | null
+          display_timezone?: string
+          refresh_interval_minutes?: number
+          revision?: number
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "device_displays_device_owner_fkey"; columns: ["device_id", "owner_id"]; isOneToOne: true; referencedRelation: "devices"; referencedColumns: ["id", "user_id"] },
+          { foreignKeyName: "device_displays_owner_id_fkey"; columns: ["owner_id"]; isOneToOne: false; referencedRelation: "users"; referencedColumns: ["id"] },
+        ]
+      }
       active_alerts: {
         Row: {
           device_id: string

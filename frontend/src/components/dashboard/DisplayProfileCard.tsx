@@ -4,28 +4,30 @@ import { DEFAULT_DISPLAY_PROFILE, parseDisplayProfile, DisplayProfile } from '..
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 
-export function DisplayProfileCard() {
-  const preferences = usePreferences();
-  const save = useSavePreferences();
+export function DisplayProfileCard({ deviceId }: { deviceId?: string }) {
+  const preferences = usePreferences(deviceId);
+  const save = useSavePreferences(deviceId);
   const [profile, setProfile] = useState<DisplayProfile>(DEFAULT_DISPLAY_PROFILE);
+  const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState('');
-  useEffect(() => { if (preferences.data) setProfile(preferences.data.display_profile ?? DEFAULT_DISPLAY_PROFILE); }, [preferences.data]);
+  useEffect(() => { if (preferences.data && !dirty) setProfile(preferences.data.display_profile ?? DEFAULT_DISPLAY_PROFILE); }, [preferences.data, dirty]);
+  function change(next: DisplayProfile) { setProfile(next); setDirty(true); setMessage(''); }
   async function submit() {
     setMessage('');
-    try { await save.mutateAsync({ display_profile: parseDisplayProfile(profile) }); setMessage('Display profile saved.'); }
+    try { await save.mutateAsync({ display_profile: parseDisplayProfile(profile) }); setDirty(false); setMessage('Display profile saved.'); }
     catch (error) { setMessage((error as Error).message); }
   }
   return <Card title="Display size and orientation" desc="Use the native panel dimensions. Bluetooth checks the connected display before sending.">
-    <div className="grid gap-3">
-      <label>Preset <select className="w-full border rounded p-2" value="" onChange={(event) => { const [width,height] = event.target.value.split('x').map(Number); if (width && height) setProfile({ ...profile, width, height }); }}>
+    <fieldset disabled={save.isPending || preferences.isPending || preferences.isError || !preferences.data} className="grid gap-3 border-0 p-0 m-0">
+      <label>Preset <select className="w-full border rounded p-2" value="" onChange={(event) => { const [width,height] = event.target.value.split('x').map(Number); if (width && height) change({ ...profile, width, height }); }}>
         <option value="">Choose a size</option><option value="250x122">250 × 122</option><option value="400x300">400 × 300</option><option value="800x480">800 × 480</option><option value="800x600">800 × 600</option><option value="1200x825">1200 × 825</option>
       </select></label>
-      <div className="grid grid-cols-2 gap-3">{(['width','height'] as const).map((key) => <label key={key}>{key === 'width' ? 'Native width' : 'Native height'}<input className="w-full border rounded p-2" type="number" min={64} max={1600} value={profile[key]} onChange={(event) => setProfile({ ...profile, [key]: Number(event.target.value) })} /></label>)}</div>
-      <label>Content rotation <select className="w-full border rounded p-2" value={profile.rotation} onChange={(event) => setProfile({ ...profile, rotation: Number(event.target.value) as DisplayProfile['rotation'] })}>{[0,90,180,270].map((angle) => <option key={angle} value={angle}>{angle}° clockwise</option>)}</select></label>
+      <div className="grid grid-cols-2 gap-3">{(['width','height'] as const).map((key) => <label key={key}>{key === 'width' ? 'Native width' : 'Native height'}<input className="w-full border rounded p-2" type="number" min={64} max={1600} value={profile[key]} onChange={(event) => change({ ...profile, [key]: Number(event.target.value) })} /></label>)}</div>
+      <label>Content rotation <select className="w-full border rounded p-2" value={profile.rotation} onChange={(event) => change({ ...profile, rotation: Number(event.target.value) as DisplayProfile['rotation'] })}>{[0,90,180,270].map((angle) => <option key={angle} value={angle}>{angle}° clockwise</option>)}</select></label>
       <p className="text-xs text-fg2 m-0">Monochrome output. The bundled firmware supports 250 × 122 Bluetooth updates in setup mode. The separate OpenDisplay path requires a width divisible by 8. A size preset does not install a panel driver.</p>
       <Button onClick={submit} disabled={save.isPending || preferences.isLoading || preferences.isError}>Save display profile</Button>
       {preferences.isError && <p role="alert">Display settings could not be loaded.</p>}
       {message && <p role="status" className="text-sm">{message}</p>}
-    </div>
+    </fieldset>
   </Card>;
 }

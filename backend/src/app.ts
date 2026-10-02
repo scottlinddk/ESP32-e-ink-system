@@ -10,6 +10,7 @@ import healthRouter from './routes/health';
 import authRouter from './routes/auth';
 import preferencesRouter from './routes/preferences';
 import devicesRouter from './routes/devices';
+import deviceDisplaysRouter from './routes/deviceDisplays';
 import displayDataRouter from './routes/display-data';
 import firmwareRouter from './routes/firmware';
 import imageRouter from './routes/image';
@@ -91,6 +92,7 @@ app.use('/image', displayLimiter);
 // Body parsing
 // A 512x512 one-bit custom image fits within this bounded preferences payload.
 app.use('/preferences', express.json({ limit: '64kb' }));
+app.use('/devices', express.json({ limit: '40kb' }));
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: false }));
 
@@ -101,6 +103,7 @@ app.use('/firmware', firmwareAssetsRouter);
 app.use('/auth', authRouter);
 app.use('/preferences', preferencesRouter);
 app.use('/devices', devicesRouter);
+app.use('/devices', deviceDisplaysRouter);
 app.use('/devices', deliveryManagementRouter);
 app.use('/device-feed', feedRouter);
 app.use('/firmware', firmwareRouter);

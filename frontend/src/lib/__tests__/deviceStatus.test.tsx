@@ -1,4 +1,5 @@
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,7 +27,7 @@ describe('device status header', () => {
       id: 'device-a', device_id: 'hardware-a', device_name: 'Kitchen', ble_name: null,
       license_key: null, firmware_version: null, last_seen_at: null, ...fields,
     }] });
-    const html = renderToStaticMarkup(<QueryClientProvider client={client}><DevicesPage /></QueryClientProvider>);
+    const html = renderToStaticMarkup(<MemoryRouter><QueryClientProvider client={client}><DevicesPage /></QueryClientProvider></MemoryRouter>);
     client.clear();
     return html;
   }

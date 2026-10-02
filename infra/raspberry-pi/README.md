@@ -10,7 +10,7 @@ with PostgreSQL 17 and PostgREST while retaining the current app and Clerk login
 | `preflight.sh`, `start-postgres.sh` | Verify SSD identity, storage separation and host capacity |
 | `memory_budget.py` | Check the 4 GB host's total/available RAM and existing container growth allowance |
 | `generate-secrets.py` | Create private database credentials and backend service JWT |
-| `migrate.py` | Inspect source; export, atomically import and verify all nine app tables |
+| `migrate.py` | Inspect source; export, atomically import and verify all ten app tables |
 | `smoke.mjs` | Test authentication and real Supabase SDK operations |
 | `backup.sh`, `restore.sh` | Create checksummed backups and rehearse isolated recovery |
 | `systemd/`, `cloudflared.yml.example` | Separate backup schedule and HTTPS tunnel |
@@ -20,6 +20,12 @@ Investor retains its database, Tailscale routes and private storage. E-ink uses
 `/srv/esp32-eink`, never `/srv/investor`. Confirm the Pi's real SSD layout first.
 Preserve the existing backend `ENCRYPTION_KEY` when moving encrypted provider keys.
 Keep Supabase until the rehearsal, cutover checks and off-device recovery pass.
+
+The current schema includes migration `018_device_displays.sql`. Existing databases
+must apply it and the updated service permissions before the new backend is deployed;
+the Pi gateway allowlist must also be reloaded. Follow the runbook's
+[018 upgrade steps](../../docs/RASPBERRY_PI_DATABASE_MIGRATION.md#upgrade-an-existing-database-for-device-presentations-018).
+Retain matching older recovery tools for backups made before the tenth table existed.
 
 The default profile targets the confirmed Pi 4B with 4 GB RAM and a 500 GB SSD:
 800 MiB of steady e-ink memory ceilings including the tunnel. The application

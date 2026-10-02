@@ -7,11 +7,11 @@ import { Input } from '../ui/input';
 
 const TIMEZONES = ['Europe/Copenhagen', 'Europe/London', 'Europe/Berlin', 'America/New_York', 'America/Los_Angeles', 'Asia/Tokyo', 'Australia/Sydney', 'UTC'];
 
-export function DisplayTimezoneCard() {
+export function DisplayTimezoneCard({ deviceId }: { deviceId?: string }) {
   const { lang } = useApp();
   const da = lang === 'da';
-  const preferences = usePreferences();
-  const save = useSavePreferences();
+  const preferences = usePreferences(deviceId);
+  const save = useSavePreferences(deviceId);
   const [timezone, setTimezone] = useState('Europe/Copenhagen');
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState('');

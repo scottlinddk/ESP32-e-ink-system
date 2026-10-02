@@ -1,7 +1,7 @@
 // =========================================================================
 // LayoutEditorPage.tsx — full-page drag-and-drop layout editor
 // =========================================================================
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../lib/appContext';
@@ -16,16 +16,25 @@ import { Button } from '../components/ui/button';
 import { LoadBox } from '../components/ui/Spinner';
 import { Empty } from '../components/ui/Empty';
 import { Icon } from '../components/ui/Logo';
+import { getDevices } from '../lib/api';
+import { deviceDashboardPath } from '../lib/deviceLayouts';
 
 const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'status'] as const;
 
 export function LayoutEditorPage() {
+  const { user } = useAuth();
+  const [params] = useSearchParams();
+  return <LayoutEditorWorkspace key={`${user?.id}:${params.get('device') ?? 'shared'}:${params.get('page') ?? 'base'}`} />;
+}
+
+function LayoutEditorWorkspace() {
   const app = useApp();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const pageId = searchParams.get('page');
+  const deviceId = searchParams.get('device') ?? undefined;
   const queryClient = useQueryClient();
-  const { getToken } = useAuth();
+  const { getToken, user } = useAuth();
   const t = app.t;
 
   const widgetMeta: Record<string, WIDGET_META> = {
@@ -48,15 +57,24 @@ export function LayoutEditorPage() {
   const [loadError, setLoadError] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [pageName, setPageName] = useState<string | null>(null);
+  const [deviceName, setDeviceName] = useState<string | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   useEffect(() => {
     let cancelled = false;
     setLoadingPrefs(true);
     setLoadError(false);
+    if (deviceId === '') { setLoadError(true); setLoadingPrefs(false); return; }
     getToken().then(async (authToken) => {
       if (!authToken) throw new Error('Not authenticated');
-      const { preferences } = await getPreferences(authToken);
+      const [{ preferences }, devices] = await Promise.all([getPreferences(authToken, deviceId), deviceId ? getDevices(authToken) : Promise.resolve(null)]);
       if (cancelled) return;
+      if (deviceId) {
+        const device = devices?.devices.find((item) => item.id === deviceId);
+        if (!device) throw new Error('Device no longer exists');
+        setDeviceName(device.device_name);
+      }
       if (pageId) {
         const page = preferences.display_schedule?.pages.find((item) => item.id === pageId);
         if (!page) throw new Error('Scheduled page no longer exists');
@@ -72,7 +90,7 @@ export function LayoutEditorPage() {
       if (!cancelled) setLoadingPrefs(false);
     });
     return () => { cancelled = true; };
-  }, [getToken, loadAttempt, pageId]);
+  }, [getToken, loadAttempt, pageId, deviceId]);
 
   const activeWidgetIds = new Set(layout.widgets.map((w) => w.i));
   const availableWidgets = ALL_WIDGET_IDS.filter((id) => !activeWidgetIds.has(id));
@@ -98,23 +116,24 @@ export function LayoutEditorPage() {
       if (pageId) {
         // Read the current schedule so editing one page preserves its current order
         // and the other pages, even if those changed after opening the editor.
-        const { preferences } = await getPreferences(token);
+        const { preferences } = await getPreferences(token, deviceId);
         const schedule = preferences.display_schedule;
         if (!schedule?.pages.some((page) => page.id === pageId)) throw new Error('Scheduled page no longer exists');
         await savePreferences(token, { display_schedule: {
           ...schedule, pages: schedule.pages.map((page) => page.id === pageId ? { ...page, layout } : page),
-        } });
+        } }, deviceId);
       } else {
-        await saveLayout(token, layout);
+        await saveLayout(token, layout, deviceId);
       }
-      queryClient.invalidateQueries({ queryKey: ['preferences'] });
-      queryClient.invalidateQueries({ queryKey: ['preview'] });
+      queryClient.invalidateQueries({ queryKey: deviceId ? ['preferences', user?.id, deviceId] : ['preferences', user?.id] });
+      queryClient.invalidateQueries({ queryKey: deviceId ? ['preview', user?.id, deviceId] : ['preview', user?.id] });
+      if (!mounted.current) return;
       app.toast({ type: 'success', title: t.layoutSaved, msg: t.layoutSavedMsg });
-      navigate('/dashboard');
+      navigate(deviceDashboardPath(deviceId));
     } catch {
-      app.toast({ type: 'error', title: t.layoutSaveFailed });
+      if (mounted.current) app.toast({ type: 'error', title: t.layoutSaveFailed });
     } finally {
-      setSaving(false);
+      if (mounted.current) setSaving(false);
     }
   }
 
@@ -142,11 +161,12 @@ export function LayoutEditorPage() {
         <div>
           <h1 className="text-h2 font-light tracking-tight m-0 mb-1.5">{t.layoutTitle}</h1>
           <p className="text-fg2 text-body m-0">{t.layoutSub}</p>
+          <p className="text-sm text-fg2 mt-2">{deviceName ? `${app.lang === 'da' ? 'Enhed' : 'Device'}: ${deviceName}` : (app.lang === 'da' ? 'Fælles grundindstillinger for enheder uden egne indstillinger' : 'Shared defaults for devices without their own settings')}</p>
           {pageName && <p className="text-sm text-fg2 mt-2">{app.lang === 'da' ? 'Side' : 'Page'}: {pageName}</p>}
         </div>
         <div className="flex gap-2 flex-shrink-0 flex-wrap">
           <Button variant="outlined" onClick={handleReset} icon="restart_alt">{t.layoutReset}</Button>
-          <Button variant="outlined" onClick={() => navigate('/dashboard')}>{t.layoutCancel}</Button>
+          <Button variant="outlined" onClick={() => navigate(deviceDashboardPath(deviceId))}>{t.layoutCancel}</Button>
           <Button onClick={handleSave} disabled={saving} loading={saving}>
             {saving ? t.layoutSaving : t.layoutSave}
           </Button>
@@ -178,7 +198,7 @@ export function LayoutEditorPage() {
         {/* Sidebar: preview + palette */}
         <div className="sticky top-20 max-[900px]:static flex flex-col gap-4">
           <Card title={t.layoutPreviewTitle}>
-            <LayoutPreviewPane layout={layout} />
+            <LayoutPreviewPane layout={layout} deviceId={deviceId} />
           </Card>
 
           {availableWidgets.length > 0 && (

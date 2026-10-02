@@ -11,14 +11,15 @@ import { Spinner } from '../ui/Spinner';
 import { Icon } from '../ui/Logo';
 import { fetchPreviewBmp, fetchPreviewFrame } from '../../lib/api';
 import { bleImagePush, BleSelectionCancelledError } from '../../lib/bleImagePush';
+import { deviceLayoutPath } from '../../lib/deviceLayouts';
 
 type PushState = 'idle' | 'selecting' | 'fetching' | 'pushing' | 'refreshing' | 'done' | 'error';
 
-export function PreviewCard() {
+export function PreviewCard({ deviceId, deviceName }: { deviceId?: string; deviceName?: string }) {
   const { t } = useApp();
   const navigate = useNavigate();
   const { getToken, isSignedIn, user } = useAuth();
-  const { data: preferences } = usePreferences();
+  const { data: preferences } = usePreferences(deviceId);
   const timezone = preferences?.display_timezone ?? 'Europe/Copenhagen';
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [pushState, setPushState] = useState<PushState>('idle');
@@ -29,12 +30,12 @@ export function PreviewCard() {
   // Preference and credential saves invalidate the common ['preview'] prefix.
   // Cache the Blob, not its object URL: each mounted view owns and releases its URL.
   const preview = useQuery({
-    queryKey: ['preview', 'bmp', user?.id],
+    queryKey: ['preview', user?.id, deviceId, 'bmp'],
     enabled: isSignedIn && !!user?.id,
     queryFn: async ({ signal }) => {
       const token = await getToken();
       if (!token) throw new Error(t.previewSignIn);
-      return fetchPreviewBmp(token, signal);
+      return fetchPreviewBmp(token, signal, deviceId);
     },
     staleTime: 60_000,
     refetchInterval: 60_000,
@@ -59,7 +60,7 @@ export function PreviewCard() {
           setPushState('fetching');
           const token = await getToken();
           if (!token) throw new Error(t.previewSignIn);
-          return fetchPreviewFrame(token);
+          return fetchPreviewFrame(token, deviceId);
         },
         onProgress: ({ sent, total }) => {
           setPushState('pushing');
@@ -83,7 +84,7 @@ export function PreviewCard() {
   const updatedAt = preview.dataUpdatedAt ? new Date(preview.dataUpdatedAt) : null;
 
   return (
-    <Card icon="preview" title={t.previewTitle} desc={t.previewSub}>
+    <Card icon="preview" title={deviceName ? `${t.previewTitle} · ${deviceName}` : t.previewTitle} desc={t.previewSub}>
       <div className="flex flex-col gap-3">
         <p className="text-xs text-fg2 m-0">{t.previewSavedSettings}</p>
         <div className="eink-bezel w-full" aria-busy={preview.isFetching}>
@@ -123,7 +124,7 @@ export function PreviewCard() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button variant="outlined" size="sm" icon="grid_view" onClick={() => navigate('/layout')}>
+          <Button variant="outlined" size="sm" icon="grid_view" onClick={() => navigate(deviceLayoutPath(deviceId, preferences?.display_schedule?.enabled ? undefined : preferences?.active_layout_id ?? undefined))}>
             {t.layoutEditLayout}
           </Button>
           <Button variant="outlined" size="sm" icon="refresh" onClick={() => void preview.refetch()} disabled={preview.isFetching}>
