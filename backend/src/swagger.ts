@@ -60,6 +60,7 @@ const options: swaggerJsdoc.Options = {
               enum: ['DK1', 'DK2'],
               example: 'DK1',
             },
+            energy_price_settings: { $ref: '#/components/schemas/EnergyPriceSettings' },
             weather_location: {
               type: 'string',
               example: '55.3,10.4',
@@ -80,11 +81,24 @@ const options: swaggerJsdoc.Options = {
             refresh_interval_minutes: { type: 'integer', example: 30 },
           },
         },
+        EnergyPriceSettings: {
+          description: 'Atomic price profile. Defaults to spot. Consumer estimates standard household variable costs, excluding fixed subscriptions; select the actual grid tariff and contract markup.',
+          oneOf: [
+            { type: 'object', additionalProperties: false, required: ['mode'], properties: { mode: { type: 'string', enum: ['spot'] } } },
+            { type: 'object', additionalProperties: false, required: ['mode', 'gridGln', 'gridChargeCodes', 'retailerMarkupOre'], properties: {
+              mode: { type: 'string', enum: ['consumer'] },
+              gridGln: { type: 'string', pattern: '^\\d{13}$', example: '5790000705689' },
+              gridChargeCodes: { type: 'array', minItems: 1, maxItems: 5, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 20 }, example: ['DT_C_01'], description: 'Required additive D03 tariff codes; expired or missing codes make the price unavailable.' },
+              retailerMarkupOre: { type: 'number', minimum: -1000, maximum: 1000, description: 'Supplier markup in øre/kWh excluding VAT, from the customer contract.' },
+            } },
+          ],
+        },
         EnergyPrice: {
           type: 'object',
           properties: {
             now: { type: 'number', description: 'Current price in øre/kWh' },
-            average: { type: 'number', description: 'Daily average in øre/kWh' },
+            average: { type: 'number', description: 'Mean of available interval prices today in Europe/Copenhagen, using each interval tariff in consumer mode, in øre/kWh' },
+            basis: { type: 'string', enum: ['consumer'], description: 'Present for estimated variable consumer cost including VAT and excluding fixed fees. Absent means spot excluding VAT, taxes and tariffs.' },
             trend: { type: 'string', enum: ['up', 'down', 'stable'] },
           },
         },

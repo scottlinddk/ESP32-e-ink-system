@@ -117,7 +117,7 @@ class SchemaTests(unittest.TestCase):
     def test_new_preference_fields_and_nullability_are_required(self):
         required = {"news_source", "news_feed_url", "news_item_limit", "show_custom_text", "custom_text",
                     "show_custom_image", "show_calendar", "calendar_timezone", "calendar_days", "calendar_item_limit",
-                    "show_custom_webhook", "custom_webhook_ttl_minutes", "display_timezone"}
+                    "show_custom_webhook", "custom_webhook_ttl_minutes", "display_timezone", "energy_price_settings"}
         optional = {"display_profile", "custom_image", "display_schedule"}
         for name in required | optional:
             with self.subTest(column=name):
@@ -131,6 +131,14 @@ class SchemaTests(unittest.TestCase):
         zone = next(field for field in fields if field["name"] == "display_timezone")
         self.assertEqual(zone["default"], "'Europe/Copenhagen'::text")
         zone["default"] = "'UTC'::text"
+        with self.assertRaises(migrate.MigrationError):
+            migrate.check_schema("user_preferences", fields)
+
+    def test_energy_price_settings_default_must_preserve_spot_mode(self):
+        fields = schema("user_preferences")
+        settings = next(field for field in fields if field["name"] == "energy_price_settings")
+        self.assertEqual(settings["default"], "'{\"mode\": \"spot\"}'::jsonb")
+        settings["default"] = None
         with self.assertRaises(migrate.MigrationError):
             migrate.check_schema("user_preferences", fields)
 

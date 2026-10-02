@@ -183,7 +183,7 @@ after startup; keep the full preflight before the initial deployment.
 
 Applies only when a live source database exists. The transfer allowlist is `users`, `user_preferences`, `api_keys`, `devices`,
 `firmware_versions`, `api_usage`, `custom_webhooks`, `device_delivery`, and `orders`.
-The target applies all tracked SQL migrations through `016_display_timezone.sql`,
+The target applies all tracked SQL migrations through `017_energy_price_settings.sql`,
 including both `002` migrations. IDs, foreign keys, timestamps, JSONB values,
 encrypted provider credentials, webhook token hashes, device token hashes and
 delivery telemetry are copied without transformation. Display schedules and

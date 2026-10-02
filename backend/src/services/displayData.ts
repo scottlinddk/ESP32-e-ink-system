@@ -35,6 +35,7 @@ export const DEFAULT_PREFS: UserPreferences = {
   calendar_days: 7,
   calendar_item_limit: 5,
   energy_price_location: 'DK1',
+  energy_price_settings: { mode: 'spot' },
   weather_location: '55.3,10.4',
   news_language: 'da',
   news_source: 'newsapi',
@@ -102,7 +103,7 @@ export async function buildDisplayData(
 
   if (prefs.show_energy_price) {
     tasks.push(
-      withSourceDeadline((signal) => fetchEnergyPrice(prefs.energy_price_location, signal))
+      withSourceDeadline((signal) => fetchEnergyPrice(prefs.energy_price_location, signal, prefs.energy_price_settings))
         .then((price) => {
           result.price = price;
         })

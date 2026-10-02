@@ -1,4 +1,5 @@
 import type { DisplayProfile } from '../utils/displayProfile';
+import type { EnergyPriceSettings } from '../utils/energyPriceSettings';
 export interface WidgetLayout {
   i: string;       // 'energy' | 'weather' | 'news' | 'status'
   x: number;       // 0–9
@@ -39,6 +40,7 @@ export interface UserPreferences {
   show_monta: boolean;
   show_zaptec: boolean;
   energy_price_location: string; // 'DK1' | 'DK2'
+  energy_price_settings?: EnergyPriceSettings;
   weather_location: string; // 'lat,lng'
   news_language: string; // 'da' | 'en'
   news_source?: 'newsapi' | 'rss';
@@ -56,6 +58,7 @@ export interface UserPreferences {
 }
 
 export interface EnergyPrice {
+  basis?: 'consumer'; // Estimated variable cost incl. VAT; absent means untaxed spot.
   now: number; // øre/kWh
   average: number; // average of available intervals today, Europe/Copenhagen
   trend: 'up' | 'down' | 'stable';

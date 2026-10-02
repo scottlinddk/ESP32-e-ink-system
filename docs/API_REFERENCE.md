@@ -453,3 +453,7 @@ All errors return JSON with an `error` field:
 | NewsAPI (headlines) | 1 hour |
 
 The cache is in-memory per server instance. Restarts clear the cache.
+
+### Electricity price basis
+
+`energy_price_settings` defaults to `{"mode":"spot"}`. To estimate variable consumer costs, send the complete consumer profile with `mode`, `gridGln` (13 digits), `gridChargeCodes` (1–5 unique required codes) and `retailerMarkupOre` (finite number, -1000 to 1000, excluding VAT). See [setup, JSON example and tariff sources](ELECTRICITY_PRICES.md). The response's optional `price.basis: "consumer"` identifies an estimate including VAT and excluding fixed fees; absent means untaxed spot. The average uses each interval's tariff, and unavailable required tariffs leave the price unavailable.

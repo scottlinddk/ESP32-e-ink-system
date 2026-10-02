@@ -99,6 +99,15 @@ afterEach(() => {
 });
 
 describe('live display data', () => {
+  it('passes saved electricity profiles to the shared render pipeline and preserves tariff failures as unavailable', async () => {
+    const energy_price_settings = { mode: 'consumer' as const, gridGln: '5790000705689', gridChargeCodes: ['DT_C_01'], retailerMarkupOre: 5 };
+    await buildDisplayData('user-test', { ...prefs, energy_price_settings }, credentials);
+    expect(fetchEnergyPrice).toHaveBeenCalledWith(prefs.energy_price_location, expect.any(AbortSignal), energy_price_settings);
+    vi.mocked(fetchEnergyPrice).mockRejectedValue(new Error('No active electricity tariff'));
+    const result = await buildDisplayData('user-test', { ...prefs, energy_price_settings }, credentials);
+    expect(result.price).toBeUndefined();
+    expect(result.weather).toEqual(liveData.weather);
+  });
   it('uses the encrypted calendar credential only when enabled and keeps empty calendars distinct from failures', async () => {
     const calendar = { timezone: 'Europe/Copenhagen', events: [] };
     vi.mocked(fetchCalendar).mockResolvedValue(calendar);

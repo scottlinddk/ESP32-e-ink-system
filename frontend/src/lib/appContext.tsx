@@ -71,7 +71,7 @@ export function useApp(): AppState {
 }
 
 const DEFAULT_PREFS: Preferences = {
-  energy: { on: true, zone: 'DK1' },
+  energy: { on: true, zone: 'DK1', priceSettings: { mode: 'spot' } },
   weather: { on: true, location: '57.05, 9.92' },
   news: { on: false, lang: 'da', source: 'newsapi', feedUrl: '', itemLimit: 3 },
   monta: { on: false, fields: ['charger_status', 'active_session'] },
@@ -96,7 +96,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<AppUser>(() => load<AppUser>('user', DEFAULT_USER));
   const [prefs, setPrefsState] = useState<Preferences>(() => {
     const stored = load<Partial<Preferences>>('prefs', {});
-    return { ...DEFAULT_PREFS, ...stored };
+    return { ...DEFAULT_PREFS, ...stored, energy: { ...DEFAULT_PREFS.energy, ...stored.energy } };
   });
   const [apiKeys, setApiKeysState] = useState<Record<string, ApiKeyEntry>>(() =>
     load<Record<string, ApiKeyEntry>>('apiKeys', {})
