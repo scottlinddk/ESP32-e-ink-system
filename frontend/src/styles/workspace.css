@@ -1,0 +1,110 @@
+/* Signed-in workspace palette; public pages keep their existing theme. */
+.workspace-shell {
+  --color-bg: #f4f5f7;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f5f7fb;
+  --color-border: #e4e7ec;
+  --color-border-strong: #d2d7e0;
+  --color-divider: #eceef2;
+  --fg-1: #202733;
+  --fg-2: #677180;
+  --fg-3: #667085;
+  --fg-on-primary: #ffffff;
+  --accent: #325cf4;
+  --accent-hover: #254bd5;
+  --accent-press: #1e3fb6;
+  --workspace-accent-soft: #eef2ff;
+  --workspace-accent-fg: #325cf4;
+  --radius-md: 10px;
+  --radius-lg: 18px;
+  --shadow-1: 0 2px 4px rgb(30 42 65 / 3%);
+  --shadow-2: 0 4px 16px rgb(30 42 65 / 6%);
+  --shadow-3: 0 12px 36px rgb(30 42 65 / 12%);
+  min-height: 100vh;
+}
+
+[data-theme='dark'] .workspace-shell,
+.dark .workspace-shell {
+  --color-bg: #141820;
+  --color-surface: #1d222d;
+  --color-surface-alt: #252c39;
+  --color-border: #323a49;
+  --color-border-strong: #495469;
+  --color-divider: #2c3341;
+  --fg-1: #edf1f7;
+  --fg-2: #a8b2c2;
+  --fg-3: #919daf;
+  --workspace-accent-soft: #283558;
+  --workspace-accent-fg: #a5b8ff;
+}
+
+[data-theme='black'] .workspace-shell,
+.black .workspace-shell {
+  --color-bg: #000000;
+  --color-surface: #0c0d10;
+  --color-surface-alt: #17191f;
+  --color-border: #272a32;
+  --color-border-strong: #454a58;
+  --color-divider: #20232a;
+  --fg-1: #f1f3f8;
+  --fg-2: #b1b7c4;
+  --fg-3: #9099ab;
+  --workspace-accent-soft: #182343;
+  --workspace-accent-fg: #a5b8ff;
+}
+
+.workspace-appbar {
+  gap: 24px;
+  padding-inline: 24px;
+}
+
+.workspace-brand {
+  width: 164px;
+  flex-shrink: 0;
+}
+
+.workspace-switcher {
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+}
+
+.workspace-mark,
+.workspace-avatar,
+.workspace-nav-link--active {
+  background: var(--workspace-accent-soft);
+  color: var(--workspace-accent-fg);
+}
+
+.workspace-nav-link:hover {
+  background: var(--color-surface-alt);
+  color: var(--fg-1);
+  text-decoration: none;
+}
+
+.workspace-nav-link--active,
+.workspace-nav-link--active:hover {
+  background: var(--workspace-accent-soft);
+  color: var(--workspace-accent-fg);
+  font-weight: 600;
+}
+
+.workspace-user:hover {
+  background: var(--color-surface-alt);
+}
+
+.workspace-shell a.text-accent,
+.workspace-shell button.text-accent:not(:hover),
+.workspace-shell .hover\:text-accent:hover {
+  color: var(--workspace-accent-fg);
+}
+
+@media (max-width: 820px) {
+  .workspace-appbar {
+    gap: 12px;
+    padding-inline: 12px;
+  }
+
+  .workspace-brand {
+    width: auto;
+  }
+}

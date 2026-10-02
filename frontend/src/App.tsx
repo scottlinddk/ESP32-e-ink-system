@@ -10,6 +10,7 @@ import { Sidebar } from './components/shell/Sidebar';
 import { ToastStack } from './components/ui/Toast';
 import { ProgressBar } from './components/common/LoadingSpinner';
 import { LoginPage } from './pages/LoginPage';
+import './styles/workspace.css';
 
 function AppShell() {
   const app = useApp();
@@ -40,7 +41,7 @@ function AppShell() {
   }
 
   return (
-    <div className="min-h-full flex flex-col bg-bg text-fg1">
+    <div className="workspace-shell min-h-screen flex flex-col bg-bg text-fg1">
       <AppBar onMenu={() => app.setNavOpen(!app.navOpen)} onSignOut={signOut} />
       <div className="flex-1 flex min-h-0">
         {/* Mobile nav scrim */}

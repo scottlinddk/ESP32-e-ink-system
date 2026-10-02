@@ -106,7 +106,7 @@ describe('device slideshow controls', () => {
     session.data!.display_schedule = null;
     const html = render();
     expect(html).toContain('<option value="slideshow" disabled="">');
-    expect(html).toContain('Save at least one layout above');
+    expect(html).toContain('Create at least one layout in Saved layouts');
   });
   it('localizes the new controls and saved mode in Danish', () => {
     session.lang = 'da';

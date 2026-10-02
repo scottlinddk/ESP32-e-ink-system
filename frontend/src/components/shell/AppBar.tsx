@@ -76,7 +76,7 @@ export function AppBar({
   const crumb = t.crumbs[crumbKey];
 
   return (
-    <header className="sticky top-0 z-40 h-16 flex-shrink-0 flex items-center gap-4 px-5 bg-surface border-b border-divider">
+    <header className="workspace-appbar sticky top-0 z-40 h-16 flex-shrink-0 flex items-center bg-surface border-b border-divider">
       {/* Mobile menu button */}
       <IconButton
         icon="menu"
@@ -85,16 +85,18 @@ export function AppBar({
         onClick={onMenu}
       />
 
-      <div
-        className="flex items-center gap-2.5 cursor-pointer select-none"
+      <button
+        type="button"
+        className="workspace-brand flex items-center gap-2.5 cursor-pointer select-none border-0 bg-transparent text-fg1 text-left p-0"
         onClick={() => navigate('/dashboard')}
+        aria-label={t.product}
       >
         <Logo />
-        <span className="font-medium text-base tracking-[-0.01em] max-[480px]:hidden">{t.product}</span>
-      </div>
+        <span className="font-semibold text-[15px] tracking-[-0.025em] max-[480px]:hidden">{t.product}</span>
+      </button>
 
       {crumb && (
-        <div className="text-fg3 text-sm flex items-center gap-2 max-[820px]:hidden [&_.material-symbols-outlined]:text-[18px]">
+        <div className="text-fg2 text-xs flex items-center gap-3 max-[820px]:hidden [&_.material-symbols-outlined]:text-[16px]">
           <Icon name="chevron_right" />
           {crumb}
         </div>
@@ -121,15 +123,15 @@ export function AppBar({
         {/* User menu */}
         <div className="relative" ref={ref}>
           <button
-            className="flex items-center gap-2 py-1 pr-1.5 pl-1 border border-border bg-surface rounded-pill cursor-pointer text-fg1 transition-[background] duration-[150ms] hover:bg-black/[0.06] [&_.material-symbols-outlined]:text-[18px] [&_.material-symbols-outlined]:text-fg3"
+            className="workspace-user flex items-center gap-2 py-1 pr-1.5 pl-1 border border-border bg-surface rounded-pill cursor-pointer text-fg1 transition-[background] duration-[150ms] [&_.material-symbols-outlined]:text-[18px] [&_.material-symbols-outlined]:text-fg3"
             onClick={() => setMenuOpen((o) => !o)}
             aria-haspopup="true"
             aria-expanded={menuOpen}
           >
-            <span className="w-[30px] h-[30px] rounded-full flex-shrink-0 bg-accent text-fg-on flex items-center justify-center text-xs font-medium">
+            <span className="workspace-avatar w-[30px] h-[30px] rounded-full flex-shrink-0 flex items-center justify-center text-xs font-semibold">
               {initials}
             </span>
-            <span className="text-sm max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap max-[820px]:hidden">
+            <span className="text-xs max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap max-[820px]:hidden">
               {app.user.email}
             </span>
             <Icon name="expand_more" />
