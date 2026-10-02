@@ -1,12 +1,12 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { requireAuth } from '../middleware/auth';
 import {
-  getPreferences,
   getApiKeys,
   logApiUsage,
   upsertUser,
 } from '../services/database';
-import { buildDisplayData, DEFAULT_PREFS } from '../services/displayData';
+import { buildDisplayData } from '../services/displayData';
+import { parsePreviewDeviceId, resolveDevicePreferences } from '../services/deviceDisplays';
 import { createClerkClient } from '@clerk/backend';
 
 /**
@@ -62,6 +62,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      const deviceId = parsePreviewDeviceId(req.query.device_id);
       const clerkUserId = req.clerkUserId!;
 
       // Resolve Supabase user from Clerk ID
@@ -86,7 +87,7 @@ router.get(
 
       logApiUsage(user.id, '/api/preview');
 
-      const prefs = (await getPreferences(user.id)) ?? DEFAULT_PREFS;
+      const prefs = await resolveDevicePreferences(user.id, deviceId);
 
       const apiKeyRows = await getApiKeys(user.id);
       const apiKeyMap: Record<string, string> = {};
@@ -95,6 +96,7 @@ router.get(
       }
 
       const data = await buildDisplayData(user.id, prefs, apiKeyMap);
+      res.setHeader('Cache-Control', 'no-store');
       res.json(data);
     } catch (err) {
       next(err);

@@ -119,7 +119,7 @@ PY
 
 "${compose[@]}" exec -T postgres psql -X -v ON_ERROR_STOP=1 -U eink_admin -d postgres -c 'CREATE DATABASE eink_source'
 # Supabase compatibility roles created by target bootstrap are cluster-wide;
-# both fixture databases therefore apply the unchanged migrations through 015.
+# both fixture databases therefore apply the unchanged migrations through 018.
 "${compose[@]}" exec -T postgres bash -euc 'export LC_ALL=C; for migration in /migrations/*.sql; do psql -X -v ON_ERROR_STOP=1 -U eink_admin -d eink_source -f "$migration"; done'
 "${compose[@]}" exec -T postgres psql -X -v ON_ERROR_STOP=1 -U eink_admin -d eink_source <<'SQL'
 INSERT INTO users (id, email, display_name) VALUES ('00000000-0000-4000-8000-000000000001', 'fixture@example.invalid', E'Unicode æøå, "quotes"\nand newline');
@@ -141,6 +141,9 @@ INSERT INTO custom_webhooks (user_id, token_hash, token_created_at, rows, observ
 VALUES ('00000000-0000-4000-8000-000000000001', repeat('a', 64), '2026-09-28T10:01:02.123456Z', '[{"label":"Køkken","value":"21.5","unit":"°C"}]', '2026-09-28T09:59:59Z', '2026-09-28T10:01:03Z');
 INSERT INTO device_delivery (device_id, owner_id, token_hash, rotated_at, revoked_at, last_seen_at, firmware_version, battery_percent, rssi, last_applied_hash)
 VALUES ('00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001', repeat('b', 64), '2026-09-28T10:01:02.123456Z', NULL, '2026-09-28T10:02:03.654321Z', 'ci-delivery', 72.5, -65, repeat('c', 64));
+INSERT INTO device_displays (device_id, owner_id, layout, display_schedule, active_layout_id, display_profile, display_timezone, refresh_interval_minutes, revision, updated_at)
+SELECT '00000000-0000-4000-8000-000000000004', user_id, layout, display_schedule, 'fixture', display_profile, 'Europe/Copenhagen', 15, 3, '2026-10-02T10:01:02.123456Z'
+FROM user_preferences WHERE user_id = '00000000-0000-4000-8000-000000000001';
 INSERT INTO orders (id, user_id, amount_cents, status) VALUES ('00000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000001', 1250, 'ci-fixture');
 SQL
 
@@ -164,7 +167,7 @@ import migrate, psycopg
 with psycopg.connect(service='eink-target') as connection:
     migrate.check_target_identity(connection)
     migrate.check_empty_target(connection)
-print('PASS: all nine target tables remain empty.')
+print('PASS: all ten target tables remain empty.')
 PY
 }
 
@@ -183,7 +186,7 @@ with psycopg.connect(service='eink-ci-source') as connection:
     assert all(report['tables'][table]['row_count'] == 1 for table in migrate.TABLES)
     manifest = migrate.export_bundle(connection, Path('/work/bundle'))
 assert all(item['row_count'] == 1 for item in manifest['tables'].values())
-print('PASS: real PostgreSQL source inspection and consistent nine-table export.')
+print('PASS: real PostgreSQL source inspection and consistent ten-table export.')
 PY
 
 # A unique expression/partial index is invisible to pg_constraint. It must
@@ -227,7 +230,7 @@ with (tampered / 'api_keys.csv').open('ab') as output:
     output.write(b'corrupt-fixture\n')
 # Both bundles have valid file/manifest hashes and reach COPY. The FK error
 # occurs in the final table. The padded integer is accepted by COPY but becomes
-# canonical 1250 on re-export, causing verification to fail after all nine COPYs.
+# canonical 1250 on re-export, causing verification to fail after all ten COPYs.
 for name, old, new in (
     ('bad-fk', b'00000000-0000-4000-8000-000000000001', b'00000000-0000-4000-8000-000000000099'),
     ('bad-checksum', b'\n1250,', b'\n01250,'),
@@ -268,7 +271,8 @@ BEGIN
   IF has_table_privilege('eink_authenticator', 'public.users', 'SELECT') OR has_schema_privilege('eink_authenticator', 'public', 'CREATE') THEN
     RAISE EXCEPTION 'Authenticator must explicitly switch role';
   END IF;
-  IF has_function_privilege('service_role', 'public.update_updated_at_column()', 'EXECUTE') THEN
+  IF has_function_privilege('service_role', 'public.update_updated_at_column()', 'EXECUTE')
+    OR has_function_privilege('service_role', 'public.clear_device_display_on_transfer()', 'EXECUTE') THEN
     RAISE EXCEPTION 'Unexpected RPC function grant';
   END IF;
   FOREACH client_role IN ARRAY ARRAY['anon', 'authenticated'] LOOP
@@ -283,16 +287,17 @@ BEGIN
       WHERE r.rolname = client_role
     ) OR has_database_privilege(client_role, 'eink', 'CONNECT,CREATE,TEMPORARY')
       OR has_schema_privilege(client_role, 'public', 'USAGE,CREATE')
-      OR has_function_privilege(client_role, 'public.update_updated_at_column()', 'EXECUTE') THEN
+      OR has_function_privilege(client_role, 'public.update_updated_at_column()', 'EXECUTE')
+      OR has_function_privilege(client_role, 'public.clear_device_display_on_transfer()', 'EXECUTE') THEN
       RAISE EXCEPTION 'Compatibility client roles gained membership/database/schema/function access';
     END IF;
-    FOREACH table_name IN ARRAY ARRAY['users','user_preferences','api_keys','devices','firmware_versions','api_usage','custom_webhooks','device_delivery','orders'] LOOP
+    FOREACH table_name IN ARRAY ARRAY['users','user_preferences','api_keys','devices','firmware_versions','api_usage','custom_webhooks','device_delivery','device_displays','orders'] LOOP
       IF has_table_privilege(client_role, 'public.' || table_name, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') THEN
         RAISE EXCEPTION 'Compatibility client role gained table access';
       END IF;
     END LOOP;
   END LOOP;
-  FOREACH table_name IN ARRAY ARRAY['custom_webhooks', 'device_delivery'] LOOP
+  FOREACH table_name IN ARRAY ARRAY['custom_webhooks', 'device_delivery', 'device_displays'] LOOP
     FOREACH privilege_name IN ARRAY ARRAY['SELECT','INSERT','UPDATE','DELETE'] LOOP
       IF NOT has_table_privilege('service_role', 'public.' || table_name, privilege_name) THEN
         RAISE EXCEPTION 'Missing service CRUD grant';

@@ -71,17 +71,19 @@ export async function getAuthUser(token: string): Promise<{ user: User }> {
 // ============================================================
 
 export async function getPreferences(
-  token: string
-): Promise<{ preferences: UserPreferences }> {
-  return request<{ preferences: UserPreferences }>('/api/preferences', { token });
+  token: string,
+  deviceId?: string,
+): Promise<{ preferences: UserPreferences; inherited?: boolean }> {
+  return request(deviceId ? `/api/devices/${encodeURIComponent(deviceId)}/display` : '/api/preferences', { token });
 }
 
 export async function savePreferences(
   token: string,
-  prefs: Partial<UserPreferences>
+  prefs: Partial<UserPreferences>,
+  deviceId?: string,
 ): Promise<{ preferences: UserPreferences }> {
-  return request<{ preferences: UserPreferences }>('/api/preferences', {
-    method: 'POST',
+  return request<{ preferences: UserPreferences }>(deviceId ? `/api/devices/${encodeURIComponent(deviceId)}/display` : '/api/preferences', {
+    method: deviceId ? 'PUT' : 'POST',
     token,
     body: JSON.stringify(prefs),
   });
@@ -89,9 +91,10 @@ export async function savePreferences(
 
 export async function saveLayout(
   token: string,
-  layout: DisplayLayout
+  layout: DisplayLayout,
+  deviceId?: string,
 ): Promise<void> {
-  await savePreferences(token, { layout });
+  await savePreferences(token, { layout }, deviceId);
 }
 
 export function testWeather(token: string, location: string, signal?: AbortSignal): Promise<{ weather: WeatherData }> {
@@ -279,16 +282,16 @@ export async function removeDevice(token: string, id: string): Promise<void> {
 // Display Data / Preview
 // ============================================================
 
-export async function getPreviewData(token: string): Promise<DisplayData> {
-  return request<DisplayData>('/api/preview', { token });
+export async function getPreviewData(token: string, deviceId?: string): Promise<DisplayData> {
+  return request<DisplayData>(`/api/preview${deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : ''}`, { token });
 }
 
 /**
  * Fetches the server-rendered 1-bit BMP for the authenticated user.
  * The view creates and releases its own object URL from the returned Blob.
  */
-export async function fetchPreviewBmp(token: string, signal?: AbortSignal): Promise<Blob> {
-  const response = await fetch(`${BASE_URL}/api/image/preview`, {
+export async function fetchPreviewBmp(token: string, signal?: AbortSignal, deviceId?: string): Promise<Blob> {
+  const response = await fetch(`${BASE_URL}/api/image/preview${deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : ''}`, {
     headers: { Authorization: `Bearer ${token}` },
     signal,
   });
@@ -297,11 +300,11 @@ export async function fetchPreviewBmp(token: string, signal?: AbortSignal): Prom
 }
 
 /** Render a layout draft using the signed-in user's saved source settings. */
-export async function fetchDraftPreviewBmp(token: string, layout: DisplayLayout, signal?: AbortSignal): Promise<Blob> {
+export async function fetchDraftPreviewBmp(token: string, layout: DisplayLayout, signal?: AbortSignal, deviceId?: string): Promise<Blob> {
   const response = await fetch(`${BASE_URL}/api/image/preview/draft`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ layout }),
+    body: JSON.stringify({ layout, ...(deviceId ? { device_id: deviceId } : {}) }),
     signal,
   });
   if (!response.ok) {
@@ -350,8 +353,8 @@ export function deleteCustomWebhookToken(token: string): Promise<void> {
   return request('/api/custom-webhook/token', { token, method: 'DELETE' });
 }
 
-export async function fetchPreviewFrame(token: string): Promise<{ pixels: Uint8Array; profile: DisplayProfile }> {
-  const response = await fetch(`${BASE_URL}/api/image/preview/raw`, { headers: { Authorization: `Bearer ${token}` } });
+export async function fetchPreviewFrame(token: string, deviceId?: string): Promise<{ pixels: Uint8Array; profile: DisplayProfile }> {
+  const response = await fetch(`${BASE_URL}/api/image/preview/raw${deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : ''}`, { headers: { Authorization: `Bearer ${token}` } });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const profile = { width: Number(response.headers.get('X-Display-Width')), height: Number(response.headers.get('X-Display-Height')), rotation: Number(response.headers.get('X-Display-Rotation')), colorMode: 'bw' } as DisplayProfile;
   const meta = frameMetadata(profile);

@@ -83,7 +83,7 @@ case $phase in
     eink pull postgres postgrest gateway
     bash "$INFRA/start-postgres.sh" "$ENV_FILE" --ssd-uuid "$uuid"
     eink ps
-    echo 'Tables (expect nine):'
+    echo 'Tables (expect ten):'
     eink exec -T postgres psql -U eink_admin -d eink -c '\dt'
     eink up -d postgrest gateway
     curl --fail --show-error --max-time 10 http://127.0.0.1:3080/healthz || die 'Gateway is not healthy.'

@@ -1,5 +1,25 @@
 # Validation record
 
+## Device presentation migration 018, 2026-10-02
+
+Local offline verification passed: 54 migration/schema tests, 56 Pi credential,
+storage and memory tests, and JavaScript syntax for `smoke.mjs`.
+The updated schema contract includes ten application
+tables, all seven presentation CHECK constraints, the composite owner foreign key,
+and the exact ownership-transfer
+cleanup trigger. Older nine-table export bundles are rejected explicitly.
+
+The disposable integration fixture now includes presentation rows, verifies the
+new table's RLS/service-only grants, and exercises real SDK revision updates,
+invalid-value rejection, rename preservation, ownership transfer, stale-owner write rejection and cascade
+cleanup. Execution of that PostgreSQL/PostgREST fixture is left to the AMD64/ARM64
+database CI jobs, along with Bash syntax validation; these offline results do not establish a successful live SQL
+migration. No deployment database credentials were configured in this worktree,
+and no production or Pi database was changed. Apply 018 and update the Pi gateway
+and permissions before deploying the backend, as described in the runbook.
+
+## Earlier validation
+
 Validated locally on Windows and in disposable Linux CI, 2026-09-28. No production
 Supabase, Raspberry Pi, DNS, Vercel settings or Investor service was changed.
 
@@ -80,7 +100,7 @@ storage/backup procedures. Its success does not replace the deployment rehearsal
 
 Rehearse on the actual ARM64 host. Confirm:
 
-1. Native ARM64 image pulls, clean initialization through 015 (including both 002 migrations),
+1. Native ARM64 image pulls, clean initialization through 018 (including both 002 migrations),
    SQL permissions, authenticated API access and denied anonymous/invalid access.
 2. Real source inspection against the live Supabase schema; explicit resolution
    of schema drift, extra table dependencies and Storage/firmware URLs.

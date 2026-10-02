@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy only the nine e-ink application tables; never copy Supabase internals.
+"""Copy only the ten e-ink application tables; never copy Supabase internals.
 
 Connection secrets belong in libpq service/password files, never command arguments.
 Exports contain encrypted API keys and personal data: keep the entire bundle private.
@@ -26,12 +26,12 @@ FORMAT_VERSION = 1
 APPLICATION = "esp32-eink"
 TARGET_DATABASE = "eink"
 TARGET_ROLE = "eink_admin"
-# Parents precede their children (device_delivery also references devices).
+# Parents precede their children (device delivery/display rows reference devices).
 TABLES = ("users", "user_preferences", "api_keys", "devices", "firmware_versions", "api_usage",
-          "custom_webhooks", "device_delivery", "orders")
+          "custom_webhooks", "device_delivery", "device_displays", "orders")
 # Stable complete-row checksums require the actual primary key, not an assumed id.
 PRIMARY_KEYS = {table: ("id",) for table in TABLES}
-PRIMARY_KEYS.update({"custom_webhooks": ("user_id",), "device_delivery": ("device_id",)})
+PRIMARY_KEYS.update({"custom_webhooks": ("user_id",), "device_delivery": ("device_id",), "device_displays": ("device_id",)})
 
 
 def columns(required: dict[str, str], optional: dict[str, str]) -> dict[str, tuple[str, bool]]:
@@ -39,7 +39,7 @@ def columns(required: dict[str, str], optional: dict[str, str]) -> dict[str, tup
 
 
 TS = "timestamp with time zone"
-# The final schema after all tracked migrations through 017_energy_price_settings.
+# The final schema after all tracked migrations through 018_device_displays.
 # Do not automatically repair a live source.
 EXPECTED_COLUMNS = {
     "users": columns({"id": "uuid", "email": "text"}, {"display_name": "text", "created_at": TS, "updated_at": TS}),
@@ -73,6 +73,10 @@ EXPECTED_COLUMNS = {
         "token_hash": "text", "revoked_at": TS, "last_seen_at": TS, "firmware_version": "text",
         "battery_percent": "double precision", "rssi": "integer", "last_applied_hash": "text",
     }),
+    "device_displays": columns({
+        "device_id": "uuid", "owner_id": "uuid", "display_timezone": "text",
+        "refresh_interval_minutes": "integer", "revision": "integer", "updated_at": TS,
+    }, {"layout": "jsonb", "display_schedule": "jsonb", "active_layout_id": "text", "display_profile": "jsonb"}),
     "orders": columns({"id": "uuid", "user_id": "uuid"}, {
         "stripe_charge_id": "text", "amount_cents": "integer", "status": "text", "created_at": TS,
     }),
@@ -106,6 +110,9 @@ EXPECTED_DEFAULTS["firmware_versions"]["active"] = "true"
 EXPECTED_DEFAULTS["orders"]["status"] = "'pending'::text"
 EXPECTED_DEFAULTS["custom_webhooks"]["rows"] = "'[]'::jsonb"
 EXPECTED_DEFAULTS["device_delivery"]["rotated_at"] = "now()"
+EXPECTED_DEFAULTS["device_displays"].update({
+    "display_timezone": "'Europe/Copenhagen'::text", "refresh_interval_minutes": "30", "revision": "1",
+})
 
 # PostgreSQL's pretty constraint definitions, including every tracked CHECK.
 # Keep casts, bounds, regexes and boolean grouping exact: removing them while
@@ -131,20 +138,29 @@ EXPECTED_CHECKS = {
         "CHECK (rssi >= '-150'::integer AND rssi <= 0)",
         "CHECK (last_applied_hash IS NULL OR last_applied_hash ~ '^[0-9a-f]{64}$'::text)",
     ),
+    "device_displays": (
+        "CHECK (layout IS NULL OR jsonb_typeof(layout) = 'object'::text)",
+        "CHECK (display_schedule IS NULL OR jsonb_typeof(display_schedule) = 'object'::text)",
+        "CHECK (active_layout_id IS NULL OR active_layout_id ~ '^[A-Za-z0-9_-]{1,48}$'::text)",
+        "CHECK (display_profile IS NULL OR jsonb_typeof(display_profile) = 'object'::text)",
+        "CHECK (length(display_timezone) >= 1 AND length(display_timezone) <= 64)",
+        "CHECK (refresh_interval_minutes >= 1 AND refresh_interval_minutes <= 1440)",
+        "CHECK (revision > 0)",
+    ),
 }
 
 EXPECTED_CONSTRAINTS: dict[str, list[dict[str, str]]] = {}
 for _table in TABLES:
     _constraints = [{"type": "p", "definition": f"PRIMARY KEY ({', '.join(PRIMARY_KEYS[_table])})"}]
-    if _table == "device_delivery":
+    if _table in ("device_delivery", "device_displays"):
         _constraints.extend([
-            {"type": "f", "definition": "FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE"},
+            {"type": "f", "definition": "FOREIGN KEY (device_id, owner_id) REFERENCES devices(id, user_id) ON UPDATE CASCADE ON DELETE CASCADE" if _table == "device_displays" else "FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE"},
             {"type": "f", "definition": "FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE"},
         ])
     elif _table != "users":
         _constraints.append({"type": "f", "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"})
     for _key in {"users": ["email"], "user_preferences": ["user_id"], "api_keys": ["user_id, provider"],
-                 "devices": ["device_id", "license_key"], "custom_webhooks": ["token_hash"]}.get(_table, []):
+                 "devices": ["device_id", "license_key", "id, user_id"], "custom_webhooks": ["token_hash"]}.get(_table, []):
         _constraints.append({"type": "u", "definition": f"UNIQUE ({_key})"})
     _constraints.extend({"type": "c", "definition": definition} for definition in EXPECTED_CHECKS.get(_table, ()))
     EXPECTED_CONSTRAINTS[_table] = sorted(_constraints, key=lambda item: (item["type"], item["definition"]))
@@ -302,10 +318,23 @@ def check_relations(table: str, constraints: list[dict[str, Any]], triggers: lis
     if constraints != EXPECTED_CONSTRAINTS[table]:
         raise MigrationError(f"Constraint drift in {table}: expected repository primary/unique/foreign keys and checks exactly.")
     expected_name = f"update_{table}_updated_at" if table in ("users", "user_preferences", "devices") else None
-    if len(triggers) != int(expected_name is not None):
+    expected_names = ([expected_name] if expected_name else []) + (["clear_device_display_on_transfer"] if table == "devices" else [])
+    if sorted(trigger.get("name", "") for trigger in triggers) != sorted(expected_names):
         raise MigrationError(f"Trigger drift in {table}: reconcile missing or extra triggers explicitly.")
-    if triggers:
-        trigger = triggers[0]
+    for trigger in triggers:
+        if trigger.get("name") == "clear_device_display_on_transfer":
+            expected = {
+                "type": 17, "enabled": "O", "function_schema": "public", "function_name": "clear_device_display_on_transfer",
+                "function_language": "plpgsql", "function_security_definer": True, "function_settings": ["search_path=public"],
+                "function_volatility": "v", "function_strict": False, "function_parallel": "u", "function_return_type": "trigger",
+                "function_body_sha256": hashlib.sha256(b"BEGIN DELETE FROM public.device_displays WHERE device_id = NEW.id; RETURN NEW; END;").hexdigest(),
+            }
+            definition = re.sub(r"\bpublic\.", "", trigger.get("definition", ""))
+            expected_definition = ("CREATE TRIGGER clear_device_display_on_transfer AFTER UPDATE OF user_id ON devices "
+                                   "FOR EACH ROW WHEN (old.user_id IS DISTINCT FROM new.user_id) EXECUTE FUNCTION clear_device_display_on_transfer()")
+            if definition != expected_definition or any(trigger.get(key) != value for key, value in expected.items()):
+                raise MigrationError("Trigger drift in devices: expected the repository ownership-reset function and condition exactly.")
+            continue
         if (trigger.get("name"), trigger.get("type"), trigger.get("enabled"), trigger.get("function_schema"), trigger.get("function_name")) != (
             expected_name, 19, "O", "public", "update_updated_at_column"
         ):

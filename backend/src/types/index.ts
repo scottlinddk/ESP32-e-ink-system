@@ -25,6 +25,8 @@ export interface DisplaySchedule {
 }
 
 export interface UserPreferences {
+  /** Device-only selection; never persisted to account preferences. */
+  active_layout_id?: string | null;
   display_timezone?: string;
   show_custom_webhook?: boolean;
   custom_webhook_ttl_minutes?: number;

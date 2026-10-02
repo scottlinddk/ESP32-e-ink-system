@@ -6,23 +6,23 @@ import { UserPreferences } from '../types';
 const PREFS_QUERY_KEY = ['preferences'] as const;
 const API_KEYS_QUERY_KEY = ['api-keys'] as const;
 
-export function usePreferences() {
+export function usePreferences(deviceId?: string) {
   const { getToken, isSignedIn, user } = useAuth();
 
   return useQuery({
-    queryKey: [...PREFS_QUERY_KEY, user?.id],
+    queryKey: deviceId ? [...PREFS_QUERY_KEY, user?.id, deviceId] : [...PREFS_QUERY_KEY, user?.id],
     enabled: isSignedIn && !!user?.id,
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      const result = await getPreferences(token);
+      const result = await getPreferences(token, deviceId);
       return result.preferences;
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 }
 
-export function useSavePreferences() {
+export function useSavePreferences(deviceId?: string) {
   const { getToken, user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -32,15 +32,14 @@ export function useSavePreferences() {
       if (!ownerId) throw new Error('Not authenticated');
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      const result = await savePreferences(token, prefs);
+      const result = deviceId ? await savePreferences(token, prefs, deviceId) : await savePreferences(token, prefs);
       // Capture the owner before awaiting. A completion after account switching
       // must never write the previous owner's data into the new owner's cache.
-      queryClient.setQueryData([...PREFS_QUERY_KEY, ownerId], result.preferences);
+      queryClient.setQueryData(deviceId ? [...PREFS_QUERY_KEY, ownerId, deviceId] : [...PREFS_QUERY_KEY, ownerId], result.preferences);
+      // Device responses include shared source settings. Refresh those after an account-wide edit.
+      if (!deviceId) void queryClient.invalidateQueries({ queryKey: [...PREFS_QUERY_KEY, ownerId], predicate: (query) => query.queryKey.length > 2 });
+      void queryClient.invalidateQueries({ queryKey: deviceId ? ['preview', ownerId, deviceId] : ['preview', ownerId] });
       return result.preferences;
-    },
-    onSuccess: () => {
-      // Invalidate preview data so it reflects new preferences
-      queryClient.invalidateQueries({ queryKey: ['preview'] });
     },
   });
 }

@@ -154,7 +154,7 @@ eink config --quiet
 eink pull postgres postgrest gateway
 sudo bash start-postgres.sh /etc/esp32-eink/.env --ssd-uuid YOUR_VERIFIED_SSD_UUID
 eink ps
-eink exec -T postgres psql -U eink_admin -d eink -c '\dt'   # nine app tables
+eink exec -T postgres psql -U eink_admin -d eink -c '\dt'   # ten app tables
 eink up -d postgrest gateway
 curl --fail --show-error --max-time 10 http://127.0.0.1:3080/healthz
 ```
@@ -179,14 +179,56 @@ The full `preflight.sh` is a pre-start check: it requires port 3080 to be unused
 and therefore rejects the running e-ink gateway. Use the memory check above
 after startup; keep the full preflight before the initial deployment.
 
+## Upgrade an existing database for device presentations (018)
+
+Deploy `018_device_displays.sql` before the backend release that uses device-specific
+layouts. Fresh Pi initialization applies it automatically; restarting an existing
+PostgreSQL container does **not** rerun initialization scripts. Apply any earlier
+missing migrations in filename order first, including both `002` files. On hosted
+Supabase, run the migration in the project's SQL editor using its administrator
+role and reload the PostgREST schema (`NOTIFY pgrst, 'reload schema';`).
+
+For an existing Pi installation already through 017, back up its e-ink database,
+update the checkout, and use the scoped `eink` helper defined above:
+
+```sh
+eink exec -T postgres psql -X -U eink_admin -d eink --single-transaction \
+  --set ON_ERROR_STOP=1 --file /migrations/018_device_displays.sql \
+  --file /docker-entrypoint-initdb.d/permissions.sql
+eink up -d --no-deps --force-recreate gateway
+```
+
+The permissions script grants the new table only to the backend service role and
+notifies PostgREST to reload its schema. Recreating only the e-ink gateway loads
+its updated table allowlist. Do not rerun 018 after it succeeds: its table and
+trigger creation deliberately fail if they already exist. Run the SDK smoke test
+against the Pi HTTPS origin with `--write-test` before deploying the new backend.
+It checks presentation JSON, revision updates, constraints, rename preservation,
+ownership-transfer reset, and cleanup of its uniquely named fixture rows.
+
+`device_displays` contains presentation settings and has RLS enabled with no
+browser-client grants. No existing device is backfilled: until its first save it
+inherits its owner's account presentation. A device ownership change deletes its
+saved presentation, including when ownership is later returned. A composite
+device/owner foreign key also rejects delayed writes from a previous owner. The schema
+inspector validates that trigger's exact condition, function body and privileges;
+it also verifies all seven new CHECK constraints and both foreign keys.
+
+Exports and backups made before 018 have nine application tables. Keep the
+matching older release's recovery tools with those backups; restore into that
+release's isolated schema, then apply 018. The current importer and recovery script
+require all ten tables and reject older bundles instead of silently losing device
+settings. Production migration and physical Pi verification must be performed in
+the deployment environment; offline tests do not apply SQL there.
+
 ## Migration gates and data scope (source only)
 
 Applies only when a live source database exists. The transfer allowlist is `users`, `user_preferences`, `api_keys`, `devices`,
-`firmware_versions`, `api_usage`, `custom_webhooks`, `device_delivery`, and `orders`.
-The target applies all tracked SQL migrations through `017_energy_price_settings.sql`,
+`firmware_versions`, `api_usage`, `custom_webhooks`, `device_delivery`, `device_displays`, and `orders`.
+The target applies all tracked SQL migrations through `018_device_displays.sql`,
 including both `002` migrations. IDs, foreign keys, timestamps, JSONB values,
 encrypted provider credentials, webhook token hashes, device token hashes and
-delivery telemetry are copied without transformation. Display schedules and
+delivery telemetry are copied without transformation. Device presentation settings, display schedules and
 calendar, image, news and webhook preferences are included.
 Preserve the **exact current `ENCRYPTION_KEY`** in the backend and its recovery
 backup. A fresh encryption key cannot decrypt existing credentials.
@@ -354,7 +396,7 @@ postgres:5432:eink:eink_admin:GENERATED_POSTGRES_PASSWORD
 
 Use the actual source port and escape `:` and `\` inside passwords according
 to libpq rules. The source database password is not the Supabase service API
-key. Use a source account with visibility of all nine tables; RLS filtering
+key. Use a source account with visibility of all ten tables; RLS filtering
 must fail rather than silently export a partial database. The target service's
 unencrypted connection stays inside the dedicated Docker network. No host
 PostgreSQL port is published.
@@ -635,7 +677,7 @@ sudo bash restore.sh /etc/esp32-eink/recovery.env \
 ```
 
 `restore.sh` verifies the companion checksum, actual recovery container storage,
-database identity and empty tables. It selects exactly the nine table-data
+database identity and empty tables. It selects exactly the ten table-data
 entries, loads `users` first, excludes the existing identity marker, and restores
 in one transaction. It does not start the recovery API (which would collide with
 the production gateway port). For the full API recovery drill, use the separate

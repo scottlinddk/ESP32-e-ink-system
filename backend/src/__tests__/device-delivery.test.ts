@@ -24,7 +24,7 @@ vi.mock('../routes/preferences-helpers', () => ({ getOrCreateUserFromClerk: asyn
 vi.mock('../services/displayData', async (original) => ({ ...await original<typeof import('../services/displayData')>(), buildDisplayData: vi.fn() }));
 vi.mock('../services/database', () => ({ getApiKeys: vi.fn(), getPreferences: vi.fn(), getSupabaseClient: () => ({ from: (table: string) => {
   const filters: Array<[string, unknown]> = []; let operation = ''; let update: Record<string, unknown> = {};
-  const rows = () => table === 'devices' ? [...state.owners].map(([id, user_id]) => ({ id, user_id })) : [...state.deliveries.values()];
+  const rows = () => table === 'devices' ? [...state.owners].map(([id, user_id]) => ({ id, user_id })) : table === 'device_delivery' ? [...state.deliveries.values()] : [];
   const matches = () => rows().filter((row) => filters.every(([key, value]) => (row as Record<string, unknown>)[key] === value));
   const query = {
     select: () => query, eq: (key: string, value: unknown) => { filters.push([key, value]); return query; }, is: (key: string, value: unknown) => { filters.push([key, value]); return query; },

@@ -9,7 +9,7 @@ GRANT USAGE ON SCHEMA public TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public.users, public.user_preferences, public.api_keys, public.devices,
   public.firmware_versions, public.api_usage, public.custom_webhooks,
-  public.device_delivery, public.orders
+  public.device_delivery, public.device_displays, public.orders
 TO service_role;
 -- UUID defaults use pg_catalog.gen_random_uuid(); no sequence/RPC grants needed.
 -- Existing update triggers keep working; callers cannot invoke trigger functions.
