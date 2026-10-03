@@ -1,6 +1,6 @@
 # ESP32 E-Ink Home Display
 
-A quiet, glanceable home dashboard for Danish electricity prices, weather, news, EV charging and Notion lists. Choose the information and layout in a web app, then send a monochrome image to an ESP32 e-ink display over Bluetooth.
+A quiet, glanceable home dashboard for everything you want at a glance. Choose the information and layout in a web app, then send a monochrome image to an ESP32 e-ink display over Bluetooth.
 
 ## How it works
 
