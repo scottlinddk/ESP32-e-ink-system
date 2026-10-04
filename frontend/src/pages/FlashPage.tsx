@@ -1,6 +1,6 @@
 import 'esp-web-tools';
 import { useEffect, useRef, useState } from 'react';
-import { formatReleaseDate, loadPublicFirmwareManifest, type ElecrowPanel } from '../lib/firmwareManifest';
+import { formatReleaseDate, loadPublicFirmwareManifest, loadPublicFirmwareReleases, type ElecrowPanel, type FirmwareReleaseOption } from '../lib/firmwareManifest';
 
 declare global {
   namespace JSX {
@@ -14,8 +14,11 @@ export function FlashPage() {
   const secure = window.isSecureContext;
   const supported = 'serial' in navigator;
   const [panel, setPanel] = useState<ElecrowPanel | ''>('');
+  const [releases, setReleases] = useState<FirmwareReleaseOption[]>([]);
+  /** Empty selects the newest release. */
+  const [tag, setTag] = useState('');
   const [manifestUrl, setManifestUrl] = useState<string | null>(null);
-  const [version, setVersion] = useState('');
+  const [firmwareName, setFirmwareName] = useState('');
   const [releaseDate, setReleaseDate] = useState<string | undefined>();
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -23,23 +26,29 @@ export function FlashPage() {
 
   useEffect(() => {
     const controller = new AbortController();
+    loadPublicFirmwareReleases(controller.signal).then(setReleases).catch(() => { if (!controller.signal.aborted) setReleases([]); });
+    return () => { controller.abort(); };
+  }, [attempt]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     setManifestUrl(null);
     setError('');
-    setVersion('');
+    setFirmwareName('');
     setReleaseDate(undefined);
     if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
     if (panel) {
-      loadPublicFirmwareManifest(panel, controller.signal).then(manifest => {
+      loadPublicFirmwareManifest(panel, controller.signal, tag || undefined).then(manifest => {
         if (controller.signal.aborted) return;
         const url = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
         blobUrlRef.current = url;
         setManifestUrl(url);
-        setVersion(manifest.version ?? '');
+        setFirmwareName(manifest.version && !manifest.name.includes(manifest.version) ? `${manifest.name} ${manifest.version}` : manifest.name);
         setReleaseDate(manifest.release_date);
       }).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Firmware download failed'); });
     }
     return () => { controller.abort(); };
-  }, [panel, attempt]);
+  }, [panel, tag, attempt]);
   const releasedOn = formatReleaseDate(releaseDate, 'en-GB');
   useEffect(() => () => { if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current); }, []);
 
@@ -61,9 +70,19 @@ export function FlashPage() {
           <option value="v12">CrowPanel 2.13 V1.2 — JD79661</option>
         </select>
         <p className="mt-3 text-sm text-fg2">Both CrowPanel revisions use ESP32-S3. USB detection cannot distinguish their display controllers. Check the product revision before installing.</p>
+        {releases.length > 1 && <>
+          <label htmlFor="release" className="block font-medium mt-5 mb-2">Firmware version</label>
+          <select id="release" value={tag || releases[0].tag} onChange={event => setTag(event.target.value === releases[0].tag ? '' : event.target.value)} className="select-native w-full p-3 border border-border-strong rounded-sm bg-surface text-fg1">
+            {releases.map((release, index) => {
+              const date = formatReleaseDate(release.releasedAt ?? undefined, 'en-GB');
+              return <option key={release.tag} value={release.tag}>{release.version}{date && ` · ${date}`}{index === 0 && ' (newest)'}</option>;
+            })}
+          </select>
+          {tag && <p className="mt-3 text-sm text-fg2">You selected an older release. Use it to roll back a display; choose the newest release for normal installations.</p>}
+        </>}
         {panel && !manifestUrl && !error && <p role="status" className="mt-4">Checking the firmware release…</p>}
         {error && <div role="alert" className="mt-4"><p>{error}</p><button className="underline mt-2" onClick={() => setAttempt(value => value + 1)}>Retry</button></div>}
-        {manifestUrl && secure && supported && <div className="mt-4"><p className="text-sm mb-3">Firmware: {version}{releasedOn && <>, released <time dateTime={releaseDate}>{releasedOn}</time></>}. For a first installation or recovery, choose erase when prompted. These factory images replace saved Wi-Fi and device credentials even without erase. Keep your device UUID and token ready and repeat setup after installing.</p><esp-web-install-button key={panel} manifest={manifestUrl}><button slot="activate" className="bg-accent text-fg-on px-5 py-3 rounded-sm">Install firmware</button></esp-web-install-button></div>}
+        {manifestUrl && secure && supported && <div className="mt-4"><p className="text-sm mb-3">Firmware: {firmwareName}{releasedOn && <>, released <time dateTime={releaseDate}>{releasedOn}</time></>}. For a first installation or recovery, choose erase when prompted. These factory images replace saved Wi-Fi and device credentials even without erase. Keep your device UUID and token ready and repeat setup after installing.</p><esp-web-install-button key={`${panel}:${tag}`} manifest={manifestUrl}><button slot="activate" className="bg-accent text-fg-on px-5 py-3 rounded-sm">Install firmware</button></esp-web-install-button></div>}
       </section>
 
       <section className="border border-divider rounded-md p-5 mb-6">

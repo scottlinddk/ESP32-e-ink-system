@@ -44,8 +44,28 @@ export function resolveFirmwareManifest(value: unknown, firmwareBaseUrl: string)
   };
 }
 
-export async function loadPublicFirmwareManifest(panel: ElecrowPanel, signal?: AbortSignal): Promise<FlashManifest> {
-  const response = await fetch(`/api/firmware/public-manifest?panel=${panel}`, { signal, cache: 'no-store' });
+export interface FirmwareReleaseOption {
+  /** Empty for a local build, which has no GitHub tag. */
+  tag: string;
+  version: string;
+  releasedAt: string | null;
+}
+
+/** Recent installable releases, newest first. An unavailable list is not fatal: the newest release still installs. */
+export async function loadPublicFirmwareReleases(signal?: AbortSignal): Promise<FirmwareReleaseOption[]> {
+  const response = await fetch('/api/firmware/public-releases', { signal, cache: 'no-store' });
+  if (!response.ok) return [];
+  const body = await response.json() as { releases?: unknown };
+  if (!Array.isArray(body.releases)) return [];
+  return body.releases.filter((value): value is FirmwareReleaseOption => !!value
+    && typeof value.tag === 'string' && typeof value.version === 'string'
+    && (value.releasedAt === null || typeof value.releasedAt === 'string'));
+}
+
+/** `tag` pins one release; omit it for the newest. */
+export async function loadPublicFirmwareManifest(panel: ElecrowPanel, signal?: AbortSignal, tag?: string): Promise<FlashManifest> {
+  const query = new URLSearchParams({ panel, ...(tag ? { tag } : {}) });
+  const response = await fetch(`/api/firmware/public-manifest?${query}`, { signal, cache: 'no-store' });
   if (!response.ok) throw new Error('No complete firmware release is available. Retry after the firmware build has been published.');
   const manifest = resolveFirmwareManifest(await response.json(), new URL('/api/firmware/', window.location.href).href);
   if (!manifest.builds.some(build => build.chipFamily === 'ESP32-S3' && build.parts.length === 1 && build.parts[0].offset === 0)) {

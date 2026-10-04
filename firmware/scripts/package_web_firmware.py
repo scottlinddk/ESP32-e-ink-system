@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import struct
 import subprocess
@@ -24,17 +25,22 @@ class Board:
     flash_size: str
     flash_freq: str
     size_freq_byte: int
-
-    @property
-    def factory_name(self):
-        return f"firmware{self.suffix}-factory.bin"
+    # Names the hardware in release filenames. Keep in sync with ASSET_BOARD_SLUGS in
+    # backend/src/services/githubRelease.ts, which also accepts the legacy names.
+    slug: str
 
 
 BOARDS = (
-    Board("esp32dev", "", "esp32", "ESP32", 0, 0x1000, "4MB", "40m", 0x20),
-    Board("elecrow_213", "-elecrow", "esp32s3", "ESP32-S3", 9, 0, "8MB", "80m", 0x3F),
-    Board("elecrow_213_v12", "-elecrow-v12", "esp32s3", "ESP32-S3", 9, 0, "8MB", "80m", 0x3F),
+    Board("esp32dev", "", "esp32", "ESP32", 0, 0x1000, "4MB", "40m", 0x20, "waveshare-esp32-213-v2"),
+    Board("elecrow_213", "-elecrow", "esp32s3", "ESP32-S3", 9, 0, "8MB", "80m", 0x3F, "elecrow-crowpanel-213"),
+    Board("elecrow_213_v12", "-elecrow-v12", "esp32s3", "ESP32-S3", 9, 0, "8MB", "80m", 0x3F, "elecrow-crowpanel-213-v12"),
 )
+
+
+def asset_name(board: Board, version: str, image: str) -> str:
+    """Descriptive release filename: board, firmware version and image (factory, app, bootloader, partitions)."""
+    safe_version = re.sub(r"[^a-zA-Z0-9._-]", "_", version)
+    return f"{board.slug}_fw-{safe_version}_{image}.bin"
 
 
 def check_image(path: Path, board: Board):
@@ -64,7 +70,7 @@ def check_partitions(path: Path, app_size: int, flash_size: int):
         raise ValueError(f"{path}: application does not fit its partition")
 
 
-def package_board(board: Board, project: Path, output: Path, core: Path):
+def package_board(board: Board, project: Path, output: Path, core: Path, version: str):
     build = project / ".pio" / "build" / board.environment
     bootloader = build / "bootloader.bin"
     partitions = build / "partitions.bin"
@@ -81,7 +87,7 @@ def package_board(board: Board, project: Path, output: Path, core: Path):
         raise FileNotFoundError("PlatformIO esptool/boot_app0 missing; build the firmware first or set --platformio-core")
     if boot_app.stat().st_size != 0x2000:
         raise ValueError("Unexpected boot_app0 size (expected 8192 bytes)")
-    factory = output / board.factory_name
+    factory = output / asset_name(board, version, "factory")
     # Arduino/IDF's qio bootloader must be patched to dio for browser flashing,
     # just as the CLI uploader does. S3 uses offset 0, unlike classic ESP32.
     subprocess.run([
@@ -98,9 +104,9 @@ def package_board(board: Board, project: Path, output: Path, core: Path):
         raise ValueError(f"{factory}: bootloader flash header was not patched")
     if merged[0x10000:] != app_data or merged[0xe000:0x10000] != boot_app.read_bytes() or merged[0x8000:0x8000 + partitions.stat().st_size] != partitions.read_bytes():
         raise ValueError(f"{factory}: merged image is missing or has altered firmware parts")
-    for source, name in ((app, f"firmware{board.suffix}.bin"), (bootloader, f"bootloader{board.suffix}.bin"), (partitions, f"partitions{board.suffix}.bin")):
-        shutil.copyfile(source, output / name)
-    return {"chipFamily": board.family, "parts": [{"path": board.factory_name, "offset": 0}]}
+    for source, image in ((app, "app"), (bootloader, "bootloader"), (partitions, "partitions")):
+        shutil.copyfile(source, output / asset_name(board, version, image))
+    return {"chipFamily": board.family, "parts": [{"path": factory.name, "offset": 0}]}
 
 
 def release_date() -> str:
@@ -111,11 +117,14 @@ def release_date() -> str:
 
 
 def write_manifests(output: Path, version: str, builds: list[dict]):
-    base = {"name": "ESP32 E-Ink Display", "version": version, "release_date": release_date(),
+    base = {"version": version, "release_date": release_date(),
             "new_install_prompt_erase": True, "new_install_improv_wait_time": 0}
     # S3 chip detection cannot distinguish the two physical display controllers.
-    for name, selected in (("manifest.json", builds[:2]), ("manifest-elecrow-v12.json", builds[2:])):
-        (output / name).write_text(json.dumps({**base, "builds": selected}, indent=2) + "\n", encoding="utf-8")
+    # Names match the backend's descriptive "<board> FW <version>" naming.
+    for name, board, selected in (("manifest.json", "Elecrow CrowPanel 2.13", builds[:2]),
+                                  ("manifest-elecrow-v12.json", "Elecrow CrowPanel 2.13 V1.2", builds[2:])):
+        manifest = {"name": f"{board} FW {version}", **base, "builds": selected}
+        (output / name).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     hashes = [f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}" for path in sorted(output.glob("*.bin"))]
     (output / "SHA256SUMS").write_text("\n".join(hashes) + "\n", encoding="utf-8")
 
@@ -128,7 +137,7 @@ def main():
     parser.add_argument("--version", required=True)
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    builds = [package_board(board, args.project_dir, args.output_dir, args.platformio_core) for board in BOARDS]
+    builds = [package_board(board, args.project_dir, args.output_dir, args.platformio_core, args.version) for board in BOARDS]
     shutil.copyfile(args.platformio_core / "packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin", args.output_dir / "boot_app0.bin")
     write_manifests(args.output_dir, args.version, builds)
     print(f"Packaged all three boards in {args.output_dir}")

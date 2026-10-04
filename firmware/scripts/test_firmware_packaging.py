@@ -95,17 +95,23 @@ class PackagingTests(unittest.TestCase):
                     Path(command[command.index("--output") + 1]).write_bytes(data)
 
                 with patch("package_web_firmware.subprocess.run", side_effect=merge):
-                    builds.append(package_board(board, root, output, core))
-            write_manifests(output, "2.0.0", builds)
+                    builds.append(package_board(board, root, output, core, "2.0.0+abc"))
+            write_manifests(output, "2.0.0+abc", builds)
             default = json.loads((output / "manifest.json").read_text())
             v12 = json.loads((output / "manifest-elecrow-v12.json").read_text())
             self.assertEqual([entry["chipFamily"] for entry in default["builds"]], ["ESP32", "ESP32-S3"])
-            self.assertEqual(v12["builds"], [{"chipFamily": "ESP32-S3", "parts": [{"path": "firmware-elecrow-v12-factory.bin", "offset": 0}]}])
-            self.assertEqual(default["version"], "2.0.0")
+            self.assertEqual(v12["builds"], [{"chipFamily": "ESP32-S3", "parts": [{"path": "elecrow-crowpanel-213-v12_fw-2.0.0_abc_factory.bin", "offset": 0}]}])
+            self.assertEqual(default["version"], "2.0.0+abc")
+            self.assertEqual(default["name"], "Elecrow CrowPanel 2.13 FW 2.0.0+abc")
+            self.assertEqual(v12["name"], "Elecrow CrowPanel 2.13 V1.2 FW 2.0.0+abc")
             self.assertRegex(default["release_date"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
             self.assertEqual(v12["release_date"], default["release_date"])
             self.assertTrue(default["new_install_prompt_erase"])
-            self.assertIn("firmware-elecrow-factory.bin", (output / "SHA256SUMS").read_text())
+            self.assertEqual(sorted(path.name for path in output.glob("*.bin")), sorted(
+                f"{slug}_fw-2.0.0_abc_{image}.bin"
+                for slug in ("waveshare-esp32-213-v2", "elecrow-crowpanel-213", "elecrow-crowpanel-213-v12")
+                for image in ("factory", "app", "bootloader", "partitions")))
+            self.assertIn("elecrow-crowpanel-213_fw-2.0.0_abc_factory.bin", (output / "SHA256SUMS").read_text())
 
 
 if __name__ == "__main__":

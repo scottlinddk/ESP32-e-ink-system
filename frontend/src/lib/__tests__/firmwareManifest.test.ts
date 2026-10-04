@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { formatReleaseDate, loadPublicFirmwareManifest, resolveFirmwareManifest } from '../firmwareManifest';
+import { formatReleaseDate, loadPublicFirmwareManifest, loadPublicFirmwareReleases, resolveFirmwareManifest } from '../firmwareManifest';
 
 const manifest = { name: 'Display', builds: [{ chipFamily: 'ESP32-S3', parts: [{ path: 'releases/v1/firmware-elecrow-factory.bin', offset: 0 }] }] };
 afterEach(() => { vi.unstubAllGlobals(); });
@@ -38,5 +38,19 @@ describe('browser factory manifests', () => {
     vi.stubGlobal('window', { location: { href: 'https://example.com/flash' } });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ ...manifest, builds: [{ chipFamily: 'ESP32-S3', parts: [{ path: 'firmware.bin', offset: 65536 }] }] }))));
     await expect(loadPublicFirmwareManifest('original')).rejects.toThrow('complete ESP32-S3 factory image');
+  });
+  it('requests a pinned release tag when one is selected', async () => {
+    vi.stubGlobal('window', { location: { href: 'https://example.com/flash' } });
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify(manifest)));
+    vi.stubGlobal('fetch', fetcher);
+    await loadPublicFirmwareManifest('v12', undefined, 'dev-1+a');
+    expect(fetcher.mock.calls[0][0]).toBe('/api/firmware/public-manifest?panel=v12&tag=dev-1%2Ba');
+  });
+  it('lists valid releases and treats an unavailable list as empty', async () => {
+    const valid = { tag: 'dev-2', version: 'dev-2', releasedAt: '2026-10-04T12:00:00Z' };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ releases: [valid, { tag: 1 }, null] }))));
+    expect(await loadPublicFirmwareReleases()).toEqual([valid]);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 500 })));
+    expect(await loadPublicFirmwareReleases()).toEqual([]);
   });
 });

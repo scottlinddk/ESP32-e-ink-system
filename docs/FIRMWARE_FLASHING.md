@@ -61,13 +61,15 @@ The browser manifest must contain a complete merged image at offset **0**. The m
 
 | Board | Factory image | Manifest |
 |---|---|---|
-| Waveshare / ESP32 | `firmware-factory.bin` | `manifest.json` |
-| Original CrowPanel / SSD1680 | `firmware-elecrow-factory.bin` | `manifest.json` |
-| CrowPanel V1.2 / JD79661 | `firmware-elecrow-v12-factory.bin` | `manifest-elecrow-v12.json` |
+| Waveshare / ESP32 | `waveshare-esp32-213-v2_fw-<version>_factory.bin` | `manifest.json` |
+| Original CrowPanel / SSD1680 | `elecrow-crowpanel-213_fw-<version>_factory.bin` | `manifest.json` |
+| CrowPanel V1.2 / JD79661 | `elecrow-crowpanel-213-v12_fw-<version>_factory.bin` | `manifest-elecrow-v12.json` |
 
-The app-only files named `firmware.bin`, `firmware-elecrow.bin`, and `firmware-elecrow-v12.bin` do not install a blank board. Do not write these files at 0 or place them in a factory manifest. Automatic OTA is not implemented by this device-feed firmware.
+Releases published before the rename use the legacy names `firmware-factory.bin`, `firmware-elecrow-factory.bin` and `firmware-elecrow-v12-factory.bin`; the backend accepts either spelling per file, so older releases stay installable.
 
-Production requires both the updated web/backend deployment and a published release containing these images. The release workflow first compiles and validates all boards. Pull requests and manual runs provide downloadable artifacts; a firmware merge to `main` or a version tag publishes the release. A selected release stays fixed throughout a browser download, even if a newer release is published. The Flash page and the Firmware page's default entry show the release date: GitHub's publication time for a published release, or the packaging time (`SOURCE_DATE_EPOCH` when set) in a local manifest's `release_date`. Releases without a date show only the version.
+The app-only `<board>_fw-<version>_app.bin` files (legacy: `firmware.bin`, `firmware-elecrow.bin`, `firmware-elecrow-v12.bin`) do not install a blank board. Do not write these files at 0 or place them in a factory manifest. Automatic OTA is not implemented by this device-feed firmware.
+
+Production requires both the updated web/backend deployment and a published release containing these images. The release workflow first compiles and validates all boards. Pull requests and manual runs provide downloadable artifacts; a firmware merge to `main` or a version tag publishes the release. The Flash page installs the most recently published complete release by default and lets you pick any of the five newest for a rollback. A selected release stays fixed throughout a browser download, even if a newer release is published. The Flash page and the Firmware page's default entry show the release date: GitHub's publication time for a published release, or the packaging time (`SOURCE_DATE_EPOCH` when set) in a local manifest's `release_date`. Releases without a date show only the version.
 
 For local validation before publishing, package the builds and set backend `FIRMWARE_RELEASE_DIR` to the absolute output directory. Restart the backend, start the frontend, and open `/flash` on localhost. The backend checks SHA256SUMS and serves hash-pinned assets. Remove this setting to use published releases again.
 

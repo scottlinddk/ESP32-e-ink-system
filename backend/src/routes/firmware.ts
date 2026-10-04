@@ -7,7 +7,7 @@ import {
   getFirmwareVersionById,
   upsertUser,
 } from '../services/database';
-import { getInstallManifest } from '../services/firmwareInstall';
+import { getInstallManifest, listInstallableReleases, parseReleaseTag } from '../services/firmwareInstall';
 import type { FirmwareVersion } from '../types';
 
 const router = Router();
@@ -106,7 +106,26 @@ router.post(
 );
 
 /**
+ * GET /api/firmware/public-releases
+ * The recent complete factory releases the public /flash page can switch between, newest first.
+ * Must be declared before requireAuth routes to avoid auth middleware.
+ */
+router.get(
+  '/public-releases',
+  async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const releases = await listInstallableReleases().catch(() => []);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ releases });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
  * GET /api/firmware/public-manifest
+ * Optional `tag` pins one of the releases from /public-releases; omitted means the newest.
  * Returns a dynamically-resolved esp-web-tools manifest without authentication.
  * Used by the public /flash page so first-time users can flash without signing in.
  * Must be declared before requireAuth routes to avoid auth middleware.
@@ -115,7 +134,9 @@ router.get(
   '/public-manifest',
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const manifest = await getInstallManifest(req.query.panel === 'v12' ? 'v12' : 'original').catch(() => null);
+      const tag = parseReleaseTag(req.query.tag);
+      if (tag === null) { res.status(400).json({ error: 'Invalid firmware release tag' }); return; }
+      const manifest = await getInstallManifest(req.query.panel === 'v12' ? 'v12' : 'original', tag).catch(() => null);
       if (!manifest) {
         res.status(503).json({ error: 'Firmware release not currently available. Try again later.' });
         return;

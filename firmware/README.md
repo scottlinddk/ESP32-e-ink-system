@@ -6,9 +6,9 @@ See the [browser installation and recovery guide](../docs/FIRMWARE_FLASHING.md).
 
 | Hardware | PlatformIO environment | Browser image |
 |---|---|---|
-| Waveshare 2.13-inch HAT V2 on ESP32-WROOM-32 | `esp32dev` | `firmware-factory.bin` |
-| Original Elecrow CrowPanel 2.13-inch, SSD1680 | `elecrow_213` | `firmware-elecrow-factory.bin` |
-| Elecrow CrowPanel 2.13-inch V1.2, JD79661 | `elecrow_213_v12` | `firmware-elecrow-v12-factory.bin` |
+| Waveshare 2.13-inch HAT V2 on ESP32-WROOM-32 | `esp32dev` | `waveshare-esp32-213-v2_fw-<version>_factory.bin` |
+| Original Elecrow CrowPanel 2.13-inch, SSD1680 | `elecrow_213` | `elecrow-crowpanel-213_fw-<version>_factory.bin` |
+| Elecrow CrowPanel 2.13-inch V1.2, JD79661 | `elecrow_213_v12` | `elecrow-crowpanel-213-v12_fw-<version>_factory.bin` |
 
 The bundled Elecrow driver is in `lib/EPD`; no vendor library download is required. This firmware pulls the current monochrome BMP from the app's device feed over Wi-Fi. It also accepts manual Bluetooth pushes as `EInk-XXXXXX` during first-boot setup or when holding MENU while resetting (Waveshare: press BOOT within 3 seconds after releasing reset). It also stays on whenever the device is awake between polls (Instant updates on USB power); deep sleep turns it off. Keep the browser online and use a 250 × 122 profile; see [Bluetooth delivery](../docs/BLUETOOTH_DELIVERY.md).
 
