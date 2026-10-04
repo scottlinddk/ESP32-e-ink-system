@@ -73,10 +73,25 @@ refresh acknowledgement support; older firmware may display the image while the
 request remains queued. See [device delivery](DEVICE_DELIVERY.md) for setup and
 the acknowledgement protocol.
 
+### Instant updates (USB-powered displays)
+
+Turn on **Instant updates (USB power)** below the button to skip the wait. The
+device then stays on Wi-Fi and checks for a request every few seconds instead of
+deep sleeping, so **Update device screen** usually changes the panel within about
+10 seconds: the check interval, the frame download and the 2–4 second e-ink full
+refresh. The dashboard checks the status every 3 seconds for two minutes after
+such a request.
+
+Use it only with USB power; staying online drains a battery quickly. A device that
+is already asleep switches mode at its next scheduled check-in. Turning the setting
+off returns the device to deep sleep at its next request check. It requires
+migration `020_device_instant_updates.sql` and firmware with instant-update support.
+
 ## Database deployment
 
 Apply `backend/src/db/migrations/018_device_displays.sql` before configuring
-devices and `019_device_refresh.sql` before requesting screen updates.
+devices, `019_device_refresh.sql` before requesting screen updates and
+`020_device_instant_updates.sql` before enabling instant updates.
 Existing installations should apply only migrations they have not
 already run. Raspberry Pi installations use the migration runbook in
 `infra/raspberry-pi/README.md`; the same SQL migration is used for hosted PostgreSQL.

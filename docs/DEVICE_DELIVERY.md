@@ -2,7 +2,7 @@
 
 Apply `backend/src/db/migrations/015_device_delivery.sql` and configure the backend's Supabase **service role** key. The new `device_delivery` table has RLS enabled and denies `anon`/`authenticated` access; tokens and telemetry never become columns on the legacy `devices` table.
 
-When upgrading the complete feature set, apply missing migrations in order through `019_device_refresh.sql`, including `016_display_timezone.sql`, `017_energy_price_settings.sql` and `018_device_displays.sql`. Earlier installations must also have their preceding migrations. Automated validation uses isolated fixtures and mocked database services; it does not verify production SQL or a physical panel.
+When upgrading the complete feature set, apply missing migrations in order through `020_device_instant_updates.sql`, including `016_display_timezone.sql`, `017_energy_price_settings.sql` and `018_device_displays.sql`. Earlier installations must also have their preceding migrations. Automated validation uses isolated fixtures and mocked database services; it does not verify production SQL or a physical panel.
 
 In **Devices → Automatic updates**, create a token for the registered device. Copy it immediately: only its SHA-256 hash is stored. Creating another token invalidates the previous token; **Revoke token** stops future frame/heartbeat requests. Management endpoints require the owning Clerk account. Frame/heartbeat tokens cannot read preferences or manage other devices.
 
@@ -12,7 +12,7 @@ Tokens are bound to both the device and issuing owner. Reassigning a device inva
 
 The firmware in `firmware/` implements the BMP device-feed protocol directly for Waveshare 2.13-inch HAT V2, original CrowPanel 2.13-inch SSD1680, and CrowPanel V1.2 JD79661. Install the matching factory image from the web **Flash** page, then enter the HTTPS API origin (optionally ending in `/api`), device UUID and token in its setup hotspot. Select a 250 × 122 display profile with rotation 0. It verifies TLS, frame metadata, SHA-256 and BMP bounds, preserves the panel for 204/304 responses, and reports RSSI and a hash only after the display driver completes the refresh.
 
-This firmware uses NTP for TLS certificate time validation and sleeps until the next bounded retry interval. Invalid credentials reopen the setup portal; holding the CrowPanel menu button during reset or waking with it also opens setup. Battery reporting and automatic OTA are disabled. See the [flashing guide](FIRMWARE_FLASHING.md) for recovery, CA maintenance and hardware verification. Physical/first-boot setup also enables manual Bluetooth image delivery as `EInk-XXXXXX`; automatic error recovery does not.
+This firmware uses NTP for TLS certificate time validation and sleeps until the next bounded retry interval, unless [instant updates](#instant-updates) keep it online. Invalid credentials reopen the setup portal; holding the CrowPanel menu button during reset or waking with it also opens setup. Battery reporting and automatic OTA are disabled. See the [flashing guide](FIRMWARE_FLASHING.md) for recovery, CA maintenance and hardware verification. Physical/first-boot setup also enables manual Bluetooth image delivery as `EInk-XXXXXX`; automatic error recovery does not.
 
 ## Reference bridge
 
@@ -59,8 +59,10 @@ Paths below include the public `/api` prefix. All device requests carry `Authori
 | POST `/api/devices/:id/delivery/token` | Owning Clerk account | New token, returned once; invalidates old token |
 | DELETE `/api/devices/:id/delivery/token` | Owning Clerk account | Revocation |
 | POST `/api/devices/:id/refresh` | Owning Clerk account | 202 with delivery status; queues a screen update for a configured device |
+| PUT `/api/devices/:id/delivery/instant` | Owning Clerk account | Body `{ "enabled": boolean }`; delivery status with `instantUpdates`. 409 without an active token |
 | GET `/api/device-feed/:id/frame?format=bmp` | Device token | 1-bit top-down BMP |
 | GET `/api/device-feed/:id/frame?format=raw` | Device token | Row-major `ceil(width/8)` bytes per row, MSB-first, 1=white |
+| GET `/api/device-feed/:id/refresh-request` | Device token | 204 when nothing is pending; 200 with `X-Refresh-Request-ID` when a manual request is pending. No rendering |
 | POST `/api/device-feed/:id/heartbeat` | Device token | Validated telemetry; `{ "accepted": true }` |
 
 Frame responses provide `ETag` and `X-Image-SHA256` over the exact response bytes, `X-Display-Width`, `X-Display-Height`, `X-Display-Rotation`, `X-Display-Row-Bytes`, `X-Display-Encoding: mono-msb-white1`, `X-Refresh-Mode: full`, and `Retry-After` in seconds. Send `If-None-Match` for a verified cached frame to receive 304 when unchanged. Quiet schedules return 204 without an image, with a retry hint for waking again. The client keeps its prior frame during quiet periods.
@@ -95,7 +97,8 @@ Reports describe what the client said, not independently verified physical state
 ## Manual screen refresh
 
 The selected device's dashboard offers **Update device screen**. This queues one
-request for its next check-in; it cannot wake hardware from deep sleep. Its saved
+request for its next check-in; it cannot wake hardware from deep sleep. With
+[instant updates](#instant-updates) on, the device is online and applies it within seconds. Its saved
 layout and latest available provider data are rendered when the request is served.
 The next scheduled check-in may be after quiet hours if the device is already asleep.
 The usual provider caches remain in effect. A new request replaces the previous
@@ -124,6 +127,39 @@ the acknowledgement without another physical refresh. The reference bridge does
 the same while its process remains running. Its file-only mode never acknowledges
 a physical update. Old clients can fetch the image but cannot complete this
 request protocol; update the backend before installing the new firmware.
+
+## Instant updates
+
+By default the bundled firmware deep sleeps with Wi-Fi off between frames, so a
+manual request waits for the next scheduled check-in. An owner can turn on
+**Instant updates** per device (stored in `device_delivery.instant_updates` by
+migration `020_device_instant_updates.sql`, default off). Rotating a token keeps
+the setting.
+
+Every frame response (200, 204 and 304) and every request check carries
+`X-Instant-Updates: 1` or `0`. While it is `1`, the firmware keeps Wi-Fi associated
+(modem sleep), puts the panel controller to sleep and calls
+`GET /refresh-request` every `Retry-After` seconds. The server sets this from
+`DEVICE_INSTANT_CHECK_SECONDS` (integer 2–60, default 5); the firmware also bounds
+it to 2–60. On 200 the firmware requests the frame immediately; the frame carries
+and validates the request ID, and the heartbeat acknowledgement is unchanged.
+Scheduled frame polls still follow the frame `Retry-After`. When a check reports
+`0`, the firmware returns to deep sleep for the rest of the scheduled interval.
+
+Failed checks back off up to 60 seconds and reconnect Wi-Fi if needed. After a
+failed frame, a pending request waits for the frame backoff instead of retrying
+every check. A rejected token is reported through the next frame request, which
+opens the setup portal as before. Error responses without the header leave the
+current mode unchanged.
+
+Cost and limits: each check is one API request with three small database reads
+and, with Upstash configured, one rate-limit call. At 5 seconds this is about
+17,000 checks per device per day, within the 120 requests/minute device budget.
+Raise `DEVICE_INSTANT_CHECK_SECONDS` if hosting or Upstash quotas are tight.
+Installations without migration 020 keep ordinary delivery; enabling the setting
+returns an actionable 503. Older firmware ignores the header and keeps sleeping.
+Power draw, Wi-Fi reconnection after router restarts and end-to-end latency
+require hardware verification.
 
 ## Verification
 

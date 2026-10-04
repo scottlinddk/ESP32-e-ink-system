@@ -39,7 +39,7 @@ def columns(required: dict[str, str], optional: dict[str, str]) -> dict[str, tup
 
 
 TS = "timestamp with time zone"
-# The final schema after all tracked migrations through 019_device_refresh.
+# The final schema after all tracked migrations through 020_device_instant_updates.
 # Do not automatically repair a live source.
 EXPECTED_COLUMNS = {
     "users": columns({"id": "uuid", "email": "text"}, {"display_name": "text", "created_at": TS, "updated_at": TS}),
@@ -69,7 +69,7 @@ EXPECTED_COLUMNS = {
     "custom_webhooks": columns({"user_id": "uuid", "rows": "jsonb"}, {
         "token_hash": "text", "token_created_at": TS, "observed_at": TS, "received_at": TS,
     }),
-    "device_delivery": columns({"device_id": "uuid", "owner_id": "uuid", "rotated_at": TS}, {
+    "device_delivery": columns({"device_id": "uuid", "owner_id": "uuid", "rotated_at": TS, "instant_updates": "boolean"}, {
         "token_hash": "text", "revoked_at": TS, "last_seen_at": TS, "firmware_version": "text",
         "battery_percent": "double precision", "rssi": "integer", "last_applied_hash": "text",
         "refresh_request_id": "uuid", "refresh_requested_at": TS, "refresh_applied_at": TS,
@@ -110,7 +110,7 @@ EXPECTED_DEFAULTS["devices"].update({"device_name": "'My Display'::text", "firmw
 EXPECTED_DEFAULTS["firmware_versions"]["active"] = "true"
 EXPECTED_DEFAULTS["orders"]["status"] = "'pending'::text"
 EXPECTED_DEFAULTS["custom_webhooks"]["rows"] = "'[]'::jsonb"
-EXPECTED_DEFAULTS["device_delivery"]["rotated_at"] = "now()"
+EXPECTED_DEFAULTS["device_delivery"].update({"rotated_at": "now()", "instant_updates": "false"})
 EXPECTED_DEFAULTS["device_displays"].update({
     "display_timezone": "'Europe/Copenhagen'::text", "refresh_interval_minutes": "30", "revision": "1",
 })

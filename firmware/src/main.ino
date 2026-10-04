@@ -16,6 +16,11 @@ DeviceCredentials credentials;
 RTC_DATA_ATTR feed::AppliedFrame appliedFrame = {};
 RTC_DATA_ATTR uint32_t failedPolls = 0;
 uint32_t nextPollSeconds = 60;
+// Owner opt-in reported on every feed response. RAM only: an instant-updates
+// device never deep sleeps, and any boot or timer wake relearns the mode.
+bool instantUpdates = false;
+uint32_t instantCheckSeconds = 5;
+uint32_t nextPollAt = 0;  // millis() of the next scheduled frame request
 
 #ifdef ELECROW_EPAPER_213
 constexpr int SETUP_BUTTON = 2;  // Manufacturer MENU button, not the boot strap.
@@ -51,6 +56,60 @@ void sleepUntilNextPoll() {
 #endif
 }
 
+void finishPoll() {
+  if (!instantUpdates) {
+    sleepUntilNextPoll();
+    return;
+  }
+  // USB-powered opt-in: keep Wi-Fi associated (modem sleep) so loop() can ask
+  // for screen-update requests until the scheduled frame poll.
+  display.sleep();
+  nextPollAt = millis() + nextPollSeconds * 1000UL;
+  Serial.printf("[Main] Instant updates on; next scheduled poll in %lu seconds\n", static_cast<unsigned long>(nextPollSeconds));
+}
+
+// Returns true to poll the frame now (request or schedule), false when the
+// owner turned instant updates off and the device should sleep again.
+bool waitForRefreshRequest() {
+  uint32_t intervalSeconds = instantCheckSeconds;
+  uint32_t checkFailures = 0;
+  uint32_t lastCheck = millis();
+  while (static_cast<int32_t>(nextPollAt - millis()) > 0) {
+    if (digitalRead(SETUP_BUTTON) == LOW) openSetup();
+    if (millis() - lastCheck < intervalSeconds * 1000UL) {
+      delay(50);
+      continue;
+    }
+    lastCheck = millis();
+    RefreshCheck check;
+    if (wifiManager.isConnected() || (wifiManager.connect() && wifiManager.waitForConnection(WIFI_CONNECT_TIMEOUT_SEC * 1000)))
+      check = apiClient.checkRefreshRequest(credentials.apiUrl, credentials.deviceId, credentials.token);
+    if (check.instantUpdates == 0) {
+      instantUpdates = false;
+      const int32_t remaining = static_cast<int32_t>(nextPollAt - millis());
+      nextPollSeconds = remaining > 1000 ? static_cast<uint32_t>(remaining) / 1000 : 1;
+      Serial.println("[Main] Instant updates turned off; resuming sleep between polls");
+      return false;
+    }
+    // A failed frame keeps its backoff; repeating it every check would hammer the API.
+    if (check.pending && failedPolls == 0) {
+      Serial.println("[Main] Screen update requested");
+      return true;
+    }
+    // Let the frame request report a rejected token through the setup portal.
+    if (check.httpCode == 401 || check.httpCode == 403) return true;
+    if (check.httpCode == 200 || check.httpCode == 204) {
+      checkFailures = 0;
+      instantCheckSeconds = intervalSeconds = check.retrySeconds;
+    } else {
+      checkFailures = min(checkFailures + 1, static_cast<uint32_t>(4));
+      intervalSeconds = min(static_cast<uint32_t>(60), instantCheckSeconds << checkFailures);
+      Serial.printf("[Main] Request check failed (HTTP %d); next check in %lu seconds\n", check.httpCode, static_cast<unsigned long>(intervalSeconds));
+    }
+  }
+  return true;
+}
+
 void pollDisplay() {
   nextPollSeconds = 60;
   if (!wifiManager.connect() || !wifiManager.waitForConnection(WIFI_CONNECT_TIMEOUT_SEC * 1000)) {
@@ -69,7 +128,7 @@ void pollDisplay() {
   if (time(nullptr) < 1735689600) {
     Serial.println("[Main] Time sync failed; check internet/NTP access");
     if (!feed::validHash(appliedFrame.hash)) display.showError("Time sync failed", "Check internet / NTP");
-    sleepUntilNextPoll();
+    finishPoll();
     return;
   }
   Serial.println("[Main] Clock ready; requesting device frame");
@@ -77,6 +136,7 @@ void pollDisplay() {
   FrameResult frame = apiClient.fetchFrame(credentials.apiUrl, credentials.deviceId,
     credentials.token, appliedFrame.hash, bmp, sizeof(bmp));
   Serial.printf("[Main] Frame response: HTTP %d, %d image bytes\n", frame.httpCode, frame.length);
+  if (frame.instantUpdates >= 0) instantUpdates = frame.instantUpdates == 1;
   bool success = false;
   if (frame.length > 0) {
     success = appliedFrame.apply(frame.hash, frame.refreshRequestId, [&]() {
@@ -115,7 +175,7 @@ void pollDisplay() {
   else Serial.println("[Main] Heartbeat accepted by server");
   const uint32_t elapsed = (millis() - frame.receivedAt) / 1000;
   nextPollSeconds = nextPollSeconds > elapsed ? nextPollSeconds - elapsed : 1;
-  sleepUntilNextPoll();
+  finishPoll();
 }
 
 void setup() {
@@ -156,6 +216,11 @@ void setup() {
 }
 
 void loop() {
+  if (instantUpdates) {
+    if (waitForRefreshRequest()) pollDisplay();
+    else sleepUntilNextPoll();  // Returns only when deep sleep is disabled.
+    return;
+  }
 #if !DEEP_SLEEP_ENABLED
   // A firmware with sleep disabled still polls, and allows button recovery.
   uint32_t started = millis();

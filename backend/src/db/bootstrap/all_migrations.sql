@@ -1,9 +1,9 @@
 -- ============================================================
--- ESP32 e-ink system: combined migrations (001 to 019)
--- Source: backend/src/db/migrations/ @ b1cec65
+-- ESP32 e-ink system: combined migrations (001 to 020)
+-- Source: backend/src/db/migrations/ @ b1cec65, plus 020
 -- Run ONCE against an EMPTY Supabase database (SQL Editor).
 -- Everything runs in one transaction: if a step fails, all is rolled back.
--- Not idempotent (CREATE POLICY/TRIGGER, 015, 018, 019): empty database only.
+-- Not idempotent (CREATE POLICY/TRIGGER, 015, 018, 019, 020): empty database only.
 -- Keep in sync with the individual migration files.
 -- ============================================================
 BEGIN;
@@ -334,6 +334,12 @@ ALTER TABLE public.device_delivery
   ADD COLUMN refresh_request_id uuid,
   ADD COLUMN refresh_requested_at timestamptz,
   ADD COLUMN refresh_applied_at timestamptz;
+
+-- ------------------------------------------------------------
+-- 020_device_instant_updates.sql
+-- ------------------------------------------------------------
+ALTER TABLE public.device_delivery
+  ADD COLUMN instant_updates boolean NOT NULL DEFAULT false;
 
 COMMIT;
 

@@ -36,12 +36,13 @@ FrameResult ApiClient::fetchFrame(const char* baseUrl, const char* deviceId, con
     return result;
   }
   const char* headers[] = {"Retry-After", "X-Image-SHA256", "X-Display-Width", "X-Display-Height",
-    "X-Display-Rotation", "X-Display-Row-Bytes", "X-Display-Encoding", "X-Refresh-Mode", "X-Refresh-Request-ID", "Content-Type", "Transfer-Encoding"};
+    "X-Display-Rotation", "X-Display-Row-Bytes", "X-Display-Encoding", "X-Refresh-Mode", "X-Refresh-Request-ID", "X-Instant-Updates", "Content-Type", "Transfer-Encoding"};
   http.collectHeaders(headers, sizeof(headers) / sizeof(headers[0]));
   if (feed::validHash(appliedHash)) http.addHeader("If-None-Match", String('"') + appliedHash + '"');
   result.httpCode = http.GET();
   result.receivedAt = millis();
   result.retrySeconds = feed::retrySeconds(http.header("Retry-After").c_str());
+  result.instantUpdates = feed::instantMode(http.header("X-Instant-Updates").c_str());
   if (result.httpCode == 204 || (result.httpCode == 304 && feed::validHash(appliedHash))) {
     http.end();
     return result;
@@ -101,6 +102,21 @@ FrameResult ApiClient::fetchFrame(const char* baseUrl, const char* deviceId, con
   }
   strlcpy(result.refreshRequestId, requestId.c_str(), sizeof(result.refreshRequestId));
   result.length = expected;
+  return result;
+}
+
+RefreshCheck ApiClient::checkRefreshRequest(const char* baseUrl, const char* deviceId, const char* token) {
+  RefreshCheck result;
+  HTTPClient http;
+  if (!begin(http, baseUrl, deviceId, token, "/refresh-request")) return result;
+  const char* headers[] = {"Retry-After", "X-Instant-Updates", "X-Refresh-Request-ID"};
+  http.collectHeaders(headers, sizeof(headers) / sizeof(headers[0]));
+  result.httpCode = http.GET();
+  result.retrySeconds = feed::instantCheckSeconds(http.header("Retry-After").c_str());
+  result.instantUpdates = feed::instantMode(http.header("X-Instant-Updates").c_str());
+  // Only a signal: the frame response repeats and validates the request ID.
+  result.pending = result.httpCode == 200 && feed::validDeviceId(http.header("X-Refresh-Request-ID").c_str());
+  http.end();
   return result;
 }
 

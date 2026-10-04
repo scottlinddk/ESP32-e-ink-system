@@ -29,4 +29,14 @@ int main() {
   assert(feed::retrySeconds("") == 60);
   assert(feed::retrySeconds("-10") == 60);
   assert(feed::retrySeconds("1a") == 60);
+  assert(feed::instantMode("1") == 1);
+  assert(feed::instantMode("0") == 0);
+  assert(feed::instantMode("") == -1);
+  assert(feed::instantMode("true") == -1);
+  assert(feed::instantMode(nullptr) == -1);
+  assert(feed::instantCheckSeconds("5") == 5);
+  assert(feed::instantCheckSeconds("") == 5);
+  assert(feed::instantCheckSeconds("0") == 2);
+  assert(feed::instantCheckSeconds("3600") == 60);
+  assert(feed::instantCheckSeconds("x") == 60);
 }

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { createHash } from 'node:crypto';
 import { requireAuth } from '../middleware/auth';
 import { getOrCreateUserFromClerk } from './preferences-helpers';
-import { authenticateDevice, DeviceNotFound, getDeliveryStatus, getPendingRefresh, recordHeartbeat, requestDeviceRefresh, revokeDeviceToken, rotateDeviceToken, tokenHash, validateHeartbeat } from '../services/deviceDelivery';
+import { authenticateDevice, DeviceNotFound, getDeliveryStatus, getRefreshState, recordHeartbeat, requestDeviceRefresh, revokeDeviceToken, rotateDeviceToken, setInstantUpdates, tokenHash, validateHeartbeat } from '../services/deviceDelivery';
 import { getApiKeys } from '../services/database';
 import { buildDisplayData } from '../services/displayData';
 import { resolveDevicePreferences } from '../services/deviceDisplays';
@@ -34,6 +34,13 @@ managementRouter.post('/:id/refresh', async (req, res, next) => {
   try { res.status(202).json(await requestDeviceRefresh(await getOrCreateUserFromClerk(req.clerkUserId!), req.params.id)); }
   catch (error) { next(error); }
 });
+managementRouter.put('/:id/delivery/instant', async (req, res, next) => {
+  if (!req.body || typeof req.body.enabled !== 'boolean' || Object.keys(req.body).length !== 1) {
+    res.status(400).json({ error: 'Body must be { "enabled": true | false }' }); return;
+  }
+  try { res.json(await setInstantUpdates(await getOrCreateUserFromClerk(req.clerkUserId!), req.params.id, req.body.enabled)); }
+  catch (error) { next(error); }
+});
 
 export const feedRouter = Router();
 const invalidTokenLimiter = createRateLimiter(30, '1 m', 'Too many invalid device requests', 'device-feed-invalid');
@@ -53,6 +60,11 @@ feedRouter.use('/:id', async (req, res, next) => {
 });
 
 export const retrySeconds = (milliseconds: number) => Math.min(86400, Math.max(1, Math.ceil(Number.isFinite(milliseconds) ? milliseconds / 1000 : 60)));
+/** How often an instant-updates device asks for a pending request. Tunable without a reflash. */
+export function instantCheckSeconds(value = process.env.DEVICE_INSTANT_CHECK_SECONDS): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? Math.min(60, Math.max(2, parsed)) : 5;
+}
 function remainingRetry(nextRefresh: number, startedAt: number, transition?: string): number {
   const transitionAt = transition ? Date.parse(transition) : Infinity;
   const deadline = Math.min(startedAt + nextRefresh, Number.isFinite(transitionAt) ? transitionAt : Infinity);
@@ -65,7 +77,10 @@ feedRouter.get('/:id/frame', async (req, res) => {
   try {
     const startedAt = Date.now();
     const owner = res.locals.deviceOwner as string;
-    const refreshRequestId = await getPendingRefresh(owner, req.params.id, tokenHash(req.get('authorization')!.slice(7)));
+    const refresh = await getRefreshState(owner, req.params.id, tokenHash(req.get('authorization')!.slice(7)));
+    const refreshRequestId = refresh.requestId;
+    // Every response, including quiet 204 and 304, tells the device whether to stay online.
+    res.setHeader('X-Instant-Updates', refresh.instantUpdates ? '1' : '0');
     const prefs = await resolveDevicePreferences(owner, req.params.id);
     const schedule = resolveDisplaySchedule(prefs);
     if (!refreshRequestId && schedule.schedule?.quiet) {
@@ -103,6 +118,18 @@ feedRouter.get('/:id/frame', async (req, res) => {
     logger.error({ reason, hint: DATABASE_FAILURE_HINTS[reason] }, 'Device frame request failed');
     res.setHeader('Retry-After', '60'); res.status(503).json({ error: 'Unable to render display frame' });
   }
+});
+
+// Cheap check for an instant-updates device: no source fetching or rendering.
+// 200 + X-Refresh-Request-ID means fetch the frame now; 204 means nothing pending.
+feedRouter.get('/:id/refresh-request', async (req, res) => {
+  try {
+    const refresh = await getRefreshState(res.locals.deviceOwner as string, req.params.id, tokenHash(req.get('authorization')!.slice(7)));
+    res.set({ 'X-Instant-Updates': refresh.instantUpdates ? '1' : '0', 'Retry-After': String(instantCheckSeconds()) });
+    if (!refresh.requestId) { res.status(204).end(); return; }
+    res.setHeader('X-Refresh-Request-ID', refresh.requestId);
+    res.json({ refreshRequestId: refresh.requestId });
+  } catch { res.setHeader('Retry-After', '60'); res.status(503).json({ error: 'Unable to check for a refresh request' }); }
 });
 
 feedRouter.post('/:id/heartbeat', async (req, res) => {

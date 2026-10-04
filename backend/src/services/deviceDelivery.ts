@@ -16,6 +16,7 @@ interface DeliveryRow {
   refresh_request_id?: string | null;
   refresh_requested_at?: string | null;
   refresh_applied_at?: string | null;
+  instant_updates?: boolean;
 }
 export interface DeliveryStatus {
   configured: boolean;
@@ -28,6 +29,13 @@ export interface DeliveryStatus {
   refreshRequestId: string | null;
   refreshRequestedAt: string | null;
   refreshAppliedAt: string | null;
+  /** The device stays online and checks for requests every few seconds. */
+  instantUpdates: boolean;
+}
+export interface RefreshState {
+  /** A pending, unacknowledged manual request for this credential. */
+  requestId: string | null;
+  instantUpdates: boolean;
 }
 export interface Heartbeat {
   firmware_version: string;
@@ -42,6 +50,8 @@ export const tokenHash = (token: string) => createHash('sha256').update(token).d
 const emptyRefresh = { refresh_request_id: null, refresh_requested_at: null, refresh_applied_at: null };
 const missingRefreshColumns = (error: { code?: string; message?: string } | null) =>
   (error?.code === '42703' || error?.code === 'PGRST204') && /refresh_(request_id|requested_at|applied_at)/.test(error.message ?? '');
+const missingInstantColumn = (error: { code?: string; message?: string } | null) =>
+  (error?.code === '42703' || error?.code === 'PGRST204') && /instant_updates/.test(error.message ?? '');
 
 export async function assertDeviceOwner(owner: string, deviceId: string): Promise<void> {
   const { data, error } = await getSupabaseClient().from('devices').select('id').eq('id', deviceId).eq('user_id', owner).maybeSingle();
@@ -64,7 +74,7 @@ function deliveryStatus(row: DeliveryRow | null): DeliveryStatus {
     lastSeenAt: row?.last_seen_at ?? null, firmwareVersion: row?.firmware_version ?? null,
     batteryPercent: row?.battery_percent ?? null, rssi: row?.rssi ?? null, lastAppliedHash: row?.last_applied_hash ?? null,
     refreshRequestId: row?.refresh_request_id ?? null, refreshRequestedAt: row?.refresh_requested_at ?? null,
-    refreshAppliedAt: row?.refresh_applied_at ?? null,
+    refreshAppliedAt: row?.refresh_applied_at ?? null, instantUpdates: row?.instant_updates === true,
   };
 }
 
@@ -108,14 +118,32 @@ export async function requestDeviceRefresh(owner: string, deviceId: string): Pro
   return deliveryStatus(result.data as DeliveryRow);
 }
 
-/** Snapshot before fetching data; do not attach a newer request to an older frame. */
-export async function getPendingRefresh(owner: string, deviceId: string, credentialHash: string): Promise<string | null> {
+/** Owner opt-in; the device learns the mode from its next feed response. */
+export async function setInstantUpdates(owner: string, deviceId: string, enabled: boolean): Promise<DeliveryStatus> {
+  await assertDeviceOwner(owner, deviceId);
+  const result = await getSupabaseClient().from('device_delivery').update({ instant_updates: enabled })
+    .eq('device_id', deviceId).eq('owner_id', owner).not('token_hash', 'is', null).is('revoked_at', null).select('*').maybeSingle();
+  if (missingInstantColumn(result.error)) throw createError('Apply database migration 020 before enabling instant updates.', 503);
+  if (result.error) throw new Error('Unable to change instant updates');
+  if (!result.data) throw createError('Configure automatic updates with an active device token before enabling instant updates.', 409);
+  return deliveryStatus(result.data as DeliveryRow);
+}
+
+/**
+ * Snapshot before fetching data; do not attach a newer request to an older frame.
+ * Selecting every column keeps installations without migration 019/020 working:
+ * absent columns read as no pending request and instant updates off.
+ */
+export async function getRefreshState(owner: string, deviceId: string, credentialHash: string): Promise<RefreshState> {
   const { data, error } = await getSupabaseClient().from('device_delivery')
-    .select('refresh_request_id, refresh_applied_at').eq('device_id', deviceId).eq('owner_id', owner)
+    .select('*').eq('device_id', deviceId).eq('owner_id', owner)
     .eq('token_hash', credentialHash).is('revoked_at', null).maybeSingle();
-  if (missingRefreshColumns(error)) return null;
   if (error) throw new Error('Unable to load pending device refresh');
-  return data?.refresh_request_id && !data.refresh_applied_at ? data.refresh_request_id as string : null;
+  const row = data as DeliveryRow | null;
+  return {
+    requestId: row?.refresh_request_id && !row.refresh_applied_at ? row.refresh_request_id : null,
+    instantUpdates: row?.instant_updates === true,
+  };
 }
 
 export async function authenticateDevice(deviceId: string, authorization?: string): Promise<string | null> {
