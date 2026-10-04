@@ -1,11 +1,10 @@
-import { EnergyPrice, EnergidataResponse, CacheEntry } from '../types/index';
+import { EnergyPrice, CacheEntry } from '../types/index';
 import { EnergyPriceSettings, parseEnergyPriceSettings } from '../utils/energyPriceSettings';
+import { fetchDanishDaySpot, SpotInterval } from './elprisenligenu';
 
 const BASE_URL = 'https://api.energidataservice.dk/dataset/';
-const INTERVAL_MS = 15 * 60 * 1000;
 const NATIONAL_GLN = '5790000432752';
 const NATIONAL_CODES = ['40000', '41000', 'EA-001']; // Transmission, system, standard electricity tax.
-interface SpotInterval { start: number; price: number }
 interface TariffRecord {
   GLN_Number: string; ChargeType: string; ChargeTypeCode: string;
   ValidFrom: string; ValidTo: string | null; ResolutionDuration: string;
@@ -33,27 +32,13 @@ async function request(dataset: string, params: URLSearchParams, signal: AbortSi
 }
 
 async function loadSpot(priceArea: string, signal: AbortSignal): Promise<SpotInterval[]> {
-  // Danish day bounds include all 92/96/100 quarter-hours on DST transition days.
-  const params = new URLSearchParams({
-    start: 'StartOfDay', end: 'StartOfDay+P1D', limit: '100',
-    filter: JSON.stringify({ PriceArea: [priceArea] }), sort: 'TimeUTC asc',
-  });
-  const json = await request('DayAheadPrices', params, signal) as EnergidataResponse;
+  // Spot prices come from Elprisen lige nu; tariffs below still come from Energinet's DataHub.
   const now = Date.now();
-  const today = danishDate.format(now);
-  const records = (Array.isArray(json.records) ? json.records : [])
-    .filter((r) => r && r.PriceArea === priceArea
-      && typeof r.TimeUTC === 'string' && Number.isFinite(r.DayAheadPriceDKK))
-    .map((r) => ({
-      // The UTC column deliberately omits its Z suffix. DKK/MWh -> øre/kWh.
-      start: Date.parse(/[zZ]|[+-]\d{2}:\d{2}$/.test(r.TimeUTC) ? r.TimeUTC : `${r.TimeUTC}Z`),
-      price: r.DayAheadPriceDKK / 10,
-    }))
-    .filter((r) => Number.isFinite(r.start) && danishDate.format(r.start) === today);
-  const current = records.find((r) => r.start <= now && now < r.start + INTERVAL_MS);
-  if (!current) throw new Error('No energy price available for the current 15-minute interval');
-  // Cache source intervals, never a user's calculated price or previous quarter-hour.
-  spotCache.set(priceArea, { data: records, expiresAt: current.start + INTERVAL_MS });
+  const records = await fetchDanishDaySpot(priceArea, now, signal);
+  const current = records.find((r) => r.start <= now && now < r.end);
+  if (!current) throw new Error('No energy price available for the current interval');
+  // Cache source intervals, never a user's calculated price or previous interval.
+  spotCache.set(priceArea, { data: records, expiresAt: current.end });
   return records;
 }
 
@@ -137,8 +122,8 @@ export async function fetchEnergyPrice(
       + tariffTotal(grid, settings.gridChargeCodes, r.start) + settings.retailerMarkupOre) * 1.25
     : r.price }));
   const now = Date.now();
-  const current = records.find((r) => r.start <= now && now < r.start + INTERVAL_MS);
-  if (!current) throw new Error('No energy price available for the current 15-minute interval');
+  const current = records.find((r) => r.start <= now && now < r.end);
+  if (!current) throw new Error('No energy price available for the current interval');
   const average = records.reduce((sum, r) => sum + r.price, 0) / records.length;
   const difference = current.price - average;
   return {

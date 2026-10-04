@@ -1,14 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearEnergyCache, fetchEnergyPrice } from '../services/energinet';
 
-function record(time: string, price: number, area = 'DK1') {
-  return { TimeUTC: time, PriceArea: area, DayAheadPriceDKK: price };
+// `time` is a UTC instant without suffix and `price` is DKK/MWh, as in the test cases' arithmetic.
+function record(time: string, price: number, area = 'DK1', minutes = 15) {
+  const start = Date.parse(`${time}Z`);
+  return {
+    area, DKK_per_kWh: price / 1000, EUR_per_kWh: price / 7460, EXR: 7.46, time_start: `${time}Z`,
+    time_end: Number.isFinite(start) ? new Date(start + minutes * 60_000).toISOString() : time,
+  };
+}
+
+function spotFor(url: URL, records: unknown[]) {
+  const area = url.pathname.match(/_(DK[12])\.json$/)?.[1];
+  return records.filter((r) => !(r && typeof r === 'object' && 'area' in r) || r.area === area);
 }
 
 function respond(records: unknown[]) {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-    ok: true, json: async () => ({ records }),
-  }));
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(async (input: string) => ({
+    ok: true, json: async () => spotFor(new URL(input), records),
+  })));
 }
 
 beforeEach(() => {
@@ -30,12 +40,30 @@ describe('current Danish day-ahead electricity price', () => {
       record('2026-09-26T10:00:00', 400),
     ]);
     expect(await fetchEnergyPrice()).toEqual({ now: 40, average: 100, trend: 'down' });
-    const url = new URL(vi.mocked(fetch).mock.calls[0][0] as string);
-    expect(url.pathname).toBe('/dataset/DayAheadPrices');
-    expect(url.searchParams.get('start')).toBe('StartOfDay');
-    expect(url.searchParams.get('end')).toBe('StartOfDay+P1D');
-    expect(JSON.parse(url.searchParams.get('filter')!)).toEqual({ PriceArea: ['DK1'] });
-    expect(url.searchParams.get('limit')).toBe('100');
+    expect(vi.mocked(fetch).mock.calls[0][0])
+      .toBe('https://www.elprisenligenu.dk/api/v1/prices/2026/09-26_DK1.json');
+  });
+
+  it('requests the Danish calendar day, not the UTC day', async () => {
+    vi.setSystemTime(new Date('2026-09-25T22:07:00Z'));
+    respond([record('2026-09-25T22:00:00', 400)]);
+    await fetchEnergyPrice('DK2').catch(() => undefined);
+    expect(vi.mocked(fetch).mock.calls[0][0])
+      .toBe('https://www.elprisenligenu.dk/api/v1/prices/2026/09-26_DK2.json');
+  });
+
+  it('accepts Danish UTC offsets and hourly intervals', async () => {
+    respond([{ ...record('2026-09-26T10:00:00', 400, 'DK1', 60),
+      time_start: '2026-09-26T12:00:00+02:00', time_end: '2026-09-26T13:00:00+02:00' }]);
+    expect((await fetchEnergyPrice()).now).toBe(40);
+    vi.setSystemTime(new Date('2026-09-26T10:59:59Z'));
+    expect((await fetchEnergyPrice()).now).toBe(40);
+    expect(fetch).toHaveBeenCalledTimes(1); // Cached until the hourly interval ends.
+  });
+
+  it('rejects timestamps without a UTC offset', async () => {
+    respond([{ ...record('2026-09-26T10:00:00', 400), time_start: '2026-09-26T10:00:00' }]);
+    await expect(fetchEnergyPrice()).rejects.toThrow('current interval');
   });
 
   it('expires cached current prices at the next interval boundary', async () => {
@@ -74,7 +102,10 @@ describe('current Danish day-ahead electricity price', () => {
     ['2026-10-25T01:07:00Z', 80],
   ])('distinguishes the repeated Danish 02:00 hour at %s', async (time, price) => {
     vi.setSystemTime(new Date(time));
-    respond([record('2026-10-25T00:00:00', 400), record('2026-10-25T01:00:00', 800)]);
+    respond([
+      { ...record('2026-10-25T00:00:00', 400), time_start: '2026-10-25T02:00:00+02:00', time_end: '2026-10-25T02:15:00+02:00' },
+      { ...record('2026-10-25T01:00:00', 800), time_start: '2026-10-25T02:00:00+01:00', time_end: '2026-10-25T02:15:00+01:00' },
+    ]);
     expect((await fetchEnergyPrice()).now).toBe(price);
   });
 
@@ -94,13 +125,20 @@ describe('current Danish day-ahead electricity price', () => {
   it.each([
     [], [record('2025-09-26T10:00:00', 400)], [record('2026-09-26T10:15:00', 400)],
     [record('2026-09-26T10:00:00', Number.NaN)],
-    [record('invalid', 400)], [null],
+    [record('invalid', 400)], [null], [{ ...record('2026-09-26T10:00:00', 400), DKK_per_kWh: '0.4' }],
   ].map((records) => ({ records })))('refuses missing, stale, future-only or malformed current data: $records', async ({ records }) => {
     respond(records);
-    await expect(fetchEnergyPrice()).rejects.toThrow('current 15-minute interval');
+    await expect(fetchEnergyPrice()).rejects.toThrow('current interval');
   });
 
-  it('does not cache failed upstream requests', async () => {
+  it('refuses a non-array response body', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ records: [] }) }));
+    await expect(fetchEnergyPrice()).rejects.toThrow('current interval');
+  });
+
+  it('does not cache failed upstream requests, including unpublished days', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404, statusText: 'Not Found' }));
+    await expect(fetchEnergyPrice()).rejects.toThrow('Elprisen lige nu API error: 404');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503, statusText: 'Unavailable' }));
     await expect(fetchEnergyPrice()).rejects.toThrow('503');
     respond([record('2026-09-26T10:00:00', 400)]);
@@ -131,8 +169,9 @@ function gridTariff(overrides: Record<string, unknown> = {}) {
 function respondConsumer(spot: unknown[], tariffs = [...nationalTariffs(), gridTariff()]) {
   vi.stubGlobal('fetch', vi.fn().mockImplementation(async (input: string) => {
     const url = new URL(input);
+    if (url.hostname === 'www.elprisenligenu.dk') return { ok: true, json: async () => spotFor(url, spot) };
     const filter = JSON.parse(url.searchParams.get('filter')!);
-    const records = url.pathname.endsWith('DayAheadPrices') ? spot : tariffs.filter((r) =>
+    const records = tariffs.filter((r) =>
       filter.GLN_Number.includes(r.GLN_Number) && filter.ChargeTypeCode.includes(r.ChargeTypeCode));
     return { ok: true, json: async () => ({ records }) };
   }));
@@ -202,7 +241,10 @@ describe('estimated Danish consumer electricity price', () => {
   it.each(['2026-10-25T00:07:00Z', '2026-10-25T01:07:00Z'])(
     'uses Danish hourly tariffs in both repeated autumn hours: %s', async (instant) => {
       vi.setSystemTime(new Date(instant));
-      respondConsumer([record('2026-10-25T00:00:00', 400), record('2026-10-25T01:00:00', 400)],
+      respondConsumer([
+        { ...record('2026-10-25T00:00:00', 400), time_start: '2026-10-25T02:00:00+02:00', time_end: '2026-10-25T02:15:00+02:00' },
+        { ...record('2026-10-25T01:00:00', 400), time_start: '2026-10-25T02:00:00+01:00', time_end: '2026-10-25T02:15:00+01:00' },
+      ],
         [...nationalTariffs(), gridTariff({ Price2: 9, Price3: 0.20, Price4: 9 })]);
       expect((await fetchEnergyPrice('DK1', undefined, consumer)).now).toBe(96.63);
     });

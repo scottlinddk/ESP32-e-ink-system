@@ -31,7 +31,7 @@ The image renderer supports validated monochrome panel sizes and clockwise rotat
 
 | Source | Data | Credentials |
 |---|---|---|
-| Energinet | DK1/DK2 spot prices or estimated consumer prices with tariffs and VAT | None |
+| Elprisen lige nu + Energinet | DK1/DK2 spot prices (Elprisen lige nu) or estimated consumer prices with Energinet tariffs and VAT | None |
 | OpenWeatherMap | Temperature, conditions and wind | API key |
 | NewsAPI | Headlines | API key |
 | RSS / Atom | Headlines from a public HTTPS feed | None |
@@ -49,7 +49,7 @@ For calendars, apply `012_calendar.sql`, save the subscription URL in **Integrat
 
 The agenda uses `node-ical` for UTF-8 ICS 2.0: UTC/IANA TZID, known Outlook Windows timezone names and floating times, all-day dates with exclusive end dates, daily/weekly/monthly/yearly RRULEs, EXDATEs, moved instances and cancellations. Floating times use the selected timezone; ongoing events remain visible until they end. RDATE, EXRULE, RANGE overrides, unknown timezones and subdaily rules are rejected explicitly. The calendar uses the same public HTTPS/DNS/size/deadline restrictions as RSS, so local network calendars and compressed responses are unsupported. Parsing/recurrence expansion runs in a worker limited to two seconds, 64 MiB, 500 event components and 5,000 expanded instances. Empty calendars show “No upcoming events”; errors show “Calendar: unavailable”. Physical panel behavior still requires hardware validation.
 
-Electricity uses Energinet's [DayAheadPrices dataset](https://www.energidataservice.dk/tso-electricity/DayAheadPrices) for the current **15-minute interval by UTC**. Under Energy prices, choose spot or an estimated consumer price, select your household grid tariff and enter your supplier's markup excluding VAT. Consumer estimates include current grid/national tariffs, electricity tax and VAT, but exclude fixed subscriptions. Existing accounts retain spot mode. Apply `017_energy_price_settings.sql` first; see [electricity setup, coverage and sources](docs/ELECTRICITY_PRICES.md). Zero/negative prices and Danish daylight-saving days are supported, independently of your display clock.
+Electricity spot prices come from the [Elprisen lige nu API](https://www.elprisenligenu.dk/elpris-api) for the current published interval (15 minutes since the day-ahead market moved to quarter-hours). Tariffs and taxes still come from Energinet's DataHub. Under Energy prices, choose spot or an estimated consumer price, select your household grid tariff and enter your supplier's markup excluding VAT. Consumer estimates include current grid/national tariffs, electricity tax and VAT, but exclude fixed subscriptions. Existing accounts retain spot mode. Apply `017_energy_price_settings.sql` first; see [electricity setup, coverage and sources](docs/ELECTRICITY_PRICES.md). Zero/negative prices and Danish daylight-saving days are supported, independently of your display clock.
 
 ## Install Wi-Fi firmware on a CrowPanel
 

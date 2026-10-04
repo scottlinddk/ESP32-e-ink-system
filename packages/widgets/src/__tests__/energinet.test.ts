@@ -3,26 +3,18 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { energinetPricesWidget } from '../widgets/energinet/index';
 
+const danishTime = (minutes: number) =>
+  `${new Date(Date.UTC(2026, 8, 26, 0, minutes)).toISOString().slice(0, 19)}+02:00`;
 const FAKE_RECORDS = Array.from({ length: 96 }, (_, i) => ({
-  TimeDK: new Date(Date.UTC(2026, 8, 26, 0, i * 15)).toISOString().slice(0, -1),
-  TimeUTC: new Date(Date.UTC(2026, 8, 25, 22, i * 15)).toISOString().slice(0, -1),
-  PriceArea: 'DK2',
-  DayAheadPriceDKK: 500 + i * 10,
-  DayAheadPriceEUR: 70 + i,
-})).reverse(); // newest first
+  DKK_per_kWh: (500 + i * 10) / 1000,
+  EUR_per_kWh: (70 + i) / 1000,
+  EXR: 7.46,
+  time_start: danishTime(i * 15),
+  time_end: danishTime(i * 15 + 15),
+})).reverse(); // order is not relied on
 
-const server = setupServer(
-  http.get('https://api.energidataservice.dk/dataset/DayAheadPrices', ({ request }) => {
-    const url = new URL(request.url);
-    const filter = JSON.parse(url.searchParams.get('filter') ?? '{}') as Record<string, string[]>;
-    expect(url.searchParams.get('start')).toBe('StartOfDay');
-    expect(url.searchParams.get('end')).toBe('StartOfDay+P1D');
-    const records = FAKE_RECORDS.filter(
-      (r) => !filter.PriceArea || filter.PriceArea.includes(r.PriceArea)
-    );
-    return HttpResponse.json({ total: records.length, limit: 100, dataset: 'DayAheadPrices', records });
-  })
-);
+const ELPRIS_URL = 'https://www.elprisenligenu.dk/api/v1/prices/2026/09-26_DK2.json';
+const server = setupServer(http.get(ELPRIS_URL, () => HttpResponse.json(FAKE_RECORDS)));
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 beforeEach(() => {
@@ -48,12 +40,21 @@ describe('energinetPricesWidget', () => {
     expect(result.data.averageOre).toBe(97.5);
     expect(result.data.trend).toBe('stable');
     expect(result.data.hourlyPrices).toHaveLength(96);
-    expect(result.data.hourlyPrices[0].hourDK).toBe('2026-09-26T00:00:00.000');
+    expect(result.data.hourlyPrices[0].hourDK).toBe('2026-09-26T00:00:00+02:00');
+  });
+
+  it('fetch returns ok:false when the day is not published', async () => {
+    server.use(http.get(ELPRIS_URL, () => new HttpResponse(null, { status: 404 })));
+    const result = await energinetPricesWidget.fetch(
+      { priceArea: 'DK2' },
+      { widthPx: 250, heightPx: 122 }
+    );
+    expect(result).toEqual({ ok: false, error: expect.stringContaining('404') });
   });
 
   it('fetch returns ok:false on API error', async () => {
     server.use(
-      http.get('https://api.energidataservice.dk/dataset/DayAheadPrices', () =>
+      http.get('https://www.elprisenligenu.dk/api/v1/prices/2026/09-26_DK1.json', () =>
         HttpResponse.json({ error: 'server error' }, { status: 500 })
       )
     );

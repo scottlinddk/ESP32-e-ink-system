@@ -73,13 +73,14 @@ describe('Integrations page with its real setup forms', () => {
   it('links exact provider/setup references and explains deployment and price limits', () => {
     const html = render();
     for (const url of [
-      'https://www.energidataservice.dk/tso-electricity/DayAheadPrices', 'https://openweathermap.org/api/current',
+      'https://www.elprisenligenu.dk/elpris-api', 'https://www.elprisenligenu.dk', 'https://openweathermap.org/api/current',
       'https://newsapi.org/pricing', 'https://docs.public-api.monta.com/reference/home',
       'https://docs.zaptec.com/docs/getting-started', 'https://developers.notion.com/guides/get-started/internal-connections',
       'https://github.com/scottlinddk/ESP32-e-ink-system/blob/main/docs/INTEGRATIONS.md',
       'https://www.home-assistant.io/integrations/rest_command/',
     ]) expect(html).toContain(`href="${url}"`);
     expect(html).toContain('includes VAT and excludes fixed subscriptions');
+    expect(html).toContain('Electricity prices provided by Elprisen lige nu.dk');
     expect(html).toContain('Use RSS for Danish and Finnish news');
     expect(html).toContain('production needs an appropriate plan');
     expect(html).toContain('The URL is stored encrypted here');

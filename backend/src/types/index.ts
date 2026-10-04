@@ -229,22 +229,6 @@ export interface CacheEntry<T> {
   expiresAt: number;
 }
 
-// Energinet API types
-export interface EnergidataRecord {
-  TimeDK: string;
-  TimeUTC: string;
-  PriceArea: string;
-  DayAheadPriceDKK: number;
-  DayAheadPriceEUR: number;
-}
-
-export interface EnergidataResponse {
-  total: number;
-  limit: number;
-  dataset: string;
-  records: EnergidataRecord[];
-}
-
 // OpenWeatherMap API types
 export interface OpenWeatherResponse {
   main: {

@@ -29,7 +29,7 @@ function GitHubGlyph() {
 }
 
 const FEATURES = [
-  { icon: 'bolt', text: 'Live energy spot prices (Energinet)' },
+  { icon: 'bolt', text: 'Live Danish electricity spot prices' },
   { icon: 'partly_cloudy_day', text: 'Local weather conditions' },
   { icon: 'article', text: 'Top news headlines' },
   { icon: 'memory', text: 'ESP32 + 2.13″ e-ink hardware' },
