@@ -9,13 +9,24 @@ export type FirmwareAsset = typeof FIRMWARE_ASSETS[number];
 export interface FirmwareRelease {
   tag: string;
   version: string;
+  /** ISO 8601 publication time; null when the source does not report one. */
+  releasedAt: string | null;
   assets: Partial<Record<FirmwareAsset, string>>;
 }
 
 interface GithubRelease {
   draft: boolean;
   tag_name: string;
+  published_at?: string | null;
+  created_at?: string | null;
   assets: Array<{ name: string; browser_download_url: string }>;
+}
+
+/** Normalizes a reported timestamp; anything unparseable is treated as unknown. */
+export function releaseDate(value: unknown): string | null {
+  if (typeof value !== 'string' || !value) return null;
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? new Date(time).toISOString() : null;
 }
 
 const cache = new Map<string, { release: FirmwareRelease; fetchedAt: number }>();
@@ -30,7 +41,9 @@ function resolveRelease(release: GithubRelease): FirmwareRelease | null {
   }
   // App-only images cannot boot an erased device. Ignore incomplete uploads.
   if (!assets['firmware-factory.bin'] || !assets['firmware-elecrow-factory.bin'] || !assets['firmware-elecrow-v12-factory.bin']) return null;
-  return { tag: release.tag_name, version: release.tag_name.replace(/^v/, ''), assets };
+  // Publication is when the release became installable; a draft's creation time is a fallback.
+  const releasedAt = releaseDate(release.published_at) ?? releaseDate(release.created_at);
+  return { tag: release.tag_name, version: release.tag_name.replace(/^v/, ''), releasedAt, assets };
 }
 
 /** Dev prereleases are intentional. Choose the newest complete build. */
@@ -67,6 +80,7 @@ export function buildManifestFromRelease(release: FirmwareRelease, proxyBase?: s
   return {
     name: 'ESP32 E-Ink Display',
     version: release.version,
+    ...(release.releasedAt ? { release_date: release.releasedAt } : {}),
     new_install_prompt_erase: true,
     new_install_improv_wait_time: 0,
     builds: panel === 'v12' ? [

@@ -27,8 +27,8 @@ describe('local factory installation', () => {
     }
     await writeFile(path.join(directory, 'SHA256SUMS'), sums.join('\n'));
     const builds = names.map((name, index) => ({ chipFamily: index === 0 ? 'ESP32' : 'ESP32-S3', parts: [{ path: name, offset: 0 }] }));
-    await writeFile(path.join(directory, 'manifest.json'), JSON.stringify({ name: 'Test', version: 'test-build', builds: builds.slice(0, 2) }));
-    await writeFile(path.join(directory, 'manifest-elecrow-v12.json'), JSON.stringify({ name: 'Test', version: 'test-build', builds: builds.slice(2) }));
+    await writeFile(path.join(directory, 'manifest.json'), JSON.stringify({ name: 'Test', version: 'test-build', release_date: '2026-10-04T12:00:00Z', builds: builds.slice(0, 2) }));
+    await writeFile(path.join(directory, 'manifest-elecrow-v12.json'), JSON.stringify({ name: 'Test', version: 'test-build', release_date: 'tomorrow', builds: builds.slice(2) }));
     const app = express();
     app.use('/api/firmware', firmwareAssets);
     await new Promise<void>(resolve => { server = app.listen(0, '127.0.0.1', resolve); });
@@ -61,6 +61,12 @@ describe('local factory installation', () => {
     expect((await fetch(`${base}local/stale/${names[0]}`)).status).toBe(409);
     expect((await fetch(`${base}local/anything/config.h`)).status).toBe(404);
     expect((await fetch(`${base}releases/v1/secret.txt`)).status).toBe(404);
+  });
+
+  it('passes through a valid packaged release date and drops an invalid one', async () => {
+    vi.stubEnv('FIRMWARE_RELEASE_DIR', directory);
+    expect((await getInstallManifest('original'))?.release_date).toBe('2026-10-04T12:00:00.000Z');
+    expect(await getInstallManifest('v12')).not.toHaveProperty('release_date');
   });
 
   it('refuses a local image that no longer matches the packaging checksum', async () => {

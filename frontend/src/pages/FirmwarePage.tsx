@@ -84,9 +84,11 @@ export function FirmwarePage() {
                 {t.fwChecksum} <b>{item.checksum || t.fwNone}</b>
               </span>
             )}
-            {!item.is_default && (
+            {(!item.is_default || Date.parse(item.created_at) > 0) && (
               <span className="text-xs text-fg2 flex items-center gap-1.5 [&_b]:font-mono [&_b]:text-fg1 [&_b]:font-normal">
-                {t.fwCreatedAt} <b>{new Date(item.created_at).toLocaleString(app.t.locale)}</b>
+                {t.fwCreatedAt} <b><time dateTime={item.created_at}>{item.is_default
+                  ? new Date(item.created_at).toLocaleDateString(app.t.locale, { dateStyle: 'long' })
+                  : new Date(item.created_at).toLocaleString(app.t.locale)}</time></b>
               </span>
             )}
             {item.release_notes && (

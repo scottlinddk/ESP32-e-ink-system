@@ -1,6 +1,6 @@
 import 'esp-web-tools';
 import { useEffect, useRef, useState } from 'react';
-import { loadPublicFirmwareManifest, type ElecrowPanel } from '../lib/firmwareManifest';
+import { formatReleaseDate, loadPublicFirmwareManifest, type ElecrowPanel } from '../lib/firmwareManifest';
 
 declare global {
   namespace JSX {
@@ -16,6 +16,7 @@ export function FlashPage() {
   const [panel, setPanel] = useState<ElecrowPanel | ''>('');
   const [manifestUrl, setManifestUrl] = useState<string | null>(null);
   const [version, setVersion] = useState('');
+  const [releaseDate, setReleaseDate] = useState<string | undefined>();
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
   const blobUrlRef = useRef<string | null>(null);
@@ -25,6 +26,7 @@ export function FlashPage() {
     setManifestUrl(null);
     setError('');
     setVersion('');
+    setReleaseDate(undefined);
     if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
     if (panel) {
       loadPublicFirmwareManifest(panel, controller.signal).then(manifest => {
@@ -33,10 +35,12 @@ export function FlashPage() {
         blobUrlRef.current = url;
         setManifestUrl(url);
         setVersion(manifest.version ?? '');
+        setReleaseDate(manifest.release_date);
       }).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Firmware download failed'); });
     }
     return () => { controller.abort(); };
   }, [panel, attempt]);
+  const releasedOn = formatReleaseDate(releaseDate, 'en-GB');
   useEffect(() => () => { if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current); }, []);
 
   return (
@@ -59,7 +63,7 @@ export function FlashPage() {
         <p className="mt-3 text-sm text-fg2">Both CrowPanel revisions use ESP32-S3. USB detection cannot distinguish their display controllers. Check the product revision before installing.</p>
         {panel && !manifestUrl && !error && <p role="status" className="mt-4">Checking the firmware release…</p>}
         {error && <div role="alert" className="mt-4"><p>{error}</p><button className="underline mt-2" onClick={() => setAttempt(value => value + 1)}>Retry</button></div>}
-        {manifestUrl && secure && supported && <div className="mt-4"><p className="text-sm mb-3">Firmware: {version}. For a first installation or recovery, choose erase when prompted. These factory images replace saved Wi-Fi and device credentials even without erase. Keep your device UUID and token ready and repeat setup after installing.</p><esp-web-install-button key={panel} manifest={manifestUrl}><button slot="activate" className="bg-accent text-fg-on px-5 py-3 rounded-sm">Install firmware</button></esp-web-install-button></div>}
+        {manifestUrl && secure && supported && <div className="mt-4"><p className="text-sm mb-3">Firmware: {version}{releasedOn && <>, released <time dateTime={releaseDate}>{releasedOn}</time></>}. For a first installation or recovery, choose erase when prompted. These factory images replace saved Wi-Fi and device credentials even without erase. Keep your device UUID and token ready and repeat setup after installing.</p><esp-web-install-button key={panel} manifest={manifestUrl}><button slot="activate" className="bg-accent text-fg-on px-5 py-3 rounded-sm">Install firmware</button></esp-web-install-button></div>}
       </section>
 
       <section className="border border-divider rounded-md p-5 mb-6">

@@ -37,6 +37,27 @@ describe('factory release selection', () => {
     expect(fetcher.mock.calls[0][0]).toBe('https://api.github.com/repos/test/firmware/releases/tags/v1.2');
   });
 
+  it('reports the publication date in the install manifest and omits an unknown date', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify([
+      { ...release('dev-dated'), published_at: '2026-10-04T12:42:09Z', created_at: '2026-10-04T12:30:00Z' },
+    ]))));
+    const { fetchLatestFirmwareRelease, buildManifestFromRelease, releaseDate } = await import('../services/githubRelease');
+    const selected = await fetchLatestFirmwareRelease();
+    expect(selected?.releasedAt).toBe('2026-10-04T12:42:09.000Z');
+    expect(buildManifestFromRelease(selected!).release_date).toBe('2026-10-04T12:42:09.000Z');
+    const undated = buildManifestFromRelease({ ...selected!, releasedAt: null });
+    expect('release_date' in undated).toBe(false);
+    for (const value of [undefined, null, '', 'not a date', 42]) expect(releaseDate(value)).toBeNull();
+  });
+
+  it('falls back to the creation time when GitHub has no publication time', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify([
+      { ...release('dev-created'), published_at: null, created_at: '2026-10-01T08:00:00Z' },
+    ]))));
+    const { fetchLatestFirmwareRelease } = await import('../services/githubRelease');
+    expect((await fetchLatestFirmwareRelease())?.releasedAt).toBe('2026-10-01T08:00:00.000Z');
+  });
+
   it('does not advertise legacy app-only firmware as a factory image', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify([release('old', ['firmware.bin', 'firmware-elecrow.bin'])]))));
     const { fetchLatestFirmwareRelease } = await import('../services/githubRelease');

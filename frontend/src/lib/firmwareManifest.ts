@@ -2,9 +2,17 @@ export type ElecrowPanel = 'original' | 'v12';
 export interface FlashManifest {
   name: string;
   version?: string;
+  /** ISO 8601 release time reported by the backend; omitted when unknown. */
+  release_date?: string;
   new_install_prompt_erase?: boolean;
   new_install_improv_wait_time?: number;
   builds: Array<{ chipFamily: string; parts: Array<{ path: string; offset: number }> }>;
+}
+
+/** A calendar date in the display time zone, or null for a missing or invalid value. */
+export function formatReleaseDate(value: string | undefined, locale?: string, timeZone?: string): string | null {
+  const time = value ? Date.parse(value) : NaN;
+  return Number.isFinite(time) ? new Date(time).toLocaleDateString(locale, { dateStyle: 'long', timeZone } as Intl.DateTimeFormatOptions) : null;
 }
 
 /** Blob manifests need absolute part URLs: blob: URLs have no relative base. */

@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises';
 import path from 'path';
 import { createHash } from 'crypto';
-import { buildManifestFromRelease, fetchLatestFirmwareRelease } from './githubRelease';
+import { buildManifestFromRelease, fetchLatestFirmwareRelease, releaseDate } from './githubRelease';
 
 export const FACTORY_FILES = ['firmware-factory.bin', 'firmware-elecrow-factory.bin', 'firmware-elecrow-v12-factory.bin'];
 
@@ -37,5 +37,9 @@ export async function getInstallManifest(panel: 'original' | 'v12' = 'original')
     const { hash } = await readLocalFactory(name);
     return { chipFamily, parts: [{ path: `local/${hash}/${name}`, offset: 0 }] };
   }));
-  return { name: manifest.name as string, version: manifest.version as string, new_install_prompt_erase: true, new_install_improv_wait_time: 0, builds };
+  const released = releaseDate(manifest.release_date);
+  return {
+    name: manifest.name as string, version: manifest.version as string, ...(released ? { release_date: released } : {}),
+    new_install_prompt_erase: true, new_install_improv_wait_time: 0, builds,
+  };
 }

@@ -18,7 +18,8 @@ async function buildDefaultEntry(_req: Request): Promise<FirmwareVersion> {
     id: 'default', user_id: 'system', version: release?.version ?? 'Unavailable',
     download_path: '/flash', checksum: null,
     release_notes: 'Complete factory firmware. Install via USB, then configure Wi-Fi through the device setup network.',
-    active: !!release, created_at: new Date(0).toISOString(), is_default: true,
+    // The release date when the source reports one; the epoch marks it as unknown.
+    active: !!release, created_at: release?.release_date ?? new Date(0).toISOString(), is_default: true,
   };
 }
 async function resolveUserId(clerkUserId: string): Promise<string> {
