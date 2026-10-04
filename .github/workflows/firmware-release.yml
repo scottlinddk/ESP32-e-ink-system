@@ -97,8 +97,9 @@ jobs:
             Select the physical board/panel revision before connecting: the original CrowPanel
             uses SSD1680, and CrowPanel V1.2 uses JD79661. USB chip detection cannot tell them apart.
 
-            `firmware-factory.bin`, `firmware-elecrow-factory.bin`, and
-            `firmware-elecrow-v12-factory.bin` are complete browser/USB installation images at offset 0.
-            `manifest.json` covers Waveshare and original CrowPanel; `manifest-elecrow-v12.json`
-            covers the V1.2 panel. The non-factory firmware binaries are application-only images.
+            Files are named `<board>_fw-<version>_<image>.bin`. The `*_factory.bin` images
+            (`waveshare-esp32-213-v2`, `elecrow-crowpanel-213`, `elecrow-crowpanel-213-v12`) are
+            complete browser/USB installation images at offset 0. `manifest.json` covers Waveshare
+            and original CrowPanel; `manifest-elecrow-v12.json` covers the V1.2 panel. The `app`,
+            `bootloader` and `partitions` binaries are application-only parts.
             SHA256SUMS records the binaries produced by the build. See docs/FIRMWARE_FLASHING.md.

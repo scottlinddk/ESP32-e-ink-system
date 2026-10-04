@@ -78,4 +78,32 @@ describe('local factory installation', () => {
       await expect(getInstallManifest('v12')).rejects.toThrow('checksum');
     } finally { await writeFile(filename, original); }
   });
+
+  it('installs a local build packaged with descriptive filenames', async () => {
+    const renamed = await mkdtemp(path.join(os.tmpdir(), 'eink-factory-renamed-'));
+    try {
+      const files = ['waveshare-esp32-213-v2', 'elecrow-crowpanel-213', 'elecrow-crowpanel-213-v12'].map(slug => `${slug}_fw-dev-9_factory.bin`);
+      const sums: string[] = [];
+      for (const [index, name] of files.entries()) {
+        const bytes = Buffer.alloc(65560, 255);
+        bytes[index === 0 ? 4096 : 0] = 0xe9;
+        bytes[65536] = 0xe9;
+        await writeFile(path.join(renamed, name), bytes);
+        sums.push(`${createHash('sha256').update(bytes).digest('hex')}  ${name}`);
+      }
+      await writeFile(path.join(renamed, 'SHA256SUMS'), sums.join('\n'));
+      const builds = files.map((name, index) => ({ chipFamily: index === 0 ? 'ESP32' : 'ESP32-S3', parts: [{ path: name, offset: 0 }] }));
+      await writeFile(path.join(renamed, 'manifest.json'), JSON.stringify({ name: 'Test', version: 'dev-9', builds: builds.slice(0, 2) }));
+      await writeFile(path.join(renamed, 'manifest-elecrow-v12.json'), JSON.stringify({ name: 'Test', version: 'dev-9', builds: builds.slice(2) }));
+      vi.stubEnv('FIRMWARE_RELEASE_DIR', renamed);
+      const manifest = await getInstallManifest('original');
+      expect(manifest?.name).toBe('Elecrow CrowPanel 2.13 FW dev-9');
+      const part = manifest!.builds[0].parts[0].path;
+      expect(part).toMatch(/^local\/[0-9a-f]{64}\/waveshare-esp32-213-v2_fw-dev-9_factory\.bin$/);
+      expect((await fetch(new URL(part, base))).status).toBe(200);
+      // A filename naming another version does not match this manifest.
+      await writeFile(path.join(renamed, 'manifest-elecrow-v12.json'), JSON.stringify({ name: 'Test', version: 'dev-8', builds: builds.slice(2) }));
+      await expect(getInstallManifest('v12')).rejects.toThrow('does not match');
+    } finally { await rm(renamed, { recursive: true, force: true }); }
+  });
 });

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { Readable } from 'stream';
-import { describeAssetFilename, fetchLatestFirmwareRelease, FIRMWARE_ASSETS, type FirmwareAsset } from '../services/githubRelease';
+import { describeAssetFilename, fetchLatestFirmwareRelease, isReleaseAssetFilename, parseAssetFilename } from '../services/githubRelease';
 import { getInstallManifest, parseReleaseTag, readLocalFactory } from '../services/firmwareInstall';
 
 const router = Router();
@@ -27,17 +27,19 @@ router.get('/local/:hash/:name', async (req, res) => {
 // Resolve the exact release from the manifest. Never mix parts across releases.
 router.get('/releases/:tag/:name', async (req, res, next) => {
   const { tag, name } = req.params;
-  if (tag.length > 128 || !/^[a-zA-Z0-9._+-]+$/.test(tag) || !FIRMWARE_ASSETS.includes(name as FirmwareAsset)) {
+  // Accept the descriptive and the legacy filename; the descriptive one must name this release's version.
+  const asset = parseAssetFilename(name)?.asset;
+  if (tag.length > 128 || !/^[a-zA-Z0-9._+-]+$/.test(tag) || !asset) {
     res.status(404).json({ error: 'Unknown firmware asset' }); return;
   }
   try {
     const release = await fetchLatestFirmwareRelease(tag);
-    const url = release?.assets[name as FirmwareAsset];
+    const url = release && isReleaseAssetFilename(name, asset, release.version) ? release.assets[asset] : undefined;
     if (!release || !url) { res.status(404).json({ error: 'Firmware asset not available' }); return; }
     const upstream = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(60000) });
     if (!upstream.ok || !upstream.body) { res.status(502).json({ error: 'Firmware download failed. Try again.' }); return; }
     res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${describeAssetFilename(name as FirmwareAsset, release.version)}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${describeAssetFilename(asset, release.version)}"`);
     res.setHeader('Cache-Control', 'public, max-age=300');
     const length = upstream.headers.get('content-length');
     if (length) res.setHeader('Content-Length', length);

@@ -43,7 +43,7 @@ describe('release binary proxy', () => {
     const response = await realFetch(`${base}manifest.json?panel=v12&tag=dev-old`);
     expect(response.status).toBe(200);
     expect(fetchLatestFirmwareRelease).toHaveBeenCalledWith('dev-old');
-    expect(await response.json()).toMatchObject({ name: 'Elecrow CrowPanel 2.13 V1.2 FW dev-old', builds: [{ parts: [{ path: `releases/dev-old/${name}` }] }] });
+    expect(await response.json()).toMatchObject({ name: 'Elecrow CrowPanel 2.13 V1.2 FW dev-old', builds: [{ parts: [{ path: 'releases/dev-old/elecrow-crowpanel-213-v12_fw-dev-old_factory.bin' }] }] });
     expect((await realFetch(`${base}manifest.json?tag=..%2Fetc`)).status).toBe(400);
   });
   it('returns a recoverable failure when a release download fails', async () => {
@@ -51,5 +51,13 @@ describe('release binary proxy', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 403 })));
     const response = await realFetch(`${base}releases/v1/firmware-factory.bin`);
     expect(response.status).toBe(502);
+  });
+  it('serves descriptive filenames only for the release version they name', async () => {
+    const name = 'firmware-elecrow-v12-factory.bin';
+    vi.mocked(fetchLatestFirmwareRelease).mockResolvedValue({ tag: 'dev-1', version: 'dev-1', releasedAt: null, assets: { [name]: 'https://example.com/a.bin' } });
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(new Uint8Array([0xe9]))));
+    expect((await realFetch(`${base}releases/dev-1/elecrow-crowpanel-213-v12_fw-dev-1_factory.bin`)).status).toBe(200);
+    expect((await realFetch(`${base}releases/dev-1/elecrow-crowpanel-213-v12_fw-dev-2_factory.bin`)).status).toBe(404);
+    expect((await realFetch(`${base}releases/dev-1/unknown_fw-dev-1_factory.bin`)).status).toBe(404);
   });
 });

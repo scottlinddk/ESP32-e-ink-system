@@ -1,3 +1,7 @@
+/**
+ * Logical asset identities, spelled as the legacy release filenames. Releases since the rename
+ * publish descriptive names instead (see describeAssetFilename); both resolve to these keys.
+ */
 export const FIRMWARE_ASSETS = [
   'firmware-factory.bin', 'firmware-elecrow-factory.bin', 'firmware-elecrow-v12-factory.bin',
   'firmware.bin', 'firmware-elecrow.bin', 'firmware-elecrow-v12.bin',
@@ -46,30 +50,52 @@ export function firmwareDisplayName(panel: FirmwarePanel, version: string): stri
   return `${PANEL_BOARD_NAMES[panel]} FW ${version}`;
 }
 
+// Keep in sync with Board.slug and asset_name() in firmware/scripts/package_web_firmware.py.
 const ASSET_BOARD_SLUGS: Record<string, string> = {
   '': 'waveshare-esp32-213-v2', '-elecrow': 'elecrow-crowpanel-213', '-elecrow-v12': 'elecrow-crowpanel-213-v12',
 };
+const LEGACY_ASSET = /^(firmware|bootloader|partitions)(-elecrow(?:-v12)?)?(-factory)?\.bin$/;
+const DESCRIPTIVE_ASSET = /^(waveshare-esp32-213-v2|elecrow-crowpanel-213(?:-v12)?)_fw-([a-zA-Z0-9._-]+)_(factory|app|bootloader|partitions)\.bin$/;
 
-/** Download filename naming the board, firmware version and image type. Release asset names stay stable. */
+/** Release filename naming the board, "fw", the version and the image type. */
 export function describeAssetFilename(name: FirmwareAsset, version: string): string {
-  const [, kind, suffix] = /^(firmware|bootloader|partitions)(-elecrow(?:-v12)?)?(?:-factory)?\.bin$/.exec(name) ?? [];
-  const image = name.endsWith('-factory.bin') ? 'factory' : kind === 'firmware' ? 'app' : kind;
+  const [, kind, suffix = '', factory] = LEGACY_ASSET.exec(name) ?? [];
+  const image = factory ? 'factory' : kind === 'firmware' ? 'app' : kind;
   const safeVersion = version.replace(/[^a-zA-Z0-9._-]/g, '_');
-  return `${ASSET_BOARD_SLUGS[suffix ?? '']}_fw-${safeVersion}_${image}.bin`;
+  return `${ASSET_BOARD_SLUGS[suffix]}_fw-${safeVersion}_${image}.bin`;
+}
+
+/** Maps a legacy or descriptive filename to its logical asset; null for anything else. */
+export function parseAssetFilename(name: string): { asset: FirmwareAsset; version?: string } | null {
+  if (FIRMWARE_ASSETS.includes(name as FirmwareAsset)) return { asset: name as FirmwareAsset };
+  const match = DESCRIPTIVE_ASSET.exec(name);
+  if (!match) return null;
+  const [, slug, version, image] = match;
+  const suffix = Object.keys(ASSET_BOARD_SLUGS).find(key => ASSET_BOARD_SLUGS[key] === slug)!;
+  const asset = image === 'factory' ? `firmware${suffix}-factory.bin` : `${image === 'app' ? 'firmware' : image}${suffix}.bin`;
+  return FIRMWARE_ASSETS.includes(asset as FirmwareAsset) ? { asset: asset as FirmwareAsset, version } : null;
+}
+
+/** True when `name` is how this release names `asset`, in either the descriptive or legacy spelling. */
+export function isReleaseAssetFilename(name: string, asset: FirmwareAsset, version: string): boolean {
+  return name === asset || name === describeAssetFilename(asset, version);
 }
 
 function resolveRelease(release: GithubRelease): FirmwareRelease | null {
   if (release.draft || !release.tag_name || !Array.isArray(release.assets)) return null;
+  const version = release.tag_name.replace(/^v/, '');
   const assets: FirmwareRelease['assets'] = {};
   for (const name of FIRMWARE_ASSETS) {
-    const asset = release.assets.find(value => value.name === name);
+    // Prefer the descriptive name; releases published before the rename only have the legacy one.
+    const asset = release.assets.find(value => value.name === describeAssetFilename(name, version))
+      ?? release.assets.find(value => value.name === name);
     if (asset && /^https:\/\//.test(asset.browser_download_url)) assets[name] = asset.browser_download_url;
   }
   // App-only images cannot boot an erased device. Ignore incomplete uploads.
   if (!assets['firmware-factory.bin'] || !assets['firmware-elecrow-factory.bin'] || !assets['firmware-elecrow-v12-factory.bin']) return null;
   // Publication is when the release became installable; a draft's creation time is a fallback.
   const releasedAt = releaseDate(release.published_at) ?? releaseDate(release.created_at);
-  return { tag: release.tag_name, version: release.tag_name.replace(/^v/, ''), releasedAt, assets };
+  return { tag: release.tag_name, version, releasedAt, assets };
 }
 
 /** Newest first. GitHub does not order its release list by publication time, so never trust its order. */
@@ -115,7 +141,7 @@ export async function fetchLatestFirmwareRelease(tag?: string): Promise<Firmware
 export function buildManifestFromRelease(release: FirmwareRelease, proxyBase?: string, panel: FirmwarePanel = 'original') {
   const prefix = proxyBase ? `${proxyBase.replace(/\/$/, '')}/firmware/` : '';
   const part = (name: FirmwareAsset) => ({
-    path: `${prefix}releases/${encodeURIComponent(release.tag)}/${name}`,
+    path: `${prefix}releases/${encodeURIComponent(release.tag)}/${describeAssetFilename(name, release.version)}`,
     offset: 0,
   });
   return {
