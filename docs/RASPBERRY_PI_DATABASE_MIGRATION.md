@@ -259,11 +259,28 @@ requires the new columns. Deploy the backend before upgrading clients to send
 `refresh_request_id`. Physical acknowledgement requires the updated ESP32
 firmware or reference bridge with a display driver.
 
+## Upgrade an existing database for instant updates (020)
+
+After the existing database has migration 019, back it up and apply
+`020_device_instant_updates.sql`. It adds one `NOT NULL DEFAULT false` column to the
+service-only `device_delivery` table, so existing devices keep deep sleeping.
+
+```sh
+eink exec -T postgres psql -X -U eink_admin -d eink --single-transaction \
+  --set ON_ERROR_STOP=1 --file /migrations/020_device_instant_updates.sql \
+  --file /docker-entrypoint-initdb.d/permissions.sql
+```
+
+No gateway allowlist change is needed. Apply 020 before deploying the backend that
+reads it; the backend tolerates its absence for delivery but cannot store the
+setting. Do not rerun 020 once the column exists. Current export/import validation
+requires the column, so restore older backups with their matching tools first.
+
 ## Migration gates and data scope (source only)
 
 Applies only when a live source database exists. The transfer allowlist is `users`, `user_preferences`, `api_keys`, `devices`,
 `firmware_versions`, `api_usage`, `custom_webhooks`, `device_delivery`, `device_displays`, and `orders`.
-The target applies all tracked SQL migrations through `019_device_refresh.sql`,
+The target applies all tracked SQL migrations through `020_device_instant_updates.sql`,
 including both `002` migrations. IDs, foreign keys, timestamps, JSONB values,
 encrypted provider credentials, webhook token hashes, device token hashes and
 delivery telemetry are copied without transformation. Device presentation settings, display schedules and

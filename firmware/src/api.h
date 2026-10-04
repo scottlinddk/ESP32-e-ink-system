@@ -9,12 +9,20 @@ struct FrameResult {
   char hash[65] = {};
   char refreshRequestId[37] = {};
   char error[128] = {};
+  int instantUpdates = -1;  // feed::instantMode(): -1 means not reported
+};
+struct RefreshCheck {
+  int httpCode = 0;
+  bool pending = false;     // Fetch the frame now; it carries the validated request ID.
+  int instantUpdates = -1;
+  uint32_t retrySeconds = 5;
 };
 class ApiClient {
 public:
   ApiClient();
   FrameResult fetchFrame(const char* baseUrl, const char* deviceId, const char* token,
                          const char* appliedHash, uint8_t* buffer, size_t capacity);
+  RefreshCheck checkRefreshRequest(const char* baseUrl, const char* deviceId, const char* token);
   bool heartbeat(const char* baseUrl, const char* deviceId, const char* token,
                  const char* appliedHash, int rssi, const char* refreshRequestId = nullptr);
 private:

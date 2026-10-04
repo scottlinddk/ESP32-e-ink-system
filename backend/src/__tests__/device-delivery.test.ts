@@ -6,7 +6,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { managementRouter, feedRouter } from '../routes/deviceDelivery';
+import { managementRouter, feedRouter, instantCheckSeconds } from '../routes/deviceDelivery';
 import { getApiKeys, getPreferences } from '../services/database';
 import { buildDisplayData, DEFAULT_PREFS } from '../services/displayData';
 import { recordHeartbeat, tokenHash, validateHeartbeat } from '../services/deviceDelivery';
@@ -18,7 +18,7 @@ import { DATABASE_FAILURE_HINTS } from '../services/databaseHealth';
 import { createPoller } from '../../../tools/display-client.mjs';
 
 const state = vi.hoisted(() => ({ deliveries: new Map<string, Record<string, unknown>>(), owners: new Map([['device-a', 'owner-a'], ['device-b', 'owner-b']]),
-  schemaError: null as string | null, storageError: null as string | null,
+  schemaError: null as string | null, storageError: null as string | null, instantMissing: false,
 }));
 vi.mock('../middleware/auth', () => ({ requireAuth: (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const owner = req.headers.authorization?.replace('Bearer ', '');
@@ -29,12 +29,18 @@ vi.mock('../routes/preferences-helpers', () => ({ getOrCreateUserFromClerk: asyn
 vi.mock('../lib/logger', () => ({ logger: { error: vi.fn(), warn: vi.fn() } }));
 vi.mock('../services/displayData', async (original) => ({ ...await original<typeof import('../services/displayData')>(), buildDisplayData: vi.fn() }));
 vi.mock('../services/database', () => ({ getApiKeys: vi.fn(), getPreferences: vi.fn(), getSupabaseClient: () => ({ from: (table: string) => {
-  const filters: Array<[string, unknown]> = []; let operation = ''; let update: Record<string, unknown> = {}; let selected = '*';
+  const filters: Array<[string, unknown]> = []; const present: string[] = []; let operation = ''; let update: Record<string, unknown> = {}; let selected = '*';
   const rows = () => table === 'devices' ? [...state.owners].map(([id, user_id]) => ({ id, user_id })) : table === 'device_delivery' ? [...state.deliveries.values()] : [];
-  const matches = () => rows().filter((row) => filters.every(([key, value]) => (row as Record<string, unknown>)[key] === value));
+  const matches = () => rows().filter((row) => filters.every(([key, value]) => (row as Record<string, unknown>)[key] === value)
+    && present.every((key) => (row as Record<string, unknown>)[key] != null));
   const execute = async () => {
     if (table === 'device_delivery' && state.storageError) return { data: null, error: { code: state.storageError, message: 'Database unavailable' } };
-    if (table === 'device_delivery' && state.schemaError && (selected.includes('refresh_') || Object.keys(update).some((key) => key.startsWith('refresh_')))) {
+    if (table === 'device_delivery' && state.instantMissing && 'instant_updates' in update) {
+      return { data: null, error: { code: '42703', message: 'column device_delivery.instant_updates does not exist' } };
+    }
+    // A missing column never fails select('*'); a permission error always does.
+    const permissionError = state.schemaError && !['42703', 'PGRST204'].includes(state.schemaError);
+    if (table === 'device_delivery' && state.schemaError && (selected.includes('refresh_') || (permissionError && selected === '*') || Object.keys(update).some((key) => key.startsWith('refresh_')))) {
       return { data: null, error: { code: state.schemaError, message: 'Column refresh_request_id is missing' } };
     }
     if (operation === 'upsert') state.deliveries.set(String(update.device_id), { ...state.deliveries.get(String(update.device_id)), ...update });
@@ -43,6 +49,7 @@ vi.mock('../services/database', () => ({ getApiKeys: vi.fn(), getPreferences: vi
   };
   const query = {
     select: (columns = '*') => { selected = columns; return query; }, eq: (key: string, value: unknown) => { filters.push([key, value]); return query; }, is: (key: string, value: unknown) => { filters.push([key, value]); return query; },
+    not: (key: string, operator: string, value: unknown) => { expect([operator, value]).toEqual(['is', null]); present.push(key); return query; },
     maybeSingle: execute,
     upsert: (value: Record<string, unknown>) => { operation = 'upsert'; update = value; return query; },
     update: (value: Record<string, unknown>) => { operation = 'update'; update = value; return query; },
@@ -62,7 +69,7 @@ describe('authenticated device delivery', () => {
   afterAll(async () => { await new Promise<void>((resolve) => server.close(() => resolve())); });
   afterEach(() => { vi.useRealTimers(); });
   beforeEach(() => {
-    state.deliveries.clear(); vi.clearAllMocks(); state.schemaError = null; state.storageError = null;
+    state.deliveries.clear(); vi.clearAllMocks(); state.schemaError = null; state.storageError = null; state.instantMissing = false;
     state.owners.set('device-a', 'owner-a'); state.owners.set('device-b', 'owner-b');
     vi.mocked(getApiKeys).mockResolvedValue([]);
     vi.mocked(getPreferences).mockResolvedValue({ ...DEFAULT_PREFS, layout: { version: 1, cols: 10, rows: 6, widgets: [{ i: 'news', x: 0, y: 0, w: 10, h: 6 }] } });
@@ -74,6 +81,8 @@ describe('authenticated device delivery', () => {
   };
   const frame = (token: string, extra: Record<string, string> = {}, id = 'device-a', format = 'raw') => fetch(`${base}/device-feed/${id}/frame?format=${format}`, { headers: { Authorization: `Bearer ${token}`, ...extra } });
   const refresh = (id = 'device-a') => fetch(`${base}/devices/${id}/refresh`, { method: 'POST', headers: ownerHeaders });
+  const instant = (enabled: unknown, id = 'device-a') => fetch(`${base}/devices/${id}/delivery/instant`, { method: 'PUT', headers: ownerHeaders, body: JSON.stringify({ enabled }) });
+  const check = (token: string, id = 'device-a') => fetch(`${base}/device-feed/${id}/refresh-request`, { headers: { Authorization: `Bearer ${token}` } });
   const status = () => fetch(`${base}/devices/device-a/delivery`, { headers: ownerHeaders }).then((response) => response.json());
   const heartbeat = (token: string, fields: Record<string, unknown> = {}) => fetch(`${base}/device-feed/device-a/heartbeat`, {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ firmware_version: 'test/1.2', ...fields }),
@@ -274,6 +283,63 @@ describe('authenticated device delivery', () => {
     expect(state.deliveries.get('device-a')).toMatchObject({ firmware_version: null, refresh_applied_at: null });
   });
 
+  it('lets only the owner of an active credential opt a device into instant updates', async () => {
+    expect((await instant(true)).status).toBe(409);
+    expect((await instant(true, 'device-b')).status).toBe(404);
+    expect((await fetch(`${base}/devices/device-a/delivery/instant`, { method: 'PUT', body: '{"enabled":true}', headers: { 'Content-Type': 'application/json' } })).status).toBe(401);
+    for (const body of ['yes', 1, null]) expect((await instant(body)).status).toBe(400);
+    const token = await create();
+    expect(await status()).toMatchObject({ instantUpdates: false });
+    const enabled = await instant(true); expect(enabled.status).toBe(200);
+    expect(await enabled.json()).toMatchObject({ configured: true, instantUpdates: true });
+    // Rotating the credential keeps the owner's power-source choice.
+    const replacement = await create(); expect(await status()).toMatchObject({ instantUpdates: true });
+    expect((await check(token)).status).toBe(401);
+    expect((await check(replacement)).headers.get('x-instant-updates')).toBe('1');
+    expect(await (await instant(false)).json()).toMatchObject({ instantUpdates: false });
+    await fetch(`${base}/devices/device-a/delivery/token`, { method: 'DELETE', headers: ownerHeaders });
+    expect((await instant(true)).status).toBe(409);
+  });
+
+  it('answers request checks without rendering, then serves the forced frame and accepts its ACK', async () => {
+    const token = await create(); await instant(true);
+    const idle = await check(token);
+    expect(idle.status).toBe(204); expect(idle.headers.get('retry-after')).toBe('5');
+    expect(idle.headers.get('x-instant-updates')).toBe('1'); expect(idle.headers.get('x-refresh-request-id')).toBeNull();
+    await refresh(); const id = state.deliveries.get('device-a')!.refresh_request_id as string;
+    const pending = await check(token);
+    expect(pending.status).toBe(200); expect(pending.headers.get('x-refresh-request-id')).toBe(id);
+    expect(await pending.json()).toEqual({ refreshRequestId: id });
+    expect(buildDisplayData).not.toHaveBeenCalled();
+    const forced = await frame(token);
+    expect(forced.headers.get('x-refresh-request-id')).toBe(id); expect(forced.headers.get('x-instant-updates')).toBe('1');
+    await heartbeat(token, { refresh_request_id: id, last_applied_hash: forced.headers.get('x-image-sha256') });
+    expect((await check(token)).status).toBe(204);
+  });
+
+  it('tells sleeping devices to keep sleeping, including on quiet and unchanged responses', async () => {
+    const token = await create();
+    expect((await check(token)).headers.get('x-instant-updates')).toBe('0');
+    const first = await frame(token); expect(first.headers.get('x-instant-updates')).toBe('0');
+    await instant(true);
+    const unchanged = await frame(token, { 'If-None-Match': first.headers.get('etag')! });
+    expect(unchanged.status).toBe(304); expect(unchanged.headers.get('x-instant-updates')).toBe('1');
+  });
+
+  it('bounds the configurable request-check interval', () => {
+    expect(instantCheckSeconds(undefined)).toBe(5); expect(instantCheckSeconds('abc')).toBe(5); expect(instantCheckSeconds('2.5')).toBe(5);
+    expect(instantCheckSeconds('1')).toBe(2); expect(instantCheckSeconds('10')).toBe(10); expect(instantCheckSeconds('600')).toBe(60);
+  });
+
+  it('keeps ordinary delivery before migration 020 and explains the missing upgrade', async () => {
+    state.instantMissing = true;
+    const token = await create();
+    expect((await frame(token)).headers.get('x-instant-updates')).toBe('0');
+    expect((await check(token)).status).toBe(204);
+    const rejected = await instant(true); expect(rejected.status).toBe(503);
+    expect(await rejected.json()).toMatchObject({ error: expect.stringContaining('020') });
+  });
+
   it.each(['42703', 'PGRST204'])('preserves legacy tokens, frames and heartbeats before migration019 (%s)', async (code) => {
     state.schemaError = code;
     const token = await create(); expect((await frame(token)).status).toBe(200);
@@ -287,6 +353,7 @@ describe('authenticated device delivery', () => {
   it('does not hide permission/storage errors as an old schema', async () => {
     const token = await create(); state.schemaError = '42501';
     expect((await frame(token)).status).toBe(503);
+    expect((await check(token)).status).toBe(503);
     expect((await refresh()).status).toBe(500);
     expect((await fetch(`${base}/devices/device-a/delivery/token`, { method: 'POST', headers: ownerHeaders })).status).toBe(500);
   });

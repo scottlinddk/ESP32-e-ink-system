@@ -212,6 +212,8 @@ export interface DeviceDeliveryStatus {
   configured: boolean; rotatedAt: string | null; lastSeenAt: string | null;
   firmwareVersion: string | null; batteryPercent: number | null; rssi: number | null; lastAppliedHash: string | null;
   refreshRequestId: string | null; refreshRequestedAt: string | null; refreshAppliedAt: string | null;
+  /** Absent from backends without migration 020; treat as off. */
+  instantUpdates?: boolean;
 }
 export async function getDeviceDeliveryStatus(token: string, id: string, signal?: AbortSignal): Promise<DeviceDeliveryStatus> {
   const result = await request<DeviceDeliveryStatus>(`/api/devices/${encodeURIComponent(id)}/delivery`, { token, signal });
@@ -220,6 +222,13 @@ export async function getDeviceDeliveryStatus(token: string, id: string, signal?
 }
 export async function requestDeviceRefresh(token: string, id: string, signal?: AbortSignal): Promise<DeviceDeliveryStatus> {
   const result = await request<DeviceDeliveryStatus>(`/api/devices/${encodeURIComponent(id)}/refresh`, { method: 'POST', token, signal });
+  signal?.throwIfAborted();
+  return result;
+}
+export async function setDeviceInstantUpdates(token: string, id: string, enabled: boolean, signal?: AbortSignal): Promise<DeviceDeliveryStatus> {
+  const result = await request<DeviceDeliveryStatus>(`/api/devices/${encodeURIComponent(id)}/delivery/instant`, {
+    method: 'PUT', token, signal, body: JSON.stringify({ enabled }),
+  });
   signal?.throwIfAborted();
   return result;
 }

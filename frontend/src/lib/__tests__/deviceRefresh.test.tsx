@@ -3,15 +3,17 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DeviceRefreshControl, deviceRefreshPending } from '../../components/dashboard/DeviceRefreshControl';
-import { getDeviceDeliveryStatus, requestDeviceRefresh, type DeviceDeliveryStatus } from '../api';
+import { DeviceRefreshControl, deviceRefreshPending, deviceRefreshPollInterval } from '../../components/dashboard/DeviceRefreshControl';
+import { getDeviceDeliveryStatus, requestDeviceRefresh, setDeviceInstantUpdates, type DeviceDeliveryStatus } from '../api';
 
 const session = vi.hoisted(() => ({ id: 'alice', signedIn: true, lang: 'en' as 'en' | 'da' }));
-const observed = vi.hoisted(() => ({ mutation: null as null | (() => Promise<DeviceDeliveryStatus>) }));
+const observed = vi.hoisted(() => ({ mutation: null as null | (() => Promise<DeviceDeliveryStatus>), instant: null as null | ((enabled: boolean) => Promise<DeviceDeliveryStatus>) }));
 vi.mock('@tanstack/react-query', async (original) => {
   const actual = await original<typeof import('@tanstack/react-query')>();
   return { ...actual, useMutation: (options: Parameters<typeof actual.useMutation>[0]) => {
-    observed.mutation = options.mutationFn as unknown as () => Promise<DeviceDeliveryStatus>;
+    // The screen request takes no variables; the instant-updates toggle takes one.
+    if (options.mutationFn!.length === 0) observed.mutation = options.mutationFn as unknown as () => Promise<DeviceDeliveryStatus>;
+    else observed.instant = options.mutationFn as unknown as (enabled: boolean) => Promise<DeviceDeliveryStatus>;
     return actual.useMutation(options);
   } };
 });
@@ -27,6 +29,8 @@ const idle: DeviceDeliveryStatus = {
 };
 const queued: DeviceDeliveryStatus = { ...idle, refreshRequestId: 'request-one', refreshRequestedAt: '2026-10-02T12:34:56.000Z' };
 const applied: DeviceDeliveryStatus = { ...queued, refreshAppliedAt: '2026-10-02T12:36:00.000Z' };
+const instantIdle: DeviceDeliveryStatus = { ...idle, instantUpdates: true };
+const instantQueued: DeviceDeliveryStatus = { ...queued, instantUpdates: true };
 
 function render(report?: DeviceDeliveryStatus, deviceId = 'kitchen', failed = false) {
   const client = new QueryClient();
@@ -102,6 +106,34 @@ describe('selected device update control', () => {
     expect(DeviceRefreshControl(props)!.key).not.toBe(key);
   });
 
+  it('offers the USB-power instant updates toggle only for a configured device', () => {
+    const off = render(idle);
+    expect(off).toMatch(/role="switch"(?![^>]*checked)[^>]*aria-label="Instant updates \(USB power\)"/);
+    expect(off).toContain('Turn on instant updates for USB-powered displays');
+    expect(render({ ...idle, configured: false })).not.toContain('role="switch"');
+    const on = render(instantIdle);
+    expect(on).toMatch(/role="switch"[^>]*checked=""/);
+    expect(on).toContain('within about 10 seconds');
+    expect(on).toContain('Use only with USB power');
+    expect(on).not.toContain('does not wake a sleeping display');
+  });
+
+  it('describes an instant request as sent rather than waiting for a scheduled check-in', () => {
+    const html = render(instantQueued);
+    expect(html).toContain('Sent — the screen updates within seconds while the device is online.');
+    expect(html).not.toContain('waiting for the next device check-in');
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>[\s\S]*?Update device screen/);
+  });
+
+  it('polls quickly only for a recent request to an instant-updates device', () => {
+    const requested = Date.parse(queued.refreshRequestedAt!);
+    expect(deviceRefreshPollInterval(instantQueued, requested + 1_000)).toBe(3_000);
+    expect(deviceRefreshPollInterval(instantQueued, requested + 3 * 60_000)).toBe(60_000);
+    expect(deviceRefreshPollInterval(queued, requested + 1_000)).toBe(60_000);
+    expect(deviceRefreshPollInterval({ ...instantQueued, refreshAppliedAt: '2026-10-02T12:35:00.000Z' }, requested)).toBe(false);
+    expect(deviceRefreshPollInterval(undefined)).toBe(false);
+  });
+
   it('renders Danish controls and queued status', () => {
     session.lang = 'da';
     const html = render(queued);
@@ -115,6 +147,30 @@ describe('selected device update control', () => {
     for (const report of [undefined, idle, applied, { ...queued, configured: false }]) expect(deviceRefreshPending(report)).toBe(false);
     // A later request supersedes the acknowledgement of the earlier request.
     expect(deviceRefreshPending({ ...applied, refreshRequestId: 'request-two', refreshAppliedAt: null })).toBe(true);
+  });
+});
+
+describe('instant updates API', () => {
+  it('stores the toggle result for the selected device only', async () => {
+    const client = new QueryClient();
+    const queryKey = ['device-delivery', 'alice', 'kitchen'];
+    client.setQueryData(queryKey, idle);
+    renderToStaticMarkup(<MemoryRouter><QueryClientProvider client={client}>
+      <DeviceRefreshControl deviceId="kitchen" timezone="UTC" />
+    </QueryClientProvider></MemoryRouter>);
+    const request = vi.fn().mockImplementation(async () => new Response(JSON.stringify(instantIdle)));
+    vi.stubGlobal('fetch', request);
+    expect(await observed.instant!(true)).toEqual(instantIdle);
+    expect(request).toHaveBeenCalledWith('/api/devices/kitchen/delivery/instant', {
+      method: 'PUT', body: '{"enabled":true}', signal: undefined, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer auth' },
+    });
+    expect(client.getQueryData(queryKey)).toEqual(instantIdle);
+    client.clear();
+  });
+
+  it.each([409, 503])('preserves an actionable HTTP %s error', async (status) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'Apply database migration 020' }), { status })));
+    await expect(setDeviceInstantUpdates('auth', 'kitchen', true)).rejects.toMatchObject({ status, message: 'Apply database migration 020' });
   });
 });
 

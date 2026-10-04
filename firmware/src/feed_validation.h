@@ -47,4 +47,18 @@ inline uint32_t retrySeconds(const char* value) {
   }
   return result < 1 ? 1 : result > 86400 ? 86400 : result;
 }
+// X-Instant-Updates: 1 = stay online and check for requests, 0 = deep sleep,
+// -1 = absent/invalid (an error response); keep the previously known mode.
+inline int instantMode(const char* value) {
+  if (!value) return -1;
+  if (!strcmp(value, "1")) return 1;
+  if (!strcmp(value, "0")) return 0;
+  return -1;
+}
+// Request checks are bounded so a bad hint can neither spin nor stall updates.
+inline uint32_t instantCheckSeconds(const char* value) {
+  if (!value || !*value) return 5;
+  const uint32_t seconds = retrySeconds(value);
+  return seconds < 2 ? 2 : seconds > 60 ? 60 : seconds;
+}
 }

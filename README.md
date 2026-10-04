@@ -11,7 +11,7 @@ A quiet, glanceable home dashboard for everything you want at a glance. Choose t
 
 The [integration setup guide](docs/INTEGRATIONS.md) maps every source to its widget, including calendar subscriptions and Home Assistant sensor updates. Dashboard contains the preview, display settings, notes/images, templates and schedule; integration credentials and source controls are on **Integrations**.
 
-The [device workspace guide](docs/DEVICE_WORKSPACES.md) explains per-device layouts, slideshows, live previews, manual screen refresh and migrations 018–019. Shared content and legacy defaults are labelled separately from the selected device's settings.
+The [device workspace guide](docs/DEVICE_WORKSPACES.md) explains per-device layouts, slideshows, live previews, manual and instant screen refresh, and migrations 018–020. Shared content and legacy defaults are labelled separately from the selected device's settings.
 
 See the [integration and widget audit](docs/INTEGRATION_AUDIT.md) for supported behavior, provider compatibility fixes and validation limits.
 
@@ -128,7 +128,9 @@ Browser-facing paths below include `/api`; direct requests to the local Express 
 | POST | `/api/image/preview/draft` | Live BMP of a validated unsaved layout; body `{ "layout": ... }` |
 | GET | `/api/image/preview/raw` | Raw pixels for Bluetooth transfer |
 | GET / POST / DELETE | `/api/devices/:id/delivery` and `/delivery/token` | Owner-managed device credentials and reported status |
+| PUT | `/api/devices/:id/delivery/instant` | Owner opt-in to instant screen updates for a USB-powered device |
 | GET / POST | `/api/device-feed/:id/frame` and `/heartbeat` | Device-token frame delivery and telemetry |
+| GET | `/api/device-feed/:id/refresh-request` | Device-token check for a pending screen update (instant updates) |
 
 Browser endpoints require a Clerk bearer token; device-feed endpoints require the separately issued device token. Health is public.
 
