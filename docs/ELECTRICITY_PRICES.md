@@ -1,5 +1,13 @@
 # Electricity prices
 
+## Spot price source
+
+Spot prices come from [Elprisen lige nu](https://www.elprisenligenu.dk/elpris-api): one static JSON file per Danish calendar day and price area, `https://www.elprisenligenu.dk/api/v1/prices/YYYY/MM-DD_DK1.json`. Each entry has `DKK_per_kWh`, `EUR_per_kWh`, `EXR`, and `time_start`/`time_end` with the Danish UTC offset. Prices exclude VAT, taxes and tariffs; `DKK_per_kWh × 100` gives øre/kWh. A day that is not yet published returns 404, which shows as unavailable.
+
+The date in the URL is the Danish calendar day. The current interval is the entry with `time_start ≤ now < time_end`, so 15-minute and historical hourly files both work. Timestamps without a UTC offset are rejected rather than read in the server's time zone. The raw spot cache expires at the current interval's `time_end`.
+
+Elprisen lige nu is a free third-party service without an SLA. It asks apps to credit it: the Integrations page links “Electricity prices provided by Elprisen lige nu.dk”. Tariffs, national charges and electricity tax are still fetched from Energinet's DataHub (below), so consumer mode depends on both services and fails if either is unavailable.
+
 Apply `backend/src/db/migrations/017_energy_price_settings.sql` before deploying. Existing accounts remain in **Spot** mode, excluding VAT, taxes, grid tariffs and supplier markup. No API key is needed.
 
 In Integrations → Energy prices, choose **Estimated consumer price**, then the grid company/household tariff from your bill. Enter your electricity supplier's per-kWh markup **excluding VAT**, in øre/kWh; use zero only if your agreement has no markup. Save and refresh the preview. The estimate includes variable electricity costs; **fixed subscriptions and fees are excluded**. It assumes a standard household spot-price contract and standard electricity tax. Fixed-price contracts, special producer tariffs and individual rebates need different settings and are not inferred.
@@ -22,11 +30,11 @@ For each 15-minute interval, calculation in øre/kWh is:
 
 National charges come from DatahubPricelist GLN `5790000432752`, codes `40000`, `41000`, `EA-001`, selected by effective date. The 2026 transmission/system rates are 4.3/7.2 øre excluding VAT ([Energinet tariff catalogue](https://energinet.dk/media/5v3pikp3/energinets_tarifkatalog_2026.pdf)). Standard electricity tax is 0.8 øre in 2026–2027 ([Skattestyrelsen](https://skat.dk/erhverv/afgifter-paa-varer-og-ydelser-punktafgifter/nyhedsbrev-afgifter/midlertidig-nedsaettelse-af-elafgiften-i-2026-og-2027)). These rates are fetched, not hardcoded. VAT is the standard 25% ([Skattestyrelsen](https://skat.dk/erhverv/moms/i-gang-med-moms)).
 
-The [official dataset metadata](https://api.energidataservice.dk/meta/dataset/DatahubPricelist) defines Danish local hourly slots and flat-rate/null-slot handling. Validity uses Danish calendar dates, inclusive `ValidFrom` and exclusive `ValidTo`. The API filters on `ValidFrom`; requests therefore omit a recent start and use an unlimited filtered result so older active tariffs survive. Only exact GLN/code matches are accepted. Daily raw tariff caches are scoped to GLN and codes; raw spot caches are scoped to area and expire at the current quarter-hour boundary. A user's markup and tariff combination are calculated separately. Source failures never fall back to spot mode.
+The [official dataset metadata](https://api.energidataservice.dk/meta/dataset/DatahubPricelist) defines Danish local hourly slots and flat-rate/null-slot handling. Validity uses Danish calendar dates, inclusive `ValidFrom` and exclusive `ValidTo`. The API filters on `ValidFrom`; requests therefore omit a recent start and use an unlimited filtered result so older active tariffs survive. Only exact GLN/code matches are accepted. Daily raw tariff caches are scoped to GLN and codes; raw spot caches are scoped to area and expire at the end of the current interval. A user's markup and tariff combination are calculated separately. Source failures never fall back to spot mode.
 
 The current interval is selected in UTC; hourly tariffs and the average always use Europe/Copenhagen, independently of the display clock. The average is the mean of available interval totals for the Danish day, including 23/25-hour DST days; it is not consumption-weighted. BMP output labels spot exclusions or an estimate including VAT, with fixed fees excluded. Taller widgets also show the average.
 
-The independent `packages/widgets` Energinet widget remains **spot-only**, labelled as such. The dashboard, BMP preview, Bluetooth payload and automatic device feed use the backend consumer calculation.
+The independent `packages/widgets` spot widget (id `energinet-prices`, kept for saved layouts) uses Elprisen lige nu and remains **spot-only**, labelled as such. The dashboard, BMP preview, Bluetooth payload and automatic device feed use the backend consumer calculation.
 
 ## API and templates
 

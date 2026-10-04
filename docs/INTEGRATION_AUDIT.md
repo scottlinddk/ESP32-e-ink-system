@@ -6,7 +6,7 @@ The production data path is the backend source services → `DisplayData` → th
 
 | Widget | Source and behavior | Audit result |
 |---|---|---|
-| Energy prices | Energinet DK1/DK2; spot or configured estimate including variable tariffs, tax and VAT | Current quarter-hour data; grid and national tariffs applied per interval, including DST. Explicit spot/estimate labels. Fixed fees excluded. [Pricing details](ELECTRICITY_PRICES.md) |
+| Energy prices | Elprisen lige nu spot (DK1/DK2) with Energinet tariffs; spot or configured estimate including variable tariffs, tax and VAT | Current quarter-hour data; grid and national tariffs applied per interval, including DST. Explicit spot/estimate labels. Fixed fees excluded. [Pricing details](ELECTRICITY_PRICES.md) |
 | Weather | OpenWeatherMap Current Weather Data | Coordinates normalized, zero accepted, account-key/location cache, setup test and safe error diagnostics. [Setup](WEATHER.md) |
 | News | Public RSS/Atom or NewsAPI | RSS empty/error behavior retained. NewsAPI rejects unsupported Danish/Finnish coverage with an RSS suggestion; malformed articles cannot reach bitmap text rendering. Credential-bound cache and bounded responses. |
 | Monta | Charge points, charging sessions, optional creation-day aggregate | Correct public API host, camelCase authentication/fields, pagination and `consumedKwh`. Daily aggregate follows display timezone and explicitly means sessions created today. Missing measurements stay unknown. |

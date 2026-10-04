@@ -6,7 +6,7 @@ Each source needs both saved source settings and its widget in the **layout edit
 
 | Integration | Widget | Setup |
 |---|---|---|
-| Energinet | Energy prices / Elpris | Select DK1/DK2 and spot or consumer estimate. No key. Consumer mode needs the actual grid tariff and supplier markup. [Pricing guide](ELECTRICITY_PRICES.md) |
+| Elprisen lige nu + Energinet | Energy prices / Elpris | Select DK1/DK2 and spot or consumer estimate. No key. Consumer mode needs the actual grid tariff and supplier markup. [Pricing guide](ELECTRICITY_PRICES.md) |
 | OpenWeatherMap | Weather | Save a Current Weather Data key, enter coordinates with decimal points, and use Test weather before saving. [Weather guide](WEATHER.md) |
 | NewsAPI | News headlines | Save a key with appropriate deployment access and select supported coverage. The [Developer plan](https://newsapi.org/pricing) is restricted to development/testing; use RSS or suitable provider access for deployment. |
 | RSS / Atom | News headlines | Select RSS / Atom, enter a public HTTPS feed, and choose 1–10 headlines. No key. Widget size determines how many fit. |

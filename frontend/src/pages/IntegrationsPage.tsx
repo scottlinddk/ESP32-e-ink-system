@@ -14,10 +14,11 @@ export function IntegrationsPage() {
   const da = lang === 'da';
   const providers = [
     {
-      id: 'energy', name: 'Energinet', widget: t.layoutWidgetEnergy, setup: '#sources',
-      text: da ? 'Kræver ingen API-nøgle. Vælg DK1 eller DK2 og spotpris eller estimeret forbrugspris. Forbrugspris kræver dit netselskabs tarif og elselskabets tillæg; moms er med, faste abonnementer er ikke.'
-        : 'No API key needed. Choose DK1 or DK2 and spot or estimated consumer price. Consumer pricing needs your grid tariff and supplier markup; it includes VAT and excludes fixed subscriptions.',
-      url: 'https://www.energidataservice.dk/tso-electricity/DayAheadPrices',
+      id: 'energy', name: 'Elprisen lige nu · Energinet', widget: t.layoutWidgetEnergy, setup: '#sources',
+      text: da ? 'Kræver ingen API-nøgle. Vælg DK1 eller DK2 og spotpris eller estimeret forbrugspris. Spotpriser kommer fra Elprisen lige nu; tariffer og afgifter fra Energinet. Forbrugspris kræver dit netselskabs tarif og elselskabets tillæg; moms er med, faste abonnementer er ikke.'
+        : 'No API key needed. Choose DK1 or DK2 and spot or estimated consumer price. Spot prices come from Elprisen lige nu; tariffs and taxes from Energinet. Consumer pricing needs your grid tariff and supplier markup; it includes VAT and excludes fixed subscriptions.',
+      url: 'https://www.elprisenligenu.dk/elpris-api',
+      attribution: { label: da ? 'Elpriser leveret af Elprisen lige nu.dk' : 'Electricity prices provided by Elprisen lige nu.dk', url: 'https://www.elprisenligenu.dk' },
     },
     {
       id: 'weather', name: 'OpenWeatherMap', widget: t.layoutWidgetWeather, setup: '#credentials-openweather',
@@ -76,6 +77,7 @@ export function IntegrationsPage() {
         <div className="flex flex-wrap gap-4 text-sm">
           <a href={provider.setup} className="underline">{t.integrationConfigure}</a>
           <a href={provider.url} target="_blank" rel="noreferrer" className="underline">{t.integrationProviderGuide}</a>
+          {'attribution' in provider && provider.attribution && <a href={provider.attribution.url} target="_blank" rel="noreferrer" className="underline">{provider.attribution.label}</a>}
         </div>
       </Card>)}
     </div>

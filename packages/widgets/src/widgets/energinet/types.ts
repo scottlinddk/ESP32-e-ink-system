@@ -1,16 +1,11 @@
-export interface EnergidataRecord {
-  TimeDK: string;
-  TimeUTC: string;
-  PriceArea: string;
-  DayAheadPriceDKK: number;
-  DayAheadPriceEUR: number;
-}
-
-export interface EnergidataResponse {
-  total: number;
-  limit: number;
-  dataset: string;
-  records: EnergidataRecord[];
+/** One interval from https://www.elprisenligenu.dk/elpris-api; prices exclude VAT, taxes and tariffs. */
+export interface ElprisRecord {
+  DKK_per_kWh: number;
+  EUR_per_kWh: number;
+  EXR: number;
+  /** ISO 8601 with the Danish UTC offset, e.g. 2026-10-04T00:00:00+02:00 */
+  time_start: string;
+  time_end: string;
 }
 
 export interface EnergyPriceData {
@@ -19,7 +14,7 @@ export interface EnergyPriceData {
   /** Average of today's available intervals in øre/kWh, Europe/Copenhagen */
   averageOre: number;
   trend: 'up' | 'down' | 'stable';
-  /** Legacy field name: today's 15-minute prices in chronological order */
+  /** Legacy field name: today's interval prices in chronological order; hourDK is the interval's offset start time */
   hourlyPrices: Array<{ hourDK: string; priceOre: number }>;
 }
 
