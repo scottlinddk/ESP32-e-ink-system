@@ -51,6 +51,7 @@ class FrameCallbacks : public BLECharacteristicCallbacks {
 }
 
 void beginManualBluetooth() {
+  if (packets) return;  // Setup can reopen from an awake device; init only once.
   packets = xQueueCreate(4, sizeof(Packet));
   if (!packets) { Serial.println("[BLE] Could not allocate command queue"); return; }
   char name[20];
@@ -69,11 +70,13 @@ void beginManualBluetooth() {
   advertising->addServiceUUID(SERVICE_UUID);
   advertising->setScanResponse(true);
   advertising->start();
-  Serial.printf("[BLE] Manual display receiver ready as %s (setup mode only)\n", name);
+  Serial.printf("[BLE] Manual display receiver ready as %s; free heap %u bytes\n", name, unsigned(ESP.getFreeHeap()));
 }
 
-void pollManualBluetooth(DisplayManager& display) {
-  if (!packets || !characteristic) return;
+bool manualBluetoothConnected() { return connected; }
+
+bool pollManualBluetooth(DisplayManager& display) {
+  if (!packets || !characteristic) return false;
   const uint32_t currentSession = session.load();
   if (currentSession != activeSession) {
     receiver.reset(); activeSession = currentSession;
@@ -81,7 +84,7 @@ void pollManualBluetooth(DisplayManager& display) {
   }
   receiver.expire(millis());
   Packet packet;
-  if (xQueueReceive(packets, &packet, 0) != pdTRUE || packet.session != currentSession || !connected) return;
+  if (xQueueReceive(packets, &packet, 0) != pdTRUE || packet.session != currentSession || !connected) return false;
   const bool accepted = receiver.accept(packet.bytes, packet.length, millis());
   const uint8_t command = packet.length >= 2 ? packet.bytes[1] : 0;
   notify(accepted ? 0 : 0xff, command, currentSession);
@@ -92,5 +95,7 @@ void pollManualBluetooth(DisplayManager& display) {
     receiver.reset();
     notify(0, refreshed ? 0x73 : 0x74, currentSession);
     Serial.printf("[BLE] Manual image %s\n", refreshed ? "refresh completed" : "refresh failed");
+    return true;  // Even a failed refresh may have changed the panel.
   }
+  return false;
 }

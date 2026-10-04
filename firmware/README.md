@@ -10,7 +10,7 @@ See the [browser installation and recovery guide](../docs/FIRMWARE_FLASHING.md).
 | Original Elecrow CrowPanel 2.13-inch, SSD1680 | `elecrow_213` | `firmware-elecrow-factory.bin` |
 | Elecrow CrowPanel 2.13-inch V1.2, JD79661 | `elecrow_213_v12` | `firmware-elecrow-v12-factory.bin` |
 
-The bundled Elecrow driver is in `lib/EPD`; no vendor library download is required. This firmware pulls the current monochrome BMP from the app's device feed over Wi-Fi. It also accepts manual Bluetooth pushes as `EInk-XXXXXX` during first-boot setup or when holding MENU while resetting (Waveshare: press BOOT within 3 seconds after releasing reset). Keep the browser online and use a 250 × 122 profile; see [Bluetooth delivery](../docs/BLUETOOTH_DELIVERY.md).
+The bundled Elecrow driver is in `lib/EPD`; no vendor library download is required. This firmware pulls the current monochrome BMP from the app's device feed over Wi-Fi. It also accepts manual Bluetooth pushes as `EInk-XXXXXX` during first-boot setup or when holding MENU while resetting (Waveshare: press BOOT within 3 seconds after releasing reset). It also stays on whenever the device is awake between polls (Instant updates on USB power); deep sleep turns it off. Keep the browser online and use a 250 × 122 profile; see [Bluetooth delivery](../docs/BLUETOOTH_DELIVERY.md).
 
 `esp32dev` uses `huge_app.csv` (3 MiB app, no OTA) to fit Wi-Fi and the built-in BLE stack. Upgrade older units with the complete USB/factory image so the new partition table is installed. A standalone application binary does not update the partition table.
 

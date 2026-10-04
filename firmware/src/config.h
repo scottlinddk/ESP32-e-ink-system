@@ -5,3 +5,8 @@
 #else
 #include "../config.h.example"
 #endif
+
+// Older local config.h files predate this flag.
+#ifndef FEATURE_BLE_WHILE_AWAKE
+#define FEATURE_BLE_WHILE_AWAKE 1
+#endif

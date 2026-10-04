@@ -90,6 +90,10 @@
 #define FEATURE_OTA_UPDATES 0 // Web USB installer is the supported firmware update path
 #define FEATURE_BATTERY_REPORTING 0 // Enable only with verified ADC wiring/calibration
 #define FEATURE_CONNECTIVITY_MONITORING 1
+// Keep the EInk-XXXXXX Bluetooth receiver on while the device stays awake
+// (instant updates / USB power, or DEEP_SLEEP_ENABLED 0). Anyone in range can
+// then push an image without pairing. Deep sleep always powers the radio off.
+#define FEATURE_BLE_WHILE_AWAKE 1
 
 // Optional: Custom Data Display Preferences
 // (Can also be managed from the dashboard preferences endpoint)
