@@ -64,8 +64,20 @@ void finishPoll() {
   // USB-powered opt-in: keep Wi-Fi associated (modem sleep) so loop() can ask
   // for screen-update requests until the scheduled frame poll.
   display.sleep();
+#if FEATURE_BLE_WHILE_AWAKE
+  beginManualBluetooth();
+#endif
   nextPollAt = millis() + nextPollSeconds * 1000UL;
   Serial.printf("[Main] Instant updates on; next scheduled poll in %lu seconds\n", static_cast<unsigned long>(nextPollSeconds));
+}
+
+// An awake device accepts Bluetooth pushes between polls. The panel then no
+// longer shows the server frame's refresh request, so a repeated request must
+// redraw; the hash stays, so an unchanged feed (304) keeps the manual image.
+void serviceBluetooth() {
+#if FEATURE_BLE_WHILE_AWAKE
+  if (pollManualBluetooth(display)) appliedFrame.refreshRequestId[0] = 0;
+#endif
 }
 
 // Returns true to poll the frame now (request or schedule), false when the
@@ -76,7 +88,9 @@ bool waitForRefreshRequest() {
   uint32_t lastCheck = millis();
   while (static_cast<int32_t>(nextPollAt - millis()) > 0) {
     if (digitalRead(SETUP_BUTTON) == LOW) openSetup();
-    if (millis() - lastCheck < intervalSeconds * 1000UL) {
+    serviceBluetooth();
+    // A request check can block for seconds and stall an active transfer.
+    if (millis() - lastCheck < intervalSeconds * 1000UL || manualBluetoothConnected()) {
       delay(50);
       continue;
     }
@@ -223,9 +237,13 @@ void loop() {
   }
 #if !DEEP_SLEEP_ENABLED
   // A firmware with sleep disabled still polls, and allows button recovery.
+#if FEATURE_BLE_WHILE_AWAKE
+  beginManualBluetooth();
+#endif
   uint32_t started = millis();
   while (millis() - started < nextPollSeconds * 1000UL) {
     if (digitalRead(SETUP_BUTTON) == LOW) openSetup();
+    serviceBluetooth();
     delay(50);
   }
   WiFi.mode(WIFI_STA);
