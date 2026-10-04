@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { loadPublicFirmwareManifest, resolveFirmwareManifest } from '../firmwareManifest';
+import { formatReleaseDate, loadPublicFirmwareManifest, resolveFirmwareManifest } from '../firmwareManifest';
 
 const manifest = { name: 'Display', builds: [{ chipFamily: 'ESP32-S3', parts: [{ path: 'releases/v1/firmware-elecrow-factory.bin', offset: 0 }] }] };
 afterEach(() => { vi.unstubAllGlobals(); });
@@ -13,6 +13,12 @@ describe('browser factory manifests', () => {
     expect(resolveFirmwareManifest(manifest, 'http://localhost:5173/api/firmware/').builds[0].parts[0].path).toContain('http://localhost:5173/api/firmware/');
     const absolute = { ...manifest, builds: [{ chipFamily: 'ESP32-S3', parts: [{ path: 'https://api.example.com/firmware.bin', offset: 0 }] }] };
     expect(resolveFirmwareManifest(absolute, 'https://example.com/api/firmware/').builds[0].parts[0].path).toBe('https://api.example.com/firmware.bin');
+  });
+  it('keeps the release date and formats it as a calendar date in the requested time zone', () => {
+    expect(resolveFirmwareManifest({ ...manifest, release_date: '2026-10-04T23:30:00Z' }, 'https://example.com/').release_date).toBe('2026-10-04T23:30:00Z');
+    expect(formatReleaseDate('2026-10-04T23:30:00Z', 'en-GB', 'UTC')).toBe('4 October 2026');
+    expect(formatReleaseDate('2026-10-04T23:30:00Z', 'en-GB', 'Europe/Copenhagen')).toBe('5 October 2026');
+    for (const value of [undefined, '', 'not a date']) expect(formatReleaseDate(value)).toBeNull();
   });
   it('refuses malformed, insecure, and empty manifests', () => {
     expect(() => resolveFirmwareManifest({ name: 'Bad', builds: [] }, 'https://example.com/')).toThrow();

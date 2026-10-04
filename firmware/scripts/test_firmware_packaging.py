@@ -102,6 +102,8 @@ class PackagingTests(unittest.TestCase):
             self.assertEqual([entry["chipFamily"] for entry in default["builds"]], ["ESP32", "ESP32-S3"])
             self.assertEqual(v12["builds"], [{"chipFamily": "ESP32-S3", "parts": [{"path": "firmware-elecrow-v12-factory.bin", "offset": 0}]}])
             self.assertEqual(default["version"], "2.0.0")
+            self.assertRegex(default["release_date"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+            self.assertEqual(v12["release_date"], default["release_date"])
             self.assertTrue(default["new_install_prompt_erase"])
             self.assertIn("firmware-elecrow-factory.bin", (output / "SHA256SUMS").read_text())
 

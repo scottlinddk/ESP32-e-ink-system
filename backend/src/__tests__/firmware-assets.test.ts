@@ -27,7 +27,7 @@ describe('release binary proxy', () => {
   it('downloads the exact tag including valid semver build metadata', async () => {
     const name = 'firmware-elecrow-factory.bin';
     const url = `https://github.com/example/releases/download/v1.2.3+abc/${name}`;
-    vi.mocked(fetchLatestFirmwareRelease).mockResolvedValue({ tag: 'v1.2.3+abc', version: '1.2.3+abc', assets: { [name]: url } });
+    vi.mocked(fetchLatestFirmwareRelease).mockResolvedValue({ tag: 'v1.2.3+abc', version: '1.2.3+abc', releasedAt: null, assets: { [name]: url } });
     const upstream = vi.fn().mockResolvedValue(new Response(new Uint8Array([0xe9, 1, 2, 3]), { headers: { 'Content-Length': '4' } }));
     vi.stubGlobal('fetch', upstream);
     const response = await realFetch(`${base}releases/v1.2.3%2Babc/${name}`);
@@ -37,7 +37,7 @@ describe('release binary proxy', () => {
     expect(upstream.mock.calls[0][0]).toBe(url);
   });
   it('returns a recoverable failure when a release download fails', async () => {
-    vi.mocked(fetchLatestFirmwareRelease).mockResolvedValue({ tag: 'v1', version: '1', assets: { 'firmware-factory.bin': 'https://example.com/firmware.bin' } });
+    vi.mocked(fetchLatestFirmwareRelease).mockResolvedValue({ tag: 'v1', version: '1', releasedAt: null, assets: { 'firmware-factory.bin': 'https://example.com/firmware.bin' } });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 403 })));
     const response = await realFetch(`${base}releases/v1/firmware-factory.bin`);
     expect(response.status).toBe(502);

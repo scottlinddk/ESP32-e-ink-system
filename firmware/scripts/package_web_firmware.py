@@ -2,6 +2,7 @@
 
 import argparse
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -102,8 +103,16 @@ def package_board(board: Board, project: Path, output: Path, core: Path):
     return {"chipFamily": board.family, "parts": [{"path": board.factory_name, "offset": 0}]}
 
 
+def release_date() -> str:
+    # SOURCE_DATE_EPOCH keeps reproducible builds reproducible; otherwise use the build time.
+    epoch = os.environ.get("SOURCE_DATE_EPOCH")
+    moment = datetime.fromtimestamp(int(epoch), timezone.utc) if epoch else datetime.now(timezone.utc)
+    return moment.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
 def write_manifests(output: Path, version: str, builds: list[dict]):
-    base = {"name": "ESP32 E-Ink Display", "version": version, "new_install_prompt_erase": True, "new_install_improv_wait_time": 0}
+    base = {"name": "ESP32 E-Ink Display", "version": version, "release_date": release_date(),
+            "new_install_prompt_erase": True, "new_install_improv_wait_time": 0}
     # S3 chip detection cannot distinguish the two physical display controllers.
     for name, selected in (("manifest.json", builds[:2]), ("manifest-elecrow-v12.json", builds[2:])):
         (output / name).write_text(json.dumps({**base, "builds": selected}, indent=2) + "\n", encoding="utf-8")
