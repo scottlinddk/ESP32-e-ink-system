@@ -29,8 +29,34 @@ export function releaseDate(value: unknown): string | null {
   return Number.isFinite(time) ? new Date(time).toISOString() : null;
 }
 
-const cache = new Map<string, { release: FirmwareRelease; fetchedAt: number }>();
+const cache = new Map<string, { releases: FirmwareRelease[]; fetchedAt: number }>();
 const TTL = 5 * 60 * 1000;
+/** How many recent releases the installer offers. */
+export const SELECTABLE_RELEASES = 5;
+
+export type FirmwarePanel = 'original' | 'v12';
+/** Human-readable hardware each install manifest targets. */
+export const PANEL_BOARD_NAMES: Record<FirmwarePanel, string> = {
+  original: 'Elecrow CrowPanel 2.13',
+  v12: 'Elecrow CrowPanel 2.13 V1.2',
+};
+
+/** A descriptive firmware name: board, "FW" and version. */
+export function firmwareDisplayName(panel: FirmwarePanel, version: string): string {
+  return `${PANEL_BOARD_NAMES[panel]} FW ${version}`;
+}
+
+const ASSET_BOARD_SLUGS: Record<string, string> = {
+  '': 'waveshare-esp32-213-v2', '-elecrow': 'elecrow-crowpanel-213', '-elecrow-v12': 'elecrow-crowpanel-213-v12',
+};
+
+/** Download filename naming the board, firmware version and image type. Release asset names stay stable. */
+export function describeAssetFilename(name: FirmwareAsset, version: string): string {
+  const [, kind, suffix] = /^(firmware|bootloader|partitions)(-elecrow(?:-v12)?)?(?:-factory)?\.bin$/.exec(name) ?? [];
+  const image = name.endsWith('-factory.bin') ? 'factory' : kind === 'firmware' ? 'app' : kind;
+  const safeVersion = version.replace(/[^a-zA-Z0-9._-]/g, '_');
+  return `${ASSET_BOARD_SLUGS[suffix ?? '']}_fw-${safeVersion}_${image}.bin`;
+}
 
 function resolveRelease(release: GithubRelease): FirmwareRelease | null {
   if (release.draft || !release.tag_name || !Array.isArray(release.assets)) return null;
@@ -46,12 +72,17 @@ function resolveRelease(release: GithubRelease): FirmwareRelease | null {
   return { tag: release.tag_name, version: release.tag_name.replace(/^v/, ''), releasedAt, assets };
 }
 
-/** Dev prereleases are intentional. Choose the newest complete build. */
-export async function fetchLatestFirmwareRelease(tag?: string): Promise<FirmwareRelease | null> {
+/** Newest first. GitHub does not order its release list by publication time, so never trust its order. */
+function byReleaseDateDescending(a: FirmwareRelease, b: FirmwareRelease): number {
+  const time = (release: FirmwareRelease) => release.releasedAt ? Date.parse(release.releasedAt) : -Infinity;
+  return time(b) - time(a);
+}
+
+async function fetchReleases(tag?: string): Promise<FirmwareRelease[]> {
   const repo = process.env.GITHUB_REPO?.trim() || 'scottlinddk/ESP32-e-ink-system';
-  const key = `${repo}:${tag ?? 'latest'}`;
+  const key = `${repo}:${tag ?? 'list'}`;
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.fetchedAt < TTL) return hit.release;
+  if (hit && Date.now() - hit.fetchedAt < TTL) return hit.releases;
   const headers: Record<string, string> = { 'User-Agent': 'esp32-e-ink-backend', Accept: 'application/vnd.github+json' };
   const token = process.env.GITHUB_TOKEN?.trim();
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -59,26 +90,36 @@ export async function fetchLatestFirmwareRelease(tag?: string): Promise<Firmware
   const response = await fetch(`https://api.github.com/repos/${repo}/${endpoint}`, {
     headers, signal: AbortSignal.timeout(15000),
   });
-  if (!response.ok) return null;
+  if (!response.ok) return [];
   const payload = await response.json();
-  const releases: GithubRelease[] = tag ? [payload] : Array.isArray(payload) ? payload : [];
-  const release = releases.map(resolveRelease).find(value => value !== null) ?? null;
-  if (release) {
+  const listed: GithubRelease[] = tag ? [payload] : Array.isArray(payload) ? payload : [];
+  const releases = listed.map(resolveRelease).filter((value): value is FirmwareRelease => value !== null).sort(byReleaseDateDescending);
+  if (releases.length) {
     if (cache.size >= 64) cache.delete(cache.keys().next().value!);
-    cache.set(key, { release, fetchedAt: Date.now() });
+    cache.set(key, { releases, fetchedAt: Date.now() });
   }
-  return release;
+  return releases;
+}
+
+/** The newest complete releases, newest first. Dev prereleases are intentional. */
+export async function fetchFirmwareReleases(limit = SELECTABLE_RELEASES): Promise<FirmwareRelease[]> {
+  return (await fetchReleases()).slice(0, limit);
+}
+
+/** The newest complete build, or the exact release for a pinned tag. */
+export async function fetchLatestFirmwareRelease(tag?: string): Promise<FirmwareRelease | null> {
+  return (await fetchReleases(tag))[0] ?? null;
 }
 
 /** Paths are relative to /firmware/ unless a public backend base is configured. */
-export function buildManifestFromRelease(release: FirmwareRelease, proxyBase?: string, panel: 'original' | 'v12' = 'original') {
+export function buildManifestFromRelease(release: FirmwareRelease, proxyBase?: string, panel: FirmwarePanel = 'original') {
   const prefix = proxyBase ? `${proxyBase.replace(/\/$/, '')}/firmware/` : '';
   const part = (name: FirmwareAsset) => ({
     path: `${prefix}releases/${encodeURIComponent(release.tag)}/${name}`,
     offset: 0,
   });
   return {
-    name: 'ESP32 E-Ink Display',
+    name: firmwareDisplayName(panel, release.version),
     version: release.version,
     ...(release.releasedAt ? { release_date: release.releasedAt } : {}),
     new_install_prompt_erase: true,

@@ -111,11 +111,14 @@ def release_date() -> str:
 
 
 def write_manifests(output: Path, version: str, builds: list[dict]):
-    base = {"name": "ESP32 E-Ink Display", "version": version, "release_date": release_date(),
+    base = {"version": version, "release_date": release_date(),
             "new_install_prompt_erase": True, "new_install_improv_wait_time": 0}
     # S3 chip detection cannot distinguish the two physical display controllers.
-    for name, selected in (("manifest.json", builds[:2]), ("manifest-elecrow-v12.json", builds[2:])):
-        (output / name).write_text(json.dumps({**base, "builds": selected}, indent=2) + "\n", encoding="utf-8")
+    # Names match the backend's descriptive "<board> FW <version>" naming.
+    for name, board, selected in (("manifest.json", "Elecrow CrowPanel 2.13", builds[:2]),
+                                  ("manifest-elecrow-v12.json", "Elecrow CrowPanel 2.13 V1.2", builds[2:])):
+        manifest = {"name": f"{board} FW {version}", **base, "builds": selected}
+        (output / name).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     hashes = [f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}" for path in sorted(output.glob("*.bin"))]
     (output / "SHA256SUMS").write_text("\n".join(hashes) + "\n", encoding="utf-8")
 

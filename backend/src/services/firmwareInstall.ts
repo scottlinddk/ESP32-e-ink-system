@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises';
 import path from 'path';
 import { createHash } from 'crypto';
-import { buildManifestFromRelease, fetchLatestFirmwareRelease, releaseDate } from './githubRelease';
+import { buildManifestFromRelease, fetchFirmwareReleases, fetchLatestFirmwareRelease, firmwareDisplayName, releaseDate, type FirmwarePanel } from './githubRelease';
 
 export const FACTORY_FILES = ['firmware-factory.bin', 'firmware-elecrow-factory.bin', 'firmware-elecrow-v12-factory.bin'];
 
@@ -19,10 +19,28 @@ export async function readLocalFactory(name: string): Promise<{ bytes: Buffer; h
   return { bytes, hash };
 }
 
-export async function getInstallManifest(panel: 'original' | 'v12' = 'original') {
+/** Release tags are path segments in download URLs; accept only the characters the asset route accepts. */
+export function parseReleaseTag(value: unknown): string | undefined | null {
+  if (value === undefined || value === '') return undefined;
+  return typeof value === 'string' && value.length <= 128 && /^[a-zA-Z0-9._+-]+$/.test(value) ? value : null;
+}
+
+export interface InstallableRelease { tag: string; version: string; releasedAt: string | null }
+
+/** Releases the installer can switch between, newest first. A local build directory offers only itself. */
+export async function listInstallableReleases(): Promise<InstallableRelease[]> {
+  if (process.env.FIRMWARE_RELEASE_DIR) {
+    const manifest = await getInstallManifest();
+    return manifest ? [{ tag: '', version: manifest.version, releasedAt: manifest.release_date ?? null }] : [];
+  }
+  return (await fetchFirmwareReleases()).map(({ tag, version, releasedAt }) => ({ tag, version, releasedAt }));
+}
+
+/** The newest release, or the exact `tag`. Local builds ignore the tag: they hold exactly one version. */
+export async function getInstallManifest(panel: FirmwarePanel = 'original', tag?: string) {
   const directory = process.env.FIRMWARE_RELEASE_DIR;
   if (!directory) {
-    const release = await fetchLatestFirmwareRelease();
+    const release = await fetchLatestFirmwareRelease(tag);
     return release ? buildManifestFromRelease(release, process.env.BACKEND_PUBLIC_BASE_URL?.trim(), panel) : null;
   }
   const filename = panel === 'v12' ? 'manifest-elecrow-v12.json' : 'manifest.json';
@@ -39,7 +57,7 @@ export async function getInstallManifest(panel: 'original' | 'v12' = 'original')
   }));
   const released = releaseDate(manifest.release_date);
   return {
-    name: manifest.name as string, version: manifest.version as string, ...(released ? { release_date: released } : {}),
+    name: firmwareDisplayName(panel, manifest.version as string), version: manifest.version as string, ...(released ? { release_date: released } : {}),
     new_install_prompt_erase: true, new_install_improv_wait_time: 0, builds,
   };
 }

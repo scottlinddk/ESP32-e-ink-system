@@ -73,4 +73,39 @@ describe('factory release selection', () => {
     await fetchLatestFirmwareRelease();
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
+
+  it('selects the most recently published release even when GitHub lists an older one first', async () => {
+    // GitHub's actual order on 2026-10-04: 5d1d177 was listed before the newer 302d490 and 253c0e9.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify([
+      { ...release('dev-20261004-5d1d177'), published_at: '2026-10-04T12:52:55Z' },
+      { ...release('dev-20261004-302d490'), published_at: '2026-10-04T12:55:01Z' },
+      { ...release('dev-20261004-253c0e9'), published_at: '2026-10-04T13:09:15Z' },
+      { ...release('undated'), published_at: null, created_at: null },
+      { ...release('dev-20261002-3244623'), published_at: '2026-10-02T12:52:10Z' },
+    ]))));
+    const { fetchLatestFirmwareRelease, fetchFirmwareReleases } = await import('../services/githubRelease');
+    expect((await fetchLatestFirmwareRelease())?.tag).toBe('dev-20261004-253c0e9');
+    expect((await fetchFirmwareReleases()).map(value => value.tag)).toEqual([
+      'dev-20261004-253c0e9', 'dev-20261004-302d490', 'dev-20261004-5d1d177', 'dev-20261002-3244623', 'undated',
+    ]);
+  });
+
+  it('offers only the five newest complete releases', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(
+      Array.from({ length: 8 }, (_, day) => ({ ...release(`dev-${day}`), published_at: `2026-10-0${day + 1}T00:00:00Z` })),
+    ))));
+    const { fetchFirmwareReleases } = await import('../services/githubRelease');
+    expect((await fetchFirmwareReleases()).map(value => value.tag)).toEqual(['dev-7', 'dev-6', 'dev-5', 'dev-4', 'dev-3']);
+  });
+
+  it('names firmware by board, FW and version', async () => {
+    const { buildManifestFromRelease, describeAssetFilename } = await import('../services/githubRelease');
+    const selected = { tag: 'dev-1', version: 'dev-1', releasedAt: null, assets: {} };
+    expect(buildManifestFromRelease(selected).name).toBe('Elecrow CrowPanel 2.13 FW dev-1');
+    expect(buildManifestFromRelease(selected, undefined, 'v12').name).toBe('Elecrow CrowPanel 2.13 V1.2 FW dev-1');
+    expect(describeAssetFilename('firmware-elecrow-v12-factory.bin', 'dev-1')).toBe('elecrow-crowpanel-213-v12_fw-dev-1_factory.bin');
+    expect(describeAssetFilename('firmware-elecrow.bin', '1.2.3+abc')).toBe('elecrow-crowpanel-213_fw-1.2.3_abc_app.bin');
+    expect(describeAssetFilename('firmware-factory.bin', 'dev-1')).toBe('waveshare-esp32-213-v2_fw-dev-1_factory.bin');
+    expect(describeAssetFilename('bootloader-elecrow-v12.bin', 'dev-1')).toBe('elecrow-crowpanel-213-v12_fw-dev-1_bootloader.bin');
+  });
 });

@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import { Readable } from 'stream';
-import { fetchLatestFirmwareRelease, FIRMWARE_ASSETS, type FirmwareAsset } from '../services/githubRelease';
-import { getInstallManifest, readLocalFactory } from '../services/firmwareInstall';
+import { describeAssetFilename, fetchLatestFirmwareRelease, FIRMWARE_ASSETS, type FirmwareAsset } from '../services/githubRelease';
+import { getInstallManifest, parseReleaseTag, readLocalFactory } from '../services/firmwareInstall';
 
 const router = Router();
 
 router.get('/manifest.json', async (req, res, next) => {
   try {
-    const manifest = await getInstallManifest(req.query.panel === 'v12' ? 'v12' : 'original');
+    const tag = parseReleaseTag(req.query.tag);
+    if (tag === null) { res.status(400).json({ error: 'Invalid firmware release tag' }); return; }
+    const manifest = await getInstallManifest(req.query.panel === 'v12' ? 'v12' : 'original', tag);
     res.setHeader('Cache-Control', 'no-store');
     if (!manifest) { res.status(503).json({ error: 'No complete firmware release is available yet.' }); return; }
     res.json(manifest);
@@ -31,10 +33,11 @@ router.get('/releases/:tag/:name', async (req, res, next) => {
   try {
     const release = await fetchLatestFirmwareRelease(tag);
     const url = release?.assets[name as FirmwareAsset];
-    if (!url) { res.status(404).json({ error: 'Firmware asset not available' }); return; }
+    if (!release || !url) { res.status(404).json({ error: 'Firmware asset not available' }); return; }
     const upstream = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(60000) });
     if (!upstream.ok || !upstream.body) { res.status(502).json({ error: 'Firmware download failed. Try again.' }); return; }
     res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${describeAssetFilename(name as FirmwareAsset, release.version)}"`);
     res.setHeader('Cache-Control', 'public, max-age=300');
     const length = upstream.headers.get('content-length');
     if (length) res.setHeader('Content-Length', length);
