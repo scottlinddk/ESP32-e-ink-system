@@ -19,7 +19,7 @@ Make this a dependable household information display: the right electricity pric
 
 ## Next useful increments
 
-1. **Verify the hardware contract.** The renderer supports validated display profiles; bundled Wi-Fi firmware requires 250 × 122 and rotation 0, and the Bluetooth path checks its own format constraints. Verify USB installation, orientation and refresh on every supported physical board, including both Elecrow panel revisions.
+1. **Verify the hardware contract.** The renderer supports validated display profiles; bundled Wi-Fi firmware requires its board's native size (250 × 122 today) and accepts every content rotation, and the Bluetooth path checks its own format constraints. Verify USB installation, orientation and refresh on every supported physical board, including both Elecrow panel revisions.
 2. **Validate unattended delivery on the unit.** Per-device token delivery is implemented by the bundled Wi-Fi firmware and the optional gateway bridge. Complete the actual device's provisioning, TLS connection, successful refresh, acknowledgement and subsequent scheduled update before claiming end-to-end hardware operation.
 3. **Refine live layout editing.** The editor now renders the current draft on demand. Any future automatic rendering should debounce changes and respect source/API rate limits.
 4. **Add source freshness.** Return each integration's observation time and availability state; put a compact last-updated marker on the physical screen. A server image-generation timestamp alone does not show how old a source reading is.

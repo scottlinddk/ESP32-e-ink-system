@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import re
 import struct
 import tempfile
 import unittest
@@ -44,6 +45,12 @@ class ConfigurationTests(unittest.TestCase):
 
 
 class PackagingTests(unittest.TestCase):
+    def test_release_slugs_match_firmware_board_ids(self):
+        # The firmware reports kBoard.id; release assets must name the same hardware.
+        profiles = (Path(__file__).resolve().parents[1] / "src" / "board_profile.h").read_text()
+        firmware_ids = set(re.findall(r'constexpr BoardProfile kBoard = \{"([^"]+)"', profiles))
+        self.assertEqual(firmware_ids, {board.slug for board in BOARDS})
+
     def test_wrong_chip_image_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "firmware.bin"

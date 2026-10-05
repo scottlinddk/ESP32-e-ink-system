@@ -25,7 +25,8 @@ class Board:
     flash_size: str
     flash_freq: str
     size_freq_byte: int
-    # Names the hardware in release filenames. Keep in sync with ASSET_BOARD_SLUGS in
+    # Names the hardware in release filenames and equals kBoard.id in firmware/src/board_profile.h.
+    # Keep in sync with ASSET_BOARD_SLUGS in
     # backend/src/services/githubRelease.ts, which also accepts the legacy names.
     slug: str
 

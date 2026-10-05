@@ -2,6 +2,7 @@
 #include "config.h"
 #include "tls_roots.h"
 #include "feed_validation.h"
+#include "board_profile.h"
 #include <ArduinoJson.h>
 #include <mbedtls/sha256.h>
 
@@ -61,12 +62,15 @@ FrameResult ApiClient::fetchFrame(const char* baseUrl, const char* deviceId, con
     return result;
   }
   String hash = http.header("X-Image-SHA256");
-  if (!feed::validHash(hash.c_str()) || http.header("X-Display-Width") != "250" ||
-      http.header("X-Display-Height") != "122" || http.header("X-Display-Rotation") != "0" ||
-      http.header("X-Display-Row-Bytes") != "32" || http.header("X-Display-Encoding") != "mono-msb-white1" ||
+  if (!feed::validHash(hash.c_str()) ||
+      !feed::frameGeometry(http.header("X-Display-Width").c_str(), http.header("X-Display-Height").c_str(),
+                           http.header("X-Display-Rotation").c_str(), http.header("X-Display-Row-Bytes").c_str(),
+                           kBoard.width, kBoard.height) ||
+      http.header("X-Display-Encoding") != "mono-msb-white1" ||
       http.header("X-Refresh-Mode") != "full" || !http.header("Content-Type").startsWith("image/bmp") ||
       http.header("Transfer-Encoding").length()) {
-    strlcpy(result.error, "Unsupported frame: select 250x122, rotation 0", sizeof(result.error));
+    snprintf(result.error, sizeof(result.error), "Unsupported frame: select %ux%u in the display profile",
+             unsigned(kBoard.width), unsigned(kBoard.height));
     http.end();
     return result;
   }

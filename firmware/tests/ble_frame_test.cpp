@@ -4,7 +4,39 @@
 #include "ble_frame.h"
 #include "bitmap.h"
 
+// Larger panels: client rows are ceil(width/8) bytes, BMP rows are padded to 4.
+template <uint16_t W, uint16_t H>
+void checkPaddedFrame() {
+  using Frame = BleFrameT<W, H>;
+  static_assert(Frame::ROW_BYTES == (W + 7) / 8, "client row size");
+  static_assert(Frame::STRIDE % 4 == 0 && Frame::STRIDE >= Frame::ROW_BYTES, "BMP stride");
+  Frame frame;
+  const uint8_t start[] = {0, 0x70}, end[] = {0, 0x72, 0};
+  assert(frame.accept(start, sizeof(start), 0));
+  std::vector<uint8_t> pixels(Frame::PIXEL_BYTES, 255);
+  pixels[0] = 0x7f;                                        // (0, 0)
+  pixels[Frame::ROW_BYTES - 1] &= uint8_t(~(0x80 >> ((W - 1) % 8)));  // (W-1, 0)
+  pixels[Frame::ROW_BYTES] = 0x7f;                         // (0, 1): the row after padding
+  pixels[(H - 1) * Frame::ROW_BYTES + (W - 1) / 8] &= uint8_t(~(0x80 >> ((W - 1) % 8)));  // (W-1, H-1)
+  for (size_t offset = 0; offset < pixels.size(); offset += 18) {
+    const size_t size = pixels.size() - offset < 18 ? pixels.size() - offset : 18;
+    std::vector<uint8_t> chunk{0, 0x71};
+    chunk.insert(chunk.end(), pixels.begin() + offset, pixels.begin() + offset + size);
+    assert(frame.accept(chunk.data(), chunk.size(), 1));
+  }
+  assert(frame.accept(end, sizeof(end), 2) && frame.ready);
+  MonochromeBitmap bmp;
+  assert(bmp.parse(frame.bitmap, sizeof(frame.bitmap), W, H));
+  assert(bmp.blackAt(0, 0) && !bmp.blackAt(1, 0) && bmp.blackAt(W - 1, 0) && !bmp.blackAt(W - 2, 0));
+  assert(bmp.blackAt(0, 1) && !bmp.blackAt(1, 1) && !bmp.blackAt(0, 2));
+  assert(bmp.blackAt(W - 1, H - 1) && !bmp.blackAt(W - 2, H - 1));
+}
+
 int main() {
+  static_assert(BleFrame::PIXEL_BYTES == 32 * 122 && BleFrame::BMP_BYTES == 62 + 32 * 122,
+                "2.13-inch BLE frame size is unchanged");
+  checkPaddedFrame<400, 300>();
+  checkPaddedFrame<792, 272>();
   BleFrame frame;
   const uint8_t start[] = {0, 0x70}, end[] = {0, 0x72, 0}, data[] = {0, 0x71, 255};
   assert(!frame.accept(data, sizeof(data), 0));

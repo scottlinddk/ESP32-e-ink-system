@@ -12,7 +12,9 @@
 namespace {
 const char* SERVICE_UUID = "c9c10001-7a6b-4c31-8a98-89e539e43805";
 const char* CHARACTERISTIC_UUID = "c9c10002-7a6b-4c31-8a98-89e539e43805";
-const uint8_t CAPABILITIES[] = {1, 250, 0, 122, 0, 0}; // version, width LE, height LE, mono
+// version, width LE, height LE, mono
+const uint8_t CAPABILITIES[] = {1, uint8_t(kBoard.width & 0xff), uint8_t(kBoard.width >> 8),
+                                uint8_t(kBoard.height & 0xff), uint8_t(kBoard.height >> 8), 0};
 struct Packet { uint32_t session; uint8_t length; uint8_t bytes[20]; };
 QueueHandle_t packets = nullptr;
 BLECharacteristic* characteristic = nullptr;

@@ -6,6 +6,7 @@
 #include "feed_validation.h"
 #include "applied_frame.h"
 #include "manual_ble.h"
+#include "board_profile.h"
 #include <time.h>
 
 WiFiManager wifiManager;
@@ -22,11 +23,8 @@ bool instantUpdates = false;
 uint32_t instantCheckSeconds = 5;
 uint32_t nextPollAt = 0;  // millis() of the next scheduled frame request
 
-#ifdef ELECROW_EPAPER_213
-constexpr int SETUP_BUTTON = 2;  // Manufacturer MENU button, not the boot strap.
-#else
-constexpr int SETUP_BUTTON = 0;
-#endif
+// Elecrow: manufacturer MENU button. Waveshare: BOOT, a strap pin.
+constexpr int SETUP_BUTTON = kBoard.setupButton;
 
 void openSetup(uint32_t timeoutSeconds = 0, const char* failureReason = nullptr) {
   appliedFrame.clear();
@@ -48,10 +46,10 @@ void sleepUntilNextPoll() {
   Serial.flush();
 #if DEEP_SLEEP_ENABLED
   esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(nextPollSeconds) * 1000000ULL);
-#ifdef ELECROW_EPAPER_213
-  // MENU can wake the device into setup without a USB reflash.
-  esp_sleep_enable_ext0_wakeup(GPIO_NUM_2, 0);
-#endif
+  // MENU can wake the device into setup without a USB reflash. Waveshare's
+  // BOOT strap pin keeps its previous behavior: it is not a wake source.
+  if (!kBoard.setupButtonIsBootStrap)
+    esp_sleep_enable_ext0_wakeup(static_cast<gpio_num_t>(SETUP_BUTTON), 0);
   esp_deep_sleep_start();
 #endif
 }
@@ -146,7 +144,9 @@ void pollDisplay() {
     return;
   }
   Serial.println("[Main] Clock ready; requesting device frame");
-  static uint8_t bmp[8192];  // Keep the frame off the ESP32's 8 KiB loop stack.
+  // Keep the frame off the ESP32's 8 KiB loop stack. Headroom admits a larger
+  // BMP header; the parser still requires the board's exact geometry.
+  static uint8_t bmp[kBoard.bmpBytes() + 1024];
   FrameResult frame = apiClient.fetchFrame(credentials.apiUrl, credentials.deviceId,
     credentials.token, appliedFrame.hash, bmp, sizeof(bmp));
   Serial.printf("[Main] Frame response: HTTP %d, %d image bytes\n", frame.httpCode, frame.length);
@@ -195,13 +195,13 @@ void pollDisplay() {
 void setup() {
   Serial.begin(DEBUG_BAUD);
   delay(150);
-  Serial.printf("\n[Main] ESP32 Display %s; flash %u bytes\n", FIRMWARE_VERSION, ESP.getFlashChipSize());
+  Serial.printf("\n[Main] ESP32 Display %s for %s (%ux%u); flash %u bytes\n", FIRMWARE_VERSION, kBoard.name,
+    unsigned(kBoard.width), unsigned(kBoard.height), ESP.getFlashChipSize());
   pinMode(SETUP_BUTTON, INPUT_PULLUP);
   bool setupRequested = digitalRead(SETUP_BUTTON) == LOW;
-#ifndef ELECROW_EPAPER_213
   // GPIO0 is a boot strap: hold BOOT only AFTER reset has been released.
   // Give cold boots a short entry window without delaying automatic timer wakes.
-  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED) {
+  if (kBoard.setupButtonIsBootStrap && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED) {
     const uint32_t started = millis();
     Serial.println("[Main] Press BOOT within 3 seconds for manual setup/Bluetooth");
     while (!setupRequested && millis() - started < 3000) {
@@ -209,7 +209,6 @@ void setup() {
       delay(10);
     }
   }
-#endif
   // Only a timer wake is known to retain the previously rendered frame.
   if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_TIMER) {
     appliedFrame.clear();
