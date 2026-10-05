@@ -15,6 +15,8 @@ import { DeviceLayoutsCard } from '../components/dashboard/DeviceLayoutsCard';
 import { DeviceSlideshowCard } from '../components/dashboard/DeviceSlideshowCard';
 import { DisplayProfileCard } from '../components/dashboard/DisplayProfileCard';
 import { DisplayTimezoneCard } from '../components/dashboard/DisplayTimezoneCard';
+import { DisplayRefreshIntervalCard } from '../components/dashboard/DisplayRefreshIntervalCard';
+import { formatRefreshInterval } from '../lib/refreshInterval';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Icon } from '../components/ui/Logo';
@@ -117,7 +119,7 @@ function DeviceWorkspace({ device }: { device: Device }) {
         {[
           { icon: 'grid_view', label: da ? 'Gemte layouts' : 'Saved layouts', value: String(pages.length), detail: da ? 'Plus dit grundlayout' : 'Plus your base layout', tone: 'blue' },
           { icon: 'aspect_ratio', label: da ? 'Skærmopløsning' : 'Display resolution', value: `${profile.width} × ${profile.height}`, detail: `${profile.rotation}° · ${da ? 'Monokrom' : 'Monochrome'}`, tone: 'violet' },
-          { icon: 'update', label: da ? 'Opdateringsinterval' : 'Refresh interval', value: preferences.refresh_interval_minutes ? `${preferences.refresh_interval_minutes} min` : '—', detail: da ? 'Gemt interval' : 'Saved refresh interval', tone: 'green' },
+          { icon: 'update', label: da ? 'Opdateringsinterval' : 'Refresh interval', value: preferences.refresh_interval_minutes ? formatRefreshInterval(preferences.refresh_interval_minutes, da) : '—', detail: da ? 'Gemt interval' : 'Saved refresh interval', tone: 'green' },
           { icon: 'slideshow', label: da ? 'Visningstilstand' : 'Display mode', value: slideshow ? 'Slideshow' : (da ? 'Fast layout' : 'Single layout'), detail: slideshow ? (da ? 'Rotation af gemte layouts' : 'Rotating saved layouts') : (activeLayout?.name ?? (da ? 'Grundlayout' : 'Base layout')), tone: 'peach' },
         ].map((metric) => <div className={`dashboard-metric dashboard-metric--${metric.tone}`} key={metric.icon}>
           <div className="dashboard-metric-label"><span>{metric.label}</span><Icon name={metric.icon} /></div>
@@ -156,7 +158,7 @@ function DeviceWorkspace({ device }: { device: Device }) {
       <div id="workspace-layouts" hidden={view !== 'layouts'}><DeviceLayoutsCard deviceId={deviceId} /></div>
       <div id="workspace-slideshow" hidden={view !== 'slideshow'}><DeviceSlideshowCard deviceId={deviceId} /></div>
       <div id="workspace-settings" hidden={view !== 'settings'}>
-        <div className="dashboard-settings-grid"><DisplayTimezoneCard deviceId={deviceId} /><DisplayProfileCard deviceId={deviceId} /></div>
+        <div className="dashboard-settings-grid"><DisplayRefreshIntervalCard deviceId={deviceId} /><DisplayTimezoneCard deviceId={deviceId} /><DisplayProfileCard deviceId={deviceId} /></div>
         <p className="dashboard-scope-note">{da ? 'Indstillingerne gælder kun denne enhed. Første gang du gemmer, kopieres kontoens standardindstillinger til enheden.' : 'Settings apply only to this device. Your first save copies the account defaults to this device.'}</p>
         <p className="dashboard-hardware-id">{da ? 'Hardware-ID' : 'Hardware ID'}: <code>{device.device_id}</code> · UUID: <code>{deviceId}</code></p>
       </div>
