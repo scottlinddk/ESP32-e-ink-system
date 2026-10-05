@@ -42,7 +42,7 @@ function DeliverySettings({ deviceId }: { deviceId: string }) {
       <summary className="cursor-pointer font-medium">{da ? 'Automatiske opdateringer' : 'Automatic updates'}</summary>
       <div className="grid gap-3 pt-3">
         <p className="m-0 text-fg2">{da ? 'Indtast API URL, enhedens UUID og token i displayets Wi-Fi-opsætning på 192.168.4.1. Et nyt token erstatter det gamle.' : 'Enter the API URL, device UUID, and token in the display Wi-Fi setup at 192.168.4.1. Creating a new token replaces the previous one.'}</p>
-        <p className="m-0 text-fg2">{da ? 'Brug en HTTPS-adresse, som displayet kan nå. Vælg 250 × 122, rotation 0°, i dashboardets skærmprofil.' : 'Use an HTTPS address reachable by the display. Select 250 × 122 with rotation 0° in the dashboard display profile.'}</p>
+        <p className="m-0 text-fg2">{da ? 'Brug en HTTPS-adresse, som displayet kan nå. Vælg 250 × 122 i dashboardets skærmprofil. Opdateret firmware accepterer enhver rotation; ældre firmware kræver 0°.' : 'Use an HTTPS address reachable by the display. Select 250 × 122 in the dashboard display profile. Updated firmware accepts any rotation; older firmware requires 0°.'}</p>
         <p className="m-0">{status.isPending ? (da ? 'Indlæser…' : 'Loading…') : status.isError ? (da ? 'Kunne ikke hente status' : 'Could not load status') : report?.configured ? (da ? 'Token aktivt' : 'Token active') : (da ? 'Intet aktivt token' : 'No active token')}</p>
         <div className="flex gap-2 flex-wrap">
           <Button size="sm" loading={change.isPending} disabled={!isSignedIn} onClick={() => change.mutate(false)}>{report?.configured ? (da ? 'Erstat token' : 'Replace token') : (da ? 'Opret token' : 'Create token')}</Button>

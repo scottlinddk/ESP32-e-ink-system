@@ -96,5 +96,6 @@ Existing installations should apply only migrations they have not
 already run. Raspberry Pi installations use the migration runbook in
 `infra/raspberry-pi/README.md`; the same SQL migration is used for hosted PostgreSQL.
 
-The bundled ESP32 firmware supports the 250 × 122 monochrome profile at rotation
-0°. Other profiles require a compatible client and display driver.
+The bundled ESP32 firmware supports the 250 × 122 monochrome profile at any
+content rotation (0°, 90°, 180° or 270°). Other sizes require a compatible client
+and display driver.

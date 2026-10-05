@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
 // Pure protocol validation shared by firmware and host regression tests.
@@ -54,6 +55,22 @@ inline int instantMode(const char* value) {
   if (!strcmp(value, "1")) return 1;
   if (!strcmp(value, "0")) return 0;
   return -1;
+}
+// Exact canonical decimal: "0122" or "122 " never match 122.
+inline bool decimalIs(const char* value, uint32_t expected) {
+  char text[11];
+  snprintf(text, sizeof(text), "%lu", static_cast<unsigned long>(expected));
+  return value && !strcmp(value, text);
+}
+// Clockwise content rotation applied by the server renderer.
+inline bool validRotation(const char* value) {
+  return value && (!strcmp(value, "0") || !strcmp(value, "90") || !strcmp(value, "180") || !strcmp(value, "270"));
+}
+// The server reports native panel geometry; rotation only changes the content.
+inline bool frameGeometry(const char* width, const char* height, const char* rotation, const char* rowBytes,
+                          uint16_t nativeWidth, uint16_t nativeHeight) {
+  return decimalIs(width, nativeWidth) && decimalIs(height, nativeHeight) && validRotation(rotation) &&
+         decimalIs(rowBytes, (nativeWidth + 7u) / 8u);
 }
 // Request checks are bounded so a bad hint can neither spin nor stall updates.
 inline uint32_t instantCheckSeconds(const char* value) {

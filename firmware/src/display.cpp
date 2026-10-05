@@ -25,6 +25,8 @@
 #ifndef ROTATE_0
 #  define ROTATE_0 0
 #endif
+static_assert(EPD_W == kBoard.width && EPD_H == kBoard.height,
+              "EPD library canvas must match the selected board profile");
 
 DisplayManager::DisplayManager() {}
 
@@ -108,7 +110,9 @@ void DisplayManager::showTestPattern() {
   Paint_Clear(WHITE);
   drawCenteredText(5,  "ESP32 E-Ink Display", &Font12);
   drawCenteredText(22, "Test Pattern", &Font12);
-  drawCenteredText(38, "250x122 (Elecrow 2.13\")", &Font8);
+  char geometry[24];
+  snprintf(geometry, sizeof(geometry), "%ux%u", unsigned(kBoard.width), unsigned(kBoard.height));
+  drawCenteredText(38, geometry, &Font8);
   drawCenteredText(52, "Status: OK", &Font12);
   drawLine(0, 70, EPD_W, 70);
   drawCenteredText(76, "Press reset to continue", &Font8);
@@ -118,8 +122,8 @@ void DisplayManager::showTestPattern() {
 
 bool DisplayManager::showBitmap(const uint8_t* bmpData, size_t len) {
   MonochromeBitmap bitmap;
-  if (!bitmap.parse(bmpData, len, EPD_W, EPD_H)) {
-    LOG_D("Invalid BMP: expected uncompressed 250x122 1-bit image");
+  if (!bitmap.parse(bmpData, len, kBoard.width, kBoard.height)) {
+    LOG_D("Invalid BMP: expected uncompressed %ux%u 1-bit image", unsigned(kBoard.width), unsigned(kBoard.height));
     return false;
   }
   Paint_Clear(WHITE);
@@ -248,8 +252,8 @@ void DisplayManager::showTestPattern() {
 
 bool DisplayManager::showBitmap(const uint8_t* bmpData, size_t len) {
   MonochromeBitmap bitmap;
-  if (!bitmap.parse(bmpData, len, 250, 122)) {
-    LOG_D("Invalid BMP: expected uncompressed 250x122 1-bit image");
+  if (!bitmap.parse(bmpData, len, kBoard.width, kBoard.height)) {
+    LOG_D("Invalid BMP: expected uncompressed %ux%u 1-bit image", unsigned(kBoard.width), unsigned(kBoard.height));
     return false;
   }
   display->setFullWindow();

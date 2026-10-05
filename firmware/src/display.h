@@ -1,5 +1,6 @@
 #pragma once
 #include "config.h"
+#include "board_profile.h"
 
 #ifdef ELECROW_EPAPER_213
 // Elecrow CrowPanel ESP32 2.13" — uses bundled EPD library
@@ -71,9 +72,9 @@ public:
   // Clear display
   void clear();
   
-  // Get display width and height
-  uint16_t getWidth() { return 250; }
-  uint16_t getHeight() { return 122; }
+  // Native panel width and height
+  uint16_t getWidth() { return kBoard.width; }
+  uint16_t getHeight() { return kBoard.height; }
 
 private:
 #ifdef ELECROW_EPAPER_213

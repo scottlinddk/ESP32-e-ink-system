@@ -39,4 +39,17 @@ int main() {
   assert(feed::instantCheckSeconds("0") == 2);
   assert(feed::instantCheckSeconds("3600") == 60);
   assert(feed::instantCheckSeconds("x") == 60);
+  // Native geometry must match exactly; every server content rotation is accepted.
+  for (const char* rotation : {"0", "90", "180", "270"})
+    assert(feed::frameGeometry("250", "122", rotation, "32", 250, 122));
+  assert(feed::frameGeometry("400", "300", "0", "50", 400, 300));
+  assert(feed::frameGeometry("792", "272", "90", "99", 792, 272));
+  assert(!feed::frameGeometry("792", "272", "0", "100", 792, 272));  // BMP stride is not the row size
+  assert(!feed::frameGeometry("122", "250", "90", "16", 250, 122));  // swapped native size
+  assert(!feed::frameGeometry("250", "122", "45", "32", 250, 122));
+  assert(!feed::frameGeometry("250", "122", "", "32", 250, 122));
+  assert(!feed::frameGeometry("0250", "122", "0", "32", 250, 122));
+  assert(!feed::frameGeometry("250 ", "122", "0", "32", 250, 122));
+  assert(!feed::frameGeometry(nullptr, "122", "0", "32", 250, 122));
+  assert(!feed::validRotation("-90") && !feed::validRotation("360") && !feed::validRotation(nullptr));
 }

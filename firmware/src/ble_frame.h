@@ -2,20 +2,25 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
+#include "board_profile.h"
 
-// Manual BLE protocol v1: 250x122, MSB-first, white=1, 32 bytes per row.
-// A complete frame becomes a top-down BMP for the existing validated renderer.
-class BleFrame {
+// Manual BLE protocol v1: native panel size, MSB-first, white=1, ceil(width/8)
+// bytes per row. A complete frame becomes a top-down BMP for the existing
+// validated renderer; BMP rows are padded to four bytes, client rows are not.
+template <uint16_t Width, uint16_t Height>
+class BleFrameT {
 public:
-  static constexpr size_t PIXEL_BYTES = 32 * 122;
-  static constexpr size_t BMP_BYTES = 62 + PIXEL_BYTES;
+  static constexpr size_t ROW_BYTES = (Width + 7u) / 8u;
+  static constexpr size_t STRIDE = ((Width + 31u) / 32u) * 4u;
+  static constexpr size_t PIXEL_BYTES = ROW_BYTES * Height;  // bytes the client sends
+  static constexpr size_t BMP_BYTES = 62 + STRIDE * Height;
   uint8_t bitmap[BMP_BYTES] = {};
   bool ready = false;
 
-  BleFrame() {
+  BleFrameT() {
     bitmap[0] = 'B'; bitmap[1] = 'M';
     put32(2, BMP_BYTES); put32(10, 62); put32(14, 40);
-    put32(18, 250); put32(22, uint32_t(-122));
+    put32(18, Width); put32(22, uint32_t(-int32_t(Height)));
     bitmap[26] = 1; bitmap[28] = 1;
     bitmap[58] = bitmap[59] = bitmap[60] = 255;
   }
@@ -32,8 +37,10 @@ public:
     }
     if (!active) return reject();
     if (command == 0x71 && length > 2 && length - 2 <= PIXEL_BYTES - received) {
-      memcpy(bitmap + 62 + received, frame + 2, length - 2);
-      received += length - 2; lastWrite = now; return true;
+      // Padding bytes are never written, so they stay zero for every frame.
+      for (size_t i = 2; i < length; ++i, ++received)
+        bitmap[62 + (received / ROW_BYTES) * STRIDE + received % ROW_BYTES] = frame[i];
+      lastWrite = now; return true;
     }
     if (command == 0x72 && length == 3 && frame[2] == 0 && received == PIXEL_BYTES) {
       ready = true; active = false; return true;
@@ -49,3 +56,5 @@ private:
     for (unsigned i = 0; i < 4; ++i) bitmap[at + i] = uint8_t(value >> (8 * i));
   }
 };
+
+using BleFrame = BleFrameT<kBoard.width, kBoard.height>;
