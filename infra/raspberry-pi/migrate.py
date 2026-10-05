@@ -39,7 +39,7 @@ def columns(required: dict[str, str], optional: dict[str, str]) -> dict[str, tup
 
 
 TS = "timestamp with time zone"
-# The final schema after all tracked migrations through 020_device_instant_updates.
+# The final schema after all tracked migrations through 021_news_feeds.
 # Do not automatically repair a live source.
 EXPECTED_COLUMNS = {
     "users": columns({"id": "uuid", "email": "text"}, {"display_name": "text", "created_at": TS, "updated_at": TS}),
@@ -49,6 +49,7 @@ EXPECTED_COLUMNS = {
         "show_custom_image": "boolean", "show_calendar": "boolean", "calendar_timezone": "text",
         "calendar_days": "integer", "calendar_item_limit": "integer", "show_custom_webhook": "boolean",
         "custom_webhook_ttl_minutes": "integer", "display_timezone": "text", "energy_price_settings": "jsonb",
+        "news_feeds": "jsonb",
     }, {
         "show_energy_price": "boolean", "show_weather": "boolean", "show_news": "boolean",
         "show_air_quality": "boolean", "energy_price_location": "text", "weather_location": "text",
@@ -101,7 +102,7 @@ EXPECTED_DEFAULTS["user_preferences"].update({
     "refresh_interval_minutes": "30", "show_monta": "false", "show_zaptec": "false", "show_notion": "false",
     "monta_fields": "'[\"charger_status\", \"active_session\"]'::jsonb",
     "zaptec_fields": "'[\"charger_status\", \"active_session\"]'::jsonb",
-    "news_source": "'newsapi'::text", "news_feed_url": "''::text", "news_item_limit": "3",
+    "news_source": "'newsapi'::text", "news_feed_url": "''::text", "news_item_limit": "3", "news_feeds": "'[]'::jsonb",
     "show_custom_text": "false", "custom_text": "''::text", "show_custom_image": "false",
     "show_calendar": "false", "calendar_timezone": "'Europe/Copenhagen'::text", "calendar_days": "7",
     "calendar_item_limit": "5", "show_custom_webhook": "false", "custom_webhook_ttl_minutes": "60",
@@ -128,6 +129,7 @@ EXPECTED_CHECKS = {
         "CHECK (calendar_days >= 1 AND calendar_days <= 30)",
         "CHECK (calendar_item_limit >= 1 AND calendar_item_limit <= 10)",
         "CHECK (custom_webhook_ttl_minutes >= 1 AND custom_webhook_ttl_minutes <= 1440)",
+        "CHECK (jsonb_typeof(news_feeds) = 'array'::text AND jsonb_array_length(news_feeds) <= 20 AND octet_length(news_feeds::text) <= 64000)",
     ),
     "custom_webhooks": (
         "CHECK (token_hash IS NULL OR token_hash ~ '^[a-f0-9]{64}$'::text)",

@@ -1,6 +1,6 @@
 -- ============================================================
--- ESP32 e-ink system: combined migrations (001 to 020)
--- Source: backend/src/db/migrations/ @ b1cec65, plus 020
+-- ESP32 e-ink system: combined migrations (001 to 021)
+-- Source: backend/src/db/migrations/ @ b1cec65, plus 020 and 021
 -- Run ONCE against an EMPTY Supabase database (SQL Editor).
 -- Everything runs in one transaction: if a step fails, all is rolled back.
 -- Not idempotent (CREATE POLICY/TRIGGER, 015, 018, 019, 020): empty database only.
@@ -340,6 +340,13 @@ ALTER TABLE public.device_delivery
 -- ------------------------------------------------------------
 ALTER TABLE public.device_delivery
   ADD COLUMN instant_updates boolean NOT NULL DEFAULT false;
+
+-- ------------------------------------------------------------
+-- 021_news_feeds.sql
+-- ------------------------------------------------------------
+ALTER TABLE user_preferences
+  ADD COLUMN IF NOT EXISTS news_feeds JSONB NOT NULL DEFAULT '[]'::jsonb
+    CHECK (jsonb_typeof(news_feeds) = 'array' AND jsonb_array_length(news_feeds) <= 20 AND octet_length(news_feeds::text) <= 64000);
 
 COMMIT;
 

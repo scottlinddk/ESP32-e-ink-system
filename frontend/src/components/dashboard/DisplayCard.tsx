@@ -17,6 +17,7 @@ import { Skeleton } from '../ui/Spinner';
 import { Icon } from '../ui/Logo';
 import { EnergyPriceSettingsFields } from './EnergyPriceSettingsFields';
 import { WeatherTest } from './WeatherTest';
+import { NewsFeedsFields } from './NewsFeedsFields';
 import { formatWeatherCoordinates } from '../../lib/weatherTest';
 import { energyPriceSettingsForSave, validEnergyPriceSettings } from '../../lib/energyPriceSettings';
 const MONTA_FIELDS = [
@@ -103,6 +104,12 @@ export function DisplayCard() {
       app.toast({ type: 'error', title: t.saveFailed, msg: app.lang === 'da'
         ? 'Vælg et netselskab med 13-cifret GLN, 1–5 forskellige tarifkoder (højst 20 tegn hver) og et tillæg mellem −1000 og 1000 øre/kWh.'
         : 'Choose a grid company with a 13-digit GLN, 1–5 unique tariff codes (up to 20 characters each), and a markup between −1000 and 1000 øre/kWh.' });
+      return;
+    }
+    if (p.news.on && p.news.feeds.some((feed) => !feed.feed_url.trim())) {
+      app.toast({ type: 'error', title: t.saveFailed, msg: app.lang === 'da'
+        ? 'Angiv en HTTPS-adresse for hvert ekstra nyhedsfeed, eller fjern det.'
+        : 'Enter an HTTPS address for each additional news feed, or remove it.' });
       return;
     }
     savePrefs.mutate(sourcePreferencesToApi(p), {
@@ -298,6 +305,7 @@ export function DisplayCard() {
                   ? 'Offentligt RSS- eller Atom-feed uden API-nøgle. Antallet på skærmen afhænger af widgetens plads.'
                   : 'Public RSS or Atom feed; no API key needed. Visible headlines depend on the space in your widget.'}</p>
               </>}
+              <NewsFeedsFields feeds={p.news.feeds} onChange={(feeds) => set({ news: { ...p.news, feeds } })} />
             </div>
           </SourceRow>
 

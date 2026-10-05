@@ -75,6 +75,19 @@ const options: swaggerJsdoc.Options = {
             news_source: { type: 'string', enum: ['newsapi', 'rss'], default: 'newsapi' },
             news_feed_url: { type: 'string', maxLength: 2048, description: 'Public HTTPS RSS 2.0 or Atom 1.0 feed URL' },
             news_item_limit: { type: 'integer', minimum: 1, maximum: 10, default: 3 },
+            news_feeds: {
+              type: 'array', maxItems: 20, default: [],
+              description: 'Additional RSS/Atom feeds. Place each one in a layout as its own widget with ID `news:<id>`. Excluded from templates.',
+              items: {
+                type: 'object', required: ['id', 'name', 'feed_url', 'item_limit'], additionalProperties: false,
+                properties: {
+                  id: { type: 'string', pattern: '^[a-z0-9]{1,16}$' },
+                  name: { type: 'string', maxLength: 40, description: 'Layout editor label; may be empty' },
+                  feed_url: { type: 'string', maxLength: 2048, description: 'Public HTTPS RSS 2.0 or Atom 1.0 feed URL' },
+                  item_limit: { type: 'integer', minimum: 1, maximum: 10 },
+                },
+              },
+            },
             show_calendar: { type: 'boolean', default: false },
             calendar_timezone: { type: 'string', default: 'Europe/Copenhagen' },
             calendar_days: { type: 'integer', minimum: 1, maximum: 30, default: 7 },
@@ -148,6 +161,17 @@ const options: swaggerJsdoc.Options = {
               type: 'object', required: ['code', 'message'],
               description: 'Fixed safe diagnostic instead of headlines when an enabled news source fails.',
               properties: { code: { type: 'string', enum: ['unsupported_coverage', 'missing_key', 'invalid_key', 'rate_limited', 'unavailable', 'timeout', 'invalid_response'] }, message: { type: 'string' } },
+            },
+            newsFeeds: {
+              type: 'object',
+              description: 'Results for additional news feeds keyed by feed ID: headlines, or a fixed safe diagnostic when that feed fails.',
+              additionalProperties: {
+                type: 'object',
+                properties: {
+                  items: { type: 'array', items: { $ref: '#/components/schemas/NewsItem' } },
+                  error: { type: 'object', required: ['code', 'message'], properties: { code: { type: 'string' }, message: { type: 'string' } } },
+                },
+              },
             },
             notionError: {
               type: 'object', required: ['code', 'message'],

@@ -43,11 +43,20 @@ describe('source settings drafts', () => {
   it('omits hidden incomplete weather and RSS drafts so disabling them can be saved', () => {
     const draft = sourcePreferences(saved);
     draft.weather = { on: false, location: 'invalid coordinates' };
-    draft.news = { on: false, lang: 'da', source: 'rss', feedUrl: '', itemLimit: 3 };
+    draft.news = { on: false, lang: 'da', source: 'rss', feedUrl: '', itemLimit: 3, feeds: [{ id: 'draft', name: '', feed_url: '', item_limit: 3 }] };
     const payload = sourcePreferencesToApi(draft);
     expect(payload).toMatchObject({ show_weather: false, show_news: false });
     expect(payload).not.toHaveProperty('weather_location');
-    for (const key of ['news_source', 'news_feed_url', 'news_language', 'news_item_limit']) expect(payload).not.toHaveProperty(key);
+    for (const key of ['news_source', 'news_feed_url', 'news_language', 'news_item_limit', 'news_feeds']) expect(payload).not.toHaveProperty(key);
+  });
+
+  it('round-trips additional news feeds and trims them for saving', () => {
+    const feeds = [{ id: 'dr', name: 'DR', feed_url: 'https://www.dr.dk/nyheder/service/feeds/allenyheder', item_limit: 3 }];
+    expect(sourcePreferences(saved).news.feeds).toEqual([]);
+    const form = sourcePreferences({ ...saved, news_feeds: feeds });
+    expect(form.news.feeds).toEqual(feeds);
+    form.news.feeds = [...form.news.feeds, { id: 'bbc', name: ' BBC ', feed_url: ' https://feeds.bbci.co.uk/news/rss.xml ', item_limit: 5 }];
+    expect(sourcePreferencesToApi(form).news_feeds).toEqual([...feeds, { id: 'bbc', name: 'BBC', feed_url: 'https://feeds.bbci.co.uk/news/rss.xml', item_limit: 5 }]);
   });
 
   it('saves only the displayed sources and preserves the complete consumer price profile', () => {
@@ -70,6 +79,21 @@ describe('direct source settings visits', () => {
     expect(html).toContain('value="56.15,10.21"');
     expect(html).toContain('value="https://example.org/danish.xml"');
     expect(html).not.toMatch(/<fieldset disabled=""/);
+    client.clear();
+  });
+
+  it('lists every saved additional news feed with its own address and an add button', () => {
+    const client = new QueryClient();
+    client.setQueryData(['preferences', 'alice'], { ...saved, news_feeds: [
+      { id: 'dr', name: 'DR', feed_url: 'https://www.dr.dk/nyheder/service/feeds/allenyheder', item_limit: 3 },
+      { id: 'bbc', name: '', feed_url: 'https://feeds.bbci.co.uk/news/rss.xml', item_limit: 5 },
+    ] });
+    const html = render(client);
+    expect(html).toContain('Additional news feeds');
+    expect(html).toContain('value="https://www.dr.dk/nyheder/service/feeds/allenyheder"');
+    expect(html).toContain('value="https://feeds.bbci.co.uk/news/rss.xml"');
+    expect(html).toContain('Remove news feed 2');
+    expect(html).toContain('Add news feed');
     client.clear();
   });
 
