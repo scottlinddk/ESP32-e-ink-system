@@ -6,6 +6,7 @@ import { renderWebhookWidget } from './webhookRenderer';
 import { DEFAULT_DISPLAY_TIMEZONE } from './displayTimezone';
 import { WEATHER_ERROR_LABELS } from './weatherErrors';
 import { NEWS_ERROR_LABELS } from './newsErrors';
+import { newsFeedIdFromWidget } from './newsFeeds';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -546,10 +547,17 @@ function populateCanvas(
 ): void {
   const effectiveLayout = layout ?? DEFAULT_LAYOUT;
   for (const widget of effectiveLayout.widgets) {
-    const setting = WIDGET_ENABLED_SETTING[widget.i as keyof typeof WIDGET_ENABLED_SETTING];
+    const feedId = newsFeedIdFromWidget(widget.i);
+    const setting = feedId ? 'show_news' : WIDGET_ENABLED_SETTING[widget.i as keyof typeof WIDGET_ENABLED_SETTING];
     if (setting && preferences?.[setting] === false) continue;
     const bounds = getWidgetBounds(widget, canvas);
     canvas.withClip(bounds, () => {
+      if (feedId) {
+        // A removed feed has no result; it renders as unavailable until the widget is removed.
+        const feed = data.newsFeeds?.[feedId];
+        renderNewsWidget(canvas, bounds, feed?.items, feed?.error);
+        return;
+      }
       switch (widget.i) {
         case 'custom-webhook': renderWebhookWidget(canvas, bounds, data.customWebhook); break;
         case 'custom-text':

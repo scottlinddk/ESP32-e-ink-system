@@ -276,11 +276,28 @@ reads it; the backend tolerates its absence for delivery but cannot store the
 setting. Do not rerun 020 once the column exists. Current export/import validation
 requires the column, so restore older backups with their matching tools first.
 
+## Upgrade an existing database for additional news feeds (021)
+
+After the existing database has migration 020, back it up and apply
+`021_news_feeds.sql`. It adds one `NOT NULL DEFAULT '[]'` JSONB column to
+`user_preferences`, so existing accounts keep their single news source.
+
+```sh
+eink exec -T postgres psql -X -U eink_admin -d eink --single-transaction \
+  --set ON_ERROR_STOP=1 --file /migrations/021_news_feeds.sql \
+  --file /docker-entrypoint-initdb.d/permissions.sql
+```
+
+No gateway allowlist change is needed. Apply 021 before deploying the backend that
+saves additional feeds. Do not rerun 021 once the column exists. Current
+export/import validation requires the column, so restore older backups with their
+matching tools first.
+
 ## Migration gates and data scope (source only)
 
 Applies only when a live source database exists. The transfer allowlist is `users`, `user_preferences`, `api_keys`, `devices`,
 `firmware_versions`, `api_usage`, `custom_webhooks`, `device_delivery`, `device_displays`, and `orders`.
-The target applies all tracked SQL migrations through `020_device_instant_updates.sql`,
+The target applies all tracked SQL migrations through `021_news_feeds.sql`,
 including both `002` migrations. IDs, foreign keys, timestamps, JSONB values,
 encrypted provider credentials, webhook token hashes, device token hashes and
 delivery telemetry are copied without transformation. Device presentation settings, display schedules and

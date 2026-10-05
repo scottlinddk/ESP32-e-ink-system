@@ -12,7 +12,7 @@ Version 1 supports source enable flags, electricity area, weather coordinates, n
 
 Custom sensor templates can include visibility (`show_custom_webhook`) and the freshness lifetime (`custom_webhook_ttl_minutes`, 1–1440 whole minutes), along with the sensor widget layout. These controls use the same validation as dashboard settings.
 
-Exports deliberately exclude API keys, passwords, integration/device tokens, token hashes, sensor snapshots, user/device identifiers and private feed URLs. They include your configured weather coordinates, page names and non-secret source settings: review an export before sharing it. Importing a layout that uses a data source does not transfer its account credentials or sensor readings. A receiving account must configure those separately.
+Exports deliberately exclude API keys, passwords, integration/device tokens, token hashes, sensor snapshots, user/device identifiers and private feed URLs. They include your configured weather coordinates, page names and non-secret source settings: review an export before sharing it. Importing a layout that uses a data source does not transfer its account credentials or sensor readings. A receiving account must configure those separately. Additional news feeds are excluded too: a layout widget `news:<id>` from another account shows as unavailable until it is removed or replaced with one of the receiving account's own feeds.
 
 Endpoints require a Clerk bearer token:
 

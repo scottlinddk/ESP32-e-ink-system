@@ -14,6 +14,7 @@ import { fetchWebhookData } from './customWebhook';
 import { DEFAULT_DISPLAY_TIMEZONE } from '../utils/displayTimezone';
 import { weatherProblem } from '../utils/weatherErrors';
 import { newsProblem } from '../utils/newsErrors';
+import { storedNewsFeeds } from '../utils/newsFeeds';
 
 // JSON previews and display images use the same enabled sources. A failed
 // source stays absent so an unavailable reading is never presented as live data.
@@ -43,6 +44,7 @@ export const DEFAULT_PREFS: UserPreferences = {
   news_source: 'newsapi',
   news_feed_url: '',
   news_item_limit: 3,
+  news_feeds: [],
   refresh_interval_minutes: 30,
   layout: null,
   monta_fields: ['charger_status', 'active_session'],
@@ -147,6 +149,21 @@ export async function buildDisplayData(
           logger.warn({ code: result.newsError.code }, 'News fetch failed');
         })
     );
+    // Additional feeds are fetched independently: one failing feed only marks
+    // its own widget unavailable. Feed URLs are never logged.
+    const feeds = storedNewsFeeds(prefs.news_feeds);
+    if (feeds.length) result.newsFeeds = {};
+    for (const feed of feeds) {
+      tasks.push(
+        withSourceDeadline((signal) => fetchRssNews(feed.feed_url, feed.item_limit, signal))
+          .then((items) => { result.newsFeeds![feed.id] = { items }; })
+          .catch((err: unknown) => {
+            const problem = newsProblem(err);
+            result.newsFeeds![feed.id] = { error: problem };
+            logger.warn({ code: problem.code, feedId: feed.id }, 'News feed fetch failed');
+          })
+      );
+    }
   }
 
   if (prefs.show_monta) {

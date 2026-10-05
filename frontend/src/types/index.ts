@@ -36,6 +36,13 @@ export const DEFAULT_LAYOUT: DisplayLayout = {
   ],
 };
 
+export interface NewsFeed {
+  id: string;
+  name: string;
+  feed_url: string;
+  item_limit: number;
+}
+
 export type EnergyPriceSettings = { mode: 'spot' } | {
   mode: 'consumer';
   gridGln: string;
@@ -67,6 +74,8 @@ export interface UserPreferences {
   news_source?: 'newsapi' | 'rss';
   news_feed_url?: string;
   news_item_limit?: number;
+  /** Additional RSS/Atom feeds, each placed as its own `news:<id>` widget. */
+  news_feeds?: NewsFeed[];
   refresh_interval_minutes: number;
   layout: DisplayLayout | null;
   monta_fields: string[];
@@ -156,7 +165,7 @@ export interface ApiResponse<T> {
 export interface Preferences {
   energy: { on: boolean; zone: string; priceSettings?: EnergyPriceSettings };
   weather: { on: boolean; location: string };
-  news: { on: boolean; lang: string; source: string; feedUrl?: string; itemLimit?: number };
+  news: { on: boolean; lang: string; source: string; feedUrl?: string; itemLimit?: number; feeds: NewsFeed[] };
   monta: { on: boolean; fields: string[] };
   zaptec: { on: boolean; fields: string[] };
   notion: { on: boolean };

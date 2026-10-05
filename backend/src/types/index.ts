@@ -49,6 +49,8 @@ export interface UserPreferences {
   news_source?: 'newsapi' | 'rss';
   news_feed_url?: string;
   news_item_limit?: number;
+  /** Additional RSS/Atom feeds, each placed as its own `news:<id>` widget. */
+  news_feeds?: NewsFeed[];
   refresh_interval_minutes: number;
   layout: DisplayLayout | null;
   monta_fields: string[]; // e.g. ['charger_status', 'active_session', 'today_stats']
@@ -81,6 +83,18 @@ export interface WeatherProblem { code: WeatherErrorCode; message: string }
 export interface NewsItem {
   title: string;
   url: string;
+}
+
+export interface NewsFeed {
+  id: string;        // 1–16 lowercase letters/digits; layout widget ID is `news:<id>`
+  name: string;      // optional label for the layout editor, may be empty
+  feed_url: string;  // public HTTPS RSS 2.0 / Atom 1.0
+  item_limit: number; // 1–10
+}
+
+export interface NewsFeedResult {
+  items?: NewsItem[];
+  error?: NewsProblem;
 }
 
 export interface MontaChargePoint {
@@ -153,6 +167,8 @@ export interface DisplayData {
   weatherError?: WeatherProblem;
   news?: NewsItem[];
   newsError?: NewsProblem;
+  /** Headlines per additional feed, keyed by feed ID. */
+  newsFeeds?: Record<string, NewsFeedResult>;
   monta?: MontaData;
   zaptec?: ZaptecData;
   notion?: NotionData;

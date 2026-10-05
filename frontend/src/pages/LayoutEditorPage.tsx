@@ -6,7 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../lib/appContext';
 import { useAuth } from '../hooks/useAuth';
-import { DisplayLayout, DEFAULT_LAYOUT } from '../types';
+import { DisplayLayout, DEFAULT_LAYOUT, NewsFeed } from '../types';
 import { saveLayout, getPreferences, savePreferences } from '../lib/api';
 import { findWidgetSpace } from '../lib/layoutPlacement';
 import { GridEditor, WIDGET_META } from '../components/layout/GridEditor';
@@ -18,6 +18,7 @@ import { Empty } from '../components/ui/Empty';
 import { Icon } from '../components/ui/Logo';
 import { getDevices } from '../lib/api';
 import { deviceDashboardPath } from '../lib/deviceLayouts';
+import { newsFeedIdFromWidget, newsFeedLabel, newsFeedWidgetId } from '../lib/newsFeeds';
 
 const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'status'] as const;
 
@@ -58,6 +59,7 @@ function LayoutEditorWorkspace() {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [pageName, setPageName] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState<string | null>(null);
+  const [newsFeeds, setNewsFeeds] = useState<NewsFeed[]>([]);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
@@ -70,6 +72,7 @@ function LayoutEditorWorkspace() {
       if (!authToken) throw new Error('Not authenticated');
       const [{ preferences }, devices] = await Promise.all([getPreferences(authToken, deviceId), deviceId ? getDevices(authToken) : Promise.resolve(null)]);
       if (cancelled) return;
+      setNewsFeeds(preferences.news_feeds ?? []);
       if (deviceId) {
         const device = devices?.devices.find((item) => item.id === deviceId);
         if (!device) throw new Error('Device no longer exists');
@@ -92,8 +95,20 @@ function LayoutEditorWorkspace() {
     return () => { cancelled = true; };
   }, [getToken, loadAttempt, pageId, deviceId]);
 
+  // Each additional news feed is its own widget, listed right after the main news widget.
+  for (const feed of newsFeeds) {
+    const id = newsFeedWidgetId(feed.id);
+    widgetMeta[id] = { id, label: `${t.layoutWidgetNews}: ${newsFeedLabel(feed)}`, icon: 'newspaper' };
+  }
+  // A placed widget whose feed was removed stays visible so it can be removed from the layout.
+  for (const widget of layout.widgets) {
+    if (!widgetMeta[widget.i] && newsFeedIdFromWidget(widget.i)) {
+      widgetMeta[widget.i] = { id: widget.i, label: `${t.layoutWidgetNews}: ${app.lang === 'da' ? 'fjernet feed' : 'removed feed'}`, icon: 'newspaper' };
+    }
+  }
+  const allWidgetIds = ALL_WIDGET_IDS.flatMap((id) => id === 'news' ? [id, ...newsFeeds.map((feed) => newsFeedWidgetId(feed.id))] : [id]);
   const activeWidgetIds = new Set(layout.widgets.map((w) => w.i));
-  const availableWidgets = ALL_WIDGET_IDS.filter((id) => !activeWidgetIds.has(id));
+  const availableWidgets = allWidgetIds.filter((id) => !activeWidgetIds.has(id));
   const hasSpace = findWidgetSpace(layout) !== null;
 
   function handleRemoveWidget(widgetId: string) {
