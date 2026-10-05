@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { EnergyPriceSettingsFields } from '../../components/dashboard/EnergyPriceSettingsFields';
 import type { EnergyPriceSettings } from '../../types';
-import { energyPriceSettingsForSave, GRID_PRESETS, validEnergyPriceSettings } from '../energyPriceSettings';
+import { energyPriceSettingsForSave, GRID_PRESETS, parseGridChargeCodes, validEnergyPriceSettings } from '../energyPriceSettings';
 
 const session = vi.hoisted(() => ({ lang: 'en' }));
 vi.mock('../appContext', () => ({ useApp: () => ({ lang: session.lang }) }));
@@ -23,6 +23,14 @@ describe('electricity price settings', () => {
       expect(validEnergyPriceSettings({ ...household, gridGln: grid.gln, gridChargeCodes: [grid.code] })).toBe(true);
     }
     expect(validEnergyPriceSettings({ ...household, gridChargeCodes: ['TCL<100_02', 'discount>0'], retailerMarkupOre: -2 })).toBe(true);
+  });
+
+  it('keeps spaces inside tariff codes such as "CD R" while typing', () => {
+    expect(parseGridChargeCodes('CD, CD ')).toEqual(['CD', 'CD']);
+    expect(parseGridChargeCodes('CD, CD R')).toEqual(['CD', 'CD R']);
+    expect(parseGridChargeCodes(' CD ,, CD R ,')).toEqual(['CD', 'CD R']);
+    expect(parseGridChargeCodes('')).toEqual([]);
+    expect(validEnergyPriceSettings({ ...household, gridChargeCodes: parseGridChargeCodes('CD, CD R') })).toBe(true);
   });
 
   it.each([

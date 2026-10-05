@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../../lib/appContext';
-import { GRID_PRESETS } from '../../lib/energyPriceSettings';
+import { GRID_PRESETS, parseGridChargeCodes } from '../../lib/energyPriceSettings';
 import type { EnergyPriceSettings } from '../../types';
 import { Field } from '../ui/Field';
 import { Input } from '../ui/input';
@@ -20,6 +20,13 @@ export function EnergyPriceSettingsFields({ settings, onChange, onZoneChange }: 
       setMarkupInput((current) => current.trim() && Number(current) === markup ? current : String(markup));
     }
   }, [markup]);
+  const codes = settings.mode === 'consumer' ? settings.gridChargeCodes : [];
+  const codesKey = codes.join(',');
+  const [codesInput, setCodesInput] = useState(codes.join(', '));
+  // Keep the raw text while typing; only resync when the codes change from outside (preset, mode switch).
+  useEffect(() => {
+    setCodesInput((current) => parseGridChargeCodes(current).join(',') === codesKey ? current : codesKey.split(',').join(', '));
+  }, [codesKey]);
   const preset = settings.mode === 'consumer'
     ? GRID_PRESETS.find((grid) => grid.gln === settings.gridGln && settings.gridChargeCodes.length === 1 && grid.code === settings.gridChargeCodes[0])
     : undefined;
@@ -54,8 +61,11 @@ export function EnergyPriceSettingsFields({ settings, onChange, onZoneChange }: 
             onChange={(event) => onChange({ ...settings, gridGln: event.target.value })} />
         </Field>
         <Field label={da ? 'Tarifkoder (adskilt med komma)' : 'Tariff codes (comma-separated)'} htmlFor="energy-grid-codes">
-          <Input id="energy-grid-codes" mono value={settings.gridChargeCodes.join(', ')}
-            onChange={(event) => onChange({ ...settings, gridChargeCodes: event.target.value.split(',').map((code) => code.trim()) })} />
+          <Input id="energy-grid-codes" mono value={codesInput}
+            onChange={(event) => {
+              setCodesInput(event.target.value);
+              onChange({ ...settings, gridChargeCodes: parseGridChargeCodes(event.target.value) });
+            }} />
         </Field>
       </div>
       <p className="text-xs text-fg2 m-0">{da

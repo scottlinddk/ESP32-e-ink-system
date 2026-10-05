@@ -9,6 +9,11 @@ export const GRID_PRESETS = [
   { name: 'Dinel C', zone: 'DK1', gln: '5790000610099', code: 'TCL<100_02', url: 'https://dinel.dk/priser-og-bestemmelser/hvad-skal-private-elkunder-betale-i-nettarif/' },
 ] as const;
 
+/** Split the comma-separated tariff code input. Spaces inside a code (e.g. "CD R") are kept. */
+export function parseGridChargeCodes(input: string): string[] {
+  return input.split(',').map((code) => code.trim()).filter((code) => code.length > 0);
+}
+
 export function validEnergyPriceSettings(settings: EnergyPriceSettings): boolean {
   if (settings.mode === 'spot') return true;
   const codes = settings.gridChargeCodes;
