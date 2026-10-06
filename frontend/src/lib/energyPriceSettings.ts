@@ -14,6 +14,16 @@ export function parseGridChargeCodes(input: string): string[] {
   return input.split(',').map((code) => code.trim()).filter((code) => code.length > 0);
 }
 
+/**
+ * Parse a decimal typed with either a comma (Danish) or a period. A leading minus
+ * (or Unicode minus) is allowed for discounts. Anything else, including thousands
+ * separators or an unfinished "5,", returns NaN so the save validation rejects it.
+ */
+export function parseDecimalInput(input: string): number {
+  const normalized = input.trim().replace(/^\u2212/, '-');
+  return /^-?(\d+([.,]\d+)?|[.,]\d+)$/.test(normalized) ? Number(normalized.replace(',', '.')) : Number.NaN;
+}
+
 export function validEnergyPriceSettings(settings: EnergyPriceSettings): boolean {
   if (settings.mode === 'spot') return true;
   const codes = settings.gridChargeCodes;
