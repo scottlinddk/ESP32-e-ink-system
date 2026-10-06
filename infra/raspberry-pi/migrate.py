@@ -39,10 +39,12 @@ def columns(required: dict[str, str], optional: dict[str, str]) -> dict[str, tup
 
 
 TS = "timestamp with time zone"
-# The final schema after all tracked migrations through 021_news_feeds.
+# The final schema after all tracked migrations through 022_default_device.
 # Do not automatically repair a live source.
 EXPECTED_COLUMNS = {
-    "users": columns({"id": "uuid", "email": "text"}, {"display_name": "text", "created_at": TS, "updated_at": TS}),
+    "users": columns({"id": "uuid", "email": "text"}, {
+        "display_name": "text", "created_at": TS, "updated_at": TS, "default_device_id": "uuid",
+    }),
     "user_preferences": columns({
         "id": "uuid", "user_id": "uuid", "news_source": "text", "news_feed_url": "text",
         "news_item_limit": "integer", "show_custom_text": "boolean", "custom_text": "text",
