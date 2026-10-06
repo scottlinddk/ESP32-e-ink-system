@@ -23,11 +23,18 @@ describe('layout editor resizing', () => {
     expect(layoutCompactor.preventCollision).toBe(true);
     expect(layoutCompactor.type).toBeNull();
   });
-  it('shows a size readout on the image and stock widgets, but not on the locked status bar', () => {
+  it('shows a size readout on every widget, including the status bar', () => {
     // The resize handle itself is added by the library in the browser, so it is not in this markup.
     const html = render();
     expect(html).toContain('5×2');
     expect(html).toContain('5×3');
-    expect(html).not.toContain('10×1');
+    expect(html).toContain('10×1');
+  });
+  it('treats the status bar like any other widget, except that it cannot be removed', () => {
+    const html = render();
+    expect(html).not.toContain('lock</');          // no lock icon: it is movable and resizable
+    expect(html).toContain('Remove My image');
+    expect(html).toContain('Remove Stocks: NOVO-B');
+    expect(html).not.toContain('Remove Status');
   });
 });
