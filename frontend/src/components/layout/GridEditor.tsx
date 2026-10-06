@@ -2,11 +2,12 @@
 // GridEditor.tsx — drag-and-drop resizable layout editor for the e-ink display
 // =========================================================================
 import React from 'react';
-import { GridLayout, noCompactor, Layout, LayoutItem } from 'react-grid-layout';
+import { GridLayout, getCompactor, Layout, LayoutItem } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import { cn } from '@/lib/utils';
 import { WidgetLayout, DisplayLayout } from '../../types';
 import { Icon } from '../ui/Logo';
+import { clampWidgetToGrid } from '../../lib/layoutPlacement';
 
 // The editor renders at 3× scale so grid cells are large enough to interact with.
 const SCALE = 3;
@@ -14,6 +15,13 @@ const GRID_COLS = 10;
 const GRID_ROWS = 6;
 const ROW_HEIGHT = 20 * SCALE;   // 60px per row
 const GRID_WIDTH = 250 * SCALE;  // 750px total width
+
+/**
+ * Widgets keep exactly where the user puts them (no compaction), and a move or
+ * resize that would land on another widget is refused. Without this a widget could
+ * be dragged over its neighbour, which the backend rejects on save.
+ */
+export const layoutCompactor = getCompactor(null, false, true);
 
 export interface WIDGET_META {
   id: string;
@@ -32,12 +40,11 @@ export function GridEditor({ layout, widgetMeta, onLayoutChange, onRemoveWidget 
   function handleChange(rglLayout: Layout) {
     const widgets: WidgetLayout[] = (rglLayout as LayoutItem[]).map((item) => {
       const orig = layout.widgets.find((w) => w.i === item.i);
+      // Never emit a widget outside the grid, whatever the library reports.
       return {
         i: item.i,
-        x: item.x,
-        y: item.y,
-        w: item.w,
-        h: item.h,
+        ...clampWidgetToGrid({ x: item.x, y: item.y, w: item.w, h: item.h }, GRID_COLS, GRID_ROWS),
+        // The flag is kept in the saved layout; it only means "cannot be removed" here.
         static: orig?.static,
       };
     });
@@ -50,7 +57,8 @@ export function GridEditor({ layout, widgetMeta, onLayoutChange, onRemoveWidget 
     y: w.y,
     w: w.w,
     h: w.h,
-    static: w.static,
+    // Every widget can be moved and resized, including the status bar.
+    static: false,
     minW: 2,
     minH: 1,
     maxW: GRID_COLS,
@@ -68,22 +76,21 @@ export function GridEditor({ layout, widgetMeta, onLayoutChange, onRemoveWidget 
             maxRows: GRID_ROWS,
           }}
           dragConfig={{ handle: '.widget-drag-handle' }}
-          compactor={noCompactor}
+          compactor={layoutCompactor}
           layout={rglLayout}
           onLayoutChange={handleChange}
         >
           {layout.widgets.map((widget) => {
             const meta = widgetMeta[widget.i];
-            const isStatic = !!widget.static;
+            // A widget flagged `static` (the status bar) can be moved and resized, but not removed.
+            const removable = !widget.static;
             return (
               <div
                 key={widget.i}
                 className={cn(
                   'h-full border rounded-sm flex items-center justify-between px-2 overflow-hidden select-none group',
                   'transition-[border-color,box-shadow] duration-[150ms]',
-                  isStatic
-                    ? 'bg-bg border-border border-dashed cursor-default opacity-75'
-                    : 'bg-surface border-border cursor-grab hover:border-accent hover:shadow-1'
+                  'bg-surface border-border cursor-grab hover:border-accent hover:shadow-1'
                 )}
               >
                 {/* className kept as widget-drag-handle — react-grid-layout uses it as a DOM selector */}
@@ -91,15 +98,18 @@ export function GridEditor({ layout, widgetMeta, onLayoutChange, onRemoveWidget 
                   className={cn(
                     'widget-drag-handle flex items-center gap-1.5 flex-1 min-w-0 h-full text-[11px] font-medium text-fg2',
                     '[&_.material-symbols-outlined]:text-[16px] [&_.material-symbols-outlined]:text-fg3 [&_.material-symbols-outlined]:flex-shrink-0',
-                    isStatic ? 'cursor-default' : 'cursor-grab'
+                    'cursor-grab'
                   )}
                 >
-                  <Icon name={isStatic ? 'lock' : 'drag_indicator'} />
+                  <Icon name="drag_indicator" />
                   <span className="overflow-hidden text-ellipsis whitespace-nowrap">
                     {meta?.label ?? widget.i}
                   </span>
                 </div>
-                {!isStatic && (
+                <span className="flex-shrink-0 text-[10px] text-fg3 tabular-nums mr-1" title="Columns × rows">
+                  {widget.w}×{widget.h}
+                </span>
+                {removable && (
                   <button
                     className="flex-shrink-0 w-[22px] h-[22px] rounded-full border border-border bg-transparent cursor-pointer flex items-center justify-center text-fg3 opacity-0 group-hover:opacity-100 hover:bg-error hover:border-error hover:text-white transition-[opacity,background-color,color,border-color] duration-[150ms] [&_.material-symbols-outlined]:text-[14px]"
                     title="Remove widget"

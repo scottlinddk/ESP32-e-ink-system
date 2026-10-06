@@ -8,7 +8,7 @@ import { useApp } from '../lib/appContext';
 import { useAuth } from '../hooks/useAuth';
 import { DisplayLayout, DEFAULT_LAYOUT, NewsFeed, TickerWidgetSetting } from '../types';
 import { saveLayout, getPreferences, savePreferences } from '../lib/api';
-import { findWidgetSpace } from '../lib/layoutPlacement';
+import { findWidgetSpace, layoutProblem } from '../lib/layoutPlacement';
 import { GridEditor, WIDGET_META } from '../components/layout/GridEditor';
 import { LayoutPreviewPane } from '../components/layout/LayoutPreviewPane';
 import { Card } from '../components/ui/card';
@@ -142,6 +142,14 @@ function LayoutEditorWorkspace() {
   }
 
   async function handleSave() {
+    const problem = layoutProblem(layout);
+    if (problem) {
+      // The editor should never allow this; stop here with a clear message instead of a server error.
+      app.toast({ type: 'error', title: t.layoutSaveFailed, msg: app.lang === 'da'
+        ? 'Widgets skal ligge inden for gitteret på 10 × 6 og må ikke overlappe.'
+        : 'Widgets must stay inside the 10 × 6 grid and must not overlap.' });
+      return;
+    }
     setSaving(true);
     try {
       const token = await getToken();
@@ -224,6 +232,11 @@ function LayoutEditorWorkspace() {
             </p>
             <p className="flex items-center gap-1 text-xs text-fg3 m-0">
               <Icon name="drag_indicator" /> Drag the handle to move · drag the bottom-right corner to resize
+            </p>
+            <p className="flex items-center gap-1 text-xs text-fg3 m-0">
+              <Icon name="open_in_full" /> {app.lang === 'da'
+                ? 'En widget stopper ved sine naboer. Gør en nabo mindre eller flyt den for at give plads.'
+                : 'A widget stops at its neighbours. Shrink or move a neighbouring widget to make room.'}
             </p>
           </div>
         </div>
