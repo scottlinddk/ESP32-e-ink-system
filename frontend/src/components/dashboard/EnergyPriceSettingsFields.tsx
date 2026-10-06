@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../../lib/appContext';
-import { GRID_PRESETS, parseGridChargeCodes } from '../../lib/energyPriceSettings';
+import { GRID_PRESETS, parseDecimalInput, parseGridChargeCodes } from '../../lib/energyPriceSettings';
 import type { EnergyPriceSettings } from '../../types';
 import { Field } from '../ui/Field';
 import { Input } from '../ui/input';
@@ -14,10 +14,12 @@ export function EnergyPriceSettingsFields({ settings, onChange, onZoneChange }: 
   const { lang } = useApp();
   const da = lang === 'da';
   const markup = settings.mode === 'consumer' ? settings.retailerMarkupOre : 0;
-  const [markupInput, setMarkupInput] = useState(String(markup));
+  const formatMarkup = (value: number) => da ? String(value).replace('.', ',') : String(value);
+  const [markupInput, setMarkupInput] = useState(formatMarkup(markup));
+  // Keep the raw text while typing (e.g. "2,50"); only resync when the value changes from outside.
   useEffect(() => {
     if (Number.isFinite(markup)) {
-      setMarkupInput((current) => current.trim() && Number(current) === markup ? current : String(markup));
+      setMarkupInput((current) => parseDecimalInput(current) === markup ? current : formatMarkup(markup));
     }
   }, [markup]);
   const codes = settings.mode === 'consumer' ? settings.gridChargeCodes : [];
@@ -73,10 +75,10 @@ export function EnergyPriceSettingsFields({ settings, onChange, onZoneChange }: 
         : 'Custom details: choose 1–5 tariff codes for your grid company. All codes are added together and must have a current tariff; missing or expired codes make the price unavailable.'}</p>
       <Field label={da ? 'Elselskabets tillæg (øre/kWh, ekskl. moms)' : 'Supplier markup (øre/kWh, excluding VAT)'} htmlFor="energy-retailer-markup"
         helper={da ? 'Indtast tillægget fra din egen elaftale. Brug kun 0, hvis aftalen ikke har et tillæg.' : 'Enter the markup from your own electricity agreement. Use 0 only if your agreement has no markup.'}>
-        <Input id="energy-retailer-markup" type="number" min={-1000} max={1000} step="any" value={markupInput}
+        <Input id="energy-retailer-markup" type="text" inputMode="decimal" autoComplete="off" value={markupInput}
           onChange={(event) => {
             setMarkupInput(event.target.value);
-            onChange({ ...settings, retailerMarkupOre: event.target.valueAsNumber });
+            onChange({ ...settings, retailerMarkupOre: parseDecimalInput(event.target.value) });
           }} />
       </Field>
     </>}

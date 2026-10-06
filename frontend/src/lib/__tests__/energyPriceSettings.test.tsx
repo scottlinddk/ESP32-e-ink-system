@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { EnergyPriceSettingsFields } from '../../components/dashboard/EnergyPriceSettingsFields';
 import type { EnergyPriceSettings } from '../../types';
-import { energyPriceSettingsForSave, GRID_PRESETS, parseGridChargeCodes, validEnergyPriceSettings } from '../energyPriceSettings';
+import { energyPriceSettingsForSave, GRID_PRESETS, parseDecimalInput, parseGridChargeCodes, validEnergyPriceSettings } from '../energyPriceSettings';
 
 const session = vi.hoisted(() => ({ lang: 'en' }));
 vi.mock('../appContext', () => ({ useApp: () => ({ lang: session.lang }) }));
@@ -32,6 +32,19 @@ describe('electricity price settings', () => {
     expect(parseGridChargeCodes('')).toEqual([]);
     expect(validEnergyPriceSettings({ ...household, gridChargeCodes: parseGridChargeCodes('CD, CD R') })).toBe(true);
   });
+
+  it.each([
+    ['5', 5], ['12', 12], ['2,5', 2.5], ['2.5', 2.5], ['0,75', 0.75], [',5', 0.5], [' 7,5 ', 7.5],
+    ['-2,5', -2.5], ['\u22122,5', -2.5], ['0', 0],
+  ])('parses supplier markup %j with a comma or period as %d', (input, expected) => {
+    expect(parseDecimalInput(input)).toBe(expected);
+  });
+
+  it.each(['', ' ', '5,', '2,5,0', '1.000,5', '2,5 øre', 'abc', '--1', '1e3'])(
+    'rejects unfinished or ambiguous markup %j instead of guessing a value', (input) => {
+      expect(parseDecimalInput(input)).toBeNaN();
+      expect(validEnergyPriceSettings({ ...household, retailerMarkupOre: parseDecimalInput(input) })).toBe(false);
+    });
 
   it.each([
     { gridGln: '' }, { gridGln: '123456789012' }, { gridGln: '579000061009X' },
@@ -75,5 +88,8 @@ describe('electricity price settings', () => {
     expect(da).toContain('Faste abonnementer er ikke medregnet');
     expect(da).toContain('Elselskabets tillæg (øre/kWh, ekskl. moms)');
     expect(da).not.toContain('Supplier markup');
+    expect(da).toContain('value="7,5"');
+    expect(da).toContain('inputMode="decimal"');
+    expect(da).not.toContain('type="number"');
   });
 });
