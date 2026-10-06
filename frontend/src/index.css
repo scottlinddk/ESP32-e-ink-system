@@ -102,3 +102,24 @@ button { font-family: inherit; }
   border-radius: var(--radius-md);
   overflow: hidden;
 }
+
+/* The library only shows the resize handle on hover and draws a 5px corner. That left
+   widgets looking fixed, and on touch screens the handle never appeared. Keep it visible
+   with a larger target. */
+.grid-editor-canvas .react-grid-item:not(.react-grid-placeholder) > .react-resizable-handle {
+  width: 28px;
+  height: 28px;
+  opacity: 0.8;
+  cursor: se-resize;
+  touch-action: none;
+}
+.grid-editor-canvas .react-grid-item:hover > .react-resizable-handle,
+.grid-editor-canvas .react-grid-item.resizing > .react-resizable-handle { opacity: 1; }
+.grid-editor-canvas .react-grid-item > .react-resizable-handle::after {
+  right: 5px;
+  bottom: 5px;
+  width: 9px;
+  height: 9px;
+  border-right: 3px solid var(--accent);
+  border-bottom: 3px solid var(--accent);
+}

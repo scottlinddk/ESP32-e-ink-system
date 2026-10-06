@@ -2,7 +2,7 @@
 // GridEditor.tsx — drag-and-drop resizable layout editor for the e-ink display
 // =========================================================================
 import React from 'react';
-import { GridLayout, noCompactor, Layout, LayoutItem } from 'react-grid-layout';
+import { GridLayout, getCompactor, Layout, LayoutItem } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import { cn } from '@/lib/utils';
 import { WidgetLayout, DisplayLayout } from '../../types';
@@ -14,6 +14,13 @@ const GRID_COLS = 10;
 const GRID_ROWS = 6;
 const ROW_HEIGHT = 20 * SCALE;   // 60px per row
 const GRID_WIDTH = 250 * SCALE;  // 750px total width
+
+/**
+ * Widgets keep exactly where the user puts them (no compaction), and a move or
+ * resize that would land on another widget is refused. Without this a widget could
+ * be dragged over its neighbour, which the backend rejects on save.
+ */
+export const layoutCompactor = getCompactor(null, false, true);
 
 export interface WIDGET_META {
   id: string;
@@ -68,7 +75,7 @@ export function GridEditor({ layout, widgetMeta, onLayoutChange, onRemoveWidget 
             maxRows: GRID_ROWS,
           }}
           dragConfig={{ handle: '.widget-drag-handle' }}
-          compactor={noCompactor}
+          compactor={layoutCompactor}
           layout={rglLayout}
           onLayoutChange={handleChange}
         >
@@ -99,6 +106,11 @@ export function GridEditor({ layout, widgetMeta, onLayoutChange, onRemoveWidget 
                     {meta?.label ?? widget.i}
                   </span>
                 </div>
+                {!isStatic && (
+                  <span className="flex-shrink-0 text-[10px] text-fg3 tabular-nums mr-1" title="Columns × rows">
+                    {widget.w}×{widget.h}
+                  </span>
+                )}
                 {!isStatic && (
                   <button
                     className="flex-shrink-0 w-[22px] h-[22px] rounded-full border border-border bg-transparent cursor-pointer flex items-center justify-center text-fg3 opacity-0 group-hover:opacity-100 hover:bg-error hover:border-error hover:text-white transition-[opacity,background-color,color,border-color] duration-[150ms] [&_.material-symbols-outlined]:text-[14px]"

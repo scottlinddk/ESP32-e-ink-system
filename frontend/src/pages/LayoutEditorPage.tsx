@@ -225,6 +225,11 @@ function LayoutEditorWorkspace() {
             <p className="flex items-center gap-1 text-xs text-fg3 m-0">
               <Icon name="drag_indicator" /> Drag the handle to move · drag the bottom-right corner to resize
             </p>
+            <p className="flex items-center gap-1 text-xs text-fg3 m-0">
+              <Icon name="open_in_full" /> {app.lang === 'da'
+                ? 'En widget stopper ved sine naboer. Gør en nabo mindre eller flyt den for at give plads.'
+                : 'A widget stops at its neighbours. Shrink or move a neighbouring widget to make room.'}
+            </p>
           </div>
         </div>
 
