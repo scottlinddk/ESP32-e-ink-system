@@ -44,6 +44,15 @@ describe('electricity price basis rendering', () => {
     renderDisplayDataRaw({ nextRefresh: 1000, price: { now: 123, average: 150, trend: 'down' } }, energy);
     expect(draw.mock.calls.map(([text]) => text)).toContain('Excl tax/fees');
   });
+  it('names missing tariff codes instead of a generic unavailable label', () => {
+    const draw = vi.spyOn(BmpCanvas.prototype, 'drawText');
+    const energy: DisplayLayout = { version: 1, cols: 10, rows: 6, widgets: [{ i: 'energy', x: 0, y: 0, w: 5, h: 2 }] };
+    renderDisplayDataRaw({ nextRefresh: 1000, priceError: { code: 'missing_tariff', message: 'x', missingCodes: ['CD', 'CD R'] } }, energy);
+    expect(draw.mock.calls.map(([text]) => text)).toEqual(expect.arrayContaining(['Energy: check tariff', 'Missing: CD, CD R']));
+    draw.mockClear();
+    renderDisplayDataRaw({ nextRefresh: 1000 }, energy);
+    expect(draw.mock.calls.map(([text]) => text)).toContain('Energy: unavailable');
+  });
 });
 
 describe('display status time zone', () => {

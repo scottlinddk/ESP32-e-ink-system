@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearEnergyCache, fetchEnergyPrice } from '../services/energinet';
+import { energyPriceProblem } from '../utils/energyPriceErrors';
 
 // `time` is a UTC instant without suffix and `price` is DKK/MWh, as in the test cases' arithmetic.
 function record(time: string, price: number, area = 'DK1', minutes = 15) {
@@ -147,7 +148,7 @@ describe('current Danish day-ahead electricity price', () => {
 
   it('rejects an unsupported price area without fetching', async () => {
     respond([]);
-    await expect(fetchEnergyPrice('DE')).rejects.toThrow('DK1 or DK2');
+    await expect(fetchEnergyPrice('DE')).rejects.toMatchObject({ code: 'invalid_settings' });
     expect(fetch).not.toHaveBeenCalled();
   });
 });
@@ -265,16 +266,37 @@ describe('estimated Danish consumer electricity price', () => {
 
   it.each([
     { ValidTo: '2026-09-26T00:00:00' }, { ValidFrom: '2026-09-27T00:00:00' },
-    { ChargeTypeCode: 'unknown' }, { ChargeType: 'D01' }, { GLN_Number: '5790000705184' },
-    { ValidFrom: 'invalid' }, { Price1: null }, { Price13: '0.1' }, { ResolutionDuration: 'PT15M' },
-  ])('refuses missing, expired and malformed required tariffs without a spot fallback: %j', async (bad) => {
+    { ChargeTypeCode: 'unknown' }, { ChargeType: 'D01' }, { GLN_Number: '5790000705184' }, { ValidFrom: 'invalid' },
+  ])('reports missing and expired grid tariffs without a spot fallback: %j', async (bad) => {
     respondConsumer([record('2026-09-26T10:00:00', 400)], [...nationalTariffs(), gridTariff(bad)]);
-    await expect(fetchEnergyPrice('DK1', undefined, consumer)).rejects.toThrow(/tariff/);
+    const error = await fetchEnergyPrice('DK1', undefined, consumer).catch((e: unknown) => e);
+    expect(energyPriceProblem(error)).toEqual({
+      code: 'missing_tariff', missingCodes: ['DT_C_01'],
+      message: expect.stringContaining('No current tariff for DT_C_01 at grid company GLN 5790000705689'),
+    });
+  });
+
+  it.each([{ Price1: null }, { Price13: '0.1' }, { ResolutionDuration: 'PT15M' }])(
+    'refuses malformed grid tariffs as invalid data without a spot fallback: %j', async (bad) => {
+      respondConsumer([record('2026-09-26T10:00:00', 400)], [...nationalTariffs(), gridTariff(bad)]);
+      await expect(fetchEnergyPrice('DK1', undefined, consumer)).rejects.toMatchObject({ code: 'invalid_response' });
+    });
+
+  it('names every configured code missing for a GLN from another grid area', async () => {
+    // N1 area 131 codes entered with the area 344 GLN: neither code exists for that GLN.
+    respondConsumer([record('2026-09-26T10:00:00', 400)], [...nationalTariffs(),
+      tariff('CD', 0.10, { GLN_Number: '5790001089030' }), tariff('T-C-F-T-TD', 0.10, { GLN_Number: '5790000611003' })]);
+    const settings = { ...consumer, gridGln: '5790000611003', gridChargeCodes: ['CD', 'CD R'] };
+    const error = await fetchEnergyPrice('DK1', undefined, settings).catch((e: unknown) => e);
+    expect(energyPriceProblem(error)).toMatchObject({ code: 'missing_tariff', missingCodes: ['CD', 'CD R'] });
   });
 
   it('refuses missing national taxes and retries failed data instead of caching the failure', async () => {
     respondConsumer([record('2026-09-26T10:00:00', 400)], [...nationalTariffs().slice(0, 2), gridTariff()]);
-    await expect(fetchEnergyPrice('DK1', undefined, consumer)).rejects.toThrow('EA-001');
+    const error = await fetchEnergyPrice('DK1', undefined, consumer).catch((e: unknown) => e);
+    // Energinet's own charges are not the user's codes to fix; the code is kept for logs only.
+    expect(error).toMatchObject({ code: 'unavailable', missingCodes: ['EA-001'] });
+    expect(energyPriceProblem(error)).not.toHaveProperty('missingCodes');
     respondConsumer([record('2026-09-26T10:00:00', 400)]);
     expect((await fetchEnergyPrice('DK1', undefined, consumer)).now).toBe(84.13);
   });

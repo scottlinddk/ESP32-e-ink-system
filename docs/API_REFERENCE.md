@@ -118,6 +118,20 @@ Coordinates use decimal points and a comma between latitude (-90..90) and longit
 
 When enabled weather fails during preview/device rendering, JSON contains `weatherError: { code, message }` instead of `weather`; the bitmap displays a short diagnosis. Successful readings are cached for one hour per key and normalized location. Testing removes the matching cached reading before contacting the provider.
 
+### POST /api/preferences/energy-price/test
+
+Price draft electricity settings without saving them. Both fields are required; `settings` uses the same shape as `energy_price_settings`.
+
+```json
+{ "location": "DK1", "settings": { "mode": "consumer", "gridGln": "5790000611003", "gridChargeCodes": ["T-C-F-T-TD"], "retailerMarkupOre": 10 } }
+```
+
+**Response 200:** `{ "price": { "now": 210.5, "average": 190, "trend": "up", "basis": "consumer" } }` in øre/kWh, as in display data.
+
+Failures return `{ "error": "safe explanation", "code": "missing_tariff", "missingCodes": ["CD", "CD R"] }`: 400 for `invalid_settings` or `missing_tariff`; 502 for `unavailable` or `invalid_response`; 504 for `timeout`. `missingCodes` lists every configured grid tariff code without a current tariff for the configured GLN, typically because the GLN and codes come from different grid companies or areas. Missing national Energinet charges are reported as `unavailable`, since the user cannot fix them. Upstream URLs and response bodies are never included.
+
+When the enabled energy price fails during preview/device rendering, JSON contains `priceError: { code, message, missingCodes? }` instead of `price`; the bitmap shows `Energy: check tariff` and the missing codes, or a short diagnosis for other failures.
+
 ### GET /api/preferences/api-keys
 
 List stored API keys (values are masked).

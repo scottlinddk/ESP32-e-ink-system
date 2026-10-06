@@ -152,6 +152,15 @@ const options: swaggerJsdoc.Options = {
             },
             price: { $ref: '#/components/schemas/EnergyPrice' },
             weather: { $ref: '#/components/schemas/WeatherData' },
+            priceError: {
+              type: 'object', required: ['code', 'message'],
+              description: 'Safe diagnostic instead of a price when the enabled energy price fails. missingCodes lists configured grid tariff codes without a current tariff for the configured GLN.',
+              properties: {
+                code: { type: 'string', enum: ['invalid_settings', 'missing_tariff', 'unavailable', 'timeout', 'invalid_response'] },
+                message: { type: 'string' },
+                missingCodes: { type: 'array', items: { type: 'string' } },
+              },
+            },
             weatherError: { $ref: '#/components/schemas/WeatherProblem' },
             news: {
               type: 'array',

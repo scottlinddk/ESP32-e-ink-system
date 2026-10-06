@@ -20,6 +20,7 @@ import { renderDisplayData, renderDisplayDataRaw } from '../utils/bmpGenerator';
 import type { ApiKey, DisplayData, UserPreferences } from '../types/index';
 import { WeatherSourceError, weatherProblem } from '../utils/weatherErrors';
 import { NewsSourceError, newsProblem } from '../utils/newsErrors';
+import { EnergyPriceSourceError } from '../utils/energyPriceErrors';
 import { logger } from '../lib/logger';
 
 vi.mock('@clerk/backend', () => ({
@@ -115,14 +116,17 @@ describe('live display data', () => {
     expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain('SECRET');
     expect(logger.error).not.toHaveBeenCalled();
   });
-  it('passes saved electricity profiles to the shared render pipeline and preserves tariff failures as unavailable', async () => {
+  it('passes saved electricity profiles to the shared render pipeline and reports tariff failures', async () => {
     const energy_price_settings = { mode: 'consumer' as const, gridGln: '5790000705689', gridChargeCodes: ['DT_C_01'], retailerMarkupOre: 5 };
     await buildDisplayData('user-test', { ...prefs, energy_price_settings }, credentials);
     expect(fetchEnergyPrice).toHaveBeenCalledWith(prefs.energy_price_location, expect.any(AbortSignal), energy_price_settings);
-    vi.mocked(fetchEnergyPrice).mockRejectedValue(new Error('No active electricity tariff'));
+    vi.mocked(fetchEnergyPrice).mockRejectedValue(new EnergyPriceSourceError('missing_tariff', ['DT_C_01'], '5790000705689'));
     const result = await buildDisplayData('user-test', { ...prefs, energy_price_settings }, credentials);
     expect(result.price).toBeUndefined();
+    expect(result.priceError).toMatchObject({ code: 'missing_tariff', missingCodes: ['DT_C_01'] });
     expect(result.weather).toEqual(liveData.weather);
+    vi.mocked(fetchEnergyPrice).mockRejectedValue(new Error('Energinet API error: 503'));
+    expect((await buildDisplayData('user-test', prefs, credentials)).priceError?.code).toBe('unavailable');
   });
   it('uses the encrypted calendar credential only when enabled and keeps empty calendars distinct from failures', async () => {
     const calendar = { timezone: 'Europe/Copenhagen', events: [] };

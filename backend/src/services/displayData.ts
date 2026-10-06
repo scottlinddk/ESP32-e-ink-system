@@ -14,6 +14,7 @@ import { fetchWebhookData } from './customWebhook';
 import { DEFAULT_DISPLAY_TIMEZONE } from '../utils/displayTimezone';
 import { weatherProblem } from '../utils/weatherErrors';
 import { newsProblem } from '../utils/newsErrors';
+import { energyPriceProblem } from '../utils/energyPriceErrors';
 import { storedNewsFeeds } from '../utils/newsFeeds';
 
 // JSON previews and display images use the same enabled sources. A failed
@@ -116,7 +117,8 @@ export async function buildDisplayData(
           result.price = price;
         })
         .catch((err: unknown) => {
-          logger.error({ err }, 'Energy price fetch failed');
+          result.priceError = energyPriceProblem(err);
+          logger.error({ err, code: result.priceError.code }, 'Energy price fetch failed');
         })
     );
   }

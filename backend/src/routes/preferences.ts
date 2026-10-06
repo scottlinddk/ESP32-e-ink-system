@@ -22,6 +22,9 @@ import { parseDisplayTemplate, TEMPLATE_SETTING_KEYS } from '../utils/displayTem
 import { normalizeWeatherLocation } from '../utils/weatherLocation';
 import { WeatherSourceError, weatherProblem } from '../utils/weatherErrors';
 import { fetchWeather } from '../services/weather';
+import { fetchEnergyPrice } from '../services/energinet';
+import { EnergyPriceSourceError, energyPriceProblem } from '../utils/energyPriceErrors';
+import { logger } from '../lib/logger';
 import { normalizeNotionCredentials } from '../utils/notionCredentials';
 
 /**
@@ -340,6 +343,55 @@ router.post('/weather/test', requireAuth, async (req: Request, res: Response, ne
     const status = problem.code === 'timeout' ? 504
       : ['missing_key', 'invalid_location', 'invalid_key'].includes(problem.code) ? 400 : 502;
     res.status(status).json({ error: problem.message, code: problem.code });
+  }
+});
+
+/**
+ * @swagger
+ * /api/preferences/energy-price/test:
+ *   post:
+ *     summary: Test draft electricity price settings without saving them
+ *     description: Calculates the current price for the draft price area and settings. Consumer mode names every configured grid tariff code that has no current tariff for the configured GLN. Provider failures return fixed messages without upstream URLs or response bodies.
+ *     tags: [Preferences]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [location, settings]
+ *             properties:
+ *               location: { type: string, enum: [DK1, DK2] }
+ *               settings: { $ref: '#/components/schemas/EnergyPriceSettings' }
+ *     responses:
+ *       200:
+ *         description: Current price in øre/kWh, as in display data
+ *       400:
+ *         description: Invalid settings, or tariff codes without a current tariff; body contains error, code and missingCodes when known
+ *       401:
+ *         description: Sign-in required
+ *       502:
+ *         description: Price source unavailable or invalid response; body contains error and code
+ *       504:
+ *         description: Price source timeout; body contains error and code
+ */
+router.post('/energy-price/test', requireAuth, async (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    // Both fields are required so a missing value never silently tests the defaults.
+    if (typeof req.body?.location !== 'string' || req.body?.settings === undefined) {
+      throw new EnergyPriceSourceError('invalid_settings');
+    }
+    const price = await fetchEnergyPrice(req.body.location, undefined, req.body.settings);
+    res.json({ price });
+  } catch (error) {
+    const problem = energyPriceProblem(error);
+    if (!['invalid_settings', 'missing_tariff'].includes(problem.code)) logger.warn({ err: error }, 'Energy price test failed');
+    const status = problem.code === 'timeout' ? 504 : ['invalid_settings', 'missing_tariff'].includes(problem.code) ? 400 : 502;
+    res.status(status).json({ error: problem.message, code: problem.code,
+      ...(problem.missingCodes ? { missingCodes: problem.missingCodes } : {}) });
   }
 });
 

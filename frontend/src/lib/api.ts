@@ -1,7 +1,7 @@
 import { DisplayProfile, frameMetadata } from './displayProfile';
 import { buildAuthHeaders } from './auth';
 import { readPreviewMetadata, type PreviewImage } from './previewMetadata';
-import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout, CustomWebhookStatus, WeatherData } from '../types';
+import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout, CustomWebhookStatus, WeatherData, EnergyPrice, EnergyPriceSettings } from '../types';
 
 // Both Vercel and Vite route /api/* to the backend and strip the /api prefix.
 // VITE_API_BASE_URL configures Vite's proxy target, not a browser URL.
@@ -11,7 +11,9 @@ class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
-    public readonly code?: string
+    public readonly code?: string,
+    /** Configured codes the server could not price; only set for a tariff diagnostic. */
+    public readonly missingCodes?: string[]
   ) {
     super(message);
     this.name = 'ApiError';
@@ -38,14 +40,18 @@ async function request<T>(
   if (!response.ok) {
     let message = `HTTP ${response.status}`;
     let code: string | undefined;
+    let missingCodes: string[] | undefined;
     try {
-      const body = (await response.json()) as { error?: unknown; code?: unknown };
+      const body = (await response.json()) as { error?: unknown; code?: unknown; missingCodes?: unknown };
       if (typeof body.error === 'string') message = body.error;
       if (typeof body.code === 'string') code = body.code;
+      if (Array.isArray(body.missingCodes) && body.missingCodes.every((item) => typeof item === 'string')) {
+        missingCodes = body.missingCodes;
+      }
     } catch {
       // ignore JSON parse errors
     }
-    throw new ApiError(response.status, message, code);
+    throw new ApiError(response.status, message, code, missingCodes);
   }
 
   if (response.status === 204) return undefined as T;
@@ -100,6 +106,11 @@ export async function saveLayout(
 
 export function testWeather(token: string, location: string, signal?: AbortSignal): Promise<{ weather: WeatherData }> {
   return request('/api/preferences/weather/test', { token, method: 'POST', body: JSON.stringify({ location }), signal });
+}
+
+/** Prices draft settings without saving them. */
+export function testEnergyPrice(token: string, location: string, settings: EnergyPriceSettings, signal?: AbortSignal): Promise<{ price: EnergyPrice }> {
+  return request('/api/preferences/energy-price/test', { token, method: 'POST', body: JSON.stringify({ location, settings }), signal });
 }
 
 export async function getCalendarCredentialStatus(token: string): Promise<{ configured: boolean }> {

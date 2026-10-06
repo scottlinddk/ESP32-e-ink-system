@@ -1,6 +1,7 @@
 import type { DisplayProfile } from '../utils/displayProfile';
 import type { EnergyPriceSettings } from '../utils/energyPriceSettings';
 import type { NewsProblem } from '../utils/newsErrors';
+import type { EnergyPriceProblem } from '../utils/energyPriceErrors';
 export interface WidgetLayout {
   i: string;       // 'energy' | 'weather' | 'news' | 'status'
   x: number;       // 0–9
@@ -163,6 +164,7 @@ export interface DisplayData {
   customText?: string;
   customImage?: CustomImage;
   price?: EnergyPrice;
+  priceError?: EnergyPriceProblem;
   weather?: WeatherData;
   weatherError?: WeatherProblem;
   news?: NewsItem[];

@@ -10,6 +10,7 @@ vi.mock('../../hooks/usePreferences', () => ({
   useSavePreferences: () => ({ isPending: false, mutateAsync: vi.fn() }),
 }));
 vi.mock('../appContext', () => ({ useApp: () => ({ t: STRINGS[settings.lang], lang: settings.lang, online: true, toast: vi.fn() }) }));
+vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'owner' }, isSignedIn: true, getToken: async () => 'token' }) }));
 beforeEach(() => { settings.language = 'da'; settings.source = 'newsapi'; settings.lang = 'en'; });
 const render = () => renderToStaticMarkup(<DisplayCard />);
 

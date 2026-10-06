@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { EnergyPriceSettingsFields } from '../../components/dashboard/EnergyPriceSettingsFields';
 import type { EnergyPriceSettings } from '../../types';
-import { energyPriceSettingsForSave, GRID_PRESETS, parseDecimalInput, parseGridChargeCodes, validEnergyPriceSettings } from '../energyPriceSettings';
+import { energyPriceSettingsForSave, GRID_PRESETS, gridPresetMismatch, parseDecimalInput, parseGridChargeCodes, validEnergyPriceSettings } from '../energyPriceSettings';
 
 const session = vi.hoisted(() => ({ lang: 'en' }));
 vi.mock('../appContext', () => ({ useApp: () => ({ lang: session.lang }) }));
@@ -91,5 +91,37 @@ describe('electricity price settings', () => {
     expect(da).toContain('value="7,5"');
     expect(da).toContain('inputMode="decimal"');
     expect(da).not.toContain('type="number"');
+  });
+
+  it('flags a GLN and tariff codes taken from different grid areas', () => {
+    const [n1Area131, n1Area344] = [GRID_PRESETS[2], GRID_PRESETS[3]];
+    const mixed: EnergyPriceSettings = { ...household, gridGln: n1Area344.gln, gridChargeCodes: ['CD', 'CD R'] };
+    expect(gridPresetMismatch(mixed)).toEqual({ glnPreset: n1Area344, codePresets: [n1Area131] });
+    // A custom code with a known GLN is flagged; a known code with an unknown GLN is flagged.
+    expect(gridPresetMismatch({ ...household, gridGln: n1Area344.gln, gridChargeCodes: ['OTHER'] })).toEqual({ glnPreset: n1Area344, codePresets: [] });
+    expect(gridPresetMismatch({ ...household, gridGln: '5790000000000', gridChargeCodes: ['CD'] })).toEqual({ codePresets: [n1Area131] });
+  });
+
+  it('accepts matching presets, extra adjustment codes, unknown grids, incomplete drafts and spot mode', () => {
+    for (const grid of GRID_PRESETS) {
+      expect(gridPresetMismatch({ ...household, gridGln: grid.gln, gridChargeCodes: [grid.code] })).toBeNull();
+    }
+    expect(gridPresetMismatch({ ...household, gridGln: GRID_PRESETS[3].gln, gridChargeCodes: ['T-C-F-T-TD', 'discount'] })).toBeNull();
+    expect(gridPresetMismatch({ ...household, gridGln: '5790000000000', gridChargeCodes: ['OTHER'] })).toBeNull();
+    expect(gridPresetMismatch({ ...household, gridGln: '579000061', gridChargeCodes: ['CD'] })).toBeNull();
+    expect(gridPresetMismatch({ mode: 'spot' })).toBeNull();
+  });
+
+  it('warns in the settings form and offers both matching presets', () => {
+    session.lang = 'en';
+    const html = renderToStaticMarkup(<EnergyPriceSettingsFields
+      settings={{ ...household, gridGln: '5790000611003', gridChargeCodes: ['CD', 'CD R'] }} onChange={vi.fn()} onZoneChange={vi.fn()} />);
+    expect(html).toContain('GLN 5790000611003 is N1 C · 344, whose household tariff code is T-C-F-T-TD');
+    expect(html).toContain('Code CD belongs to N1 C · 131 (GLN 5790001089030)');
+    expect(html).toContain('Use N1 C · 344');
+    expect(html).toContain('Use N1 C · 131');
+    const matching = renderToStaticMarkup(<EnergyPriceSettingsFields
+      settings={{ ...household, gridGln: '5790000611003', gridChargeCodes: ['T-C-F-T-TD'] }} onChange={vi.fn()} onZoneChange={vi.fn()} />);
+    expect(matching).not.toContain('must come from the same grid company');
   });
 });
