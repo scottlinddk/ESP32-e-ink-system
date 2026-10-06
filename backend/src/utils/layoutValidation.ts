@@ -1,5 +1,6 @@
 import type { DisplayLayout, WidgetLayout } from '../types';
 import { MAX_NEWS_FEEDS, newsFeedIdFromWidget } from './newsFeeds';
+import { MAX_TICKER_WIDGETS, tickerIdFromWidget } from './tickerWidgets';
 
 export const DISPLAY_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'status'] as const;
 
@@ -22,15 +23,15 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
   if (Object.keys(value).some((key) => !['version', 'cols', 'rows', 'widgets'].includes(key))) {
     throw new LayoutValidationError('Layout contains unsupported fields.');
   }
-  if (!Array.isArray(value.widgets) || value.widgets.length > DISPLAY_WIDGET_IDS.length + MAX_NEWS_FEEDS) {
-    throw new LayoutValidationError('Layout widgets must be an array with at most one of each supported widget and news feed.');
+  if (!Array.isArray(value.widgets) || value.widgets.length > DISPLAY_WIDGET_IDS.length + MAX_NEWS_FEEDS + MAX_TICKER_WIDGETS) {
+    throw new LayoutValidationError('Layout widgets must be an array with at most one of each supported widget, news feed and stock widget.');
   }
 
   const seen = new Set<string>();
   const widgets: WidgetLayout[] = [];
   for (const input of value.widgets) {
     if (!isRecord(input) || typeof input.i !== 'string'
-      || !(DISPLAY_WIDGET_IDS.some((id) => id === input.i) || newsFeedIdFromWidget(input.i)) || seen.has(input.i)) {
+      || !(DISPLAY_WIDGET_IDS.some((id) => id === input.i) || newsFeedIdFromWidget(input.i) || tickerIdFromWidget(input.i)) || seen.has(input.i)) {
       throw new LayoutValidationError('Every widget must have a supported, unique ID.');
     }
     if (Object.keys(input).some((key) => !['i', 'x', 'y', 'w', 'h', 'static'].includes(key))) {

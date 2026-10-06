@@ -1,4 +1,4 @@
-import type { RenderElement } from '@esp32-eink/types';
+import type { RenderElement } from './render';
 import type { Direction } from './types';
 
 export interface Box {

@@ -14,6 +14,7 @@ import { ScheduleValidationError } from '../utils/scheduleValidation';
 import { LayoutValidationError } from '../utils/layoutValidation';
 import { validatePublicHttpsUrl } from '../utils/publicFeedFetch';
 import { parseNewsFeeds } from '../utils/newsFeeds';
+import { parseTickerWidgets, TickerWidgetValidationError } from '../utils/tickerWidgets';
 import calendarRouter from './calendar';
 import { DEFAULT_DISPLAY_TIMEZONE } from '../utils/displayTimezone';
 import { parseCustomContentUpdates } from '../utils/customContent';
@@ -223,6 +224,7 @@ router.get(
         news_feed_url: '',
         news_item_limit: 3,
         news_feeds: [],
+        ticker_widgets: [],
         refresh_interval_minutes: 30,
         layout: null,
         monta_fields: ['charger_status', 'active_session'],
@@ -275,6 +277,13 @@ router.post(
       if (req.body.news_feeds !== undefined) {
         try { updates.news_feeds = parseNewsFeeds(req.body.news_feeds); }
         catch (error) { res.status(400).json({ error: (error as Error).message }); return; }
+      }
+      if (req.body.ticker_widgets !== undefined) {
+        try { updates.ticker_widgets = parseTickerWidgets(req.body.ticker_widgets); }
+        catch (error) {
+          if (!(error instanceof TickerWidgetValidationError)) throw error;
+          res.status(400).json({ error: error.message }); return;
+        }
       }
       const userId = await getOrCreateUserFromClerk(req.clerkUserId!);
       if (news_source === 'rss' || news_feed_url === '' || show_news === true) {

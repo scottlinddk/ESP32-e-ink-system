@@ -46,6 +46,17 @@ function expectInside(rendered: RenderedWidget) {
   }
 }
 
+/** Two texts on the same rows must not share columns: they would be drawn over each other. */
+function expectNoTextOverlap(rendered: { elements: Array<{ kind: string; x: number; y: number; text?: string; fontSize?: number }> }, label: string) {
+  const texts = rendered.elements.filter((e) => e.kind === 'text') as Array<{ x: number; y: number; text: string; fontSize: number }>;
+  for (let i = 0; i < texts.length; i++) for (let j = i + 1; j < texts.length; j++) {
+    const a = texts[i]; const b = texts[j];
+    const rows = a.y < b.y + b.fontSize && b.y < a.y + a.fontSize;
+    const columns = a.x < b.x + b.text.length * b.fontSize && b.x < a.x + a.text.length * a.fontSize;
+    expect(rows && columns, `${label}: "${a.text}" overlaps "${b.text}"`).toBe(false);
+  }
+}
+
 beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-06T12:31:00Z')); });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -104,7 +115,9 @@ describe('ticker widget: render', () => {
     for (const region of [small, { widthPx: 250, heightPx: 61 }, { widthPx: 125, heightPx: 122 }, { widthPx: 400, heightPx: 300 }, { widthPx: 800, heightPx: 480 }, { widthPx: 96, heightPx: 40 }]) {
       const result = await widget.fetch(config({ symbols, view }), region);
       if (!result.ok) throw new Error('expected data');
-      expectInside(widget.render(result.data, region, typography));
+      const rendered = widget.render(result.data, region, typography);
+      expectInside(rendered);
+      expectNoTextOverlap(rendered, `${view} ${region.widthPx}x${region.heightPx}`);
     }
   });
 

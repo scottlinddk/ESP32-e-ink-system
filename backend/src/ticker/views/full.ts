@@ -1,4 +1,4 @@
-import type { PixelRegion, RenderedWidget, RenderElement } from '@esp32-eink/types';
+import type { PixelRegion, RenderedWidget, RenderElement } from '../render';
 import { directionOf } from '../direction';
 import { displaySymbol, fitText, formatChange, formatClock, formatPercent, formatPrice, priceDecimals } from '../format';
 import { arrowElements, arrowSize, sparklineElements } from '../sparkline';

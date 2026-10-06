@@ -2,6 +2,7 @@ import type { DisplayProfile } from '../utils/displayProfile';
 import type { EnergyPriceSettings } from '../utils/energyPriceSettings';
 import type { NewsProblem } from '../utils/newsErrors';
 import type { EnergyPriceProblem } from '../utils/energyPriceErrors';
+import type { TickerResult } from '../ticker';
 export interface WidgetLayout {
   i: string;       // 'energy' | 'weather' | 'news' | 'status'
   x: number;       // 0–9
@@ -52,6 +53,7 @@ export interface UserPreferences {
   news_item_limit?: number;
   /** Additional RSS/Atom feeds, each placed as its own `news:<id>` widget. */
   news_feeds?: NewsFeed[];
+  ticker_widgets?: TickerWidgetSetting[];
   refresh_interval_minutes: number;
   layout: DisplayLayout | null;
   monta_fields: string[]; // e.g. ['charger_status', 'active_session', 'today_stats']
@@ -91,6 +93,16 @@ export interface NewsFeed {
   name: string;      // optional label for the layout editor, may be empty
   feed_url: string;  // public HTTPS RSS 2.0 / Atom 1.0
   item_limit: number; // 1–10
+}
+
+export interface TickerWidgetSetting {
+  id: string;            // 1–16 lowercase letters/digits; layout widget ID is `ticker:<id>`
+  name: string;          // layout editor label and condensed header, may be empty
+  symbols: string[];     // Yahoo symbols, e.g. NOVO-B.CO (Nasdaq Copenhagen)
+  view: 'full' | 'condensed';
+  per_page: number | null; // condensed only; null fits as many rows as the widget allows
+  dwell_minutes: number;   // how long a page stays before the next is due
+  locale: 'da' | 'en';
 }
 
 export interface NewsFeedResult {
@@ -171,6 +183,7 @@ export interface DisplayData {
   newsError?: NewsProblem;
   /** Headlines per additional feed, keyed by feed ID. */
   newsFeeds?: Record<string, NewsFeedResult>;
+  tickers?: Record<string, TickerResult>;
   monta?: MontaData;
   zaptec?: ZaptecData;
   notion?: NotionData;
