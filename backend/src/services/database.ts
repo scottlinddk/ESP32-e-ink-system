@@ -210,6 +210,27 @@ export async function updateDeviceName(
   return data as Device;
 }
 
+/** The user's default dashboard device, or null when unset. Ownership is checked by the caller. */
+export async function getDefaultDeviceId(userId: string): Promise<string | null> {
+  const db = getSupabaseClient();
+  const { data, error } = await db.from('users').select('default_device_id').eq('id', userId).single();
+  if (error) throw error;
+  return (data as { default_device_id: string | null }).default_device_id ?? null;
+}
+
+/** Sets or clears the default dashboard device. Returns false when the device is not the user's. */
+export async function setDefaultDeviceId(userId: string, deviceId: string | null): Promise<boolean> {
+  const db = getSupabaseClient();
+  if (deviceId) {
+    const { data, error } = await db.from('devices').select('id').eq('id', deviceId).eq('user_id', userId).maybeSingle();
+    if (error) throw error;
+    if (!data) return false;
+  }
+  const { error } = await db.from('users').update({ default_device_id: deviceId }).eq('id', userId);
+  if (error) throw error;
+  return true;
+}
+
 export async function deleteDevice(id: string, userId: string): Promise<void> {
   const db = getSupabaseClient();
   const { error } = await db

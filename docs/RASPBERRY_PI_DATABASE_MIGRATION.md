@@ -293,11 +293,28 @@ saves additional feeds. Do not rerun 021 once the column exists. Current
 export/import validation requires the column, so restore older backups with their
 matching tools first.
 
+## Upgrade an existing database for the default dashboard device (022)
+
+After the existing database has migration 021, back it up and apply
+`022_default_device.sql`. It adds one nullable `users.default_device_id` UUID
+column, so existing accounts keep today's behavior until they choose a default.
+
+```sh
+eink exec -T postgres psql -X -U eink_admin -d eink --single-transaction \
+  --set ON_ERROR_STOP=1 --file /migrations/022_default_device.sql \
+  --file /docker-entrypoint-initdb.d/permissions.sql
+```
+
+The column deliberately has no foreign key: `users` is copied before `devices`,
+and the API ignores an ID that is not one of the user's devices. No gateway
+allowlist change is needed. Apply 022 before deploying the backend that reads the
+column. Do not rerun 022 once the column exists.
+
 ## Migration gates and data scope (source only)
 
 Applies only when a live source database exists. The transfer allowlist is `users`, `user_preferences`, `api_keys`, `devices`,
 `firmware_versions`, `api_usage`, `custom_webhooks`, `device_delivery`, `device_displays`, and `orders`.
-The target applies all tracked SQL migrations through `021_news_feeds.sql`,
+The target applies all tracked SQL migrations through `022_default_device.sql`,
 including both `002` migrations. IDs, foreign keys, timestamps, JSONB values,
 encrypted provider credentials, webhook token hashes, device token hashes and
 delivery telemetry are copied without transformation. Device presentation settings, display schedules and

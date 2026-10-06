@@ -215,8 +215,19 @@ export async function deleteEvCredentials(token: string, provider: string): Prom
 // Devices
 // ============================================================
 
-export async function getDevices(token: string): Promise<{ devices: Device[] }> {
-  return request<{ devices: Device[] }>('/api/devices', { token });
+export interface DeviceList {
+  devices: Device[];
+  /** The device the dashboard opens by default; null when unset. */
+  default_device_id?: string | null;
+}
+
+export async function getDevices(token: string): Promise<DeviceList> {
+  return request<DeviceList>('/api/devices', { token });
+}
+
+/** Sets the dashboard's default device, or clears it with null. */
+export async function setDefaultDevice(token: string, id: string | null): Promise<{ default_device_id: string | null }> {
+  return request('/api/devices/default', { token, method: 'PUT', body: JSON.stringify({ id }) });
 }
 
 export interface DeviceDeliveryStatus {

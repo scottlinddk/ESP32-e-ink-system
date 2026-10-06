@@ -152,6 +152,14 @@ class SchemaTests(unittest.TestCase):
                 with self.assertRaisesRegex(migrate.MigrationError, "missing columns"):
                     migrate.check_schema("user_preferences", [field for field in fields if field["name"] != name])
 
+    def test_default_device_column_is_required_and_has_no_foreign_key(self):
+        fields = schema("users")
+        self.assertEqual(next(field for field in fields if field["name"] == "default_device_id")["nullable"], True)
+        with self.assertRaisesRegex(migrate.MigrationError, "missing columns"):
+            migrate.check_schema("users", [field for field in fields if field["name"] != "default_device_id"])
+        # Users are copied before devices, so a users -> devices key would break import order.
+        self.assertFalse(any(item["type"] == "f" for item in migrate.EXPECTED_CONSTRAINTS["users"]))
+
     def test_display_timezone_default_must_be_copenhagen(self):
         fields = schema("user_preferences")
         zone = next(field for field in fields if field["name"] == "display_timezone")

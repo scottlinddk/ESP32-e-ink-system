@@ -21,6 +21,8 @@
 .dashboard-device-select select { width: 100%; min-width: 0; text-overflow: ellipsis; padding: 8px 34px 8px 11px; background-color: var(--color-bg); border: 1px solid var(--color-border); border-radius: 8px; color: var(--fg-1); font-size: 13px; }
 .dashboard-manage-link, .dashboard-text-button { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: var(--workspace-accent-fg); }
 .dashboard-manage-link { margin-left: auto; }
+.dashboard-default-button { flex-shrink: 0; white-space: nowrap; padding: 6px 0; }
+.dashboard-default-button:disabled { opacity: .6; cursor: progress; }
 .dashboard-manage-link .material-symbols-outlined, .dashboard-text-button .material-symbols-outlined { font-size: 17px; }
 .dashboard-workspace { margin-top: 25px; }
 .dashboard-workspace-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
@@ -117,6 +119,7 @@
   .dashboard-device-count { border: 0; padding: 0; }
   .dashboard-device-count small { display: inline; }
   .dashboard-device-select { order: 3; flex-basis: 100%; }
+  .dashboard-default-button { order: 4; }
   .dashboard-device-picker > .dashboard-manage-link { margin-left: auto; font-size: 11px; }
   .dashboard-metrics { gap: 10px; }
   .dashboard-metric-label { font-size: 10px; }

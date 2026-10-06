@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../lib/appContext';
 import { useAuth } from '../hooks/useAuth';
 import { usePreferences } from '../hooks/usePreferences';
-import { getDevices } from '../lib/api';
+import { getDevices, setDefaultDevice, type DeviceList } from '../lib/api';
+import { resolveDashboardDeviceId } from '../lib/deviceSelection';
 import { deviceLayoutPath } from '../lib/deviceLayouts';
 import { DEFAULT_DISPLAY_PROFILE } from '../lib/displayProfile';
 import { PreviewCard } from '../components/dashboard/PreviewCard';
@@ -30,16 +31,29 @@ export function DashboardPage() {
 }
 
 function AccountDashboard() {
-  const { t, lang } = useApp();
+  const { t, lang, toast } = useApp();
   const da = lang === 'da';
   const { getToken, user } = useAuth();
+  const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
-  const selectedId = params.get('device');
   const devices = useQuery({ queryKey: ['devices', user?.id], queryFn: async () => {
     const token = await getToken(); if (!token) throw new Error('Please sign in again.');
     return getDevices(token);
   } });
+  const defaultId = devices.data?.default_device_id ?? null;
+  const selectedId = resolveDashboardDeviceId(params.get('device'), devices.data?.devices, defaultId);
   const selected = devices.data?.devices.find((device) => device.id === selectedId);
+  const isDefault = !!selected && selected.id === defaultId;
+  const saveDefault = useMutation({
+    mutationFn: async (id: string | null) => {
+      const token = await getToken(); if (!token) throw new Error('Please sign in again.');
+      return setDefaultDevice(token, id);
+    },
+    onSuccess: ({ default_device_id }) => {
+      queryClient.setQueryData<DeviceList>(['devices', user?.id], (current) => current && { ...current, default_device_id });
+    },
+    onError: () => toast({ type: 'error', title: da ? 'Standardenheden blev ikke gemt. Prøv igen.' : 'The default device was not saved. Try again.' }),
+  });
 
   return (
     <div className="dashboard-page animate-fade-up">
@@ -60,11 +74,19 @@ function AccountDashboard() {
         <label className="dashboard-device-select">{da ? 'Enhed der redigeres og forhåndsvises' : 'Device to edit and preview'}
           <select className="select-native" value={selectedId ?? ''} disabled={devices.isPending || devices.isError}
             onChange={(event) => { const next = new URLSearchParams(params); if (event.target.value) next.set('device', event.target.value); else next.delete('device'); setParams(next); }}>
-            <option value="">{da ? 'Vælg en enhed…' : 'Select a device…'}</option>
+            {!selectedId && <option value="">{da ? 'Vælg en enhed…' : 'Select a device…'}</option>}
             {selectedId && !selected && <option value={selectedId}>{da ? 'Enheden er ikke tilgængelig' : 'Device unavailable'}</option>}
-            {devices.data?.devices.map((device) => <option key={device.id} value={device.id}>{device.device_name} · {device.device_id} · {device.id.slice(0, 8)}</option>)}
+            {devices.data?.devices.map((device) => <option key={device.id} value={device.id}>{device.device_name} · {device.device_id} · {device.id.slice(0, 8)}{device.id === defaultId ? (da ? ' · Standard' : ' · Default') : ''}</option>)}
           </select>
         </label>
+        {/* A lone device always opens, so a default only matters with a choice to make. */}
+        {selected && (devices.data?.devices.length ?? 0) > 1 && <button type="button" className="dashboard-text-button dashboard-default-button"
+          aria-pressed={isDefault} disabled={saveDefault.isPending} onClick={() => saveDefault.mutate(isDefault ? null : selected.id)}
+          title={isDefault ? (da ? 'Åbner automatisk på dashboardet. Klik for at fjerne.' : 'Opens automatically on the dashboard. Click to remove.')
+            : (da ? 'Åbn denne enhed automatisk på dashboardet.' : 'Open this device automatically on the dashboard.')}>
+          <Icon name={isDefault ? 'check_circle' : 'star'} />
+          {isDefault ? (da ? 'Standardenhed' : 'Default device') : (da ? 'Gør til standard' : 'Make default')}
+        </button>}
         <Link to="/devices" className="dashboard-manage-link">{da ? 'Administrér enheder' : 'Manage devices'}<Icon name="arrow_forward" /></Link>
       </section>
       {devices.isPending && <p className="dashboard-notice" role="status">{t.loadingDevices}</p>}

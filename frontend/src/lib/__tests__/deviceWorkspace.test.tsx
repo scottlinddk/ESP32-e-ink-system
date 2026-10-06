@@ -15,9 +15,12 @@ vi.mock('../appContext', () => ({ useApp: () => ({ t: STRINGS[session.lang], lan
 vi.mock('../../components/dashboard/DeviceDeliveryCard', () => ({ DeviceDeliveryCard: () => null }));
 beforeEach(() => { session.userId = 'alice'; session.signedIn = true; session.lang = 'en'; });
 
-function render(path: string, content: React.ReactNode = <DashboardPage />, failed = false) {
+const KITCHEN = { id: 'kitchen', device_name: 'Kitchen display', device_id: 'hardware' };
+const OFFICE = { id: 'office', device_name: 'Office display', device_id: 'other' };
+function render(path: string, content: React.ReactNode = <DashboardPage />, failed = false,
+  deviceList: { devices: unknown[]; default_device_id?: string | null } = { devices: [KITCHEN, OFFICE] }) {
   const client = new QueryClient();
-  client.setQueryData(['devices', 'alice'], { devices: [{ id: 'kitchen', device_name: 'Kitchen display', device_id: 'hardware' }, { id: 'office', device_name: 'Office display', device_id: 'other' }] });
+  client.setQueryData(['devices', 'alice'], deviceList);
   client.setQueryData(['preferences', 'alice'], { layout: DEFAULT_LAYOUT });
   for (const id of ['kitchen', 'office']) client.setQueryData(['preferences', 'alice', id], { layout: DEFAULT_LAYOUT, display_timezone: 'UTC',
     active_layout_id: `${id}-one`, display_schedule: { enabled: false, timezone: 'UTC', quiet_hours: { enabled: false, start: '22:00', end: '07:00' },
@@ -46,6 +49,34 @@ describe('selected device workspaces', () => {
     expect(html).not.toContain('office saved layout');
     expect(html).not.toContain('Saved layouts on this device');
     expect(html).toContain(path.includes('foreign') ? 'This device is not available on your account' : 'Choose a device to see its layouts');
+  });
+  it('opens a lone device without asking', () => {
+    const html = render('/dashboard', undefined, false, { devices: [KITCHEN] });
+    expect(html).toContain('Device: Kitchen display');
+    expect(html).toContain('kitchen saved layout');
+    expect(html).not.toContain('Select a device…');
+    // A lone device always opens, so there is no default to choose.
+    expect(html).not.toContain('Make default');
+  });
+  it('opens the saved default device and marks it', () => {
+    const html = render('/dashboard', undefined, false, { devices: [KITCHEN, OFFICE], default_device_id: 'office' });
+    expect(html).toContain('Device: Office display');
+    expect(html).toContain('Office display · other · office · Default');
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain('Default device');
+  });
+  it('lets an explicit or stale ?device= win over the default', () => {
+    const chosen = render('/dashboard?device=kitchen', undefined, false, { devices: [KITCHEN, OFFICE], default_device_id: 'office' });
+    expect(chosen).toContain('Device: Kitchen display');
+    expect(chosen).toContain('aria-pressed="false"');
+    expect(chosen).toContain('Make default');
+    const stale = render('/dashboard?device=foreign', undefined, false, { devices: [KITCHEN], default_device_id: 'kitchen' });
+    expect(stale).toContain('This device is not available on your account');
+    expect(stale).not.toContain('kitchen saved layout');
+  });
+  it('ignores a default that is no longer in the device list', () => {
+    const html = render('/dashboard', undefined, false, { devices: [KITCHEN, OFFICE], default_device_id: 'gone' });
+    expect(html).toContain('Choose a device to see its layouts');
   });
   it('hides device forms and preview when its settings fail to load, even with cached data', () => {
     const html = render('/dashboard?device=kitchen', undefined, true);

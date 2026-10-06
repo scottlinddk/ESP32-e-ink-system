@@ -216,9 +216,20 @@ List all devices paired to the authenticated user.
       "firmware_version": "1.0.0",
       "last_seen_at": "2024-01-15T14:30:00.000Z"
     }
-  ]
+  ],
+  "default_device_id": "uuid"
 }
 ```
+
+`default_device_id` is the device the dashboard opens when the URL names none. It is `null` when unset, and also when the stored device was deleted or now belongs to another account. Without a default, an account with exactly one device opens that device; an explicit `?device=` always wins.
+
+### PUT /api/devices/default
+
+Set or clear the dashboard's default device. Body: `{ "id": "uuid" }`, or `{ "id": null }` to clear.
+
+**Response 200:** `{ "default_device_id": "uuid" }`. **400** when `id` is neither a UUID nor `null`; **404** when the device does not belong to the user.
+
+Apply `backend/src/db/migrations/022_default_device.sql` before deploying.
 
 ### POST /api/devices
 

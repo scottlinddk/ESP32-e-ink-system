@@ -8,7 +8,11 @@ import {
   createDevice,
   updateDeviceName,
   deleteDevice,
+  getDefaultDeviceId,
+  setDefaultDeviceId,
 } from '../services/database';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * @swagger
@@ -34,6 +38,11 @@ import {
  *                   type: array
  *                   items:
  *                     $ref: '#/components/schemas/Device'
+ *                 default_device_id:
+ *                   type: string
+ *                   format: uuid
+ *                   nullable: true
+ *                   description: The device the dashboard opens by default; null when unset or no longer owned
  *       401:
  *         description: Unauthorized
  *         content:
@@ -184,8 +193,10 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = await resolveUserId(req.clerkUserId!);
-      const devices = await getDevices(userId);
-      res.json({ devices });
+      const [devices, defaultId] = await Promise.all([getDevices(userId), getDefaultDeviceId(userId)]);
+      // A device reassigned to another account must not stay its previous owner's default.
+      const default_device_id = devices.some((device) => device.id === defaultId) ? defaultId : null;
+      res.json({ devices, default_device_id });
     } catch (err) {
       next(err);
     }
@@ -217,6 +228,58 @@ router.post(
 
       const device = await createDevice(userId, hardwareId, device_name.trim(), ble_name?.trim() ?? null);
       res.status(201).json({ device });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/devices/default:
+ *   put:
+ *     summary: Set or clear the device the dashboard opens by default
+ *     tags: [Devices]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [id]
+ *             properties:
+ *               id:
+ *                 type: string
+ *                 format: uuid
+ *                 nullable: true
+ *                 description: The device UUID, or null to clear the default
+ *     responses:
+ *       200:
+ *         description: '{ "default_device_id": "<uuid>" | null }'
+ *       400:
+ *         description: id is not a UUID or null
+ *       404:
+ *         description: The device does not belong to the user
+ */
+// Registered before /:id so "default" is never read as a device ID.
+router.put(
+  '/default',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = (req.body as { id?: unknown } | undefined)?.id;
+      if (id !== null && (typeof id !== 'string' || !UUID.test(id))) {
+        res.status(400).json({ error: 'id must be a device UUID or null' });
+        return;
+      }
+      const userId = await resolveUserId(req.clerkUserId!);
+      if (!(await setDefaultDeviceId(userId, id))) {
+        res.status(404).json({ error: 'Device not found' });
+        return;
+      }
+      res.json({ default_device_id: id });
     } catch (err) {
       next(err);
     }
