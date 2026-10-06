@@ -354,6 +354,13 @@ ALTER TABLE user_preferences
 -- ------------------------------------------------------------
 ALTER TABLE users ADD COLUMN IF NOT EXISTS default_device_id UUID;
 
+-- ------------------------------------------------------------
+-- 023_ticker_widgets.sql
+-- ------------------------------------------------------------
+ALTER TABLE user_preferences
+  ADD COLUMN IF NOT EXISTS ticker_widgets JSONB NOT NULL DEFAULT '[]'::jsonb
+    CHECK (jsonb_typeof(ticker_widgets) = 'array' AND jsonb_array_length(ticker_widgets) <= 6 AND octet_length(ticker_widgets::text) <= 16000);
+
 COMMIT;
 
 -- Run afterwards as a separate statement so PostgREST sees the new tables:

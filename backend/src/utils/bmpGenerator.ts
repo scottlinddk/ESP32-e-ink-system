@@ -1,5 +1,5 @@
 import { parseDisplayProfile, DisplayProfile } from './displayProfile';
-import { DisplayData, DisplayLayout, UserPreferences, WidgetLayout } from '../types/index';
+import { DisplayData, DisplayLayout, TickerWidgetSetting, UserPreferences, WidgetLayout } from '../types/index';
 import { bitmapGlyph, normalizeBitmapText, wrapBitmapText } from './bitmapText';
 import { drawCustomImage } from './customContent';
 import { renderWebhookWidget } from './webhookRenderer';
@@ -8,6 +8,9 @@ import { WEATHER_ERROR_LABELS } from './weatherErrors';
 import { ENERGY_PRICE_ERROR_LABELS } from './energyPriceErrors';
 import { NEWS_ERROR_LABELS } from './newsErrors';
 import { newsFeedIdFromWidget } from './newsFeeds';
+import { storedTickerWidgets, tickerIdFromWidget } from './tickerWidgets';
+import { renderTicker, renderTickerUnavailable, type TickerResult } from '../ticker';
+import type { RenderedWidget } from '../ticker/render';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -181,22 +184,26 @@ export class BmpCanvas {
     }
   }
 
-  drawChar(ch: number, x: number, y: number): void {
+  // `scale` enlarges the 8x8 font by a whole number; `maxWidth` is in output pixels.
+  drawChar(ch: number, x: number, y: number, scale = 1): void {
     const glyph = bitmapGlyph(ch, FONT8X8);
     for (let row = 0; row < 8; row++) {
       const byte = glyph[row];
       for (let col = 0; col < 8; col++) {
-        if (byte & (1 << col)) this.setPixel(x + col, y + row, true);
+        if (!(byte & (1 << col))) continue;
+        if (scale === 1) this.setPixel(x + col, y + row, true);
+        else this.fillRect(x + col * scale, y + row * scale, scale, scale);
       }
     }
   }
 
-  drawText(text: string, x: number, y: number, maxWidth = this.width): void {
+  drawText(text: string, x: number, y: number, maxWidth = this.width, scale = 1): void {
+    const step = 8 * scale;
     let cx = x;
     for (const ch of normalizeBitmapText(text)) {
-      if (cx + 8 > x + maxWidth || cx + 8 > this.width) break;
-      this.drawChar(ch.codePointAt(0)!, cx, y);
-      cx += 8;
+      if (cx + step > x + maxWidth || cx + step > this.width) break;
+      this.drawChar(ch.codePointAt(0)!, cx, y, scale);
+      cx += step;
     }
   }
 
@@ -534,6 +541,36 @@ function renderStatusWidget(
   canvas.drawText(`Refresh: ${refreshMin}min  ${timeStr}`, x + 2, statusY, width - 4);
 }
 
+/** Draws a ticker view's elements, offset to the widget. Text sizes are whole multiples of the 8x8 font. */
+function drawRenderedWidget(canvas: BmpCanvas, bounds: WidgetBounds, rendered: RenderedWidget): void {
+  for (const element of rendered.elements) {
+    const x = bounds.x + element.x;
+    const y = bounds.y + element.y;
+    if (element.kind === 'text') {
+      canvas.drawText(element.text, x, y, bounds.x + bounds.width - x, Math.max(1, Math.round(element.fontSize / 8)));
+    } else if (element.kind === 'hline') {
+      canvas.drawHLine(x, y, element.width);
+    } else if (element.fill) {
+      canvas.fillRect(x, y, element.width, element.height);
+    }
+  }
+}
+
+function renderTickerWidget(
+  canvas: BmpCanvas,
+  bounds: WidgetBounds,
+  setting: TickerWidgetSetting | undefined,
+  result: TickerResult | undefined,
+  timezone: string
+): void {
+  const region = { widthPx: bounds.width, heightPx: bounds.height };
+  // A removed widget has no setting; it renders as unavailable until it is removed from the layout.
+  const rendered = setting && result && 'snapshot' in result
+    ? renderTicker(setting, result.snapshot, region, timezone)
+    : renderTickerUnavailable(region, result && 'error' in result ? result.error : undefined);
+  drawRenderedWidget(canvas, bounds, rendered);
+}
+
 // ── Main render entry point ───────────────────────────────────────────────────
 
 const WIDGET_ENABLED_SETTING = {
@@ -542,7 +579,7 @@ const WIDGET_ENABLED_SETTING = {
   'custom-text': 'show_custom_text', 'custom-image': 'show_custom_image', 'custom-webhook': 'show_custom_webhook',
 } as const;
 type RenderPreferences = Partial<Pick<UserPreferences,
-  'monta_fields' | 'zaptec_fields' | 'display_profile' | 'display_timezone'
+  'monta_fields' | 'zaptec_fields' | 'display_profile' | 'display_timezone' | 'ticker_widgets'
   | typeof WIDGET_ENABLED_SETTING[keyof typeof WIDGET_ENABLED_SETTING]>>;
 
 function populateCanvas(
@@ -557,7 +594,13 @@ function populateCanvas(
     const setting = feedId ? 'show_news' : WIDGET_ENABLED_SETTING[widget.i as keyof typeof WIDGET_ENABLED_SETTING];
     if (setting && preferences?.[setting] === false) continue;
     const bounds = getWidgetBounds(widget, canvas);
+    const tickerId = tickerIdFromWidget(widget.i);
     canvas.withClip(bounds, () => {
+      if (tickerId) {
+        const setting = storedTickerWidgets(preferences?.ticker_widgets).find((item) => item.id === tickerId);
+        renderTickerWidget(canvas, bounds, setting, data.tickers?.[tickerId], preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE);
+        return;
+      }
       if (feedId) {
         // A removed feed has no result; it renders as unavailable until the widget is removed.
         const feed = data.newsFeeds?.[feedId];

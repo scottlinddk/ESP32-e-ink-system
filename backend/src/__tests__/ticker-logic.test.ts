@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { configSchema } from '../widgets/ticker/config';
-import { directionOf } from '../widgets/ticker/direction';
-import { displaySymbol, formatChange, formatClock, formatNumber, formatPercent, formatPrice } from '../widgets/ticker/format';
-import { aggregateStatus, marketStateAt } from '../widgets/ticker/marketStatus';
-import { pickPage } from '../widgets/ticker/rotation';
-import { arrowElements, sparklineElements } from '../widgets/ticker/sparkline';
+import { directionOf } from '../ticker/direction';
+import { displaySymbol, formatChange, formatClock, formatNumber, formatPercent, formatPrice } from '../ticker/format';
+import { aggregateStatus, marketStateAt } from '../ticker/marketStatus';
+import { pickPage } from '../ticker/rotation';
+import { arrowElements, sparklineElements } from '../ticker/sparkline';
 
 describe('directionOf', () => {
   it.each([[1.2, 'up'], [-0.01, 'down'], [0, 'flat'], [0.004, 'flat'], [-0.004, 'flat'], [NaN, 'flat']] as const)('%s is %s', (value, expected) => {
@@ -82,20 +81,6 @@ describe('market status', () => {
     expect(aggregateStatus(['OPEN', 'OPEN'])).toBe('OPEN');
     expect(aggregateStatus(['OPEN', 'CLOSED'])).toBe('MIXED');
     expect(aggregateStatus([])).toBe('CLOSED');
-  });
-});
-
-describe('config', () => {
-  it('normalises, deduplicates and applies defaults', () => {
-    const parsed = configSchema.parse({ symbols: [' novo-b.co ', 'NOVO-B.CO', 'nvda'] });
-    expect(parsed).toMatchObject({ symbols: ['NOVO-B.CO', 'NVDA'], view: 'full', dwellMinutes: 15, locale: 'da', timeZone: 'Europe/Copenhagen' });
-  });
-  it.each([
-    [{ symbols: [] }], [{ symbols: ['bad symbol'] }], [{ symbols: ['../x'] }],
-    [{ symbols: Array.from({ length: 11 }, (_, i) => `S${i}`) }],
-    [{ symbols: ['A'], view: 'wide' }], [{ symbols: ['A'], perPage: 0 }], [{ symbols: ['A'], timeZone: 'Mars/Base' }],
-  ])('rejects %j', (input) => {
-    expect(configSchema.safeParse(input).success).toBe(false);
   });
 });
 

@@ -1,6 +1,7 @@
 import type { Preferences, UserPreferences } from '../types';
 import { energyPriceSettingsForSave } from './energyPriceSettings';
 import { newsFeedsForSave } from './newsFeeds';
+import { tickerWidgetsForSave } from './tickerWidgets';
 
 // A local edit takes precedence until saved or discarded. Other cards can save
 // preferences without replacing this form's unfinished work.
@@ -12,6 +13,7 @@ export function sourcePreferences(saved: Partial<UserPreferences> = {}, draft?: 
     monta: { on: saved.show_monta ?? false, fields: saved.monta_fields ?? ['charger_status', 'active_session'] },
     zaptec: { on: saved.show_zaptec ?? false, fields: saved.zaptec_fields ?? ['charger_status', 'active_session'] },
     notion: { on: saved.show_notion ?? false },
+    tickers: saved.ticker_widgets ?? [],
   };
 }
 
@@ -34,5 +36,6 @@ export function sourcePreferencesToApi(prefs: Preferences): Partial<UserPreferen
     show_monta: prefs.monta.on, monta_fields: prefs.monta.fields,
     show_zaptec: prefs.zaptec.on, zaptec_fields: prefs.zaptec.fields,
     show_notion: prefs.notion.on,
+    ticker_widgets: tickerWidgetsForSave(prefs.tickers),
   };
 }

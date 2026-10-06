@@ -43,6 +43,27 @@ export interface NewsFeed {
   item_limit: number;
 }
 
+export type TickerView = 'full' | 'condensed';
+
+/** A stock ticker widget. The layout widget ID is `ticker:<id>`. Mirrors backend/src/utils/tickerWidgets.ts. */
+export interface TickerWidgetSetting {
+  id: string;
+  name: string;
+  symbols: string[];
+  view: TickerView;
+  per_page: number | null;
+  dwell_minutes: number;
+  locale: 'da' | 'en';
+}
+
+export interface TickerSearchResult {
+  symbol: string;
+  name: string;
+  exchange: string;
+  exchangeName: string;
+  type: string;
+}
+
 export type EnergyPriceSettings = { mode: 'spot' } | {
   mode: 'consumer';
   gridGln: string;
@@ -76,6 +97,7 @@ export interface UserPreferences {
   news_item_limit?: number;
   /** Additional RSS/Atom feeds, each placed as its own `news:<id>` widget. */
   news_feeds?: NewsFeed[];
+  ticker_widgets?: TickerWidgetSetting[];
   refresh_interval_minutes: number;
   layout: DisplayLayout | null;
   monta_fields: string[];
@@ -173,6 +195,7 @@ export interface Preferences {
   monta: { on: boolean; fields: string[] };
   zaptec: { on: boolean; fields: string[] };
   notion: { on: boolean };
+  tickers: TickerWidgetSetting[];
 }
 
 export interface AppDevice {

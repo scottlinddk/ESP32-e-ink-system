@@ -310,6 +310,24 @@ and the API ignores an ID that is not one of the user's devices. No gateway
 allowlist change is needed. Apply 022 before deploying the backend that reads the
 column. Do not rerun 022 once the column exists.
 
+
+## Upgrade an existing database for stock ticker widgets (023)
+
+After the existing database has migration 022, back it up and apply
+`023_ticker_widgets.sql`. It adds one `NOT NULL DEFAULT '[]'` JSONB column to
+`user_preferences`, so existing accounts have no ticker widgets.
+
+```sh
+eink exec -T postgres psql -X -U eink_admin -d eink --single-transaction \
+  --set ON_ERROR_STOP=1 --file /migrations/023_ticker_widgets.sql \
+  --file /docker-entrypoint-initdb.d/permissions.sql
+```
+
+No gateway allowlist change is needed. Apply 023 before deploying the backend that
+saves ticker widgets. Do not rerun 023 once the column exists. Current
+export/import validation requires the column, so restore older backups with their
+matching tools first.
+
 ## Migration gates and data scope (source only)
 
 Applies only when a live source database exists. The transfer allowlist is `users`, `user_preferences`, `api_keys`, `devices`,

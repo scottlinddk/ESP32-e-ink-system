@@ -16,6 +16,7 @@ import firmwareRouter from './routes/firmware';
 import imageRouter from './routes/image';
 import { feedRouter, managementRouter as deliveryManagementRouter } from './routes/deviceDelivery';
 import customWebhookRouter from './routes/custom-webhook';
+import tickersRouter from './routes/tickers';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { swaggerSpec } from './swagger';
 
@@ -89,6 +90,7 @@ const displayLimiter = createRateLimiter(
 // one public IP do not spend the browser/dashboard request allowance.
 app.use((req, res, next) => req.path.startsWith('/device-feed/') ? next() : globalLimiter(req, res, next));
 app.use('/image', displayLimiter);
+app.use('/tickers', createRateLimiter(30, '1 m', 'Too many ticker searches, please try again shortly.', 'ticker-search'));
 
 // Body parsing
 // A 512x512 one-bit custom image fits within this bounded preferences payload.
@@ -111,6 +113,7 @@ app.use('/firmware', firmwareRouter);
 app.use('/preview', displayDataRouter);
 app.use('/image', imageRouter);
 app.use('/custom-webhook', customWebhookRouter);
+app.use('/tickers', tickersRouter);
 
 // Checkout stub
 app.post('/checkout', (_req, res) => {

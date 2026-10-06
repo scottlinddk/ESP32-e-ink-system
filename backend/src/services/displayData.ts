@@ -16,6 +16,8 @@ import { weatherProblem } from '../utils/weatherErrors';
 import { newsProblem } from '../utils/newsErrors';
 import { energyPriceProblem } from '../utils/energyPriceErrors';
 import { storedNewsFeeds } from '../utils/newsFeeds';
+import { storedTickerWidgets } from '../utils/tickerWidgets';
+import { loadTickerSnapshots } from '../ticker';
 
 // JSON previews and display images use the same enabled sources. A failed
 // source stays absent so an unavailable reading is never presented as live data.
@@ -46,6 +48,7 @@ export const DEFAULT_PREFS: UserPreferences = {
   news_feed_url: '',
   news_item_limit: 3,
   news_feeds: [],
+  ticker_widgets: [],
   refresh_interval_minutes: 30,
   layout: null,
   monta_fields: ['charger_status', 'active_session'],
@@ -166,6 +169,15 @@ export async function buildDisplayData(
           })
       );
     }
+  }
+
+  // Ticker widgets have no on/off switch: a configured widget is loaded and only
+  // drawn when a layout places it. Symbols are shared and cached, so this stays cheap.
+  const tickerWidgets = storedTickerWidgets(prefs.ticker_widgets);
+  if (tickerWidgets.length) {
+    tasks.push(withSourceDeadline(() => loadTickerSnapshots(tickerWidgets))
+      .then((tickers) => { result.tickers = tickers; })
+      .catch(() => { logger.warn('Ticker widgets are unavailable'); }));
   }
 
   if (prefs.show_monta) {

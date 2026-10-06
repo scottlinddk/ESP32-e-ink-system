@@ -1,7 +1,7 @@
 import { DisplayProfile, frameMetadata } from './displayProfile';
 import { buildAuthHeaders } from './auth';
 import { readPreviewMetadata, type PreviewImage } from './previewMetadata';
-import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout, CustomWebhookStatus, WeatherData, EnergyPrice, EnergyPriceSettings } from '../types';
+import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout, CustomWebhookStatus, WeatherData, EnergyPrice, EnergyPriceSettings, TickerSearchResult } from '../types';
 
 // Both Vercel and Vite route /api/* to the backend and strip the /api prefix.
 // VITE_API_BASE_URL configures Vite's proxy target, not a browser URL.
@@ -150,6 +150,14 @@ export function importDisplayTemplate(token: string, template: DisplayTemplate):
 }
 export function getStarterTemplates(token: string): Promise<{ templates: StarterTemplate[] }> {
   return request('/api/preferences/templates/starters', { token });
+}
+
+// ============================================================
+// Stock tickers
+// ============================================================
+
+export function searchTickers(token: string, query: string, region: 'any' | 'dk', signal?: AbortSignal): Promise<{ results: TickerSearchResult[] }> {
+  return request(`/api/tickers/search?q=${encodeURIComponent(query)}&region=${region}`, { token, signal });
 }
 
 // ============================================================

@@ -19,6 +19,8 @@ import { EnergyPriceSettingsFields } from './EnergyPriceSettingsFields';
 import { EnergyPriceTest } from './EnergyPriceTest';
 import { WeatherTest } from './WeatherTest';
 import { NewsFeedsFields } from './NewsFeedsFields';
+import { TickerWidgetsFields } from './TickerWidgetsFields';
+import { tickersMissingSymbols } from '../../lib/tickerWidgets';
 import { formatWeatherCoordinates } from '../../lib/weatherTest';
 import { energyPriceSettingsForSave, validEnergyPriceSettings } from '../../lib/energyPriceSettings';
 const MONTA_FIELDS = [
@@ -111,6 +113,12 @@ export function DisplayCard() {
       app.toast({ type: 'error', title: t.saveFailed, msg: app.lang === 'da'
         ? 'Angiv en HTTPS-adresse for hvert ekstra nyhedsfeed, eller fjern det.'
         : 'Enter an HTTPS address for each additional news feed, or remove it.' });
+      return;
+    }
+    if (tickersMissingSymbols(p.tickers)) {
+      app.toast({ type: 'error', title: t.saveFailed, msg: app.lang === 'da'
+        ? 'Tilføj mindst én aktie til hver aktiewidget, eller fjern den.'
+        : 'Add at least one stock to each stock widget, or remove it.' });
       return;
     }
     savePrefs.mutate(sourcePreferencesToApi(p), {
@@ -362,6 +370,10 @@ export function DisplayCard() {
               ))}
             </div>
           </SourceRow>
+
+          <div className="border border-border rounded-md px-4 py-3.5">
+            <TickerWidgetsFields tickers={p.tickers} onChange={(tickers) => set({ tickers })} />
+          </div>
         </fieldset>
       )}
     </Card>

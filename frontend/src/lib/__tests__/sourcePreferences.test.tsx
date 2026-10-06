@@ -50,6 +50,19 @@ describe('source settings drafts', () => {
     for (const key of ['news_source', 'news_feed_url', 'news_language', 'news_item_limit', 'news_feeds']) expect(payload).not.toHaveProperty(key);
   });
 
+  it('round-trips stock ticker widgets and saves them without a hidden page size', () => {
+    const tickers = [{ id: 'dk', name: 'Danske', symbols: ['NOVO-B.CO'], view: 'condensed' as const, per_page: 2, dwell_minutes: 15, locale: 'da' as const }];
+    expect(sourcePreferences(saved).tickers).toEqual([]);
+    const form = sourcePreferences({ ...saved, ticker_widgets: tickers });
+    expect(form.tickers).toEqual(tickers);
+    form.tickers = [{ ...form.tickers[0], name: ' Mine ', view: 'full' }];
+    expect(sourcePreferencesToApi(form).ticker_widgets).toEqual([{ ...tickers[0], name: 'Mine', view: 'full', per_page: null }]);
+  });
+  it('keeps ticker widgets when news is turned off', () => {
+    const form = sourcePreferences({ ...saved, ticker_widgets: [{ id: 'a', name: '', symbols: ['NVDA'], view: 'full', per_page: null, dwell_minutes: 15, locale: 'en' }] });
+    form.news = { ...form.news, on: false };
+    expect(sourcePreferencesToApi(form).ticker_widgets).toHaveLength(1);
+  });
   it('round-trips additional news feeds and trims them for saving', () => {
     const feeds = [{ id: 'dr', name: 'DR', feed_url: 'https://www.dr.dk/nyheder/service/feeds/allenyheder', item_limit: 3 }];
     expect(sourcePreferences(saved).news.feeds).toEqual([]);
