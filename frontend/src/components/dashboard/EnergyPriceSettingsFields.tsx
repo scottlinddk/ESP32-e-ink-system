@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../../lib/appContext';
-import { GRID_PRESETS, parseDecimalInput, parseGridChargeCodes } from '../../lib/energyPriceSettings';
+import { GRID_PRESETS, gridPresetMismatch, parseDecimalInput, parseGridChargeCodes, type GridPreset } from '../../lib/energyPriceSettings';
 import type { EnergyPriceSettings } from '../../types';
 import { Field } from '../ui/Field';
 import { Input } from '../ui/input';
 import { Select } from '../ui/select';
+import { Button } from '../ui/button';
 
 export function EnergyPriceSettingsFields({ settings, onChange, onZoneChange }: {
   settings: EnergyPriceSettings;
@@ -32,6 +33,9 @@ export function EnergyPriceSettingsFields({ settings, onChange, onZoneChange }: 
   const preset = settings.mode === 'consumer'
     ? GRID_PRESETS.find((grid) => grid.gln === settings.gridGln && settings.gridChargeCodes.length === 1 && grid.code === settings.gridChargeCodes[0])
     : undefined;
+  const mismatch = gridPresetMismatch(settings);
+  const applyPreset = (grid: GridPreset) => onZoneChange(grid.zone,
+    { mode: 'consumer', gridGln: grid.gln, gridChargeCodes: [grid.code], retailerMarkupOre: markup });
 
   return <div className="grid gap-3.5">
     <Field label={da ? 'Pristype' : 'Price basis'} htmlFor="energy-price-mode">
@@ -70,6 +74,25 @@ export function EnergyPriceSettingsFields({ settings, onChange, onZoneChange }: 
             }} />
         </Field>
       </div>
+      {mismatch && <div role="status" className="grid gap-2">
+        <p className="text-xs text-warning m-0">
+          {mismatch.glnPreset && (da
+            ? `GLN ${mismatch.glnPreset.gln} er ${mismatch.glnPreset.name}, hvis tarifkode for private er ${mismatch.glnPreset.code}. Den er ikke blandt dine koder. `
+            : `GLN ${mismatch.glnPreset.gln} is ${mismatch.glnPreset.name}, whose household tariff code is ${mismatch.glnPreset.code}. It is not among your codes. `)}
+          {mismatch.codePresets.map((grid) => da
+            ? `Koden ${grid.code} hører til ${grid.name} (GLN ${grid.gln}), ikke til dette GLN. `
+            : `Code ${grid.code} belongs to ${grid.name} (GLN ${grid.gln}), not this GLN. `).join('')}
+          {da
+            ? 'GLN og tarifkoder skal komme fra samme netselskab og netområde, ellers kan prisen ikke beregnes. Vælg det, der passer til din regning.'
+            : 'The GLN and tariff codes must come from the same grid company and area, or the price cannot be calculated. Choose the one that matches your bill.'}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {[...(mismatch.glnPreset ? [mismatch.glnPreset] : []), ...mismatch.codePresets].map((grid) =>
+            <Button key={grid.gln} variant="outlined" size="sm" onClick={() => applyPreset(grid)}>
+              {da ? `Brug ${grid.name}` : `Use ${grid.name}`}
+            </Button>)}
+        </div>
+      </div>}
       <p className="text-xs text-fg2 m-0">{da
         ? 'Egne oplysninger: vælg 1–5 tarifkoder for dit netselskab. Alle koder lægges sammen og skal have en gældende tarif; manglende eller udløbne koder giver ingen pris.'
         : 'Custom details: choose 1–5 tariff codes for your grid company. All codes are added together and must have a current tariff; missing or expired codes make the price unavailable.'}</p>

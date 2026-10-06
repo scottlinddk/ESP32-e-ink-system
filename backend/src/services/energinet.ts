@@ -1,6 +1,7 @@
 import { EnergyPrice, CacheEntry } from '../types/index';
 import { EnergyPriceSettings, parseEnergyPriceSettings } from '../utils/energyPriceSettings';
 import { fetchDanishDaySpot, SpotInterval } from './elprisenligenu';
+import { EnergyPriceSourceError } from '../utils/energyPriceErrors';
 
 const BASE_URL = 'https://api.energidataservice.dk/dataset/';
 const NATIONAL_GLN = '5790000432752';
@@ -53,21 +54,21 @@ async function fetchSpot(priceArea: string): Promise<SpotInterval[]> {
   try { return await promise; } finally { pendingSpot.delete(priceArea); }
 }
 
-function tariffTotal(records: TariffRecord[], codes: string[], instant: number): number {
+function tariffTotal(records: TariffRecord[], gln: string, codes: string[], instant: number): number {
   const day = danishDate.format(instant);
   const hour = Number(danishHour.format(instant));
-  return codes.reduce((sum, code) => {
-    // ValidTo is exclusive; validity fields are Danish dates, not UTC instants.
-    const active = records.filter((r) => r.ChargeTypeCode === code
-      && r.ValidFrom.slice(0, 10) <= day && (r.ValidTo === null || day < r.ValidTo.slice(0, 10)))
-      .sort((a, b) => b.ValidFrom.localeCompare(a.ValidFrom))[0];
-    if (!active) throw new Error(`No active electricity tariff for ${code} on ${day}`);
-    if (!['P1D', 'PT1H'].includes(active.ResolutionDuration)) {
-      throw new Error(`Unsupported electricity tariff resolution for ${code}`);
-    }
+  // ValidTo is exclusive; validity fields are Danish dates, not UTC instants.
+  const active = codes.map((code) => records.filter((r) => r.ChargeTypeCode === code
+    && r.ValidFrom.slice(0, 10) <= day && (r.ValidTo === null || day < r.ValidTo.slice(0, 10)))
+    .sort((a, b) => b.ValidFrom.localeCompare(a.ValidFrom))[0]);
+  // Report every missing code at once so a GLN/code mismatch is fixed in one attempt.
+  const missing = codes.filter((_, index) => !active[index]);
+  if (missing.length) throw new EnergyPriceSourceError('missing_tariff', missing, gln);
+  return active.reduce((sum, tariff) => {
+    if (!['P1D', 'PT1H'].includes(tariff.ResolutionDuration)) throw new EnergyPriceSourceError('invalid_response');
     // A null hourly slot uses Price1; zero and negative tariffs remain valid.
-    const price = active.ResolutionDuration === 'P1D' ? active.Price1 : active[`Price${hour + 1}`] ?? active.Price1;
-    if (typeof price !== 'number' || !Number.isFinite(price)) throw new Error(`Invalid electricity tariff for ${code}`);
+    const price = tariff.ResolutionDuration === 'P1D' ? tariff.Price1 : tariff[`Price${hour + 1}`] ?? tariff.Price1;
+    if (typeof price !== 'number' || !Number.isFinite(price)) throw new EnergyPriceSourceError('invalid_response');
     return sum + price * 100; // Published DKK/kWh excluding VAT -> øre/kWh.
   }, 0);
 }
@@ -94,7 +95,7 @@ async function fetchTariffs(gln: string, codes: string[]): Promise<TariffRecord[
       .filter((r: TariffRecord) => r && r.GLN_Number === gln && r.ChargeType === 'D03'
         && codes.includes(r.ChargeTypeCode) && typeof r.ValidFrom === 'string' && dateField.test(r.ValidFrom)
         && (r.ValidTo === null || typeof r.ValidTo === 'string' && dateField.test(r.ValidTo)));
-    tariffTotal(records, codes, Date.now()); // Never cache a missing/invalid required charge.
+    tariffTotal(records, gln, codes, Date.now()); // Never cache a missing/invalid required charge.
     for (const [oldKey, entry] of tariffCache) if (entry.day !== day) tariffCache.delete(oldKey);
     tariffCache.set(key, { day, records });
     return records;
@@ -108,18 +109,23 @@ export async function fetchEnergyPrice(
 ): Promise<EnergyPrice> {
   const requestSignal = signal ?? AbortSignal.timeout(10_000);
   requestSignal.throwIfAborted();
-  if (priceArea !== 'DK1' && priceArea !== 'DK2') throw new Error('Energy price area must be DK1 or DK2');
-  const settings = parseEnergyPriceSettings(input);
+  if (priceArea !== 'DK1' && priceArea !== 'DK2') throw new EnergyPriceSourceError('invalid_settings');
+  let settings: EnergyPriceSettings;
+  try { settings = parseEnergyPriceSettings(input); } catch { throw new EnergyPriceSourceError('invalid_settings'); }
   const [spot, national, grid] = await Promise.all([
     fetchSpot(priceArea),
-    settings.mode === 'consumer' ? fetchTariffs(NATIONAL_GLN, NATIONAL_CODES) : [],
+    // Missing national charges are Energinet's gap, not the user's tariff codes; the codes stay for logs.
+    settings.mode === 'consumer' ? fetchTariffs(NATIONAL_GLN, NATIONAL_CODES).catch((error: unknown) => {
+      throw error instanceof EnergyPriceSourceError && error.code === 'missing_tariff'
+        ? new EnergyPriceSourceError('unavailable', error.missingCodes) : error;
+    }) : [],
     settings.mode === 'consumer' ? fetchTariffs(settings.gridGln, settings.gridChargeCodes) : [],
   ]);
   requestSignal.throwIfAborted();
   // Apply the tariff at each interval's Danish hour, including both repeated autumn hours.
   const records = spot.map((r) => ({ ...r, price: settings.mode === 'consumer'
-    ? (r.price + tariffTotal(national, NATIONAL_CODES, r.start)
-      + tariffTotal(grid, settings.gridChargeCodes, r.start) + settings.retailerMarkupOre) * 1.25
+    ? (r.price + tariffTotal(national, NATIONAL_GLN, NATIONAL_CODES, r.start)
+      + tariffTotal(grid, settings.gridGln, settings.gridChargeCodes, r.start) + settings.retailerMarkupOre) * 1.25
     : r.price }));
   const now = Date.now();
   const current = records.find((r) => r.start <= now && now < r.end);

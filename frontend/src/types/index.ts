@@ -103,6 +103,9 @@ export interface WeatherData {
 
 export type WeatherErrorCode = 'missing_key' | 'invalid_location' | 'invalid_key' | 'rate_limited' | 'unavailable' | 'timeout' | 'invalid_response';
 export interface WeatherError { code: WeatherErrorCode; message: string; }
+export type EnergyPriceErrorCode = 'invalid_settings' | 'missing_tariff' | 'unavailable' | 'timeout' | 'invalid_response';
+/** missingCodes lists configured grid tariff codes without a current tariff for the configured GLN. */
+export interface EnergyPriceProblem { code: EnergyPriceErrorCode; message: string; missingCodes?: string[] }
 
 export interface NewsItem {
   title: string;
@@ -115,6 +118,7 @@ export interface DisplayData {
   customText?: string;
   customImage?: CustomImage;
   price?: EnergyPrice;
+  priceError?: EnergyPriceProblem;
   weather?: WeatherData;
   weatherError?: WeatherError;
   news?: NewsItem[];

@@ -5,6 +5,7 @@ import { drawCustomImage } from './customContent';
 import { renderWebhookWidget } from './webhookRenderer';
 import { DEFAULT_DISPLAY_TIMEZONE } from './displayTimezone';
 import { WEATHER_ERROR_LABELS } from './weatherErrors';
+import { ENERGY_PRICE_ERROR_LABELS } from './energyPriceErrors';
 import { NEWS_ERROR_LABELS } from './newsErrors';
 import { newsFeedIdFromWidget } from './newsFeeds';
 
@@ -303,7 +304,8 @@ function trendArrow(trend?: 'up' | 'down' | 'stable'): string {
 function renderEnergyWidget(
   canvas: BmpCanvas,
   bounds: WidgetBounds,
-  price?: DisplayData['price']
+  price?: DisplayData['price'],
+  problem?: DisplayData['priceError'],
 ): void {
   const { x, y, width, height } = bounds;
   if (y > 0) canvas.drawHLine(x, y, width);
@@ -321,7 +323,11 @@ function renderEnergyWidget(
       canvas.drawText(`Avg: ${(average / 100).toFixed(2)} DKK/kWh`, x + 2, textY + 22, maxW);
     }
   } else {
-    canvas.drawText('Energy: unavailable', x + 2, textY, maxW);
+    canvas.drawText(problem ? ENERGY_PRICE_ERROR_LABELS[problem.code] : 'Energy: unavailable', x + 2, textY, maxW);
+    // Name the codes to look up on the bill, e.g. after mixing two grid areas.
+    if (height >= 20 && problem?.missingCodes?.length) {
+      canvas.drawText(`Missing: ${problem.missingCodes.join(', ')}`, x + 2, textY + 11, maxW);
+    }
   }
 }
 
@@ -566,7 +572,7 @@ function populateCanvas(
         case 'custom-image':
           if (data.customImage) drawCustomImage(canvas, bounds, data.customImage, { x: 0, y: 0, width: canvas.width, height: canvas.height });
           break;
-        case 'energy':  renderEnergyWidget(canvas, bounds, data.price); break;
+        case 'energy':  renderEnergyWidget(canvas, bounds, data.price, data.priceError); break;
         case 'weather': renderWeatherWidget(canvas, bounds, data.weather, data.weatherError); break;
         case 'news':    renderNewsWidget(canvas, bounds, data.news, data.newsError); break;
         case 'monta':   renderMontaWidget(canvas, bounds, data.monta, preferences?.monta_fields ?? undefined); break;

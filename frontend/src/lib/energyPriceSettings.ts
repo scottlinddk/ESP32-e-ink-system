@@ -8,6 +8,19 @@ export const GRID_PRESETS = [
   { name: 'N1 C · 344', zone: 'DK1', gln: '5790000611003', code: 'T-C-F-T-TD', url: 'https://n1.dk/gaeldende-priser' },
   { name: 'Dinel C', zone: 'DK1', gln: '5790000610099', code: 'TCL<100_02', url: 'https://dinel.dk/priser-og-bestemmelser/hvad-skal-private-elkunder-betale-i-nettarif/' },
 ] as const;
+export type GridPreset = typeof GRID_PRESETS[number];
+
+/**
+ * Flags a GLN and tariff codes taken from different presets, e.g. N1 grid area 344's GLN with
+ * area 131's code. Such a pair has no current tariff, so the price is unavailable. Extra codes for
+ * the same grid company are allowed; only known preset identifiers are compared.
+ */
+export function gridPresetMismatch(settings: EnergyPriceSettings): { glnPreset?: GridPreset; codePresets: GridPreset[] } | null {
+  if (settings.mode !== 'consumer' || !/^\d{13}$/.test(settings.gridGln) || !settings.gridChargeCodes.length) return null;
+  const glnPreset = GRID_PRESETS.find((grid) => grid.gln === settings.gridGln && !settings.gridChargeCodes.includes(grid.code));
+  const codePresets = GRID_PRESETS.filter((grid) => grid.gln !== settings.gridGln && settings.gridChargeCodes.includes(grid.code));
+  return glnPreset || codePresets.length ? { ...(glnPreset ? { glnPreset } : {}), codePresets } : null;
+}
 
 /** Split the comma-separated tariff code input. Spaces inside a code (e.g. "CD R") are kept. */
 export function parseGridChargeCodes(input: string): string[] {

@@ -16,6 +16,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Skeleton } from '../ui/Spinner';
 import { Icon } from '../ui/Logo';
 import { EnergyPriceSettingsFields } from './EnergyPriceSettingsFields';
+import { EnergyPriceTest } from './EnergyPriceTest';
 import { WeatherTest } from './WeatherTest';
 import { NewsFeedsFields } from './NewsFeedsFields';
 import { formatWeatherCoordinates } from '../../lib/weatherTest';
@@ -215,6 +216,7 @@ export function DisplayCard() {
             <EnergyPriceSettingsFields settings={p.energy.priceSettings ?? { mode: 'spot' }}
               onChange={(priceSettings) => set({ energy: { ...p.energy, priceSettings } })}
               onZoneChange={(zone, priceSettings) => set({ energy: { ...p.energy, zone, priceSettings } })} />
+            <EnergyPriceTest zone={p.energy.zone} settings={p.energy.priceSettings ?? { mode: 'spot' }} />
             <div className="text-xs text-fg3 flex items-center gap-[5px] [&_.material-symbols-outlined]:text-[15px]">
               <Icon name="schedule" />
               {t.updateEvery}

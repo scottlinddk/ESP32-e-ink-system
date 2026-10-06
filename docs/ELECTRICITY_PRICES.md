@@ -22,6 +22,8 @@ Presets were checked against live DataHub records and the operators' published h
 | N1 C, grid area 344 | DK1 | 5790000611003 | T-C-F-T-TD | [N1](https://n1.dk/gaeldende-priser) |
 | Dinel C, hourly | DK1 | 5790000610099 | TCL<100_02 | [Dinel](https://dinel.dk/priser-og-bestemmelser/hvad-skal-private-elkunder-betale-i-nettarif/) |
 
+The settings card warns when the GLN belongs to one preset and the codes to another (for example N1 grid area 344's GLN with area 131's `CD`), and offers to apply either preset. **Test price** prices the draft settings without saving them and names every code without a current tariff for the GLN; the display shows the same codes.
+
 For another plan, select custom and enter its 13-digit GLN and 1–5 unique, additive D03 tariff codes. Include a separate adjustment code only if it applies to the contract. Alternative categories must not be added together. Every configured code is required; an expired or missing adjustment makes the estimate unavailable rather than silently omitting it. The [regulator's household tariff methodology](https://forsyningstilsynet.dk/Media/638536031032121805/Elnetvirksomhedernes%20tariffer%20for%20husholdninger.pdf) explains categories and adjustments.
 
 For each 15-minute interval, calculation in øre/kWh is:
