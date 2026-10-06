@@ -62,7 +62,7 @@ export interface RenderedWidget {
 
 // ── Widget interface ──────────────────────────────────────────────────────────
 
-export type WidgetCategory = 'energy' | 'weather' | 'ev' | 'utility' | 'general';
+export type WidgetCategory = 'energy' | 'weather' | 'ev' | 'utility' | 'finance' | 'general';
 
 export interface WidgetMeta {
   id: string;              // kebab-case, stable, used as DB FK — never rename after deploy
