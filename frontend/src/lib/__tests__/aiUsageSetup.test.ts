@@ -10,7 +10,7 @@ describe('AI usage collector setup', () => {
     expect(setup.init).toContain('--url https://eink.example.com/api/ai-usage/ingest');
     expect(setup.init).toContain('--machine work-laptop --timezone Europe/Copenhagen');
     expect(setup.init).toContain('PASTE_YOUR_AI_USAGE_TOKEN_HERE');
-    expect(JSON.parse(setup.statusLine).statusLine.command).toMatch(/collector\.mjs statusline$/);
+    expect(JSON.parse(setup.statusLine).statusLine.command).toMatch(/collector\.ts statusline$/);
   });
 
   it.each([undefined, 'http://eink.example.com', 'http://localhost:5173', 'https://127.0.0.1', 'https://user:pw@eink.example.com'])(

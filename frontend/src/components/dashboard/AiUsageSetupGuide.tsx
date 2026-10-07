@@ -15,8 +15,8 @@ export function AiUsageSetupGuide({ da, timeZone }: { da: boolean; timeZone: str
     <summary className="cursor-pointer font-medium text-sm">{da ? 'Opsæt indsamleren trin for trin' : 'Set up the collector step by step'}</summary>
     <div className="grid gap-3 mt-3 text-sm">
       <p className="m-0">{da
-        ? 'Indsamleren kører på computeren, hvor du bruger Claude Code eller Codex. Den læser deres lokale sessionsfiler og sender kun summer: tokens pr. model i dag og kvoteprocenter. Prompts, svar, stier og projektnavne forlader aldrig computeren. Kræver Node.js 20 eller nyere.'
-        : 'The collector runs on the computer where you use Claude Code or Codex. It reads their local session files and sends only totals: tokens per model today and quota percentages. Prompts, responses, paths and project names never leave the computer. Requires Node.js 20 or newer.'}</p>
+        ? 'Indsamleren kører på computeren, hvor du bruger Claude Code eller Codex. Den læser deres lokale sessionsfiler og sender kun summer: tokens pr. model i dag og kvoteprocenter. Prompts, svar, stier og projektnavne forlader aldrig computeren. Kræver Node.js 22.18 eller nyere.'
+        : 'The collector runs on the computer where you use Claude Code or Codex. It reads their local session files and sends only totals: tokens per model today and quota percentages. Prompts, responses, paths and project names never leave the computer. Requires Node.js 22.18 or newer.'}</p>
       <Field label={da ? 'Navn på denne computer' : 'Name for this computer'} htmlFor="ai-usage-machine"
         helper={da ? 'Hver computer rapporterer sit eget forbrug; displayet lægger dem sammen.' : 'Each computer reports its own usage; the display adds them up.'}>
         <input id="ai-usage-machine" type="text" value={machine} maxLength={32} onChange={(event) => setMachine(event.target.value)}
