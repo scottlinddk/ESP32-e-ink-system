@@ -4,7 +4,7 @@
 const PLACEHOLDER_ENDPOINT = 'https://YOUR-DISPLAY-HOST/api/ai-usage/ingest';
 export const COLLECTOR_REPOSITORY = 'https://github.com/scottlinddk/ESP32-e-ink-system.git';
 const INSTALL_DIR = '~/.local/share/esp32-eink';
-const COLLECTOR = `${INSTALL_DIR}/tools/ai-usage-collector/collector.mjs`;
+const COLLECTOR = `${INSTALL_DIR}/tools/ai-usage-collector/collector.ts`;
 
 export interface AiUsageSetup {
   endpoint: string;
@@ -47,11 +47,11 @@ node ${COLLECTOR} push`,
   <key>Label</key><string>dk.esp32-eink.ai-usage</string>
   <key>ProgramArguments</key><array>
     <string>/usr/bin/env</string><string>node</string>
-    <string>/Users/YOU/.local/share/esp32-eink/tools/ai-usage-collector/collector.mjs</string><string>push</string>
+    <string>/Users/YOU/.local/share/esp32-eink/tools/ai-usage-collector/collector.ts</string><string>push</string>
   </array>
   <key>StartInterval</key><integer>900</integer>
 </dict></plist>`,
-    windows: `schtasks /Create /SC MINUTE /MO 15 /TN "AI usage collector" /TR "node %USERPROFILE%\\.local\\share\\esp32-eink\\tools\\ai-usage-collector\\collector.mjs push"`,
+    windows: `schtasks /Create /SC MINUTE /MO 15 /TN "AI usage collector" /TR "node %USERPROFILE%\\.local\\share\\esp32-eink\\tools\\ai-usage-collector\\collector.ts push"`,
     statusLine: `{
   "statusLine": {
     "type": "command",

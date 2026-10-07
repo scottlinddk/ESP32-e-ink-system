@@ -1,18 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { buildPayload, parseArgs, send } from './collector.mjs';
-import { statusLineLimits } from './lib/claudeCode.mjs';
-import { MAX_MODELS, modelList } from './lib/files.mjs';
-import { validateConfig } from './lib/config.mjs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { AddressInfo } from 'node:net';
+import { buildPayload, parseArgs, send } from './collector.ts';
+import { statusLineLimits } from './lib/claudeCode.ts';
+import { MAX_MODELS, modelList } from './lib/files.ts';
+import { validateConfig } from './lib/config.ts';
+import type { Payload, Tokens } from './lib/types.ts';
 
 const NOW = new Date('2026-10-07T10:00:00Z');
 const TOKEN = `eau_${'a'.repeat(64)}`;
 
-async function fixture(files) {
+async function fixture(files: Record<string, Array<string | object>>): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'ai-usage-'));
   for (const [path, lines] of Object.entries(files)) {
     await mkdir(join(root, path, '..'), { recursive: true });
@@ -21,7 +25,7 @@ async function fixture(files) {
   return root;
 }
 
-const assistant = (id, requestId, timestamp, usage, model = 'claude-opus-5-5') => ({
+const assistant = (id: string, requestId: string, timestamp: string, usage: object, model = 'claude-opus-5-5') => ({
   type: 'assistant', timestamp, requestId, message: { id, model, usage, content: [{ type: 'text', text: 'private prompt text' }] },
 });
 
@@ -50,7 +54,7 @@ test('Claude Code: counts each message once, only today, with 1-hour cache write
 });
 
 test('Codex: counts only increases of the cumulative totals and keeps the newest rate limits', async () => {
-  const event = (timestamp, total, rateLimits) => ({ timestamp, type: 'event_msg', payload: { type: 'token_count',
+  const event = (timestamp: string, total: object | null, rateLimits?: object) => ({ timestamp, type: 'event_msg', payload: { type: 'token_count',
     info: total ? { total_token_usage: total, last_token_usage: total } : null, ...(rateLimits ? { rate_limits: rateLimits } : {}) } });
   const root = await fixture({
     'sessions/2026/10/07/rollout-a.jsonl': [
@@ -70,8 +74,8 @@ test('Codex: counts only increases of the cumulative totals and keeps the newest
   try {
     const { payload } = await buildPayload({ machine: 'laptop', timeZone: 'Europe/Copenhagen', now: NOW, claudeDirs: [join(root, 'missing')], codexDirs: [join(root, 'sessions')] });
     assert.equal(payload.providers.claude, undefined);
-    const openai = payload.providers.openai;
-    assert.deepEqual(openai.usage.models, [
+    const openai = payload.providers.openai!;
+    assert.deepEqual(openai.usage!.models, [
       { model: 'gpt-6-sol', input_tokens: 300, output_tokens: 20, cache_write_tokens: 0, cache_write_1h_tokens: 0, cache_read_tokens: 200 },
       { model: 'gpt-6-luna', input_tokens: 100, output_tokens: 5, cache_write_tokens: 0, cache_write_1h_tokens: 0, cache_read_tokens: 0 },
     ]);
@@ -90,11 +94,11 @@ test('status line: reads Claude Code rate_limits and tolerates missing data', ()
 });
 
 test('model list: largest first, overflow summed as unpriced "other"', () => {
-  const models = new Map(Array.from({ length: MAX_MODELS + 3 }, (_, index) => [`model-${index}`, { input: index + 1, output: 0, cacheWrite: 0, cacheWrite1h: 0, cacheRead: 0 }]));
+  const models = new Map<string, Tokens>(Array.from({ length: MAX_MODELS + 3 }, (_, index) => [`model-${index}`, { input: index + 1, output: 0, cacheWrite: 0, cacheWrite1h: 0, cacheRead: 0 }] as const));
   models.set('bad id with spaces', { input: 1000, output: 0, cacheWrite: 0, cacheWrite1h: 0, cacheRead: 0 });
   const list = modelList(models);
   assert.equal(list.length, MAX_MODELS);
-  assert.equal(list.at(-1).model, 'other');
+  assert.equal(list.at(-1)?.model, 'other');
   assert.equal(list.reduce((sum, entry) => sum + entry.input_tokens, 0), 1000 + ((MAX_MODELS + 3) * (MAX_MODELS + 4)) / 2);
 });
 
@@ -108,7 +112,7 @@ test('config and arguments are validated', () => {
 });
 
 test('send: posts with the integration token and reports server errors', async () => {
-  const received = [];
+  const received: Array<{ auth: string | undefined; body: unknown }> = [];
   const server = createServer((request, response) => {
     let body = '';
     request.on('data', (chunk) => { body += chunk; });
@@ -119,12 +123,27 @@ test('send: posts with the integration token and reports server errors', async (
       response.end(JSON.stringify(ok ? { machine: 'laptop', providers: ['claude'] } : { error: 'usage.day must be a date' }));
     });
   });
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const config = { url: `http://127.0.0.1:${server.address().port}/api/ai-usage/ingest`, token: TOKEN };
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const config = { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/ai-usage/ingest`, token: TOKEN };
   try {
-    const payload = { machine: 'laptop', providers: { claude: { usage: { day: '2026-10-07', models: [] } } } };
+    const payload: Payload = { machine: 'laptop', providers: { claude: { usage: { day: '2026-10-07', models: [] } } } };
     assert.match(await send(config, payload), /laptop/);
     assert.deepEqual(received[0], { auth: `Bearer ${TOKEN}`, body: payload });
     await assert.rejects(send(config, payload), /400: usage.day must be a date/);
   } finally { server.close(); }
+});
+
+test('status line: the collector.mjs entry point used by existing installs still runs', async () => {
+  const configDir = await mkdtemp(join(tmpdir(), 'ai-usage-config-'));
+  const script = join(dirname(fileURLToPath(import.meta.url)), 'collector.mjs');
+  const input = JSON.stringify({ rate_limits: { five_hour: { used_percentage: 23.4, resets_at: 1791400000 }, seven_day: { used_percentage: 41.2, resets_at: 1791800000 } } });
+  try {
+    const stdout = await new Promise<string>((resolve, reject) => {
+      // No URL or token configured: it prints the quota and sends nothing.
+      const child = execFile(process.execPath, [script, 'statusline'], { env: { ...process.env, AI_USAGE_CONFIG_DIR: configDir, AI_USAGE_URL: '', AI_USAGE_TOKEN: '' } },
+        (error, out) => (error ? reject(error) : resolve(out)));
+      child.stdin?.end(input);
+    });
+    assert.equal(stdout, '5h 23% | 7d 41%\n');
+  } finally { await rm(configDir, { recursive: true }); }
 });

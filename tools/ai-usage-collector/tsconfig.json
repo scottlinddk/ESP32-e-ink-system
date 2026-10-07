@@ -1,0 +1,18 @@
+{
+  // Type check only: Node.js runs these files directly with built-in type stripping,
+  // so only erasable TypeScript syntax is allowed and imports keep their .ts extension.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true
+  },
+  "include": ["*.ts", "lib/*.ts"]
+}
