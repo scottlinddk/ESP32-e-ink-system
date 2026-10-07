@@ -10,6 +10,15 @@ export interface WidgetLayout {
   w: number;       // column span
   h: number;       // row span
   static?: boolean;
+  /** Display options for this placement; see utils/widgetOptions.ts for what each widget accepts. */
+  options?: WidgetOptions;
+}
+
+export interface WidgetOptions {
+  /** energy: 'summary' | 'day' | 'rest'; ticker: 'full' | 'condensed' (overrides the ticker's own view). */
+  view?: 'summary' | 'day' | 'rest' | 'full' | 'condensed';
+  /** news, calendar: most rows drawn; ticker: stocks per page in the condensed view. 1–10. */
+  items?: number;
 }
 
 export interface DisplayLayout {
@@ -70,6 +79,14 @@ export interface EnergyPrice {
   now: number; // øre/kWh
   average: number; // average of available intervals today, Europe/Copenhagen
   trend: 'up' | 'down' | 'stable';
+  /** Hourly averages for the Danish calendar day, in order; 23 or 25 entries on DST days. */
+  hours?: EnergyPriceHour[];
+}
+
+export interface EnergyPriceHour {
+  start: string; // ISO instant of the hour start
+  hour: number;  // 0–23, Europe/Copenhagen
+  price: number; // øre/kWh, mean of the hour's intervals, same basis as `now`
 }
 
 export interface WeatherData {

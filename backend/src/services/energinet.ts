@@ -1,4 +1,4 @@
-import { EnergyPrice, CacheEntry } from '../types/index';
+import { EnergyPrice, EnergyPriceHour, CacheEntry } from '../types/index';
 import { EnergyPriceSettings, parseEnergyPriceSettings } from '../utils/energyPriceSettings';
 import { fetchDanishDaySpot, SpotInterval } from './elprisenligenu';
 import { EnergyPriceSourceError } from '../utils/energyPriceErrors';
@@ -104,6 +104,28 @@ async function fetchTariffs(gln: string, codes: string[]): Promise<TariffRecord[
   try { return await promise; } finally { pendingTariffs.delete(pendingKey); }
 }
 
+const HOUR_MS = 3_600_000;
+
+/**
+ * Hourly means of the day's intervals. Danish UTC offsets are whole hours, so a UTC hour
+ * is a Danish hour, and both repeated autumn hours stay separate.
+ */
+export function hourlyPrices(records: SpotInterval[]): EnergyPriceHour[] {
+  const buckets = new Map<number, { sum: number; count: number }>();
+  for (const record of records) {
+    const start = Math.floor(record.start / HOUR_MS) * HOUR_MS;
+    const bucket = buckets.get(start) ?? { sum: 0, count: 0 };
+    bucket.sum += record.price;
+    bucket.count += 1;
+    buckets.set(start, bucket);
+  }
+  return [...buckets.entries()].sort(([a], [b]) => a - b).map(([start, { sum, count }]) => ({
+    start: new Date(start).toISOString(),
+    hour: Number(danishHour.format(start)),
+    price: Math.round((sum / count) * 100) / 100,
+  }));
+}
+
 export async function fetchEnergyPrice(
   priceArea: string = 'DK1', signal?: AbortSignal, input: EnergyPriceSettings = { mode: 'spot' },
 ): Promise<EnergyPrice> {
@@ -138,6 +160,7 @@ export async function fetchEnergyPrice(
     ...(settings.mode === 'consumer' ? { basis: 'consumer' as const } : {}),
     trend: Math.abs(difference) <= Math.max(Math.abs(average) * 0.05, 0.01)
       ? 'stable' : difference > 0 ? 'up' : 'down',
+    hours: hourlyPrices(records),
   };
 }
 

@@ -1,6 +1,7 @@
 import type { DisplayLayout, WidgetLayout } from '../types';
 import { MAX_NEWS_FEEDS, newsFeedIdFromWidget } from './newsFeeds';
 import { MAX_TICKER_WIDGETS, tickerIdFromWidget } from './tickerWidgets';
+import { parseWidgetOptions } from './widgetOptions';
 
 export const DISPLAY_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'status'] as const;
 
@@ -34,7 +35,7 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
       || !(DISPLAY_WIDGET_IDS.some((id) => id === input.i) || newsFeedIdFromWidget(input.i) || tickerIdFromWidget(input.i)) || seen.has(input.i)) {
       throw new LayoutValidationError('Every widget must have a supported, unique ID.');
     }
-    if (Object.keys(input).some((key) => !['i', 'x', 'y', 'w', 'h', 'static'].includes(key))) {
+    if (Object.keys(input).some((key) => !['i', 'x', 'y', 'w', 'h', 'static', 'options'].includes(key))) {
       throw new LayoutValidationError('Widget contains unsupported fields.');
     }
     if (![input.x, input.y, input.w, input.h].every((n) => typeof n === 'number' && Number.isInteger(n))) {
@@ -51,8 +52,11 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
       && y < other.y + other.h && y + h > other.y)) {
       throw new LayoutValidationError('Widgets must not overlap.');
     }
+    let options;
+    try { options = parseWidgetOptions(input.i, input.options); }
+    catch (error) { throw new LayoutValidationError(error instanceof Error ? error.message : 'Widget options are invalid.'); }
     seen.add(input.i);
-    widgets.push({ i: input.i, x, y, w, h, ...(input.static === undefined ? {} : { static: input.static }) });
+    widgets.push({ i: input.i, x, y, w, h, ...(input.static === undefined ? {} : { static: input.static }), ...(options ? { options } : {}) });
   }
   return { version: 1, cols: 10, rows: 6, widgets };
 }

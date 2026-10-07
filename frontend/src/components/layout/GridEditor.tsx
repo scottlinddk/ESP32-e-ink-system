@@ -34,21 +34,31 @@ interface GridEditorProps {
   widgetMeta: Record<string, WIDGET_META>;
   onLayoutChange: (layout: DisplayLayout) => void;
   onRemoveWidget: (widgetId: string) => void;
+  /** The widget whose options are open, highlighted in the grid. */
+  selectedId?: string | null;
+  onSelectWidget?: (widgetId: string) => void;
 }
 
-export function GridEditor({ layout, widgetMeta, onLayoutChange, onRemoveWidget }: GridEditorProps) {
+/** The layout after a move or resize, keeping each widget's own fields. */
+export function layoutFromGrid(layout: DisplayLayout, rglLayout: Layout): DisplayLayout {
+  const widgets: WidgetLayout[] = (rglLayout as LayoutItem[]).map((item) => {
+    const orig = layout.widgets.find((w) => w.i === item.i);
+    // Never emit a widget outside the grid, whatever the library reports.
+    return {
+      i: item.i,
+      ...clampWidgetToGrid({ x: item.x, y: item.y, w: item.w, h: item.h }, GRID_COLS, GRID_ROWS),
+      // The flag is kept in the saved layout; it only means "cannot be removed" here.
+      static: orig?.static,
+      // Moving or resizing never drops a widget's display options.
+      ...(orig?.options ? { options: orig.options } : {}),
+    };
+  });
+  return { ...layout, widgets };
+}
+
+export function GridEditor({ layout, widgetMeta, onLayoutChange, onRemoveWidget, selectedId, onSelectWidget }: GridEditorProps) {
   function handleChange(rglLayout: Layout) {
-    const widgets: WidgetLayout[] = (rglLayout as LayoutItem[]).map((item) => {
-      const orig = layout.widgets.find((w) => w.i === item.i);
-      // Never emit a widget outside the grid, whatever the library reports.
-      return {
-        i: item.i,
-        ...clampWidgetToGrid({ x: item.x, y: item.y, w: item.w, h: item.h }, GRID_COLS, GRID_ROWS),
-        // The flag is kept in the saved layout; it only means "cannot be removed" here.
-        static: orig?.static,
-      };
-    });
-    onLayoutChange({ ...layout, widgets });
+    onLayoutChange(layoutFromGrid(layout, rglLayout));
   }
 
   const rglLayout: Layout = layout.widgets.map((w): LayoutItem => ({
@@ -84,19 +94,32 @@ export function GridEditor({ layout, widgetMeta, onLayoutChange, onRemoveWidget 
             const meta = widgetMeta[widget.i];
             // A widget flagged `static` (the status bar) can be moved and resized, but not removed.
             const removable = !widget.static;
+            const selected = widget.i === selectedId;
             return (
               <div
                 key={widget.i}
+                // Pointer down, not click: a drag never ends in a click, and dragging a widget selects it too.
+                onPointerDown={() => onSelectWidget?.(widget.i)}
                 className={cn(
                   'h-full border rounded-sm flex items-center justify-between px-2 overflow-hidden select-none group',
                   'transition-[border-color,box-shadow] duration-[150ms]',
-                  'bg-surface border-border cursor-grab hover:border-accent hover:shadow-1'
+                  'bg-surface border-border cursor-grab hover:border-accent hover:shadow-1',
+                  selected && 'border-accent shadow-[0_0_0_1px_var(--accent)]'
                 )}
               >
                 {/* className kept as widget-drag-handle — react-grid-layout uses it as a DOM selector */}
                 <div
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selected}
+                  aria-label={`${meta?.label ?? widget.i}: ${selected ? 'selected' : 'select to show options'}`}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    onSelectWidget?.(widget.i);
+                  }}
                   className={cn(
-                    'widget-drag-handle flex items-center gap-1.5 flex-1 min-w-0 h-full text-[11px] font-medium text-fg2',
+                    'widget-drag-handle outline-none focus-visible:underline flex items-center gap-1.5 flex-1 min-w-0 h-full text-[11px] font-medium text-fg2',
                     '[&_.material-symbols-outlined]:text-[16px] [&_.material-symbols-outlined]:text-fg3 [&_.material-symbols-outlined]:flex-shrink-0',
                     'cursor-grab'
                   )}
@@ -111,8 +134,13 @@ export function GridEditor({ layout, widgetMeta, onLayoutChange, onRemoveWidget 
                 </span>
                 {removable && (
                   <button
-                    className="flex-shrink-0 w-[22px] h-[22px] rounded-full border border-border bg-transparent cursor-pointer flex items-center justify-center text-fg3 opacity-0 group-hover:opacity-100 hover:bg-error hover:border-error hover:text-white transition-[opacity,background-color,color,border-color] duration-[150ms] [&_.material-symbols-outlined]:text-[14px]"
+                    className={cn(
+                      'flex-shrink-0 w-[22px] h-[22px] rounded-full border border-border bg-transparent cursor-pointer flex items-center justify-center text-fg3 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-error hover:border-error hover:text-white transition-[opacity,background-color,color,border-color] duration-[150ms] [&_.material-symbols-outlined]:text-[14px]',
+                      // Touch screens have no hover, so a selected widget always shows its remove button.
+                      selected && 'opacity-100'
+                    )}
                     title="Remove widget"
+                    onPointerDown={(event) => event.stopPropagation()}
                     onClick={() => onRemoveWidget(widget.i)}
                     aria-label={`Remove ${meta?.label ?? widget.i}`}
                   >

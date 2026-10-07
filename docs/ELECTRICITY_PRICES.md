@@ -38,6 +38,20 @@ The current interval is selected in UTC; hourly tariffs and the average always u
 
 The independent `packages/widgets` spot widget (id `energinet-prices`, kept for saved layouts) uses Elprisen lige nu and remains **spot-only**, labelled as such. The dashboard, BMP preview, Bluetooth payload and automatic device feed use the backend consumer calculation.
 
+## Chart views
+
+Select the electricity widget in **Edit layout** to choose how it is drawn:
+
+| View | Layout option | Shows |
+|---|---|---|
+| Price now and average | none (default) | The current interval price, its basis and, in taller widgets, the day's average. |
+| Whole day, hour by hour | `{"view":"day"}` | One bar per hour of the Danish day (23 or 25 on DST days). |
+| From now to the end of the day | `{"view":"rest"}` | The current hour first, then the remaining hours of the day. |
+
+Bars are the mean of each hour's 15-minute intervals, on the same spot or consumer basis as the price. The panel has no colour, so the current hour is an outlined bar among filled ones and the day's average is a dotted line. The header shows the current interval's price, which can differ slightly from its hour's mean bar. Labels mark 00, 06, 12 and 18 (and the first hour in the rest-of-day view). A chart needs a widget at least 2 rows tall; 3 or more rows give readable bars. A one-row widget shows only the header line. If hourly prices are missing, the widget draws the summary instead of an empty chart.
+
+Both chart views stop at midnight: tomorrow's prices, published around 13:00, are not shown. The JSON preview includes the hourly values as `price.hours` (`start`, Danish `hour`, `price` in øre/kWh).
+
 ## API and templates
 
 `POST /api/preferences` accepts the complete `energy_price_settings` object, also included in version-1 display template export/import. Partial nested profiles, extra properties, duplicate/empty codes and non-finite markup are rejected before saving any preference. GLN is a string; codes may include tariff punctuation such as `<` and `>`.

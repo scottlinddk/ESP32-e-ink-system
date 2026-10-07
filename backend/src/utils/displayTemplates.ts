@@ -122,7 +122,7 @@ export function exportDisplayTemplate(preferences: UserPreferences): DisplayTemp
 export const STARTER_TEMPLATES = [
   { id: 'energy-focus', name: 'Electricity focus', template: parseDisplayTemplate({
     format: 'esp32-eink-template', version: 1, settings: { show_energy_price: true, layout: { version: 1, cols: 10, rows: 6, widgets: [
-      { i: 'energy', x: 0, y: 0, w: 10, h: 5 }, { i: 'status', x: 0, y: 5, w: 10, h: 1, static: true },
+      { i: 'energy', x: 0, y: 0, w: 10, h: 5, options: { view: 'day' } }, { i: 'status', x: 0, y: 5, w: 10, h: 1, static: true },
     ] } },
   }) },
   { id: 'household', name: 'Household overview', template: parseDisplayTemplate({
