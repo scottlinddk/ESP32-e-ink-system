@@ -7,6 +7,7 @@ Select a widget in **Edit layout** (tap or click it, or focus it and press Enter
 | `energy` | `view` | `summary` (default), `day`, `rest`. See [Electricity prices](ELECTRICITY_PRICES.md#chart-views). |
 | `news`, `news:<id>`, `calendar` | `items` | 1–10 rows at most. Also limited by how many items the source fetches and by the widget's height. |
 | `ticker:<id>` | `view`, `items` | `full` or `condensed`, and stocks per page for `condensed`. Overrides the ticker's own settings. See [Stock ticker widgets](TICKER_WIDGET.md). |
+| `ai-usage` | `view` | `full` (default) or `condensed`, one line per provider. A widget too short for the full view is drawn condensed. See [AI usage](AI_USAGE.md). |
 
 Options are stored on the layout widget:
 

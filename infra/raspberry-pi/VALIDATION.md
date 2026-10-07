@@ -14,8 +14,8 @@ not been applied from this checkout; no database connection was configured.
 
 Local offline verification passed: 54 migration/schema tests, 56 Pi credential,
 storage and memory tests, and JavaScript syntax for `smoke.mjs`.
-The updated schema contract includes ten application
-tables, all seven presentation CHECK constraints, the composite owner foreign key,
+The updated schema contract includes eleven application
+tables (024 adds `ai_usage_reports`), all seven presentation CHECK constraints, the composite owner foreign key,
 and the exact ownership-transfer
 cleanup trigger. Older nine-table export bundles are rejected explicitly.
 

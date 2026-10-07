@@ -1,6 +1,6 @@
 -- ============================================================
--- ESP32 e-ink system: combined migrations (001 to 022)
--- Source: backend/src/db/migrations/ @ b1cec65, plus 020, 021 and 022
+-- ESP32 e-ink system: combined migrations (001 to 024)
+-- Source: backend/src/db/migrations/ @ b1cec65, plus 020 to 024
 -- Run ONCE against an EMPTY Supabase database (SQL Editor).
 -- Everything runs in one transaction: if a step fails, all is rolled back.
 -- Not idempotent (CREATE POLICY/TRIGGER, 015, 018, 019, 020): empty database only.
@@ -360,6 +360,42 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS default_device_id UUID;
 ALTER TABLE user_preferences
   ADD COLUMN IF NOT EXISTS ticker_widgets JSONB NOT NULL DEFAULT '[]'::jsonb
     CHECK (jsonb_typeof(ticker_widgets) = 'array' AND jsonb_array_length(ticker_widgets) <= 6 AND octet_length(ticker_widgets::text) <= 16000);
+
+-- ------------------------------------------------------------
+-- 024_ai_usage.sql
+-- ------------------------------------------------------------
+-- AI usage widget. Collectors push aggregate quota windows and token counts with a
+-- dedicated integration token; only its SHA-256 hash is stored. `providers` holds the
+-- last snapshot per provider (see backend/src/aiUsage/snapshot.ts), validated by the
+-- backend; the CHECK only bounds its shape and size. Admin API keys for the
+-- server-side usage reports are stored encrypted in api_keys as anthropic_admin and
+-- openai_admin.
+CREATE TABLE IF NOT EXISTS ai_usage_reports (
+  user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT UNIQUE CHECK (token_hash IS NULL OR token_hash ~ '^[a-f0-9]{64}$'),
+  token_created_at TIMESTAMPTZ,
+  providers JSONB NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(providers) = 'object' AND octet_length(providers::text) <= 32000),
+  received_at TIMESTAMPTZ
+);
+ALTER TABLE ai_usage_reports ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON ai_usage_reports FROM PUBLIC;
+-- Supabase installations have these roles; alternate PostgREST installations
+-- may grant access to their dedicated backend role instead.
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL ON ai_usage_reports FROM anon;
+  END IF;
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL ON ai_usage_reports FROM authenticated;
+  END IF;
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ai_usage_reports TO service_role;
+  END IF;
+END $$;
+
+ALTER TABLE user_preferences
+  ADD COLUMN IF NOT EXISTS show_ai_usage BOOLEAN NOT NULL DEFAULT false;
 
 COMMIT;
 

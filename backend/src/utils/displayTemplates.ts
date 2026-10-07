@@ -14,7 +14,7 @@ export const TEMPLATE_SETTING_KEYS = [
   'energy_price_settings',
   'show_energy_price', 'show_weather', 'show_news', 'show_air_quality', 'show_monta', 'show_zaptec', 'show_notion', 'show_custom_text', 'show_custom_image', 'show_calendar', 'calendar_timezone', 'calendar_days', 'calendar_item_limit',
   'energy_price_location', 'weather_location', 'news_language', 'news_source', 'news_item_limit', 'refresh_interval_minutes', 'layout', 'monta_fields', 'zaptec_fields', 'display_profile', 'display_schedule',
-  'show_custom_webhook', 'custom_webhook_ttl_minutes',
+  'show_custom_webhook', 'custom_webhook_ttl_minutes', 'show_ai_usage',
 ] as const;
 
 export type TemplateSettings = Partial<UserPreferences> & {

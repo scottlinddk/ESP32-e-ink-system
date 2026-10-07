@@ -136,11 +136,12 @@ describe('disabled widgets and EV display semantics', () => {
     ['energy', 'show_energy_price'], ['weather', 'show_weather'], ['news', 'show_news'],
     ['monta', 'show_monta'], ['zaptec', 'show_zaptec'], ['notion', 'show_notion'],
     ['calendar', 'show_calendar'], ['custom-webhook', 'show_custom_webhook'],
-    ['custom-text', 'show_custom_text'], ['custom-image', 'show_custom_image'],
+    ['custom-text', 'show_custom_text'], ['custom-image', 'show_custom_image'], ['ai-usage', 'show_ai_usage'],
   ])('leaves disabled %s blank in both bitmap formats, even if data remains', (widget, setting) => {
     const single = layout({ i: widget, x: 0, y: 0, w: 10, h: 6 });
     const content = { ...data, customText: 'Private note', customImage: { width: 1, height: 1, pixels: 'AA==', fit: 'contain' as const },
-      customWebhook: { state: 'fresh' as const, rows: [{ label: 'Kitchen', value: '20' }], observedAt: null, receivedAt: null, expiresAt: null } };
+      customWebhook: { state: 'fresh' as const, rows: [{ label: 'Kitchen', value: '20' }], observedAt: null, receivedAt: null, expiresAt: null },
+      aiUsage: { providers: [{ provider: 'claude' as const, label: 'Claude', limits: [], limitsObservedAt: null, today: { tokens: 10, costUsd: 1, partial: false }, monthCostUsd: null }] } };
     const raw = renderDisplayDataRaw(content, single, { [setting]: false });
     expect(raw.every((byte) => byte === 255)).toBe(true);
     expect(renderDisplayData(content, single, { [setting]: false }).subarray(62)).toEqual(raw);

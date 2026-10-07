@@ -40,7 +40,7 @@ function checkFields(actual, expected, label) {
 }
 const primaryKeys = {
   users: 'id', user_preferences: 'id', api_keys: 'id', devices: 'id',
-  firmware_versions: 'id', api_usage: 'id', custom_webhooks: 'user_id',
+  firmware_versions: 'id', api_usage: 'id', custom_webhooks: 'user_id', ai_usage_reports: 'user_id',
   device_delivery: 'device_id', device_displays: 'device_id', orders: 'id',
 };
 
@@ -58,7 +58,7 @@ try {
   // Empty .single() must retain the error contract used in database.ts.
   const missing = await db.from('users').select('id').eq('id', randomUUID()).single();
   if (missing.error?.code !== 'PGRST116') throw new Error('Missing-row response is incompatible');
-  console.log('PASS: service-token access, denied anonymous/invalid access, all ten table primary keys, missing-row contract.');
+  console.log('PASS: service-token access, denied anonymous/invalid access, all eleven table primary keys, missing-row contract.');
 
   if (args.includes('--write-test')) {
     fixtureId = randomUUID();
@@ -79,7 +79,7 @@ try {
         pages: [{ id: 'smoke', name: 'Øjeblik', duration_seconds: 120, layout: { version: 1, cols: 10, rows: 6, widgets: [{ i: 'custom-text', x: 0, y: 0, w: 10, h: 6 }] } }],
         quiet_hours: { enabled: true, start: '22:30', end: '07:15' },
       },
-      show_custom_webhook: true, custom_webhook_ttl_minutes: 90,
+      show_custom_webhook: true, custom_webhook_ttl_minutes: 90, show_ai_usage: true,
     };
     checkFields(check(await db.from('user_preferences').update(newPreferences).eq('user_id', fixtureId).select().single(), 'New preferences'), newPreferences, 'New preferences');
     check(await db.from('api_keys').upsert({ user_id: fixtureId, provider: 'migration-smoke', api_key: 'fixture-not-a-secret' }, { onConflict: 'user_id,provider' }).select().single(), 'Composite upsert');
@@ -97,6 +97,17 @@ try {
     checkFields(check(await db.from('custom_webhooks').update({ token_hash: null }).eq('user_id', fixtureId).select().single(), 'Webhook revoke'), { token_hash: null }, 'Webhook revoke');
     check(await db.from('custom_webhooks').delete().eq('user_id', fixtureId).select().single(), 'Webhook delete');
     check(await db.from('custom_webhooks').insert(webhook), 'Webhook cascade fixture');
+    const usageReport = {
+      user_id: fixtureId, token_hash: fixtureHash, token_created_at: timestamp, received_at: timestamp,
+      providers: { claude: { limits: { observed_at: timestamp, windows: [{ window_minutes: 300, used_percent: 58, resets_at: timestamp }] } } },
+    };
+    check(await db.from('ai_usage_reports').upsert(usageReport, { onConflict: 'user_id' }).select().single(), 'AI usage upsert');
+    const usageUpdate = { token_hash: rotatedHash, providers: { openai: { usage: { laptop: { day: '2026-10-07', observed_at: timestamp, models: [] } } } } };
+    checkFields(check(await db.from('ai_usage_reports').update(usageUpdate).eq('user_id', fixtureId).eq('token_hash', fixtureHash).select().single(), 'AI usage token-scoped update'), usageUpdate, 'AI usage token-scoped update');
+    const invalidUsage = await db.from('ai_usage_reports').update({ providers: [] }).eq('user_id', fixtureId);
+    if (invalidUsage.error?.code !== '23514') throw new Error('AI usage providers constraint is missing');
+    check(await db.from('ai_usage_reports').delete().eq('user_id', fixtureId).select().single(), 'AI usage delete');
+    check(await db.from('ai_usage_reports').insert(usageReport), 'AI usage cascade fixture');
     const delivery = {
       device_id: fixtureDeviceId, owner_id: fixtureId, token_hash: fixtureHash, rotated_at: timestamp,
       last_seen_at: timestamp, firmware_version: 'smoke-telemetry', battery_percent: 72.5, rssi: -65, last_applied_hash: fixtureHash,
@@ -143,7 +154,7 @@ try {
     check(await db.from('firmware_versions').select('id').eq('user_id', fixtureId).eq('active', true).order('created_at', { ascending: false }).limit(1).single(), 'Latest firmware');
     check(await db.from('api_usage').insert({ user_id: fixtureId, endpoint: 'migration-smoke' }), 'Usage');
     check(await db.from('orders').insert({ user_id: fixtureId, status: 'migration-smoke' }), 'Orders');
-    console.log('PASS: SDK upserts, preferences, device presentation ownership reset, tokens and telemetry, CRUD, constraints and nullable device license.');
+    console.log('PASS: SDK upserts, preferences, device presentation ownership reset, tokens, AI usage reports and telemetry, CRUD, constraints and nullable device license.');
   }
 } catch (error) {
   console.error(error instanceof Error ? error.message : 'Smoke test failed');
@@ -168,7 +179,7 @@ try {
           const remaining = check(await db.from(table).select(primaryKey).eq(filter, fixtureId).limit(1), `Cleanup ${table}`);
           if (remaining.length) throw new Error(`Dependent fixture remains in ${table}`);
         }
-        console.log('PASS: fixture deleted and cascades verified across all ten tables.');
+        console.log('PASS: fixture deleted and cascades verified across all eleven tables.');
       } catch (error) {
         console.error(error instanceof Error ? error.message : 'Cascade verification failed');
         process.exitCode = 1;

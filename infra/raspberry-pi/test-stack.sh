@@ -119,7 +119,7 @@ PY
 
 "${compose[@]}" exec -T postgres psql -X -v ON_ERROR_STOP=1 -U eink_admin -d postgres -c 'CREATE DATABASE eink_source'
 # Supabase compatibility roles created by target bootstrap are cluster-wide;
-# both fixture databases therefore apply the unchanged migrations through 023.
+# both fixture databases therefore apply the unchanged migrations through 024.
 "${compose[@]}" exec -T postgres bash -euc 'export LC_ALL=C; for migration in /migrations/*.sql; do psql -X -v ON_ERROR_STOP=1 -U eink_admin -d eink_source -f "$migration"; done'
 "${compose[@]}" exec -T postgres psql -X -v ON_ERROR_STOP=1 -U eink_admin -d eink_source <<'SQL'
 INSERT INTO users (id, email, display_name) VALUES ('00000000-0000-4000-8000-000000000001', 'fixture@example.invalid', E'Unicode æøå, "quotes"\nand newline');
@@ -131,7 +131,7 @@ UPDATE user_preferences SET
   show_custom_image = true, custom_image = '{"width":8,"height":2,"pixels":"/wA=","fit":"contain"}',
   show_calendar = true, calendar_timezone = 'Europe/Copenhagen', calendar_days = 14, calendar_item_limit = 8,
   display_schedule = '{"enabled":true,"timezone":"Europe/Copenhagen","pages":[{"id":"fixture","name":"Øjeblik","duration_seconds":120,"layout":{"version":1,"cols":10,"rows":6,"widgets":[{"i":"custom-text","x":0,"y":0,"w":10,"h":6}]}}],"quiet_hours":{"enabled":true,"start":"22:30","end":"07:15"}}',
-  show_custom_webhook = true, custom_webhook_ttl_minutes = 90
+  show_custom_webhook = true, custom_webhook_ttl_minutes = 90, show_ai_usage = true
 WHERE user_id = '00000000-0000-4000-8000-000000000001';
 INSERT INTO api_keys (id, user_id, provider, api_key) VALUES ('00000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', 'ci-fixture', E'fixture-ciphertext,\nopaque-bytes');
 INSERT INTO devices (id, user_id, device_id, ble_name, license_key) VALUES ('00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001', 'ci-device', 'OD-ci', NULL);
@@ -139,6 +139,8 @@ INSERT INTO firmware_versions (id, user_id, version, download_path) VALUES ('000
 INSERT INTO api_usage (id, user_id, endpoint) VALUES ('00000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000001', '/ci-fixture');
 INSERT INTO custom_webhooks (user_id, token_hash, token_created_at, rows, observed_at, received_at)
 VALUES ('00000000-0000-4000-8000-000000000001', repeat('a', 64), '2026-09-28T10:01:02.123456Z', '[{"label":"Køkken","value":"21.5","unit":"°C"}]', '2026-09-28T09:59:59Z', '2026-09-28T10:01:03Z');
+INSERT INTO ai_usage_reports (user_id, token_hash, token_created_at, providers, received_at)
+VALUES ('00000000-0000-4000-8000-000000000001', repeat('d', 64), '2026-10-07T10:01:02.123456Z', '{"claude":{"limits":{"observed_at":"2026-10-07T10:00:00.000Z","windows":[{"window_minutes":300,"used_percent":58,"resets_at":"2026-10-07T12:00:00.000Z"}]},"usage":{"laptop":{"day":"2026-10-07","observed_at":"2026-10-07T10:01:02.000Z","models":[{"model":"claude-opus-5-5","input_tokens":140,"output_tokens":100178,"cache_write_tokens":308675,"cache_write_1h_tokens":308675,"cache_read_tokens":16307269}]}}}}', '2026-10-07T10:01:03Z');
 INSERT INTO device_delivery (device_id, owner_id, token_hash, rotated_at, revoked_at, last_seen_at, firmware_version, battery_percent, rssi, last_applied_hash)
 VALUES ('00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001', repeat('b', 64), '2026-09-28T10:01:02.123456Z', NULL, '2026-09-28T10:02:03.654321Z', 'ci-delivery', 72.5, -65, repeat('c', 64));
 UPDATE device_delivery SET refresh_request_id = '00000000-0000-4000-8000-000000000009',
@@ -170,7 +172,7 @@ import migrate, psycopg
 with psycopg.connect(service='eink-target') as connection:
     migrate.check_target_identity(connection)
     migrate.check_empty_target(connection)
-print('PASS: all ten target tables remain empty.')
+print('PASS: all eleven target tables remain empty.')
 PY
 }
 
@@ -189,7 +191,7 @@ with psycopg.connect(service='eink-ci-source') as connection:
     assert all(report['tables'][table]['row_count'] == 1 for table in migrate.TABLES)
     manifest = migrate.export_bundle(connection, Path('/work/bundle'))
 assert all(item['row_count'] == 1 for item in manifest['tables'].values())
-print('PASS: real PostgreSQL source inspection and consistent ten-table export.')
+print('PASS: real PostgreSQL source inspection and consistent eleven-table export.')
 PY
 
 # A unique expression/partial index is invisible to pg_constraint. It must
@@ -233,7 +235,7 @@ with (tampered / 'api_keys.csv').open('ab') as output:
     output.write(b'corrupt-fixture\n')
 # Both bundles have valid file/manifest hashes and reach COPY. The FK error
 # occurs in the final table. The padded integer is accepted by COPY but becomes
-# canonical 1250 on re-export, causing verification to fail after all ten COPYs.
+# canonical 1250 on re-export, causing verification to fail after all eleven COPYs.
 for name, old, new in (
     ('bad-fk', b'00000000-0000-4000-8000-000000000001', b'00000000-0000-4000-8000-000000000099'),
     ('bad-checksum', b'\n1250,', b'\n01250,'),
@@ -294,13 +296,13 @@ BEGIN
       OR has_function_privilege(client_role, 'public.clear_device_display_on_transfer()', 'EXECUTE') THEN
       RAISE EXCEPTION 'Compatibility client roles gained membership/database/schema/function access';
     END IF;
-    FOREACH table_name IN ARRAY ARRAY['users','user_preferences','api_keys','devices','firmware_versions','api_usage','custom_webhooks','device_delivery','device_displays','orders'] LOOP
+    FOREACH table_name IN ARRAY ARRAY['users','user_preferences','api_keys','devices','firmware_versions','api_usage','custom_webhooks','ai_usage_reports','device_delivery','device_displays','orders'] LOOP
       IF has_table_privilege(client_role, 'public.' || table_name, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') THEN
         RAISE EXCEPTION 'Compatibility client role gained table access';
       END IF;
     END LOOP;
   END LOOP;
-  FOREACH table_name IN ARRAY ARRAY['custom_webhooks', 'device_delivery', 'device_displays'] LOOP
+  FOREACH table_name IN ARRAY ARRAY['custom_webhooks', 'ai_usage_reports', 'device_delivery', 'device_displays'] LOOP
     FOREACH privilege_name IN ARRAY ARRAY['SELECT','INSERT','UPDATE','DELETE'] LOOP
       IF NOT has_table_privilege('service_role', 'public.' || table_name, privilege_name) THEN
         RAISE EXCEPTION 'Missing service CRUD grant';

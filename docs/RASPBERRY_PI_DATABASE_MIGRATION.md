@@ -154,7 +154,7 @@ eink config --quiet
 eink pull postgres postgrest gateway
 sudo bash start-postgres.sh /etc/esp32-eink/.env --ssd-uuid YOUR_VERIFIED_SSD_UUID
 eink ps
-eink exec -T postgres psql -U eink_admin -d eink -c '\dt'   # ten app tables
+eink exec -T postgres psql -U eink_admin -d eink -c '\dt'   # eleven app tables
 eink up -d postgrest gateway
 curl --fail --show-error --max-time 10 http://127.0.0.1:3080/healthz
 ```
@@ -225,11 +225,12 @@ device/owner foreign key also rejects delayed writes from a previous owner. The 
 inspector validates that trigger's exact condition, function body and privileges;
 it also verifies all seven new CHECK constraints and both foreign keys.
 
-Exports and backups made before 018 have nine application tables. Keep the
-matching older release's recovery tools with those backups; restore into that
-release's isolated schema, then apply 018. The current importer and recovery script
-require all ten tables and reject older bundles instead of silently losing device
-settings. Production migration and physical Pi verification must be performed in
+Exports and backups made before 018 have nine application tables, and those made
+before 024 have ten (no `ai_usage_reports`). Keep the matching older release's
+recovery tools with those backups; restore into that release's isolated schema,
+then apply the later migrations. The current importer and recovery script require
+all eleven tables and reject older bundles instead of silently losing device
+settings or AI usage tokens. Production migration and physical Pi verification must be performed in
 the deployment environment; offline tests do not apply SQL there.
 
 ## Upgrade an existing database for manual refresh (019)
@@ -331,7 +332,7 @@ matching tools first.
 ## Migration gates and data scope (source only)
 
 Applies only when a live source database exists. The transfer allowlist is `users`, `user_preferences`, `api_keys`, `devices`,
-`firmware_versions`, `api_usage`, `custom_webhooks`, `device_delivery`, `device_displays`, and `orders`.
+`firmware_versions`, `api_usage`, `custom_webhooks`, `ai_usage_reports`, `device_delivery`, `device_displays`, and `orders`.
 The target applies all tracked SQL migrations through `022_default_device.sql`,
 including both `002` migrations. IDs, foreign keys, timestamps, JSONB values,
 encrypted provider credentials, webhook token hashes, device token hashes and
@@ -503,7 +504,7 @@ postgres:5432:eink:eink_admin:GENERATED_POSTGRES_PASSWORD
 
 Use the actual source port and escape `:` and `\` inside passwords according
 to libpq rules. The source database password is not the Supabase service API
-key. Use a source account with visibility of all ten tables; RLS filtering
+key. Use a source account with visibility of all eleven tables; RLS filtering
 must fail rather than silently export a partial database. The target service's
 unencrypted connection stays inside the dedicated Docker network. No host
 PostgreSQL port is published.
@@ -784,7 +785,7 @@ sudo bash restore.sh /etc/esp32-eink/recovery.env \
 ```
 
 `restore.sh` verifies the companion checksum, actual recovery container storage,
-database identity and empty tables. It selects exactly the ten table-data
+database identity and empty tables. It selects exactly the eleven table-data
 entries, loads `users` first, excludes the existing identity marker, and restores
 in one transaction. It does not start the recovery API (which would collide with
 the production gateway port). For the full API recovery drill, use the separate

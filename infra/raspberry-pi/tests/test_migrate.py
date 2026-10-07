@@ -116,9 +116,10 @@ class SchemaTests(unittest.TestCase):
     def test_current_table_allowlist_and_dependency_order(self):
         self.assertEqual(migrate.TABLES, (
             "users", "user_preferences", "api_keys", "devices", "firmware_versions", "api_usage",
-            "custom_webhooks", "device_delivery", "device_displays", "orders",
+            "custom_webhooks", "ai_usage_reports", "device_delivery", "device_displays", "orders",
         ))
         self.assertEqual(migrate.PRIMARY_KEYS["custom_webhooks"], ("user_id",))
+        self.assertEqual(migrate.PRIMARY_KEYS["ai_usage_reports"], ("user_id",))
         self.assertEqual(migrate.PRIMARY_KEYS["device_delivery"], ("device_id",))
         self.assertEqual(migrate.PRIMARY_KEYS["device_displays"], ("device_id",))
         self.assertLess(migrate.TABLES.index("devices"), migrate.TABLES.index("device_delivery"))
@@ -127,6 +128,7 @@ class SchemaTests(unittest.TestCase):
     def test_new_tables_preserve_credentials_and_telemetry_without_synthetic_ids(self):
         expected = {
             "custom_webhooks": {"user_id", "token_hash", "token_created_at", "rows", "observed_at", "received_at"},
+            "ai_usage_reports": {"user_id", "token_hash", "token_created_at", "providers", "received_at"},
             "device_delivery": {"device_id", "owner_id", "token_hash", "rotated_at", "revoked_at", "last_seen_at",
                                 "firmware_version", "battery_percent", "rssi", "last_applied_hash",
                                 "refresh_request_id", "refresh_requested_at", "refresh_applied_at", "instant_updates"},
@@ -143,7 +145,7 @@ class SchemaTests(unittest.TestCase):
         required = {"news_source", "news_feed_url", "news_item_limit", "show_custom_text", "custom_text",
                     "show_custom_image", "show_calendar", "calendar_timezone", "calendar_days", "calendar_item_limit",
                     "show_custom_webhook", "custom_webhook_ttl_minutes", "display_timezone", "energy_price_settings",
-                    "news_feeds", "ticker_widgets"}
+                    "news_feeds", "ticker_widgets", "show_ai_usage"}
         optional = {"display_profile", "custom_image", "display_schedule"}
         for name in required | optional:
             with self.subTest(column=name):
@@ -178,7 +180,7 @@ class SchemaTests(unittest.TestCase):
 
     def test_every_tracked_check_is_required_and_bounds_cannot_be_weakened(self):
         self.assertEqual({table: len(checks) for table, checks in migrate.EXPECTED_CHECKS.items()},
-                         {"user_preferences": 10, "custom_webhooks": 2, "device_delivery": 4, "device_displays": 7})
+                         {"user_preferences": 10, "custom_webhooks": 2, "ai_usage_reports": 2, "device_delivery": 4, "device_displays": 7})
         for table in migrate.EXPECTED_CHECKS:
             for index, constraint in enumerate(migrate.EXPECTED_CONSTRAINTS[table]):
                 if constraint["type"] != "c":
@@ -194,6 +196,7 @@ class SchemaTests(unittest.TestCase):
                         migrate.check_relations(table, constraints, triggers(table))
         for table, before, after in (("user_preferences", "<= 1440", "<= 14400"),
                                      ("custom_webhooks", "<= 12", "<= 120"),
+                                     ("ai_usage_reports", "<= 32000", "<= 320000"),
                                      ("device_delivery", "<= 100::", "<= 1000::"),
                                      ("device_displays", "<= 1440", "<= 14400")):
             constraints = copy.deepcopy(migrate.EXPECTED_CONSTRAINTS[table])
@@ -203,7 +206,7 @@ class SchemaTests(unittest.TestCase):
                 migrate.check_relations(table, constraints, triggers(table))
 
     def test_new_table_defaults_and_both_delivery_foreign_keys_are_required(self):
-        for table, name in (("custom_webhooks", "rows"), ("device_delivery", "rotated_at")):
+        for table, name in (("custom_webhooks", "rows"), ("ai_usage_reports", "providers"), ("device_delivery", "rotated_at")):
             fields = schema(table)
             next(field for field in fields if field["name"] == name)["default"] = None
             with self.assertRaisesRegex(migrate.MigrationError, "incompatible default"):
@@ -297,12 +300,12 @@ class BundleTests(unittest.TestCase):
 
     def test_missing_table_file_rejected(self):
         (self.directory / "orders.csv").unlink()
-        with self.assertRaisesRegex(migrate.MigrationError, "10 CSV"):
+        with self.assertRaisesRegex(migrate.MigrationError, "11 CSV"):
             migrate.load_bundle(self.directory)
 
     def test_extra_file_rejected(self):
         (self.directory / "auth.csv").touch()
-        with self.assertRaisesRegex(migrate.MigrationError, "10 CSV"):
+        with self.assertRaisesRegex(migrate.MigrationError, "11 CSV"):
             migrate.load_bundle(self.directory)
 
     def test_manifest_cannot_select_external_file(self):
@@ -312,22 +315,30 @@ class BundleTests(unittest.TestCase):
             migrate.load_bundle(self.directory)
 
     def test_legacy_seven_table_bundle_is_rejected(self):
-        for table in ("custom_webhooks", "device_delivery", "device_displays"):
+        for table in ("custom_webhooks", "ai_usage_reports", "device_delivery", "device_displays"):
             self.manifest["tables"].pop(table)
             (self.directory / f"{table}.csv").unlink()
         write_manifest(self.directory, self.manifest)
-        with self.assertRaisesRegex(migrate.MigrationError, "10 CSV"):
+        with self.assertRaisesRegex(migrate.MigrationError, "11 CSV"):
             migrate.load_bundle(self.directory)
 
     def test_pre018_nine_table_bundle_is_rejected(self):
-        self.manifest["tables"].pop("device_displays")
-        (self.directory / "device_displays.csv").unlink()
+        for table in ("ai_usage_reports", "device_displays"):
+            self.manifest["tables"].pop(table)
+            (self.directory / f"{table}.csv").unlink()
         write_manifest(self.directory, self.manifest)
-        with self.assertRaisesRegex(migrate.MigrationError, "10 CSV"):
+        with self.assertRaisesRegex(migrate.MigrationError, "11 CSV"):
+            migrate.load_bundle(self.directory)
+
+    def test_pre024_ten_table_bundle_is_rejected(self):
+        self.manifest["tables"].pop("ai_usage_reports")
+        (self.directory / "ai_usage_reports.csv").unlink()
+        write_manifest(self.directory, self.manifest)
+        with self.assertRaisesRegex(migrate.MigrationError, "11 CSV"):
             migrate.load_bundle(self.directory)
 
     def test_webhook_and_delivery_data_are_checksummed(self):
-        for table in ("custom_webhooks", "device_delivery", "device_displays"):
+        for table in ("custom_webhooks", "ai_usage_reports", "device_delivery", "device_displays"):
             with self.subTest(table=table):
                 path = self.directory / f"{table}.csv"
                 original = path.read_bytes()
@@ -474,7 +485,7 @@ class TransactionTests(unittest.TestCase):
         self.mocks["verify_rows"].side_effect = migrate.MigrationError("checksum")
         with self.assertRaisesRegex(migrate.MigrationError, "checksum"):
             migrate.import_bundle(self.conn, self.directory)
-        self.assertEqual(self.mocks["copy_in"].call_count, 10)
+        self.assertEqual(self.mocks["copy_in"].call_count, 11)
         self.assertEqual(self.conn.transaction.return_value.__exit__.call_args.args[0], migrate.MigrationError)
 
     def test_corrupt_bundle_does_not_open_transaction(self):
@@ -512,10 +523,10 @@ class GuardAndCLITests(unittest.TestCase):
         with patch.object(migrate, "count_rows", side_effect=lambda conn, table: int(table == "orders")) as count:
             with self.assertRaisesRegex(migrate.MigrationError, "orders"):
                 migrate.check_empty_target(MagicMock())
-            self.assertEqual(count.call_count, 10)
+            self.assertEqual(count.call_count, 11)
 
     def test_nonempty_new_table_blocks_import(self):
-        for table in ("custom_webhooks", "device_delivery", "device_displays"):
+        for table in ("custom_webhooks", "ai_usage_reports", "device_delivery", "device_displays"):
             with patch.object(migrate, "count_rows", side_effect=lambda conn, current: int(current == table)):
                 with self.assertRaisesRegex(migrate.MigrationError, table):
                     migrate.check_empty_target(MagicMock())
@@ -560,7 +571,7 @@ class GuardAndCLITests(unittest.TestCase):
 
 class CopyAndVerificationTests(unittest.TestCase):
     def test_copy_orders_complete_rows_by_each_actual_primary_key(self):
-        for table, key in (("users", "id"), ("custom_webhooks", "user_id"), ("device_delivery", "device_id"), ("device_displays", "device_id")):
+        for table, key in (("users", "id"), ("custom_webhooks", "user_id"), ("ai_usage_reports", "user_id"), ("device_delivery", "device_id"), ("device_displays", "device_id")):
             conn = MagicMock()
             copy_call = conn.cursor.return_value.__enter__.return_value.copy
             copy_call.return_value.__enter__.return_value.__iter__.return_value = iter([b"first", b"second"])
@@ -574,7 +585,7 @@ class CopyAndVerificationTests(unittest.TestCase):
             self.assertEqual((digest, size), (hashlib.sha256(b"firstsecond").hexdigest(), 11))
 
     def test_verify_detects_new_table_content_change_even_with_matching_count(self):
-        for changed_table in ("custom_webhooks", "device_delivery", "device_displays"):
+        for changed_table in ("custom_webhooks", "ai_usage_reports", "device_delivery", "device_displays"):
             with tempfile.TemporaryDirectory() as directory:
                 manifest = make_bundle(Path(directory))
                 def copied(conn, table):

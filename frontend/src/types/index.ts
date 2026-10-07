@@ -87,6 +87,7 @@ export interface UserPreferences {
   display_timezone?: string;
   show_custom_webhook?: boolean;
   custom_webhook_ttl_minutes?: number;
+  show_ai_usage?: boolean;
   display_schedule?: DisplaySchedule | null;
   display_profile?: DisplayProfile | null;
   show_custom_text?: boolean;
@@ -157,7 +158,28 @@ export interface DisplayData {
   weatherError?: WeatherError;
   news?: NewsItem[];
   calendar?: { timezone: string; events: Array<{ title: string; start: string; end: string; allDay: boolean; dateLabel: string; timeLabel: string }> };
+  aiUsage?: AiUsageData;
   nextRefresh: number;
+}
+
+// Mirrors backend/src/aiUsage/types.ts.
+export type AiUsageProvider = 'claude' | 'openai';
+export interface AiUsageProviderView {
+  provider: AiUsageProvider;
+  label: string;
+  limits: Array<{ label: string; usedPercent: number | null; resetsAt: string }>;
+  limitsObservedAt: string | null;
+  today: { tokens: number; costUsd: number | null; partial: boolean } | null;
+  monthCostUsd: number | null;
+  adminError?: { code: string; message: string };
+}
+export interface AiUsageData { providers: AiUsageProviderView[] }
+export interface AiUsageStatus {
+  configured: boolean;
+  tokenCreatedAt: string | null;
+  receivedAt: string | null;
+  reports: Record<AiUsageProvider, { limitsObservedAt: string | null; machines: Array<{ name: string; day: string; observedAt: string }> }>;
+  adminKeys: Record<AiUsageProvider, boolean>;
 }
 
 export interface CustomImage {

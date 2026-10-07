@@ -3,6 +3,7 @@ import type { EnergyPriceSettings } from '../utils/energyPriceSettings';
 import type { NewsProblem } from '../utils/newsErrors';
 import type { EnergyPriceProblem } from '../utils/energyPriceErrors';
 import type { TickerResult } from '../ticker';
+import type { AiUsageData } from '../aiUsage/types';
 export interface WidgetLayout {
   i: string;       // 'energy' | 'weather' | 'news' | 'status'
   x: number;       // 0–9
@@ -15,7 +16,7 @@ export interface WidgetLayout {
 }
 
 export interface WidgetOptions {
-  /** energy: 'summary' | 'day' | 'rest'; ticker: 'full' | 'condensed' (overrides the ticker's own view). */
+  /** energy: 'summary' | 'day' | 'rest'; ticker: 'full' | 'condensed' (overrides the ticker's own view); ai-usage: 'full' | 'condensed'. */
   view?: 'summary' | 'day' | 'rest' | 'full' | 'condensed';
   /** news, calendar: most rows drawn; ticker: stocks per page in the condensed view. 1–10. */
   items?: number;
@@ -41,6 +42,7 @@ export interface UserPreferences {
   display_timezone?: string;
   show_custom_webhook?: boolean;
   custom_webhook_ttl_minutes?: number;
+  show_ai_usage?: boolean;
   display_schedule?: DisplaySchedule | null;
   display_profile?: DisplayProfile | null;
   show_custom_text?: boolean;
@@ -206,6 +208,7 @@ export interface DisplayData {
   notion?: NotionData;
   notionError?: { code: string; message: string };
   calendar?: CalendarData;
+  aiUsage?: AiUsageData;
   nextRefresh: number;
 }
 

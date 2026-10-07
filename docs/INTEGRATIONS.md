@@ -15,6 +15,7 @@ Each source needs both saved source settings and its widget in the **layout edit
 | Notion | Notion | Create an internal connection with read access and share the original database with it. Save its `ntn_` or legacy `secret_` token and database ID or original Notion link. A database with multiple data sources also needs the desired data source ID. [Connection setup](https://developers.notion.com/guides/get-started/internal-connections) |
 | ICS calendar | Calendar | Save a subscription URL, enable Calendar, and choose the event timezone, 1–30 day window and 1–10 event limit. See below. |
 | Home Assistant / custom webhook | Custom sensors | Create a dedicated token, configure outbound JSON updates, and enable the sensor source. [Complete example](CUSTOM_WEBHOOK.md) |
+| Claude Code · Codex · Admin APIs | AI usage | Create a collector token and run the dependency-free collector on the computers where you use Claude Code or Codex; optionally save Anthropic/OpenAI Admin API keys for server-side organization usage. Apply `024_ai_usage.sql` first. [AI usage guide](AI_USAGE.md) |
 
 NewsAPI's [published sources](https://newsapi.org/docs/endpoints/sources) do not list Danish or Finnish coverage. For Danish headlines, select a publisher's public RSS feed rather than assuming a Danish NewsAPI key will supply them. Feed URLs are ordinary preferences; use the separate Calendar form for secret calendar subscription URLs.
 

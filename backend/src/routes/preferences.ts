@@ -201,6 +201,7 @@ router.get(
         display_timezone: DEFAULT_DISPLAY_TIMEZONE,
         show_custom_webhook: false,
         custom_webhook_ttl_minutes: 60,
+        show_ai_usage: false,
         show_custom_text: false,
         custom_text: '',
         show_custom_image: false,
@@ -418,7 +419,7 @@ router.get(
       const keys = await getApiKeys(userId);
 
       // Mask the actual key values
-      const masked = keys.filter((k) => k.provider !== 'calendar').map((k) => ({
+      const masked = keys.filter((k) => !['calendar', 'anthropic_admin', 'openai_admin'].includes(k.provider)).map((k) => ({
         id: k.id,
         provider: k.provider,
         api_key: k.api_key.slice(0, 6) + '••••••••',
