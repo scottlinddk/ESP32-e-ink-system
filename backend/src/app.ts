@@ -17,6 +17,7 @@ import imageRouter from './routes/image';
 import { feedRouter, managementRouter as deliveryManagementRouter } from './routes/deviceDelivery';
 import customWebhookRouter from './routes/custom-webhook';
 import tickersRouter from './routes/tickers';
+import aiUsageRouter from './routes/ai-usage';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { swaggerSpec } from './swagger';
 
@@ -91,6 +92,8 @@ const displayLimiter = createRateLimiter(
 app.use((req, res, next) => req.path.startsWith('/device-feed/') ? next() : globalLimiter(req, res, next));
 app.use('/image', displayLimiter);
 app.use('/tickers', createRateLimiter(30, '1 m', 'Too many ticker searches, please try again shortly.', 'ticker-search'));
+// A test bypasses the Admin API cache; Anthropic asks for at most one poll per minute.
+app.use('/ai-usage/test', createRateLimiter(3, '1 m', 'Too many usage tests, please wait a minute.', 'ai-usage-test'));
 
 // Body parsing
 // A 512x512 one-bit custom image fits within this bounded preferences payload.
@@ -114,6 +117,7 @@ app.use('/preview', displayDataRouter);
 app.use('/image', imageRouter);
 app.use('/custom-webhook', customWebhookRouter);
 app.use('/tickers', tickersRouter);
+app.use('/ai-usage', aiUsageRouter);
 
 // Checkout stub
 app.post('/checkout', (_req, res) => {

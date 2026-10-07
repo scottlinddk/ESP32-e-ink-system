@@ -1,7 +1,7 @@
 import { DisplayProfile, frameMetadata } from './displayProfile';
 import { buildAuthHeaders } from './auth';
 import { readPreviewMetadata, type PreviewImage } from './previewMetadata';
-import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout, CustomWebhookStatus, WeatherData, EnergyPrice, EnergyPriceSettings, TickerSearchResult } from '../types';
+import { UserPreferences, DisplayData, MaskedApiKey, User, Device, FirmwareVersion, DisplayLayout, CustomWebhookStatus, AiUsageStatus, AiUsageData, AiUsageProvider, WeatherData, EnergyPrice, EnergyPriceSettings, TickerSearchResult } from '../types';
 
 // Both Vercel and Vite route /api/* to the backend and strip the /api prefix.
 // VITE_API_BASE_URL configures Vite's proxy target, not a browser URL.
@@ -420,6 +420,30 @@ export function createCustomWebhookToken(token: string): Promise<{ token: string
 
 export function deleteCustomWebhookToken(token: string): Promise<void> {
   return request('/api/custom-webhook/token', { token, method: 'DELETE' });
+}
+
+export function getAiUsageStatus(token: string): Promise<AiUsageStatus> {
+  return request('/api/ai-usage', { token });
+}
+
+export function createAiUsageToken(token: string): Promise<{ token: string }> {
+  return request('/api/ai-usage/token', { token, method: 'POST', body: '{}' });
+}
+
+export function deleteAiUsageToken(token: string): Promise<void> {
+  return request('/api/ai-usage/token', { token, method: 'DELETE' });
+}
+
+export function saveAiUsageAdminKey(token: string, provider: AiUsageProvider, apiKey: string): Promise<{ provider: AiUsageProvider; configured: true }> {
+  return request(`/api/ai-usage/admin-keys/${provider}`, { token, method: 'PUT', body: JSON.stringify({ api_key: apiKey }) });
+}
+
+export function deleteAiUsageAdminKey(token: string, provider: AiUsageProvider): Promise<void> {
+  return request(`/api/ai-usage/admin-keys/${provider}`, { token, method: 'DELETE' });
+}
+
+export function testAiUsage(token: string): Promise<{ aiUsage: AiUsageData }> {
+  return request('/api/ai-usage/test', { token, method: 'POST', body: '{}' });
 }
 
 export async function fetchPreviewFrame(token: string, deviceId?: string, signal?: AbortSignal, pageId?: string): Promise<{ pixels: Uint8Array; profile: DisplayProfile }> {

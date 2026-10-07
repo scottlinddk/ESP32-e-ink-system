@@ -14,6 +14,7 @@ import type { RenderedWidget } from '../ticker/render';
 import { renderEnergyChart } from './energyChart';
 import { energyView } from './widgetOptions';
 import { renderWeekNumberWidget } from './weekNumber';
+import { renderAiUsageWidget } from './aiUsageRenderer';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -590,6 +591,7 @@ const WIDGET_ENABLED_SETTING = {
   energy: 'show_energy_price', weather: 'show_weather', news: 'show_news',
   monta: 'show_monta', zaptec: 'show_zaptec', notion: 'show_notion', calendar: 'show_calendar',
   'custom-text': 'show_custom_text', 'custom-image': 'show_custom_image', 'custom-webhook': 'show_custom_webhook',
+  'ai-usage': 'show_ai_usage',
 } as const;
 type RenderPreferences = Partial<Pick<UserPreferences,
   'monta_fields' | 'zaptec_fields' | 'display_profile' | 'display_timezone' | 'ticker_widgets'
@@ -642,6 +644,9 @@ function populateCanvas(
         case 'notion':  renderNotionWidget(canvas, bounds, data.notion, data.notionError); break;
         case 'calendar': renderCalendarWidget(canvas, bounds, data.calendar, widget.options?.items); break;
         case 'week-number': renderWeekNumberWidget(canvas, bounds, new Date(), preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE); break;
+        case 'ai-usage': renderAiUsageWidget(canvas, bounds, data.aiUsage, {
+          view: widget.options?.view === 'condensed' ? 'condensed' : 'full', timeZone: preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE,
+        }); break;
         case 'status':  renderStatusWidget(canvas, bounds, data.nextRefresh, preferences?.display_timezone); break;
       }
     });

@@ -19,7 +19,14 @@ vi.mock('../../hooks/usePreferences', () => ({
   useApiKeys: () => ({ data: [{ provider: 'openweathermap', api_key: 'masked-key' }], dataUpdatedAt: 1 }),
 }));
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => ({ data: { configured: true, state: 'unavailable', rowCount: 0 }, isPending: false, isLoading: false, isError: false, refetch: vi.fn() }),
+  useQuery: ({ queryKey }: { queryKey: unknown[] }) => ({
+    data: queryKey[0] === 'ai-usage'
+      ? { configured: true, tokenCreatedAt: null, receivedAt: null, adminKeys: { claude: true, openai: false },
+        reports: { claude: { limitsObservedAt: '2026-10-07T09:00:00Z', machines: [{ name: 'laptop', day: '2026-10-07', observedAt: '2026-10-07T09:00:00Z' }] },
+          openai: { limitsObservedAt: null, machines: [] } } }
+      : { configured: true, state: 'unavailable', rowCount: 0 },
+    isPending: false, isLoading: false, isError: false, refetch: vi.fn(),
+  }),
   useMutation: () => ({ isPending: false, mutate: vi.fn() }),
   useQueryClient: () => ({ setQueryData: vi.fn(), invalidateQueries: vi.fn() }),
 }));
@@ -39,7 +46,8 @@ describe('Integrations page with its real setup forms', () => {
     const html = render();
     for (const id of ['sources', 'credentials', 'credentials-monta', 'credentials-zaptec', 'credentials-notion',
       'credentials-openweather', 'credentials-newsapi', 'calendar', 'home-assistant', 'zone', 'loc',
-      'calendar-url', 'calendar-timezone', 'custom-webhook-ttl', 'custom-webhook-endpoint']) {
+      'calendar-url', 'calendar-timezone', 'custom-webhook-ttl', 'custom-webhook-endpoint',
+      'ai-usage', 'ai-usage-admin-claude', 'ai-usage-admin-openai', 'ai-usage-machine']) {
       expect(html.split(`id="${id}"`)).toHaveLength(2);
     }
     expect(html).toContain('<option value="DK2" selected="">');
@@ -56,13 +64,15 @@ describe('Integrations page with its real setup forms', () => {
     for (const widget of [t.layoutWidgetEnergy, t.layoutWidgetWeather, t.layoutWidgetNews, t.srcMonta, t.srcZaptec, t.srcNotion]) {
       expect(html).toContain(`${t.integrationWidget}: ${widget}`);
     }
-    for (const section of ['sources', 'credentials', 'calendar', 'home-assistant', 'credentials-openweather', 'credentials-monta', 'credentials-zaptec', 'credentials-notion']) {
+    for (const section of ['sources', 'credentials', 'calendar', 'home-assistant', 'ai-usage', 'credentials-openweather', 'credentials-monta', 'credentials-zaptec', 'credentials-notion']) {
       expect(html).toContain(`href="#${section}"`);
     }
     expect(html).toContain(t.integrationStepEnable);
     expect(html).toContain(t.integrationLocalWidgetsHelp);
     expect(html).toContain(lang === 'da' ? 'Find din kalenderadresse' : 'Find your calendar URL');
     expect(html).toContain(lang === 'da' ? 'Opsæt Home Assistant trin for trin' : 'Set up Home Assistant step by step');
+    expect(html).toContain(lang === 'da' ? 'Opsæt indsamleren trin for trin' : 'Set up the collector step by step');
+    expect(html).toContain(`${t.integrationWidget}: ${lang === 'da' ? 'AI-forbrug' : 'AI usage'}`);
     expect(html).toContain('ntn_');
     expect(html).toContain('Manage data sources');
     expect(html).not.toContain('not supported yet');

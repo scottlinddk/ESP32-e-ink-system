@@ -5,6 +5,7 @@ import { DisplayCard } from '../components/dashboard/DisplayCard';
 import { ApiKeysCard } from '../components/dashboard/ApiKeysCard';
 import { CalendarCard } from '../components/dashboard/CalendarCard';
 import { CustomWebhookCard } from '../components/dashboard/CustomWebhookCard';
+import { AiUsageCard } from '../components/dashboard/AiUsageCard';
 import { Card } from '../components/ui/card';
 
 export function IntegrationsPage() {
@@ -50,6 +51,12 @@ export function IntegrationsPage() {
         : 'Create an internal connection with read access and add it to the original database in Notion. Save an ntn_ or secret_ token and database ID or link. One data source is selected automatically; for several, also copy its ID from Manage data sources. The optional filter requires a Status-type property. Then enable Notion under Data sources.',
       url: 'https://developers.notion.com/guides/get-started/internal-connections',
     },
+    {
+      id: 'ai-usage', name: 'Claude · ChatGPT/Codex', widget: da ? 'AI-forbrug' : 'AI usage', setup: '#ai-usage',
+      text: da ? 'Kvoter (5 timer og 7 dage), dagens tokens med anslået pris, og månedens faktiske API-pris. En lille indsamler på din computer sender summer fra Claude Code og Codex; valgfrie Admin API-nøgler lader serveren hente organisationens forbrug selv. Den seneste rapport gemmes, så widgetten virker, mens computeren er slukket.'
+        : 'Quota (5-hour and 7-day), today’s tokens with an estimated cost, and the billed API cost this month. A small collector on your computer sends totals from Claude Code and Codex; optional Admin API keys let the server read organization usage itself. The latest report is kept, so the widget works while your computer is off.',
+      url: 'https://platform.claude.com/docs/en/manage-claude/usage-cost-api',
+    },
   ];
 
   return <div className="max-w-[1180px] mx-auto px-6 pt-6 pb-20 animate-fade-up max-[820px]:px-4">
@@ -68,6 +75,7 @@ export function IntegrationsPage() {
         <a href="#credentials" className="underline">{t.apiTitle}</a>
         <a href="#calendar" className="underline">{da ? 'Kalender' : 'Calendar'}</a>
         <a href="#home-assistant" className="underline">Home Assistant</a>
+        <a href="#ai-usage" className="underline">{da ? 'AI-forbrug' : 'AI usage'}</a>
         <a href="https://github.com/scottlinddk/ESP32-e-ink-system/blob/main/docs/INTEGRATIONS.md" target="_blank" rel="noreferrer" className="underline">{t.integrationFullGuide}</a>
       </nav>
     </Card>
@@ -87,6 +95,7 @@ export function IntegrationsPage() {
     </div>
     <section id="calendar" className="mt-5 scroll-mt-20" aria-label={da ? 'Kalender' : 'Calendar'}><CalendarCard /></section>
     <section id="home-assistant" className="mt-5 scroll-mt-20" aria-label="Home Assistant"><CustomWebhookCard /></section>
+    <section id="ai-usage" className="mt-5 scroll-mt-20" aria-label={da ? 'AI-forbrug' : 'AI usage'}><AiUsageCard /></section>
     <Card className="mt-5" title={t.integrationLocalWidgets}>
       <p className="text-sm text-fg2 m-0">{t.integrationLocalWidgetsHelp} <Link to="/dashboard" className="underline">{t.nav.home}</Link>.</p>
     </Card>

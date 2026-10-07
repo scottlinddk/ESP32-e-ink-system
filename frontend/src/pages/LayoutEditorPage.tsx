@@ -23,7 +23,7 @@ import { deviceDashboardPath } from '../lib/deviceLayouts';
 import { newsFeedIdFromWidget, newsFeedLabel, newsFeedWidgetId } from '../lib/newsFeeds';
 import { tickerIdFromWidget, tickerLabel, tickerWidgetId } from '../lib/tickerWidgets';
 
-const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'week-number', 'status'] as const;
+const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'week-number', 'ai-usage', 'status'] as const;
 
 export function LayoutEditorPage() {
   const { user } = useAuth();
@@ -50,6 +50,7 @@ function LayoutEditorWorkspace() {
     notion:  { id: 'notion',  label: t.srcNotion,           icon: 'auto_stories' },
     calendar: { id: 'calendar', label: app.lang === 'da' ? 'Kalender' : 'Calendar', icon: 'calendar_month' },
     'week-number': { id: 'week-number', label: app.lang === 'da' ? 'Ugenummer' : 'Week number', icon: 'date_range' },
+    'ai-usage': { id: 'ai-usage', label: app.lang === 'da' ? 'AI-forbrug' : 'AI usage', icon: 'token' },
     status:  { id: 'status',  label: t.layoutWidgetStatus,  icon: 'schedule' },
     'custom-text': { id: 'custom-text', label: 'My note', icon: 'notes' },
     'custom-image': { id: 'custom-image', label: 'My image', icon: 'image' },

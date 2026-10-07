@@ -95,6 +95,18 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, onChange, onCl
           );
         })()}
 
+        {kind === 'ai-usage' && (
+          <Field label={da ? 'Visning' : 'View'} htmlFor={`${fieldId}-view`}
+            helper={da ? 'En lav widget viser altid én linje pr. udbyder.' : 'A short widget always shows one line per provider.'}>
+            <Select id={`${fieldId}-view`} value={widget.options?.view === 'condensed' ? 'condensed' : 'full'}
+              options={[
+                { value: 'full', label: da ? 'Kvoter som søjler, tokens og pris' : 'Quota bars, tokens and cost' },
+                { value: 'condensed', label: da ? 'Én linje pr. udbyder' : 'One line per provider' },
+              ]}
+              onChange={(e) => onChange({ view: e.target.value === 'condensed' ? 'condensed' : undefined })} />
+          </Field>
+        )}
+
         {!kind && (
           <p className="text-sm text-fg2 m-0">
             {da ? 'Denne widget har ingen visningsindstillinger. Flyt eller tilpas størrelsen i gitteret.' : 'This widget has no display options. Move or resize it in the grid.'}
