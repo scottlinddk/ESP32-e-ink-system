@@ -219,6 +219,20 @@ describe('rendering ticker widgets', () => {
     const failed = renderDisplayDataRaw({ nextRefresh: 1000, tickers: { dk: { error: 'Yahoo Finance request limit reached.' } } }, layout, prefs);
     expect(failed).not.toEqual(removed);
   });
+  it('lets a placement override the view and stocks per page', async () => {
+    const tickers = await snapshots();
+    const place = (options?: DisplayLayout['widgets'][number]['options']) => renderDisplayDataRaw({ nextRefresh: 1000, tickers },
+      grid({ i: 'ticker:dk', x: 0, y: 0, w: 10, h: 6, ...(options ? { options } : {}) }), prefs);
+    const condensed = place();
+    const asFull = place({ view: 'full' });
+    expect(asFull).not.toEqual(condensed);
+    // The same symbols drawn as the full view by the ticker's own setting.
+    expect(asFull).toEqual(renderDisplayDataRaw({ nextRefresh: 1000, tickers }, grid({ i: 'ticker:dk', x: 0, y: 0, w: 10, h: 6 }),
+      { ticker_widgets: [{ ...dk, view: 'full' }, us] }));
+    expect(place({ items: 1 })).toEqual(renderDisplayDataRaw({ nextRefresh: 1000, tickers }, grid({ i: 'ticker:dk', x: 0, y: 0, w: 10, h: 6 }),
+      { ticker_widgets: [{ ...dk, per_page: 1 }, us] }));
+    expect(place({ items: 1 })).not.toEqual(condensed);
+  });
   it('does not draw ticker widgets that are not in the layout', async () => {
     expect(renderDisplayDataRaw({ nextRefresh: 1000, tickers: await snapshots() }, grid(), prefs)).toEqual(blank);
   });

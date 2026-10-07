@@ -11,6 +11,8 @@ import { newsFeedIdFromWidget } from './newsFeeds';
 import { storedTickerWidgets, tickerIdFromWidget } from './tickerWidgets';
 import { renderTicker, renderTickerUnavailable, type TickerResult } from '../ticker';
 import type { RenderedWidget } from '../ticker/render';
+import { renderEnergyChart } from './energyChart';
+import { energyView } from './widgetOptions';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -313,9 +315,17 @@ function renderEnergyWidget(
   bounds: WidgetBounds,
   price?: DisplayData['price'],
   problem?: DisplayData['priceError'],
+  options?: WidgetLayout['options'],
 ): void {
   const { x, y, width, height } = bounds;
   if (y > 0) canvas.drawHLine(x, y, width);
+  const view = energyView(options);
+  // Without hourly prices a chart view falls back to the summary rather than an empty chart.
+  if (view !== 'summary' && price?.hours?.length) {
+    renderEnergyChart(canvas, { x, y: y > 0 ? y + 1 : y, width, height: y > 0 ? height - 1 : height },
+      { ...price, hours: price.hours }, view, Date.now());
+    return;
+  }
   const textY = y + 2;
   const maxW = width - 4;
   if (price) {
@@ -368,13 +378,14 @@ function renderNewsWidget(
   bounds: WidgetBounds,
   news?: DisplayData['news'],
   problem?: DisplayData['newsError'],
+  limit?: number,
 ): void {
   const { x, y, width, height } = bounds;
   if (y > 0) canvas.drawHLine(x, y, width);
   let textY = y + 2;
   const maxW = width - 4;
   if (news && news.length > 0) {
-    for (const item of news) {
+    for (const item of news.slice(0, limit)) {
       if (textY + 8 > y + height) break;
       textY = canvas.drawWrappedText(item.title, x + 2, textY, maxW, 10) + 2;
     }
@@ -510,7 +521,7 @@ function renderNotionWidget(
   }
 }
 
-function renderCalendarWidget(canvas: BmpCanvas, bounds: WidgetBounds, data?: DisplayData['calendar']): void {
+function renderCalendarWidget(canvas: BmpCanvas, bounds: WidgetBounds, data?: DisplayData['calendar'], limit?: number): void {
   const { x, y, width, height } = bounds;
   if (y > 0) canvas.drawHLine(x, y, width);
   let textY = y + 2;
@@ -518,7 +529,7 @@ function renderCalendarWidget(canvas: BmpCanvas, bounds: WidgetBounds, data?: Di
     canvas.drawText(data ? 'No upcoming events' : 'Calendar: unavailable', x + 2, textY, width - 4);
     return;
   }
-  for (const event of data.events) {
+  for (const event of data.events.slice(0, limit)) {
     if (textY + 8 > y + height) break;
     textY = canvas.drawWrappedText(`${event.dateLabel} ${event.timeLabel}: ${event.title}`, x + 2, textY, width - 4, 10) + 2;
   }
@@ -597,14 +608,20 @@ function populateCanvas(
     const tickerId = tickerIdFromWidget(widget.i);
     canvas.withClip(bounds, () => {
       if (tickerId) {
-        const setting = storedTickerWidgets(preferences?.ticker_widgets).find((item) => item.id === tickerId);
+        const stored = storedTickerWidgets(preferences?.ticker_widgets).find((item) => item.id === tickerId);
+        // Layout options override the ticker's own view and page size for this placement only.
+        const setting = stored && {
+          ...stored,
+          ...(widget.options?.view === 'full' || widget.options?.view === 'condensed' ? { view: widget.options.view } : {}),
+          ...(widget.options?.items ? { per_page: widget.options.items } : {}),
+        };
         renderTickerWidget(canvas, bounds, setting, data.tickers?.[tickerId], preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE);
         return;
       }
       if (feedId) {
         // A removed feed has no result; it renders as unavailable until the widget is removed.
         const feed = data.newsFeeds?.[feedId];
-        renderNewsWidget(canvas, bounds, feed?.items, feed?.error);
+        renderNewsWidget(canvas, bounds, feed?.items, feed?.error, widget.options?.items);
         return;
       }
       switch (widget.i) {
@@ -615,13 +632,13 @@ function populateCanvas(
         case 'custom-image':
           if (data.customImage) drawCustomImage(canvas, bounds, data.customImage, { x: 0, y: 0, width: canvas.width, height: canvas.height });
           break;
-        case 'energy':  renderEnergyWidget(canvas, bounds, data.price, data.priceError); break;
+        case 'energy':  renderEnergyWidget(canvas, bounds, data.price, data.priceError, widget.options); break;
         case 'weather': renderWeatherWidget(canvas, bounds, data.weather, data.weatherError); break;
-        case 'news':    renderNewsWidget(canvas, bounds, data.news, data.newsError); break;
+        case 'news':    renderNewsWidget(canvas, bounds, data.news, data.newsError, widget.options?.items); break;
         case 'monta':   renderMontaWidget(canvas, bounds, data.monta, preferences?.monta_fields ?? undefined); break;
         case 'zaptec':  renderZaptecWidget(canvas, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined); break;
         case 'notion':  renderNotionWidget(canvas, bounds, data.notion, data.notionError); break;
-        case 'calendar': renderCalendarWidget(canvas, bounds, data.calendar); break;
+        case 'calendar': renderCalendarWidget(canvas, bounds, data.calendar, widget.options?.items); break;
         case 'status':  renderStatusWidget(canvas, bounds, data.nextRefresh, preferences?.display_timezone); break;
       }
     });

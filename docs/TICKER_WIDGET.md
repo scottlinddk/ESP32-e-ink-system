@@ -25,6 +25,8 @@ least 3 grid rows of height to show a header and footer; smaller areas show rows
 | `full` | One stock: symbol, price, direction arrow with absolute and percent change, intraday sparkline with a dotted previous-close line, market status and time. |
 | `condensed` | A list: header with market status, per row symbol and price, then arrow, change and percent. Footer with the time and page (`Side 1/2`). |
 
+A placement can override the view and the stocks per page for one layout or scheduled page: select the widget in **Edit layout**. This is stored on the layout widget as `options: {"view":"condensed","items":3}`; without it the ticker's own settings apply.
+
 ## Configuration
 
 | Field | Default | Notes |

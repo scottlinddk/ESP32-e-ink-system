@@ -8,6 +8,17 @@ export interface WidgetLayout {
   w: number;        // column span
   h: number;        // row span
   static?: boolean;
+  /** Display options for this placement. Mirrors backend/src/utils/widgetOptions.ts. */
+  options?: WidgetOptions;
+}
+
+export type EnergyView = 'summary' | 'day' | 'rest';
+
+export interface WidgetOptions {
+  /** energy: EnergyView; ticker: TickerView, overriding the ticker's own view. */
+  view?: EnergyView | TickerView;
+  /** news, calendar: most rows drawn; ticker: stocks per page in the condensed view. 1–10. */
+  items?: number;
 }
 
 export interface DisplayLayout {
@@ -114,6 +125,7 @@ export interface EnergyPrice {
   now: number; // øre/kWh
   average: number;
   trend: 'up' | 'down' | 'stable';
+  hours?: Array<{ start: string; hour: number; price: number }>;
 }
 
 export interface WeatherData {

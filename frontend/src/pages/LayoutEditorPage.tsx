@@ -6,11 +6,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../lib/appContext';
 import { useAuth } from '../hooks/useAuth';
-import { DisplayLayout, DEFAULT_LAYOUT, NewsFeed, TickerWidgetSetting } from '../types';
+import { DisplayLayout, DEFAULT_LAYOUT, NewsFeed, TickerWidgetSetting, WidgetOptions } from '../types';
 import { saveLayout, getPreferences, savePreferences } from '../lib/api';
 import { findWidgetSpace, layoutProblem } from '../lib/layoutPlacement';
 import { GridEditor, WIDGET_META } from '../components/layout/GridEditor';
 import { LayoutPreviewPane } from '../components/layout/LayoutPreviewPane';
+import { WidgetOptionsPanel } from '../components/layout/WidgetOptionsPanel';
+import { updateWidgetOptions } from '../lib/widgetOptions';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { LoadBox } from '../components/ui/Spinner';
@@ -62,6 +64,7 @@ function LayoutEditorWorkspace() {
   const [deviceName, setDeviceName] = useState<string | null>(null);
   const [newsFeeds, setNewsFeeds] = useState<NewsFeed[]>([]);
   const [tickers, setTickers] = useState<TickerWidgetSetting[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
@@ -128,6 +131,13 @@ function LayoutEditorWorkspace() {
   const activeWidgetIds = new Set(layout.widgets.map((w) => w.i));
   const availableWidgets = allWidgetIds.filter((id) => !activeWidgetIds.has(id));
   const hasSpace = findWidgetSpace(layout) !== null;
+  // A removed or reset widget closes its options.
+  const selectedWidget = layout.widgets.find((widget) => widget.i === selectedId);
+  const selectedTickerId = selectedWidget ? tickerIdFromWidget(selectedWidget.i) : null;
+
+  function handleWidgetOptions(change: WidgetOptions) {
+    if (selectedId) setLayout((prev) => updateWidgetOptions(prev, selectedId, change));
+  }
 
   function handleRemoveWidget(widgetId: string) {
     setLayout((prev) => ({ ...prev, widgets: prev.widgets.filter((w) => w.i !== widgetId) }));
@@ -224,14 +234,32 @@ function LayoutEditorWorkspace() {
               widgetMeta={widgetMeta}
               onLayoutChange={setLayout}
               onRemoveWidget={handleRemoveWidget}
+              selectedId={selectedWidget?.i ?? null}
+              onSelectWidget={setSelectedId}
             />
           </div>
+          {selectedWidget && (
+            <div className="mt-3">
+              <WidgetOptionsPanel
+                key={selectedWidget.i}
+                widget={selectedWidget}
+                label={widgetMeta[selectedWidget.i]?.label ?? selectedWidget.i}
+                lang={app.lang}
+                ticker={selectedTickerId ? tickers.find((ticker) => ticker.id === selectedTickerId) : undefined}
+                onChange={handleWidgetOptions}
+                onClose={() => setSelectedId(null)}
+              />
+            </div>
+          )}
           <div className="flex flex-col gap-0.5 mt-2 [&_.material-symbols-outlined]:text-[14px]">
             <p className="flex items-center gap-1 text-xs text-fg3 m-0">
               <Icon name="info" /> Grid: 10 columns × 6 rows · size and orientation from saved display profile
             </p>
             <p className="flex items-center gap-1 text-xs text-fg3 m-0">
               <Icon name="drag_indicator" /> Drag the handle to move · drag the bottom-right corner to resize
+            </p>
+            <p className="flex items-center gap-1 text-xs text-fg3 m-0">
+              <Icon name="tune" /> {app.lang === 'da' ? 'Tryk på en widget for at vælge visning og antal' : 'Tap a widget to choose its view and how many items it shows'}
             </p>
             <p className="flex items-center gap-1 text-xs text-fg3 m-0">
               <Icon name="open_in_full" /> {app.lang === 'da'

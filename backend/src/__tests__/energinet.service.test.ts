@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearEnergyCache, fetchEnergyPrice } from '../services/energinet';
+import { clearEnergyCache, fetchEnergyPrice, hourlyPrices } from '../services/energinet';
 import { energyPriceProblem } from '../utils/energyPriceErrors';
 
 // `time` is a UTC instant without suffix and `price` is DKK/MWh, as in the test cases' arithmetic.
@@ -40,7 +40,10 @@ describe('current Danish day-ahead electricity price', () => {
       record('2026-09-26T10:15:00', 600),
       record('2026-09-26T10:00:00', 400),
     ]);
-    expect(await fetchEnergyPrice()).toEqual({ now: 40, average: 100, trend: 'down' });
+    expect(await fetchEnergyPrice()).toEqual({ now: 40, average: 100, trend: 'down', hours: [
+      { start: '2026-09-26T10:00:00.000Z', hour: 12, price: 50 },
+      { start: '2026-09-26T21:00:00.000Z', hour: 23, price: 200 },
+    ] });
     expect(vi.mocked(fetch).mock.calls[0][0])
       .toBe('https://www.elprisenligenu.dk/api/v1/prices/2026/09-26_DK1.json');
   });
@@ -95,7 +98,10 @@ describe('current Danish day-ahead electricity price', () => {
       record('2026-09-26T21:45:00', 600),
       record('2026-09-26T22:00:00', 9000),
     ]);
-    expect(await fetchEnergyPrice()).toEqual({ now: 40, average: 50, trend: 'down' });
+    expect(await fetchEnergyPrice()).toEqual({ now: 40, average: 50, trend: 'down', hours: [
+      { start: '2026-09-25T22:00:00.000Z', hour: 0, price: 40 },
+      { start: '2026-09-26T21:00:00.000Z', hour: 23, price: 60 },
+    ] });
   });
 
   it.each([
@@ -195,7 +201,10 @@ describe('estimated Danish consumer electricity price', () => {
     respondConsumer([record('2026-09-26T14:45:00', 400), record('2026-09-26T15:45:00', 400)],
       [...nationalTariffs(), gridTariff({ Price17: 0.10, Price18: 0.90 })]);
     expect(await fetchEnergyPrice('DK1', undefined, consumer)).toEqual({
-      now: 184.13, average: 134.13, trend: 'up', basis: 'consumer',
+      now: 184.13, average: 134.13, trend: 'up', basis: 'consumer', hours: [
+        { start: '2026-09-26T14:00:00.000Z', hour: 16, price: 84.13 },
+        { start: '2026-09-26T15:00:00.000Z', hour: 17, price: 184.13 },
+      ],
     });
     expect(fetch).toHaveBeenCalledTimes(3);
     for (const [input] of vi.mocked(fetch).mock.calls.slice(1)) {
@@ -299,5 +308,29 @@ describe('estimated Danish consumer electricity price', () => {
     expect(energyPriceProblem(error)).not.toHaveProperty('missingCodes');
     respondConsumer([record('2026-09-26T10:00:00', 400)]);
     expect((await fetchEnergyPrice('DK1', undefined, consumer)).now).toBe(84.13);
+  });
+});
+
+describe('hourly electricity prices', () => {
+  const interval = (iso: string, price: number) => ({ start: Date.parse(iso), end: Date.parse(iso) + 900_000, price });
+
+  it('averages the quarter hours of each hour', () => {
+    expect(hourlyPrices([
+      interval('2026-10-07T05:00:00Z', 100), interval('2026-10-07T05:15:00Z', 200),
+      interval('2026-10-07T05:30:00Z', 300), interval('2026-10-07T05:45:00Z', 400),
+      interval('2026-10-07T06:00:00Z', 50),
+    ])).toEqual([
+      { start: '2026-10-07T05:00:00.000Z', hour: 7, price: 250 },
+      { start: '2026-10-07T06:00:00.000Z', hour: 8, price: 50 },
+    ]);
+  });
+
+  it('keeps both repeated autumn hours apart', () => {
+    // 25 October 2026: 02:00 Danish summer time is followed by 02:00 winter time.
+    expect(hourlyPrices([interval('2026-10-25T00:00:00Z', 10), interval('2026-10-25T01:00:00Z', 20)]))
+      .toEqual([
+        { start: '2026-10-25T00:00:00.000Z', hour: 2, price: 10 },
+        { start: '2026-10-25T01:00:00.000Z', hour: 2, price: 20 },
+      ]);
   });
 });
