@@ -3,7 +3,7 @@ import { MAX_NEWS_FEEDS, newsFeedIdFromWidget } from './newsFeeds';
 import { MAX_TICKER_WIDGETS, tickerIdFromWidget } from './tickerWidgets';
 import { parseWidgetOptions } from './widgetOptions';
 
-export const DISPLAY_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'status'] as const;
+export const DISPLAY_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'week-number', 'status'] as const;
 
 export class LayoutValidationError extends Error {
   constructor(message: string) {

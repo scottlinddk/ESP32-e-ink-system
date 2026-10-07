@@ -13,6 +13,7 @@ import { renderTicker, renderTickerUnavailable, type TickerResult } from '../tic
 import type { RenderedWidget } from '../ticker/render';
 import { renderEnergyChart } from './energyChart';
 import { energyView } from './widgetOptions';
+import { renderWeekNumberWidget } from './weekNumber';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -187,24 +188,25 @@ export class BmpCanvas {
   }
 
   // `scale` enlarges the 8x8 font by a whole number; `maxWidth` is in output pixels.
-  drawChar(ch: number, x: number, y: number, scale = 1): void {
+  // `black = false` draws white glyphs, for text on a filled area.
+  drawChar(ch: number, x: number, y: number, scale = 1, black = true): void {
     const glyph = bitmapGlyph(ch, FONT8X8);
     for (let row = 0; row < 8; row++) {
       const byte = glyph[row];
       for (let col = 0; col < 8; col++) {
         if (!(byte & (1 << col))) continue;
-        if (scale === 1) this.setPixel(x + col, y + row, true);
-        else this.fillRect(x + col * scale, y + row * scale, scale, scale);
+        if (scale === 1) this.setPixel(x + col, y + row, black);
+        else this.fillRect(x + col * scale, y + row * scale, scale, scale, black);
       }
     }
   }
 
-  drawText(text: string, x: number, y: number, maxWidth = this.width, scale = 1): void {
+  drawText(text: string, x: number, y: number, maxWidth = this.width, scale = 1, black = true): void {
     const step = 8 * scale;
     let cx = x;
     for (const ch of normalizeBitmapText(text)) {
       if (cx + step > x + maxWidth || cx + step > this.width) break;
-      this.drawChar(ch.codePointAt(0)!, cx, y, scale);
+      this.drawChar(ch.codePointAt(0)!, cx, y, scale, black);
       cx += step;
     }
   }
@@ -289,7 +291,7 @@ export const DEFAULT_LAYOUT: DisplayLayout = {
   ],
 };
 
-interface WidgetBounds { x: number; y: number; width: number; height: number; }
+export interface WidgetBounds { x: number; y: number; width: number; height: number; }
 
 function getWidgetBounds(w: WidgetLayout, canvas: BmpCanvas): WidgetBounds {
   const colPx = canvas.width / GRID_COLS;
@@ -639,6 +641,7 @@ function populateCanvas(
         case 'zaptec':  renderZaptecWidget(canvas, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined); break;
         case 'notion':  renderNotionWidget(canvas, bounds, data.notion, data.notionError); break;
         case 'calendar': renderCalendarWidget(canvas, bounds, data.calendar, widget.options?.items); break;
+        case 'week-number': renderWeekNumberWidget(canvas, bounds, new Date(), preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE); break;
         case 'status':  renderStatusWidget(canvas, bounds, data.nextRefresh, preferences?.display_timezone); break;
       }
     });

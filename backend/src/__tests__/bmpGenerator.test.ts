@@ -217,7 +217,7 @@ describe('display widget boundaries', () => {
     vi.useRealTimers();
   });
 
-  it.each(['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'status'])(
+  it.each(['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'week-number', 'status'])(
     'keeps %s text and separators inside its assigned rectangle',
     (id) => {
       const widget = { i: id, x: 3, y: 2, w: 2, h: 1 };

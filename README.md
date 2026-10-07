@@ -41,6 +41,7 @@ The image renderer supports validated monochrome panel sizes and clockwise rotat
 | Calendar | Upcoming timed/all-day ICS events and recurring appointments | Private HTTPS ICS feed URL, encrypted at rest |
 | Home Assistant / custom webhook | Timestamped sensor readings with freshness status | Dedicated integration token |
 | Yahoo Finance | Share prices for stocks, including Danish `.CO` symbols, as full or condensed ticker widgets | None |
+| Built in | ISO week number with year progress, from the display time zone | None |
 
 For RSS/Atom, select **RSS / Atom** under News headlines, enter a public HTTPS feed URL and save. NewsAPI remains the default for existing accounts, but does not supply Danish or Finnish coverage: choose RSS for those languages. NewsAPI's Developer plan is restricted to development/testing. The feed returns up to 1–10 headlines; the display draws as many as fit in the news widget. An empty feed shows “No headlines”; a failed feed shows a short diagnostic. Apply `010_rss.sql` to existing databases before using these settings.
 
