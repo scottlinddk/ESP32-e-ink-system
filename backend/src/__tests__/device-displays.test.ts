@@ -420,6 +420,33 @@ describe('device presentation API and render paths', () => {
     expect(Buffer.from(await next.arrayBuffer())).not.toEqual(expectedPixels);
   });
 
+  it.each(['/image/preview', '/image/preview/raw'])('renders a chosen slideshow page through %s, matching delivery when it is scheduled', async (path) => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-02T12:00:00Z'));
+    expect((await put({ display_schedule: { ...schedule, enabled: true } })).status).toBe(200);
+    const scheduled = await get(`${path}?device_id=${A}`);
+    expect(scheduled.headers.get('x-preview-layout-id')).toBe('price');
+    const scheduledPixels = Buffer.from(await scheduled.arrayBuffer());
+    for (const [pageId, name] of [['price', 'Price'], ['weather', 'Weather']] as const) {
+      const chosen = await get(`${path}?device_id=${A}&page_id=${pageId}`);
+      expect(chosen.status).toBe(200);
+      expect(Object.fromEntries(chosen.headers)).toMatchObject({
+        'x-preview-device-id': A, 'x-preview-layout-id': pageId, 'x-preview-layout-name': name,
+        'x-preview-mode': 'page', 'x-preview-quiet': 'false',
+      });
+      expect(chosen.headers.get('x-preview-next-transition')).toBeNull();
+      const pixels = Buffer.from(await chosen.arrayBuffer());
+      if (pageId === 'price') expect(pixels).toEqual(scheduledPixels); else expect(pixels).not.toEqual(scheduledPixels);
+    }
+    // At the weather page's slot the device receives the same pixels the chosen preview showed.
+    vi.setSystemTime(new Date('2026-10-02T12:01:00Z'));
+    expect(Buffer.from(await (await frame(A, path.endsWith('raw') ? 'raw' : 'bmp')).arrayBuffer()))
+      .toEqual(Buffer.from(await (await get(`${path}?device_id=${A}&page_id=weather`)).arrayBuffer()));
+    expect((await get(`${path}?device_id=${A}&page_id=missing`)).status).toBe(404);
+    for (const invalid of ['', 'bad%20id', 'a'.repeat(49), 'price&page_id=weather']) {
+      expect((await get(`${path}?device_id=${A}&page_id=${invalid}`)).status).toBe(400);
+    }
+  });
+
   it('reports quiet-hour preview state while drafts remain independent of the schedule', async () => {
     vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-02T22:30:00Z'));
     expect((await put({ display_schedule: { ...schedule, enabled: true,

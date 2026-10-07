@@ -28,6 +28,13 @@ describe('device display API scope', () => {
     expect(request.mock.calls[0][1].signal).toBe(signal);
     expect(JSON.parse(request.mock.calls[3][1].body)).toEqual({ layout: DEFAULT_LAYOUT, device_id: 'device-a' });
   });
+  it('sends a chosen slideshow page with the raw Bluetooth frame request', async () => {
+    const request = vi.fn().mockImplementation(async () => new Response(new Uint8Array(3904), { headers: {
+      ...previewHeaders('device-a'), 'X-Preview-Layout-ID': 'page-2', 'X-Preview-Layout-Name': 'Second', 'X-Preview-Mode': 'page' } }));
+    vi.stubGlobal('fetch', request);
+    await fetchPreviewFrame('auth', 'device-a', undefined, 'page-2');
+    expect(request.mock.calls[0][0]).toBe('/api/image/preview/raw?device_id=device-a&page_id=page-2');
+  });
   it('does not fall back to shared preferences when a selected device is unavailable', async () => {
     const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'Device not found' }), { status: 404 }));
     vi.stubGlobal('fetch', request);

@@ -32,3 +32,19 @@ export function deviceSlideshowChanges(latest: UserPreferences, draft: DisplaySc
     pages: draft.pages.map((page) => ({ ...current.pages.find((saved) => saved.id === page.id)!, duration_seconds: page.duration_seconds })),
   } };
 }
+
+export type PreviewPage = Pick<DisplaySchedule['pages'][number], 'id' | 'name'>;
+
+/** Pages the dashboard preview can step through: only an enabled slideshow with more than one page. */
+export function slideshowPreviewPages(preferences?: UserPreferences): PreviewPage[] {
+  const schedule = preferences?.display_schedule;
+  return schedule?.enabled && schedule.pages.length > 1 ? schedule.pages.map(({ id, name }) => ({ id, name })) : [];
+}
+
+/** Step from the chosen page, or from the page scheduled now when none is chosen, wrapping at both ends. */
+export function stepPreviewPage(pages: PreviewPage[], fromId: string | null | undefined, delta: 1 | -1): string | undefined {
+  if (!pages.length) return undefined;
+  const index = pages.findIndex((page) => page.id === fromId);
+  if (index < 0) return pages[delta > 0 ? 0 : pages.length - 1].id;
+  return pages[(index + delta + pages.length) % pages.length].id;
+}
