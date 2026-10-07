@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy only the ten e-ink application tables; never copy Supabase internals.
+"""Copy only the eleven e-ink application tables; never copy Supabase internals.
 
 Connection secrets belong in libpq service/password files, never command arguments.
 Exports contain encrypted API keys and personal data: keep the entire bundle private.
@@ -28,10 +28,10 @@ TARGET_DATABASE = "eink"
 TARGET_ROLE = "eink_admin"
 # Parents precede their children (device delivery/display rows reference devices).
 TABLES = ("users", "user_preferences", "api_keys", "devices", "firmware_versions", "api_usage",
-          "custom_webhooks", "device_delivery", "device_displays", "orders")
+          "custom_webhooks", "ai_usage_reports", "device_delivery", "device_displays", "orders")
 # Stable complete-row checksums require the actual primary key, not an assumed id.
 PRIMARY_KEYS = {table: ("id",) for table in TABLES}
-PRIMARY_KEYS.update({"custom_webhooks": ("user_id",), "device_delivery": ("device_id",), "device_displays": ("device_id",)})
+PRIMARY_KEYS.update({"custom_webhooks": ("user_id",), "ai_usage_reports": ("user_id",), "device_delivery": ("device_id",), "device_displays": ("device_id",)})
 
 
 def columns(required: dict[str, str], optional: dict[str, str]) -> dict[str, tuple[str, bool]]:
@@ -39,7 +39,7 @@ def columns(required: dict[str, str], optional: dict[str, str]) -> dict[str, tup
 
 
 TS = "timestamp with time zone"
-# The final schema after all tracked migrations through 023_ticker_widgets.
+# The final schema after all tracked migrations through 024_ai_usage.
 # Do not automatically repair a live source.
 EXPECTED_COLUMNS = {
     "users": columns({"id": "uuid", "email": "text"}, {
@@ -51,7 +51,7 @@ EXPECTED_COLUMNS = {
         "show_custom_image": "boolean", "show_calendar": "boolean", "calendar_timezone": "text",
         "calendar_days": "integer", "calendar_item_limit": "integer", "show_custom_webhook": "boolean",
         "custom_webhook_ttl_minutes": "integer", "display_timezone": "text", "energy_price_settings": "jsonb",
-        "news_feeds": "jsonb", "ticker_widgets": "jsonb",
+        "news_feeds": "jsonb", "ticker_widgets": "jsonb", "show_ai_usage": "boolean",
     }, {
         "show_energy_price": "boolean", "show_weather": "boolean", "show_news": "boolean",
         "show_air_quality": "boolean", "energy_price_location": "text", "weather_location": "text",
@@ -71,6 +71,9 @@ EXPECTED_COLUMNS = {
     "api_usage": columns({"id": "uuid", "user_id": "uuid"}, {"endpoint": "text", "called_at": TS}),
     "custom_webhooks": columns({"user_id": "uuid", "rows": "jsonb"}, {
         "token_hash": "text", "token_created_at": TS, "observed_at": TS, "received_at": TS,
+    }),
+    "ai_usage_reports": columns({"user_id": "uuid", "providers": "jsonb"}, {
+        "token_hash": "text", "token_created_at": TS, "received_at": TS,
     }),
     "device_delivery": columns({"device_id": "uuid", "owner_id": "uuid", "rotated_at": TS, "instant_updates": "boolean"}, {
         "token_hash": "text", "revoked_at": TS, "last_seen_at": TS, "firmware_version": "text",
@@ -109,11 +112,13 @@ EXPECTED_DEFAULTS["user_preferences"].update({
     "show_custom_text": "false", "custom_text": "''::text", "show_custom_image": "false",
     "show_calendar": "false", "calendar_timezone": "'Europe/Copenhagen'::text", "calendar_days": "7",
     "calendar_item_limit": "5", "show_custom_webhook": "false", "custom_webhook_ttl_minutes": "60",
+    "show_ai_usage": "false",
 })
 EXPECTED_DEFAULTS["devices"].update({"device_name": "'My Display'::text", "firmware_version": "'1.0.0'::text"})
 EXPECTED_DEFAULTS["firmware_versions"]["active"] = "true"
 EXPECTED_DEFAULTS["orders"]["status"] = "'pending'::text"
 EXPECTED_DEFAULTS["custom_webhooks"]["rows"] = "'[]'::jsonb"
+EXPECTED_DEFAULTS["ai_usage_reports"]["providers"] = "'{}'::jsonb"
 EXPECTED_DEFAULTS["device_delivery"].update({"rotated_at": "now()", "instant_updates": "false"})
 EXPECTED_DEFAULTS["device_displays"].update({
     "display_timezone": "'Europe/Copenhagen'::text", "refresh_interval_minutes": "30", "revision": "1",
@@ -138,6 +143,10 @@ EXPECTED_CHECKS = {
     "custom_webhooks": (
         "CHECK (token_hash IS NULL OR token_hash ~ '^[a-f0-9]{64}$'::text)",
         "CHECK (jsonb_typeof(rows) = 'array'::text AND jsonb_array_length(rows) <= 12 AND octet_length(rows::text) <= 16000)",
+    ),
+    "ai_usage_reports": (
+        "CHECK (token_hash IS NULL OR token_hash ~ '^[a-f0-9]{64}$'::text)",
+        "CHECK (jsonb_typeof(providers) = 'object'::text AND octet_length(providers::text) <= 32000)",
     ),
     "device_delivery": (
         "CHECK (token_hash IS NULL OR token_hash ~ '^[0-9a-f]{64}$'::text)",
@@ -167,7 +176,7 @@ for _table in TABLES:
     elif _table != "users":
         _constraints.append({"type": "f", "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"})
     for _key in {"users": ["email"], "user_preferences": ["user_id"], "api_keys": ["user_id, provider"],
-                 "devices": ["device_id", "license_key", "id, user_id"], "custom_webhooks": ["token_hash"]}.get(_table, []):
+                 "devices": ["device_id", "license_key", "id, user_id"], "custom_webhooks": ["token_hash"], "ai_usage_reports": ["token_hash"]}.get(_table, []):
         _constraints.append({"type": "u", "definition": f"UNIQUE ({_key})"})
     _constraints.extend({"type": "c", "definition": definition} for definition in EXPECTED_CHECKS.get(_table, ()))
     EXPECTED_CONSTRAINTS[_table] = sorted(_constraints, key=lambda item: (item["type"], item["definition"]))

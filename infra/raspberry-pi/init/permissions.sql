@@ -8,7 +8,7 @@ REVOKE ALL ON SCHEMA migration_control FROM PUBLIC, anon, authenticated, eink_au
 GRANT USAGE ON SCHEMA public TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public.users, public.user_preferences, public.api_keys, public.devices,
-  public.firmware_versions, public.api_usage, public.custom_webhooks,
+  public.firmware_versions, public.api_usage, public.custom_webhooks, public.ai_usage_reports,
   public.device_delivery, public.device_displays, public.orders
 TO service_role;
 -- UUID defaults use pg_catalog.gen_random_uuid(); no sequence/RPC grants needed.
