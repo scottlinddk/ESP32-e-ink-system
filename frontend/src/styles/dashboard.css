@@ -73,6 +73,10 @@
 .dashboard-preview-stage { display: grid; place-items: center; padding: 40px 28px; min-height: 265px; border: 1px solid var(--color-divider); border-radius: 12px; background-color: var(--color-bg); background-image: radial-gradient(var(--color-border-strong) .7px, transparent .7px); background-size: 14px 14px; }
 .dashboard-preview-stage .eink-bezel { width: 100%; max-width: 400px; padding: 16px 16px 24px; border-radius: 13px; box-shadow: 0 16px 30px rgb(25 35 55 / 14%), inset 0 1px 1px rgb(255 255 255 / 80%); }
 .dashboard-preview-stage .eink-screen { background: #f8f8ef; border: 1px solid #a6a7a1; border-radius: 3px; }
+.dashboard-preview-pager { display: flex; align-items: center; gap: 8px; }
+.dashboard-preview-pager > button { flex: none; padding-inline: 8px; }
+.dashboard-preview-pager-select { flex: 1; min-width: 0; }
+.dashboard-preview-pager-select select { width: 100%; min-height: 34px; padding: 0 10px; border: 1px solid var(--color-divider); border-radius: 6px; background: transparent; color: inherit; font-size: 12px; text-overflow: ellipsis; }
 .dashboard-preview-meta { padding: 11px 13px; border: 1px solid var(--color-divider); border-radius: 9px; background: var(--color-bg); }
 .dashboard-preview-help { padding-top: 12px; border-top: 1px solid var(--color-divider); font-size: 11px; color: var(--fg-2); }
 .dashboard-preview-help summary { cursor: pointer; font-weight: 500; color: var(--fg-1); }

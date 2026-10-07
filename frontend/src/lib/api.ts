@@ -334,19 +334,28 @@ export async function getPreviewData(token: string, deviceId?: string): Promise<
   return request<DisplayData>(`/api/preview${deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : ''}`, { token });
 }
 
+/** Query for the saved preview routes; `pageId` selects one slideshow page instead of the scheduled one. */
+function savedPreviewQuery(deviceId?: string, pageId?: string): string {
+  const params = new URLSearchParams();
+  if (deviceId) params.set('device_id', deviceId);
+  if (pageId !== undefined) params.set('page_id', pageId);
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
 /**
  * Fetches the server-rendered 1-bit BMP for the authenticated user.
  * The view creates and releases its own object URL from the returned Blob.
  */
-export async function fetchPreviewBmp(token: string, signal?: AbortSignal, deviceId?: string): Promise<PreviewImage> {
-  const response = await fetch(`${BASE_URL}/api/image/preview${deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : ''}`, {
+export async function fetchPreviewBmp(token: string, signal?: AbortSignal, deviceId?: string, pageId?: string): Promise<PreviewImage> {
+  const response = await fetch(`${BASE_URL}/api/image/preview${savedPreviewQuery(deviceId, pageId)}`, {
     headers: { Authorization: `Bearer ${token}` },
     signal,
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   try {
     signal?.throwIfAborted();
-    const metadata = readPreviewMetadata(response.headers, deviceId);
+    const metadata = readPreviewMetadata(response.headers, deviceId, false, pageId);
     const blob = await response.blob();
     signal?.throwIfAborted();
     return { blob, metadata };
@@ -413,12 +422,12 @@ export function deleteCustomWebhookToken(token: string): Promise<void> {
   return request('/api/custom-webhook/token', { token, method: 'DELETE' });
 }
 
-export async function fetchPreviewFrame(token: string, deviceId?: string, signal?: AbortSignal): Promise<{ pixels: Uint8Array; profile: DisplayProfile }> {
-  const response = await fetch(`${BASE_URL}/api/image/preview/raw${deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : ''}`, { headers: { Authorization: `Bearer ${token}` }, signal });
+export async function fetchPreviewFrame(token: string, deviceId?: string, signal?: AbortSignal, pageId?: string): Promise<{ pixels: Uint8Array; profile: DisplayProfile }> {
+  const response = await fetch(`${BASE_URL}/api/image/preview/raw${savedPreviewQuery(deviceId, pageId)}`, { headers: { Authorization: `Bearer ${token}` }, signal });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   try {
     signal?.throwIfAborted();
-    const { profile } = readPreviewMetadata(response.headers, deviceId);
+    const { profile } = readPreviewMetadata(response.headers, deviceId, false, pageId);
     const pixels = new Uint8Array(await response.arrayBuffer());
     signal?.throwIfAborted();
     if (pixels.length !== frameMetadata(profile).byteLength) throw new Error('Invalid display image metadata');

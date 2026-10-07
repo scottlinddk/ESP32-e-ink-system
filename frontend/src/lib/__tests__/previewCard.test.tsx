@@ -12,18 +12,20 @@ vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: session.us
 vi.mock('../appContext', () => ({ useApp: () => ({ t: STRINGS[session.lang], lang: session.lang }) }));
 beforeEach(() => { session.userId = 'alice'; session.lang = 'en'; });
 
-function render(deviceId = 'kitchen', failed = false) {
+const slideshow = { enabled: true, pages: [{ id: 'morning', name: 'Morning' }, { id: 'evening', name: 'Evening' }] };
+
+function render(deviceId = 'kitchen', failed = false, schedule: object = { enabled: false, pages: [{ id: 'new-page', name: 'Unsynced new page' }] }) {
   const client = new QueryClient();
   const image: PreviewImage = { blob: new Blob(['bmp']), metadata: {
     deviceId: 'kitchen', layoutId: 'evening', layoutName: 'Rendered evening page', mode: 'slideshow', quiet: true,
     renderedAt: '2026-10-02T12:34:56.000Z', nextTransition: '2026-10-03T05:00:00.000Z',
     profile: { width: 400, height: 300, rotation: 90, colorMode: 'bw' },
   } };
-  const queryKey = ['preview', 'alice', 'kitchen', 'bmp'];
+  const queryKey = ['preview', 'alice', 'kitchen', 'bmp', null];
   client.setQueryData(queryKey, image);
   // Settings may already have changed while the displayed image is still the previous render.
   client.setQueryData(['preferences', 'alice', 'kitchen'], { display_timezone: 'UTC', active_layout_id: 'new-page',
-    display_profile: { width: 250, height: 122 }, display_schedule: { enabled: false, pages: [{ id: 'new-page', name: 'Unsynced new page' }] } });
+    display_profile: { width: 250, height: 122 }, display_schedule: schedule });
   if (failed) client.getQueryCache().find({ queryKey })!.setState({ status: 'error', error: new Error('offline') });
   const html = renderToStaticMarkup(<MemoryRouter><QueryClientProvider client={client}>
     <PreviewCard deviceId={deviceId} deviceName="Display" hardwareId="esp32-kitchen" expectedDeviceName="EINK-KITCHEN" />
@@ -67,6 +69,21 @@ describe('preview identity and labels', () => {
     expect(PreviewCard({ deviceId: 'office' }).key).not.toBe(kitchenKey);
     session.userId = 'bob';
     expect(PreviewCard({ deviceId: 'kitchen' }).key).not.toBe(kitchenKey);
+  });
+
+  it('offers page switching only for an enabled slideshow with several pages', () => {
+    expect(render()).not.toContain('Slideshow pages');
+    expect(render('kitchen', false, { ...slideshow, enabled: false })).not.toContain('Slideshow pages');
+    expect(render('kitchen', false, { ...slideshow, pages: slideshow.pages.slice(0, 1) })).not.toContain('Slideshow pages');
+    const html = render('kitchen', false, slideshow);
+    expect(html).toContain('aria-label="Slideshow pages"');
+    expect(html).toContain('Previous page');
+    expect(html).toContain('Next page');
+    expect(html).toContain('Current page as scheduled');
+    expect(html).toContain('1/2 · Morning');
+    expect(html).toContain('2/2 · Evening');
+    // The live view is shown until a page is chosen.
+    expect(html).not.toContain('The display still follows the schedule');
   });
 
   it('localizes the metadata and refresh action', () => {

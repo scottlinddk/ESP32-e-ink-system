@@ -40,6 +40,20 @@ describe('preview response metadata', () => {
     expect(() => readPreviewMetadata(headers, 'kitchen')).toThrow();
   });
 
+  it('requests a chosen slideshow page and accepts only that page’s pixels', async () => {
+    const page = { ...previewHeaders('kitchen'), 'X-Preview-Layout-ID': 'evening', 'X-Preview-Layout-Name': 'Evening', 'X-Preview-Mode': 'page' };
+    const request = vi.fn().mockImplementation(async () => new Response('page pixels', { headers: page }));
+    vi.stubGlobal('fetch', request);
+    const result = await fetchPreviewBmp('auth', undefined, 'kitchen', 'evening');
+    expect(request.mock.calls[0][0]).toBe('/api/image/preview?device_id=kitchen&page_id=evening');
+    expect(result.metadata).toMatchObject({ layoutId: 'evening', layoutName: 'Evening', mode: 'page', quiet: false, nextTransition: null });
+    await expect(fetchPreviewBmp('auth', undefined, 'kitchen', 'morning')).rejects.toThrow('does not match the selected page');
+    // A page response is never mistaken for the live schedule, and vice versa.
+    expect(() => readPreviewMetadata(new Headers(page), 'kitchen')).toThrow('Invalid preview metadata');
+    expect(() => readPreviewMetadata(new Headers({ ...page, 'X-Preview-Mode': 'single' }), 'kitchen', false, 'evening')).toThrow('Invalid preview metadata');
+    expect(() => readPreviewMetadata(new Headers({ ...page, 'X-Preview-Quiet': 'true' }), 'kitchen', false, 'evening')).toThrow('Invalid preview metadata');
+  });
+
   it('distinguishes explicitly shared defaults from a selected device', () => {
     expect(readPreviewMetadata(new Headers(previewHeaders())).deviceId).toBeNull();
     expect(() => readPreviewMetadata(new Headers(previewHeaders()), 'kitchen')).toThrow('does not match');

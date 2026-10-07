@@ -2,7 +2,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { deviceSlideshowChanges, savedDeviceSchedule, SlideshowConflictError } from '../deviceSlideshow';
+import { deviceSlideshowChanges, savedDeviceSchedule, slideshowPreviewPages, SlideshowConflictError, stepPreviewPage } from '../deviceSlideshow';
 import { DeviceSlideshowCard } from '../../components/dashboard/DeviceSlideshowCard';
 import { DEFAULT_LAYOUT, type DisplaySchedule, type UserPreferences } from '../../types';
 
@@ -114,5 +114,28 @@ describe('device slideshow controls', () => {
     expect(html).toContain('Visningstilstand og slideshow'); expect(html).toContain('Gemt tilstand:');
     expect(html).toContain('Fast layout · Office layout'); expect(html).toContain('Rækkefølge og varighed');
     expect(html).toContain('Genindlæs gemte indstillinger');
+  });
+});
+
+describe('slideshow preview pages', () => {
+  it('lists pages only for an enabled slideshow with more than one page', () => {
+    const preferences = prefs();
+    expect(slideshowPreviewPages(preferences)).toEqual([]);
+    preferences.display_schedule!.enabled = true;
+    expect(slideshowPreviewPages(preferences)).toEqual([{ id: 'kitchen', name: 'Kitchen layout' }, { id: 'office', name: 'Office layout' }]);
+    preferences.display_schedule!.pages.pop();
+    expect(slideshowPreviewPages(preferences)).toEqual([]);
+    expect(slideshowPreviewPages(undefined)).toEqual([]);
+  });
+
+  it('steps in order, wraps at both ends and starts from the scheduled page', () => {
+    const pages = [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }];
+    expect(stepPreviewPage(pages, 'a', 1)).toBe('b');
+    expect(stepPreviewPage(pages, 'c', 1)).toBe('a');
+    expect(stepPreviewPage(pages, 'a', -1)).toBe('c');
+    expect(stepPreviewPage(pages, 'b', -1)).toBe('a');
+    expect(stepPreviewPage(pages, null, 1)).toBe('a');
+    expect(stepPreviewPage(pages, 'removed', -1)).toBe('c');
+    expect(stepPreviewPage([], 'a', 1)).toBeUndefined();
   });
 });

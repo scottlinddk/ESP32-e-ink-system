@@ -1,7 +1,7 @@
 // The dashboard shows the same server-rendered pixels used by the display.
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useApp } from '../../lib/appContext';
 import { useAuth } from '../../hooks/useAuth';
 import { usePreferences } from '../../hooks/usePreferences';
@@ -12,6 +12,7 @@ import { Icon } from '../ui/Logo';
 import { fetchPreviewBmp, fetchPreviewFrame } from '../../lib/api';
 import { bleImagePush, BleSelectionCancelledError } from '../../lib/bleImagePush';
 import { deviceLayoutPath } from '../../lib/deviceLayouts';
+import { slideshowPreviewPages, stepPreviewPage } from '../../lib/deviceSlideshow';
 import { DeviceRefreshControl } from './DeviceRefreshControl';
 
 type PushState = 'idle' | 'selecting' | 'fetching' | 'pushing' | 'refreshing' | 'done' | 'error';
@@ -28,6 +29,11 @@ function DevicePreview({ deviceId, deviceName, hardwareId, expectedDeviceName }:
   const { getToken, isSignedIn, user } = useAuth();
   const { data: preferences } = usePreferences(deviceId);
   const timezone = preferences?.display_timezone ?? 'Europe/Copenhagen';
+  // A chosen slideshow page is previewed instead of the scheduled one. It falls back
+  // to the schedule once the slideshow is turned off or that page is removed.
+  const slideshowPages = slideshowPreviewPages(preferences);
+  const [chosenPageId, setChosenPageId] = useState<string | null>(null);
+  const pageId = slideshowPages.some((page) => page.id === chosenPageId) ? chosenPageId! : undefined;
   const [image, setImage] = useState<{ url: string; blob: Blob } | null>(null);
   const [pushState, setPushState] = useState<PushState>('idle');
   const [pushProgress, setPushProgress] = useState(0);
@@ -40,16 +46,19 @@ function DevicePreview({ deviceId, deviceName, hardwareId, expectedDeviceName }:
   // Preference and credential saves invalidate the common ['preview'] prefix.
   // Cache the Blob, not its object URL: each mounted view owns and releases its URL.
   const preview = useQuery({
-    queryKey: ['preview', user?.id, deviceId, 'bmp'],
+    queryKey: ['preview', user?.id, deviceId, 'bmp', pageId ?? null],
     enabled: isSignedIn && !!user?.id,
     queryFn: async ({ signal }) => {
       const token = await getToken();
       signal.throwIfAborted();
       if (!token) throw new Error(t.previewSignIn);
-      return fetchPreviewBmp(token, signal, deviceId);
+      return fetchPreviewBmp(token, signal, deviceId, pageId);
     },
     staleTime: 60_000,
     refetchInterval: 60_000,
+    // Keep the previous page on screen while the next one renders. Its labels come
+    // from the same response, so the image and its description stay paired.
+    placeholderData: keepPreviousData,
   });
 
   useEffect(() => {
@@ -66,6 +75,7 @@ function DevicePreview({ deviceId, deviceName, hardwareId, expectedDeviceName }:
     const controller = new AbortController();
     pushRequest.current = controller;
     const targetDeviceId = deviceId;
+    const targetPageId = pageId;
     setPushState('selecting');
     setPushProgress(0);
     setPushError(null);
@@ -82,7 +92,7 @@ function DevicePreview({ deviceId, deviceName, hardwareId, expectedDeviceName }:
           const token = await getToken();
           controller.signal.throwIfAborted();
           if (!token) throw new Error(t.previewSignIn);
-          return fetchPreviewFrame(token, targetDeviceId, controller.signal);
+          return fetchPreviewFrame(token, targetDeviceId, controller.signal, targetPageId);
         },
         onProgress: ({ sent, total }) => {
           if (controller.signal.aborted) return;
@@ -108,6 +118,12 @@ function DevicePreview({ deviceId, deviceName, hardwareId, expectedDeviceName }:
 
   const pushBusy = pushState === 'selecting' || pushState === 'fetching' || pushState === 'pushing' || pushState === 'refreshing';
   const updatedAt = metadata ? new Date(metadata.renderedAt) : null;
+  const pageIndex = slideshowPages.findIndex((page) => page.id === pageId);
+  // Stepping from the live view starts at the page the schedule shows now.
+  const stepFrom = pageId ?? (metadata?.mode === 'slideshow' ? metadata.layoutId : null);
+  const modeLabel = metadata?.mode === 'slideshow' ? 'Slideshow'
+    : metadata?.mode === 'page' ? (da ? 'Valgt slideshow-side' : 'Chosen slideshow page')
+    : (da ? 'Fast layout' : 'Single layout');
 
   return (
     <Card className="dashboard-preview-card" icon="preview" title={deviceName ? `${t.previewTitle} · ${deviceName}` : t.previewTitle}
@@ -137,6 +153,32 @@ function DevicePreview({ deviceId, deviceName, hardwareId, expectedDeviceName }:
           </div>
         </div>
 
+        {slideshowPages.length > 0 && (
+          <div className="dashboard-preview-pager" role="group" aria-label={da ? 'Slideshow-sider' : 'Slideshow pages'}>
+            <Button variant="outlined" size="sm" icon="chevron_left" aria-label={da ? 'Forrige side' : 'Previous page'}
+              onClick={() => setChosenPageId(stepPreviewPage(slideshowPages, stepFrom, -1) ?? null)} />
+            <label className="dashboard-preview-pager-select">
+              <span className="sr-only">{da ? 'Vis slideshow-side' : 'Show slideshow page'}</span>
+              <select value={pageId ?? ''} onChange={(event) => setChosenPageId(event.target.value || null)}>
+                <option value="">{da ? 'Aktuel side efter tidsplan' : 'Current page as scheduled'}</option>
+                {slideshowPages.map((page, index) => (
+                  <option key={page.id} value={page.id}>{`${index + 1}/${slideshowPages.length} · ${page.name}`}</option>
+                ))}
+              </select>
+            </label>
+            <Button variant="outlined" size="sm" icon="chevron_right" aria-label={da ? 'Næste side' : 'Next page'}
+              onClick={() => setChosenPageId(stepPreviewPage(slideshowPages, stepFrom, 1) ?? null)} />
+          </div>
+        )}
+        {pageId && (
+          <p className="text-xs text-fg2 m-0" role="status">
+            {da ? `Viser side ${pageIndex + 1} af ${slideshowPages.length}. Skærmen følger stadig tidsplanen.` : `Showing page ${pageIndex + 1} of ${slideshowPages.length}. The display still follows the schedule.`}{' '}
+            <button type="button" className="underline bg-transparent border-0 p-0 cursor-pointer text-inherit" onClick={() => setChosenPageId(null)}>
+              {da ? 'Vis aktuel side' : 'Show current page'}
+            </button>
+          </p>
+        )}
+
         {preview.isError && (
           <div role="alert" className="text-xs text-warning flex flex-col gap-1">
             <strong>{imageSrc ? t.previewStale : t.previewError}</strong>
@@ -148,7 +190,7 @@ function DevicePreview({ deviceId, deviceName, hardwareId, expectedDeviceName }:
           <p className="text-fg2 m-0">{t.previewSavedSettings}</p>
           {metadata && <div className="text-fg2 grid gap-1">
             <strong>{da ? 'Gengivet layout' : 'Rendered layout'}: {metadata.layoutName}</strong>
-            <span>{metadata.mode === 'slideshow' ? 'Slideshow' : (da ? 'Fast layout' : 'Single layout')}{metadata.quiet ? (da ? ' · Stille timer' : ' · Quiet hours') : ''}</span>
+            <span>{modeLabel}{metadata.quiet ? (da ? ' · Stille timer' : ' · Quiet hours') : ''}</span>
             {metadata.nextTransition && <span>{da ? 'Næste sideskift eller pausegrænse' : 'Next page or quiet-hours boundary'}: <time dateTime={metadata.nextTransition}>{new Date(metadata.nextTransition).toLocaleString(t.locale, { timeZone: timezone })}</time> · {timezone}</span>}
           </div>}
           {updatedAt && (
@@ -183,6 +225,7 @@ function DevicePreview({ deviceId, deviceName, hardwareId, expectedDeviceName }:
         {imageSrc && <a href={imageSrc} download="display.bmp" className="text-xs underline">{da ? 'Download skærmbillede (BMP)' : 'Download display image (BMP)'}</a>}
         <p className="text-xs text-fg2 m-0">{da ? 'Forhåndsvisningen viser serverens gengivne billede. Den bekræfter ikke, hvad den fysiske skærm har modtaget.' : 'The preview shows the server-rendered image. It does not confirm what the physical display has received.'}</p>
         {deviceId && <DeviceRefreshControl deviceId={deviceId} deviceName={deviceName} hardwareId={hardwareId} timezone={timezone} />}
+        {pageId && <p className="text-xs text-fg2 m-0">{da ? 'Bluetooth-overførsel sender den viste side. Skærmen vender tilbage til tidsplanen ved næste opdatering.' : 'Bluetooth transfer sends the page shown here. The display returns to the schedule at its next refresh.'}</p>}
         {pushState === 'done' && <p role="status" className="text-xs text-fg2 m-0">{pushedName}: {t.pushComplete}</p>}
         {pushError && <p role={pushState === 'error' ? 'alert' : 'status'} className="text-xs text-warning m-0">{pushError}</p>}
         <details className="dashboard-preview-help">
