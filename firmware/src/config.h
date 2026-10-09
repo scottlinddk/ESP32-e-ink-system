@@ -10,3 +10,8 @@
 #ifndef FEATURE_BLE_WHILE_AWAKE
 #define FEATURE_BLE_WHILE_AWAKE 1
 #endif
+
+// Older local config.h files predate the Waveshare RLCD board.
+#ifndef RLCD_LOW_POWER_IDLE
+#define RLCD_LOW_POWER_IDLE 1
+#endif

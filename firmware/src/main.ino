@@ -8,6 +8,9 @@
 #include "manual_ble.h"
 #include "board_profile.h"
 #include <time.h>
+#ifdef WAVESHARE_RLCD_42
+#include <driver/rtc_io.h>
+#endif
 
 WiFiManager wifiManager;
 DisplayManager display;
@@ -23,7 +26,8 @@ bool instantUpdates = false;
 uint32_t instantCheckSeconds = 5;
 uint32_t nextPollAt = 0;  // millis() of the next scheduled frame request
 
-// Elecrow: manufacturer MENU button. Waveshare: BOOT, a strap pin.
+// Elecrow: manufacturer MENU button. Waveshare 2.13: BOOT, a strap pin.
+// Waveshare RLCD 4.2: the KEY button.
 constexpr int SETUP_BUTTON = kBoard.setupButton;
 
 void openSetup(uint32_t timeoutSeconds = 0, const char* failureReason = nullptr) {
@@ -48,8 +52,14 @@ void sleepUntilNextPoll() {
   esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(nextPollSeconds) * 1000000ULL);
   // MENU can wake the device into setup without a USB reflash. Waveshare's
   // BOOT strap pin keeps its previous behavior: it is not a wake source.
-  if (!kBoard.setupButtonIsBootStrap)
+  if (!kBoard.setupButtonIsBootStrap) {
+#ifdef WAVESHARE_RLCD_42
+    // KEY's digital pull-up is off in deep sleep; keep the RTC pull-up on.
+    rtc_gpio_pullup_en(static_cast<gpio_num_t>(SETUP_BUTTON));
+    rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(SETUP_BUTTON));
+#endif
     esp_sleep_enable_ext0_wakeup(static_cast<gpio_num_t>(SETUP_BUTTON), 0);
+  }
   esp_deep_sleep_start();
 #endif
 }
@@ -157,8 +167,10 @@ void pollDisplay() {
       return display.showBitmap(bmp, static_cast<size_t>(frame.length));
     });
     if (success) {
-#ifdef ELECROW_EPAPER_213
+#if defined(ELECROW_EPAPER_213)
       Serial.println("[Main] Display controller refresh cycle completed; visible image not verified");
+#elif defined(WAVESHARE_RLCD_42)
+      Serial.println("[Main] Frame written to the RLCD controller");
 #else
       Serial.println("[Main] Display refresh completed");
 #endif

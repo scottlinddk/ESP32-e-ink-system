@@ -16,6 +16,7 @@
 // PlatformIO selects the board automatically via -e esp32dev or -e elecrow_213.
 //
 // #define ELECROW_EPAPER_213   // Elecrow CrowPanel 2.13" (ESP32-S3)
+// #define WAVESHARE_RLCD_42    // Waveshare ESP32-S3-RLCD-4.2 (ST7305 reflective LCD)
 //                              // Leave commented for Waveshare 2.13" HAT (ESP32-WROOM-32)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -35,8 +36,24 @@
 // Board is selected at build time via the PlatformIO environment:
 //   pio run -e esp32dev     → Waveshare 2.13" HAT on ESP32-WROOM-32
 //   pio run -e elecrow_213  → Elecrow CrowPanel 2.13" on ESP32-S3
+//   pio run -e waveshare_rlcd_42 → Waveshare ESP32-S3-RLCD-4.2
 
-#ifdef ELECROW_EPAPER_213
+#if defined(WAVESHARE_RLCD_42)
+// Waveshare ESP32-S3-RLCD-4.2 (ESP32-S3-WROOM-1-N16R8, ST7305 400 x 300 RLCD)
+// Pins match waveshareteam/ESP32-S3-RLCD-4.2 Arduino and ESP-IDF examples.
+#define PIN_CS   40   // Chip Select (SPI)
+#define PIN_DC   5    // Data/Command
+#define PIN_RST  41   // Hardware Reset; held high through deep sleep
+#define PIN_BUSY -1   // The ST7305 has no BUSY line
+#define PIN_MOSI 12   // SPI MOSI
+#define PIN_CLK  11   // SPI Clock
+#define PIN_MISO -1   // Not used
+#define PIN_SETUP_BUTTON 18 // KEY button (active low), not a strap pin
+#define PIN_BATTERY_ADC 4   // ADC1 channel 3 behind a 1:3 divider
+#define BATTERY_VOLTAGE_DIVIDER_RATIO 3.0f
+// Drop the panel to its low-power scan rate while idle or in deep sleep.
+#define RLCD_LOW_POWER_IDLE 1
+#elif defined(ELECROW_EPAPER_213)
 // Elecrow CrowPanel ESP32 2.13" E-Paper (ESP32-S3)
 // Pins match the Elecrow schematic and manufacturer examples.
 #define PIN_CS   14   // Chip Select (SPI)
@@ -63,7 +80,9 @@
 #endif
 
 // Battery Monitoring
+#ifndef BATTERY_VOLTAGE_DIVIDER_RATIO
 #define BATTERY_VOLTAGE_DIVIDER_RATIO 2.0f // External 1:1 divider required on generic ESP32
+#endif
 #define BATTERY_ALERT_THRESHOLD 3.0  // Volts — alert if below this
 
 // Deep Sleep Configuration

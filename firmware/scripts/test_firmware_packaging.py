@@ -51,6 +51,13 @@ class PackagingTests(unittest.TestCase):
         firmware_ids = set(re.findall(r'constexpr BoardProfile kBoard = \{"([^"]+)"', profiles))
         self.assertEqual(firmware_ids, {board.slug for board in BOARDS})
 
+    def test_flash_header_byte_matches_size_and_frequency(self):
+        # esptool header byte 3: flash size in the high nibble, frequency in the low one.
+        sizes = {"4MB": 0x2, "8MB": 0x3, "16MB": 0x4}
+        frequencies = {"40m": 0x0, "80m": 0xF}
+        for board in BOARDS:
+            self.assertEqual(board.size_freq_byte, sizes[board.flash_size] << 4 | frequencies[board.flash_freq], board.environment)
+
     def test_wrong_chip_image_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "firmware.bin"
@@ -106,8 +113,11 @@ class PackagingTests(unittest.TestCase):
             write_manifests(output, "2.0.0+abc", builds)
             default = json.loads((output / "manifest.json").read_text())
             v12 = json.loads((output / "manifest-elecrow-v12.json").read_text())
+            rlcd = json.loads((output / "manifest-waveshare-rlcd-42.json").read_text())
             self.assertEqual([entry["chipFamily"] for entry in default["builds"]], ["ESP32", "ESP32-S3"])
             self.assertEqual(v12["builds"], [{"chipFamily": "ESP32-S3", "parts": [{"path": "elecrow-crowpanel-213-v12_fw-2.0.0_abc_factory.bin", "offset": 0}]}])
+            self.assertEqual(rlcd["builds"], [{"chipFamily": "ESP32-S3", "parts": [{"path": "waveshare-esp32-s3-rlcd-42_fw-2.0.0_abc_factory.bin", "offset": 0}]}])
+            self.assertEqual(rlcd["name"], "Waveshare ESP32-S3-RLCD-4.2 FW 2.0.0+abc")
             self.assertEqual(default["version"], "2.0.0+abc")
             self.assertEqual(default["name"], "Elecrow CrowPanel 2.13 FW 2.0.0+abc")
             self.assertEqual(v12["name"], "Elecrow CrowPanel 2.13 V1.2 FW 2.0.0+abc")
@@ -116,7 +126,8 @@ class PackagingTests(unittest.TestCase):
             self.assertTrue(default["new_install_prompt_erase"])
             self.assertEqual(sorted(path.name for path in output.glob("*.bin")), sorted(
                 f"{slug}_fw-2.0.0_abc_{image}.bin"
-                for slug in ("waveshare-esp32-213-v2", "elecrow-crowpanel-213", "elecrow-crowpanel-213-v12")
+                for slug in ("waveshare-esp32-213-v2", "elecrow-crowpanel-213", "elecrow-crowpanel-213-v12",
+                             "waveshare-esp32-s3-rlcd-42")
                 for image in ("factory", "app", "bootloader", "partitions")))
             self.assertIn("elecrow-crowpanel-213_fw-2.0.0_abc_factory.bin", (output / "SHA256SUMS").read_text())
 

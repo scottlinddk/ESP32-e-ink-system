@@ -2,7 +2,11 @@
 #include "config.h"
 #include "board_profile.h"
 
-#ifdef ELECROW_EPAPER_213
+#if defined(WAVESHARE_RLCD_42)
+// Waveshare ESP32-S3-RLCD-4.2: ST7305 reflective LCD, Adafruit GFX canvas for text
+#include <Adafruit_GFX.h>
+#include "st7305_panel.h"
+#elif defined(ELECROW_EPAPER_213)
 // Elecrow CrowPanel ESP32 2.13" — uses bundled EPD library
 // Source: firmware/lib/EPD/ (bundled, no extra driver download required)
 #include "EPD.h"
@@ -77,7 +81,12 @@ public:
   uint16_t getHeight() { return kBoard.height; }
 
 private:
-#ifdef ELECROW_EPAPER_213
+#if defined(WAVESHARE_RLCD_42)
+  St7305Panel panel;
+  GFXcanvas1 canvas{kBoard.width, kBoard.height};
+  bool flushCanvas();
+  void drawCenteredLines(const char* text, int16_t top, const GFXfont* font);
+#elif defined(ELECROW_EPAPER_213)
   bool elecrowFlush();
   void drawText(uint16_t x, uint16_t y, const char* text, sFONT* font);
   void drawCenteredText(uint16_t y, const char* text, sFONT* font);

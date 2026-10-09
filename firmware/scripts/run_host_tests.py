@@ -29,6 +29,8 @@ def main():
         ("board-waveshare", "board_profile_test.cpp", [], []),
         ("board-elecrow-213", "board_profile_test.cpp", [], ["-DELECROW_EPAPER_213"]),
         ("board-elecrow-213-v12", "board_profile_test.cpp", [], ["-DELECROW_EPAPER_213", "-DELECROW_PANEL_JD79661"]),
+        ("board-waveshare-rlcd-42", "board_profile_test.cpp", [], ["-DWAVESHARE_RLCD_42"]),
+        ("st7305-frame", "st7305_frame_test.cpp", [], []),
         ("wifi-manager", "wifi_manager_test.cpp", [firmware / "src/wifi_manager.cpp"],
          ["-I" + str(firmware / "tests/wifi_stubs")]),
         ("ssd1680", "epd_test.cpp", driver, []),
