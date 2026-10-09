@@ -27,7 +27,10 @@ struct BoardProfile {
   constexpr size_t bmpBytes() const { return 62u + bmpStride() * height; }
 };
 
-#if defined(ELECROW_EPAPER_213) && defined(ELECROW_PANEL_JD79661)
+#if defined(WAVESHARE_RLCD_42)
+// Landscape 400 x 300 is the vendor's normal orientation; KEY (GPIO18) is setup.
+constexpr BoardProfile kBoard = {"waveshare-esp32-s3-rlcd-42", "Waveshare ESP32-S3-RLCD-4.2 (ST7305)", 400, 300, 18, false};
+#elif defined(ELECROW_EPAPER_213) && defined(ELECROW_PANEL_JD79661)
 constexpr BoardProfile kBoard = {"elecrow-crowpanel-213-v12", "Elecrow CrowPanel 2.13\" V1.2 (JD79661)", 250, 122, 2, false};
 #elif defined(ELECROW_EPAPER_213)
 constexpr BoardProfile kBoard = {"elecrow-crowpanel-213", "Elecrow CrowPanel 2.13\" (SSD1680)", 250, 122, 2, false};

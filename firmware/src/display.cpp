@@ -2,6 +2,9 @@
 #include "config.h"
 #include "bitmap.h"
 
+// The Waveshare RLCD board has its own implementation in display_rlcd.cpp.
+#ifndef WAVESHARE_RLCD_42
+
 #if DEBUG_ENABLED
 #define LOG_D(fmt, ...) Serial.printf("[Display] " fmt "\n", ##__VA_ARGS__)
 #else
@@ -369,3 +372,4 @@ void DisplayManager::layoutStatusBar(const DisplayData& data) {
 }
 
 #endif // ELECROW_EPAPER_213
+#endif // !WAVESHARE_RLCD_42

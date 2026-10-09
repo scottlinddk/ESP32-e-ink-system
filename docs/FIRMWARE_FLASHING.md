@@ -51,7 +51,7 @@ pio run -e elecrow_213 --target upload
 pio device monitor -e elecrow_213 --baud 115200
 ```
 
-Use `elecrow_213_v12` for V1.2 or `esp32dev` for Waveshare. With multiple ports, append `--upload-port COM4` to upload or `--port COM4` to monitor. On macOS/Linux substitute the actual `/dev/cu.*`, `/dev/ttyUSB*`, or `/dev/ttyACM*` path. If communication is unreliable, add `--upload-port` and lower `upload_speed` to 115200 locally.
+Use `elecrow_213_v12` for V1.2, `esp32dev` for the Waveshare 2.13 HAT or `waveshare_rlcd_42` for the Waveshare ESP32-S3-RLCD-4.2. With multiple ports, append `--upload-port COM4` to upload or `--port COM4` to monitor. On macOS/Linux substitute the actual `/dev/cu.*`, `/dev/ttyUSB*`, or `/dev/ttyACM*` path. If communication is unreliable, add `--upload-port` and lower `upload_speed` to 115200 locally.
 
 PlatformIO pins the supported Arduino core and dependencies. It handles build settings and port detection on Windows, macOS, and Linux. The [firmware README](../firmware/README.md) documents optional configuration and release packaging. Arduino IDE is an expert alternative; see the [Arduino notes](ARDUINO_IDE_ELECROW_SETUP.md).
 
@@ -64,6 +64,7 @@ The browser manifest must contain a complete merged image at offset **0**. The m
 | Waveshare / ESP32 | `waveshare-esp32-213-v2_fw-<version>_factory.bin` | `manifest.json` |
 | Original CrowPanel / SSD1680 | `elecrow-crowpanel-213_fw-<version>_factory.bin` | `manifest.json` |
 | CrowPanel V1.2 / JD79661 | `elecrow-crowpanel-213-v12_fw-<version>_factory.bin` | `manifest-elecrow-v12.json` |
+| Waveshare ESP32-S3-RLCD-4.2 / ST7305 | `waveshare-esp32-s3-rlcd-42_fw-<version>_factory.bin` | `manifest-waveshare-rlcd-42.json` (not yet offered on the Flash page) |
 
 Releases published before the rename use the legacy names `firmware-factory.bin`, `firmware-elecrow-factory.bin` and `firmware-elecrow-v12-factory.bin`; the backend accepts either spelling per file, so older releases stay installable.
 

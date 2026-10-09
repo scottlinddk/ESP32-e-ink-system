@@ -35,6 +35,16 @@ BOARDS = (
     Board("esp32dev", "", "esp32", "ESP32", 0, 0x1000, "4MB", "40m", 0x20, "waveshare-esp32-213-v2"),
     Board("elecrow_213", "-elecrow", "esp32s3", "ESP32-S3", 9, 0, "8MB", "80m", 0x3F, "elecrow-crowpanel-213"),
     Board("elecrow_213_v12", "-elecrow-v12", "esp32s3", "ESP32-S3", 9, 0, "8MB", "80m", 0x3F, "elecrow-crowpanel-213-v12"),
+    # 16 MB flash: header size nibble 4, 80 MHz frequency nibble F.
+    Board("waveshare_rlcd_42", "-waveshare-rlcd-42", "esp32s3", "ESP32-S3", 9, 0, "16MB", "80m", 0x4F, "waveshare-esp32-s3-rlcd-42"),
+)
+
+# Each manifest is one installer choice. ESP32-S3 chip detection cannot tell the
+# boards apart, so every ESP32-S3 board needs its own manifest.
+MANIFESTS = (
+    ("manifest.json", "Elecrow CrowPanel 2.13", ("esp32dev", "elecrow_213")),
+    ("manifest-elecrow-v12.json", "Elecrow CrowPanel 2.13 V1.2", ("elecrow_213_v12",)),
+    ("manifest-waveshare-rlcd-42.json", "Waveshare ESP32-S3-RLCD-4.2", ("waveshare_rlcd_42",)),
 )
 
 
@@ -118,12 +128,13 @@ def release_date() -> str:
 
 
 def write_manifests(output: Path, version: str, builds: list[dict]):
+    """builds is in BOARDS order, one entry per board."""
     base = {"version": version, "release_date": release_date(),
             "new_install_prompt_erase": True, "new_install_improv_wait_time": 0}
-    # S3 chip detection cannot distinguish the two physical display controllers.
+    by_environment = {board.environment: build for board, build in zip(BOARDS, builds, strict=True)}
     # Names match the backend's descriptive "<board> FW <version>" naming.
-    for name, board, selected in (("manifest.json", "Elecrow CrowPanel 2.13", builds[:2]),
-                                  ("manifest-elecrow-v12.json", "Elecrow CrowPanel 2.13 V1.2", builds[2:])):
+    for name, board, environments in MANIFESTS:
+        selected = [by_environment[environment] for environment in environments]
         manifest = {"name": f"{board} FW {version}", **base, "builds": selected}
         (output / name).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     hashes = [f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}" for path in sorted(output.glob("*.bin"))]
@@ -141,7 +152,7 @@ def main():
     builds = [package_board(board, args.project_dir, args.output_dir, args.platformio_core, args.version) for board in BOARDS]
     shutil.copyfile(args.platformio_core / "packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin", args.output_dir / "boot_app0.bin")
     write_manifests(args.output_dir, args.version, builds)
-    print(f"Packaged all three boards in {args.output_dir}")
+    print(f"Packaged all {len(BOARDS)} boards in {args.output_dir}")
 
 
 if __name__ == "__main__":

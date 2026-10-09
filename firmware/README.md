@@ -1,4 +1,4 @@
-# Firmware: Elecrow CrowPanel and Waveshare 2.13-inch
+# Firmware: Elecrow CrowPanel, Waveshare 2.13-inch and Waveshare RLCD 4.2-inch
 
 Use the web app's **Flash** page to install this firmware over USB. It downloads a complete factory image and chooses the ESP32 chip family automatically. **Choose the display revision yourself:** original CrowPanel uses SSD1680; CrowPanel V1.2 uses JD79661. Both are ESP32-S3 devices, so USB detection cannot identify the panel controller.
 
@@ -9,6 +9,7 @@ See the [browser installation and recovery guide](../docs/FIRMWARE_FLASHING.md).
 | Waveshare 2.13-inch HAT V2 on ESP32-WROOM-32 | `esp32dev` | `waveshare-esp32-213-v2_fw-<version>_factory.bin` |
 | Original Elecrow CrowPanel 2.13-inch, SSD1680 | `elecrow_213` | `elecrow-crowpanel-213_fw-<version>_factory.bin` |
 | Elecrow CrowPanel 2.13-inch V1.2, JD79661 | `elecrow_213_v12` | `elecrow-crowpanel-213-v12_fw-<version>_factory.bin` |
+| Waveshare ESP32-S3-RLCD-4.2, ST7305 400 × 300 | `waveshare_rlcd_42` | `waveshare-esp32-s3-rlcd-42_fw-<version>_factory.bin` |
 
 The bundled Elecrow driver is in `lib/EPD`; no vendor library download is required. This firmware pulls the current monochrome BMP from the app's device feed over Wi-Fi. It also accepts manual Bluetooth pushes as `EInk-XXXXXX` during first-boot setup or when holding MENU while resetting (Waveshare: press BOOT within 3 seconds after releasing reset). It also stays on whenever the device is awake between polls (Instant updates on USB power); deep sleep turns it off. Keep the browser online and use a 250 × 122 profile; see [Bluetooth delivery](../docs/BLUETOOTH_DELIVERY.md).
 
@@ -66,11 +67,42 @@ on the panel. See the [pinned Elecrow reference and verification notes](../docs/
 for the original SSD1680 sequence, failure diagnostics, host-test coverage, and
 the API-first deployment requirement for explicit unknown/failed frame reports.
 
+## Waveshare ESP32-S3-RLCD-4.2
+
+The [ESP32-S3-RLCD-4.2](https://docs.waveshare.com/ESP32-S3-RLCD-4.2) is an ESP32-S3-WROOM-1-N16R8 (16 MB flash, 8 MB OPI PSRAM) with a 4.2-inch 400 × 300 monochrome reflective LCD on a Sitronix ST7305. Set the device's dashboard display profile to **400 × 300**; any content rotation works.
+
+```sh
+pio run -e waveshare_rlcd_42 --target upload
+pio device monitor -e waveshare_rlcd_42 --baud 115200
+```
+
+The board's USB-C is the ESP32-S3's native USB (Hardware CDC/JTAG), so serial logs use USB CDC (`ARDUINO_USB_CDC_ON_BOOT=1`). If upload cannot find the port, hold BOOT while pressing RESET to enter the ROM downloader. The CDC port disappears while the device is in deep sleep; reset it to read logs.
+
+| Signal | GPIO |
+|---|---:|
+| SCK | 11 |
+| MOSI | 12 |
+| CS | 40 |
+| DC | 5 |
+| RESET | 41 |
+| KEY (setup button, active low) | 18 |
+| Battery ADC (1:3 divider) | 4 |
+
+Hold **KEY** while resetting, or press it while the device sleeps, to open setup and the `EInk-XXXXXX` Bluetooth receiver. BOOT (GPIO0) is a strap pin and is not used.
+
+The controller init sequence and pixel layout come from Waveshare's own examples ([waveshareteam/ESP32-S3-RLCD-4.2](https://github.com/waveshareteam/ESP32-S3-RLCD-4.2), `08_LVGL_V8_Test/display_bsp.cpp`). Each controller byte holds a 2 × 4 pixel block; `src/st7305_frame.h` does the mapping and `tests/st7305_frame_test.cpp` checks every pixel against Waveshare's formula.
+
+Unlike e-paper, a reflective LCD is not bistable: the ST7305 keeps scanning its RAM while powered. Between polls the firmware switches the panel to its low-power scan mode (`0x39`, set `RLCD_LOW_POWER_IDLE 0` in `config.h` to keep high-power mode) and latches RESET and CS high with GPIO hold, so the image stays visible through ESP32 deep sleep. A timer or KEY wake resumes the controller without a reset; only a power-on or RESET button reinitializes and clears it. An image update is written in about 12 ms with no refresh flash.
+
+Bluetooth pushes work at 400 × 300, but the 15,000-byte frame travels in 18-byte packets, so a manual push takes noticeably longer than on the 2.13-inch boards. The Flash page does not list this board yet: install it with PlatformIO, or with ESP Web Tools using `manifest-waveshare-rlcd-42.json` from a release.
+
+Not yet verified on hardware: the visible image after deep sleep, low-power mode appearance, battery reading accuracy, and current draw. The board's audio codec, microphones, SHTC3 sensor, PCF85063 RTC and TF card are not used.
+
 ## Browser release packaging
 
 ```sh
 python firmware/scripts/prepare_config.py --version 1.2.0
-pio run --project-dir firmware -e esp32dev -e elecrow_213 -e elecrow_213_v12
+pio run --project-dir firmware -e esp32dev -e elecrow_213 -e elecrow_213_v12 -e waveshare_rlcd_42
 python firmware/scripts/package_web_firmware.py --version 1.2.0 --output-dir build/firmware-release
 python -m unittest discover -s firmware/scripts -p 'test_*.py' -v
 ```
@@ -81,7 +113,7 @@ python -m unittest discover -s firmware/scripts -p 'test_*.py' -v
 
 For a local web-flash test before publishing, set the backend environment variable `FIRMWARE_RELEASE_DIR` to the absolute path of `build/firmware-release` and restart the backend. The backend verifies factory-image checksums and serves those assets with hash-pinned URLs. Unset this variable to return to published GitHub releases. Use the local frontend's `/flash` page on localhost; a page accessed through an ordinary LAN HTTP address cannot use Web Serial.
 
-The firmware workflow builds and validates all three environments on firmware pull requests. Manual runs upload an artifact without publishing. Merging firmware changes to `main` publishes a development release, and `v*.*.*` tags publish versioned releases. The web app and backend must be deployed with the matching factory-image resolver before installation is available.
+The firmware workflow builds and validates all four environments on firmware pull requests. Manual runs upload an artifact without publishing. Merging firmware changes to `main` publishes a development release, and `v*.*.*` tags publish versioned releases. The web app and backend must be deployed with the matching factory-image resolver before installation is available.
 
 ## Evidence and hardware verification
 

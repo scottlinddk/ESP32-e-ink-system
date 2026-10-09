@@ -6,10 +6,10 @@ From the repository root:
 
 ```sh
 python firmware/scripts/prepare_config.py --version 1.2.0
-pio run --project-dir firmware -e esp32dev -e elecrow_213 -e elecrow_213_v12
+pio run --project-dir firmware -e esp32dev -e elecrow_213 -e elecrow_213_v12 -e waveshare_rlcd_42
 python firmware/scripts/package_web_firmware.py --version 1.2.0 --output-dir build/firmware-release
 ```
 
-Files are named `<board>_fw-<version>_<image>.bin`, for example `elecrow-crowpanel-213-v12_fw-1.2.0_factory.bin`. The output includes one `factory` image per board (`waveshare-esp32-213-v2`, `elecrow-crowpanel-213`, `elecrow-crowpanel-213-v12`), manifests, application-only diagnostic binaries (`app`, `bootloader`, `partitions`), and SHA256SUMS. Each factory image is flashed at **offset 0**. `manifest.json` covers Waveshare and original CrowPanel; `manifest-elecrow-v12.json` covers the newer JD79661 panel.
+Files are named `<board>_fw-<version>_<image>.bin`, for example `elecrow-crowpanel-213-v12_fw-1.2.0_factory.bin`. The output includes one `factory` image per board (`waveshare-esp32-213-v2`, `elecrow-crowpanel-213`, `elecrow-crowpanel-213-v12`, `waveshare-esp32-s3-rlcd-42`), manifests, application-only diagnostic binaries (`app`, `bootloader`, `partitions`), and SHA256SUMS. Each factory image is flashed at **offset 0**. `manifest.json` covers Waveshare and original CrowPanel; `manifest-elecrow-v12.json` covers the newer JD79661 panel; `manifest-waveshare-rlcd-42.json` covers the Waveshare ESP32-S3-RLCD-4.2.
 
 To test before publishing, set backend `FIRMWARE_RELEASE_DIR` to the absolute path of `build/firmware-release` and restart the backend. It validates SHA256SUMS and serves hash-pinned images to the local `/flash` page. Otherwise, the web app resolves a complete GitHub release through the backend and proxies binaries at URLs tied to that release tag. A local `DEFAULT_FIRMWARE_URL` or legacy app-only binary is not a replacement for complete factory assets. See the [flashing guide](../../docs/FIRMWARE_FLASHING.md) for installation and deployment.
