@@ -2,9 +2,9 @@ import { getSupabaseClient } from './database';
 import { logger } from '../lib/logger';
 import type { DisplayData, DisplayLayout } from '../types/index';
 
-/** Whether a layout places the battery widget, so frames without it never query the database. */
+/** Whether a layout shows the battery (its own widget, or inside the status bar), so other frames never query the database. */
 export function layoutHasBattery(layout: DisplayLayout | null | undefined): boolean {
-  return Boolean(layout?.widgets.some((widget) => widget.i === 'battery'));
+  return Boolean(layout?.widgets.some((widget) => widget.i === 'battery' || widget.i === 'status'));
 }
 
 /** The charge a device last reported, or undefined if it never reported or the lookup failed. */

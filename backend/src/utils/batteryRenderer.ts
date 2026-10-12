@@ -36,7 +36,7 @@ export function fillWidth(percent: number, interiorWidth: number): number {
  * Outline with clipped corners, a nub on the right and a filled interior.
  * `width` includes the nub. `percent` null draws an empty cell with a "?".
  */
-function drawCell(canvas: BatteryCanvas, x: number, y: number, width: number, height: number, percent: number | null): void {
+export function drawCell(canvas: BatteryCanvas, x: number, y: number, width: number, height: number, percent: number | null): void {
   const nubW = Math.max(2, Math.min(4, Math.floor(width / 10)));
   const nubH = Math.max(3, Math.floor(height / 3));
   const bodyW = width - nubW;
@@ -98,4 +98,23 @@ export function renderBatteryWidget(canvas: BatteryCanvas, bounds: BatteryBounds
   const left = x + PAD + Math.floor((innerW - groupW) / 2);
   canvas.drawText(label, left, y + PAD + Math.floor((innerH - GLYPH * scale) / 2), textW, scale);
   drawCell(canvas, left + textW + GAP, y + PAD + Math.floor((innerH - cellH) / 2), cellW, cellH, percent);
+}
+
+const COMPACT_CELL_W = 16;
+const COMPACT_CELL_H = 8;
+
+/** Width of the one-line "17% [cell]" form, or 0 when there is no reading (a status bar has no room for "--%"). */
+export function compactBatteryWidth(battery: BatteryData | undefined): number {
+  const percent = batteryPercent(battery);
+  return percent === null ? 0 : `${percent}%`.length * GLYPH + GAP + COMPACT_CELL_W;
+}
+
+/** Draws the compact form with its right edge at `right` and its top at `y` (one 8px text line). */
+export function drawCompactBattery(canvas: BatteryCanvas, right: number, y: number, battery: BatteryData | undefined): void {
+  const percent = batteryPercent(battery);
+  if (percent === null) return;
+  const label = `${percent}%`;
+  const left = right - compactBatteryWidth(battery);
+  canvas.drawText(label, left, y, label.length * GLYPH);
+  drawCell(canvas, left + label.length * GLYPH + GAP, y, COMPACT_CELL_W, COMPACT_CELL_H, percent);
 }

@@ -14,7 +14,7 @@ import type { RenderedWidget } from '../ticker/render';
 import { renderEnergyChart } from './energyChart';
 import { energyView } from './widgetOptions';
 import { renderWeekNumberWidget } from './weekNumber';
-import { renderBatteryWidget } from './batteryRenderer';
+import { renderBatteryWidget, compactBatteryWidth, drawCompactBattery } from './batteryRenderer';
 import { renderAiUsageWidget } from './aiUsageRenderer';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
@@ -543,7 +543,8 @@ function renderStatusWidget(
   canvas: BmpCanvas,
   bounds: WidgetBounds,
   nextRefresh: number,
-  timezone = DEFAULT_DISPLAY_TIMEZONE
+  timezone = DEFAULT_DISPLAY_TIMEZONE,
+  battery?: DisplayData['battery']
 ): void {
   const { x, y, width } = bounds;
   canvas.drawHLine(x, y, width);
@@ -553,7 +554,11 @@ function renderStatusWidget(
     timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   }).format(now);
   const refreshMin = Math.round(nextRefresh / 60000);
-  canvas.drawText(`Refresh: ${refreshMin}min  ${timeStr}`, x + 2, statusY, width - 4);
+  const text = `Refresh: ${refreshMin}min  ${timeStr}`;
+  canvas.drawText(text, x + 2, statusY, width - 4);
+  // Right-aligned, and only when it fits beside the refresh text without truncating it.
+  const batteryW = compactBatteryWidth(battery);
+  if (batteryW > 0 && text.length * 8 + 6 + batteryW <= width - 4) drawCompactBattery(canvas, x + width - 2, statusY, battery);
 }
 
 /** Draws a ticker view's elements, offset to the widget. Text sizes are whole multiples of the 8x8 font. */
@@ -649,7 +654,7 @@ function populateCanvas(
         case 'ai-usage': renderAiUsageWidget(canvas, bounds, data.aiUsage, {
           view: widget.options?.view === 'condensed' ? 'condensed' : 'full', timeZone: preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE,
         }); break;
-        case 'status':  renderStatusWidget(canvas, bounds, data.nextRefresh, preferences?.display_timezone); break;
+        case 'status':  renderStatusWidget(canvas, bounds, data.nextRefresh, preferences?.display_timezone, data.battery); break;
       }
     });
   }

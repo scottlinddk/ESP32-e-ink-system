@@ -100,12 +100,46 @@ describe('battery widget', () => {
   });
 });
 
+describe('battery in the status bar', () => {
+  afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
+  const status = (w: number): DisplayLayout => ({ version: 1, cols: 10, rows: 6, widgets: [{ i: 'status', x: 0, y: 5, w, h: 1 }] });
+  const render = (battery: DisplayData['battery'], w: number) => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-12T10:00:00Z'));
+    const draw = vi.spyOn(BmpCanvas.prototype, 'drawText');
+    const raw = renderDisplayDataRaw({ ...base, battery }, status(w));
+    return { raw, texts: draw.mock.calls.map(([text]) => text) };
+  };
+  const row = { x0: 0, x1: 250, y0: 5 * ROW_PX, y1: 6 * ROW_PX };
+
+  it('adds the percentage and cell beside the refresh text', () => {
+    expect(render({ percent: 17 }, 10).texts).toEqual(['Refresh: 0min  12:00', '17%']);
+  });
+
+  it('stays as before without a reading, instead of showing --%', () => {
+    expect(render(undefined, 10).texts).toEqual(['Refresh: 0min  12:00']);
+  });
+
+  it('adds black pixels only to the right of the refresh text', () => {
+    const without = render(undefined, 10).raw;
+    const withBattery = render({ percent: 17 }, 10).raw;
+    expect(blackCount(withBattery, row)).toBeGreaterThan(blackCount(without, row));
+    // Everything left of the battery is unchanged.
+    const left = { ...row, x1: 250 - 52 };
+    expect(blackCount(withBattery, left)).toBe(blackCount(without, left));
+  });
+
+  it('is left out when it would not fit beside the refresh text', () => {
+    expect(render({ percent: 17 }, 7).texts).toEqual(['Refresh: 0min  12:00']);
+  });
+});
+
 describe('reported battery lookup', () => {
   beforeEach(() => { query.from.mockClear(); query.result = { data: { battery_percent: 17 }, error: null }; });
 
   it('detects the widget in a layout', () => {
     expect(layoutHasBattery(layout(2, 1))).toBe(true);
-    expect(layoutHasBattery({ ...layout(2, 1), widgets: [{ i: 'status', x: 0, y: 0, w: 2, h: 1 }] })).toBe(false);
+    expect(layoutHasBattery({ ...layout(2, 1), widgets: [{ i: 'status', x: 0, y: 0, w: 2, h: 1 }] })).toBe(true);
+    expect(layoutHasBattery({ ...layout(2, 1), widgets: [{ i: 'energy', x: 0, y: 0, w: 2, h: 1 }] })).toBe(false);
     expect(layoutHasBattery(null)).toBe(false);
   });
 
