@@ -14,6 +14,7 @@ import type { RenderedWidget } from '../ticker/render';
 import { renderEnergyChart } from './energyChart';
 import { energyView } from './widgetOptions';
 import { renderWeekNumberWidget } from './weekNumber';
+import { renderBatteryWidget } from './batteryRenderer';
 import { renderAiUsageWidget } from './aiUsageRenderer';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
@@ -644,6 +645,7 @@ function populateCanvas(
         case 'notion':  renderNotionWidget(canvas, bounds, data.notion, data.notionError); break;
         case 'calendar': renderCalendarWidget(canvas, bounds, data.calendar, widget.options?.items); break;
         case 'week-number': renderWeekNumberWidget(canvas, bounds, new Date(), preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE); break;
+        case 'battery': renderBatteryWidget(canvas, bounds, data.battery); break;
         case 'ai-usage': renderAiUsageWidget(canvas, bounds, data.aiUsage, {
           view: widget.options?.view === 'condensed' ? 'condensed' : 'full', timeZone: preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE,
         }); break;

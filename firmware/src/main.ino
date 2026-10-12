@@ -7,6 +7,7 @@
 #include "applied_frame.h"
 #include "manual_ble.h"
 #include "board_profile.h"
+#include "battery.h"
 #include <time.h>
 #ifdef WAVESHARE_RLCD_42
 #include <driver/rtc_io.h>
@@ -15,6 +16,7 @@
 WiFiManager wifiManager;
 DisplayManager display;
 ApiClient apiClient;
+BatteryManager battery;
 ProvisioningManager provisioning;
 DeviceCredentials credentials;
 RTC_DATA_ATTR feed::AppliedFrame appliedFrame = {};
@@ -196,7 +198,14 @@ void pollDisplay() {
   }
   // Request ACKs belong only to validated 200 frames, including lost-ACK retries.
   const char* requestAck = success && frame.length > 0 ? appliedFrame.refreshRequestId : nullptr;
-  if (!apiClient.heartbeat(credentials.apiUrl, credentials.deviceId, credentials.token, appliedFrame.hash, WiFi.RSSI(), requestAck))
+  // Reported only with verified ADC wiring and calibration (FEATURE_BATTERY_REPORTING); the
+  // "Battery" display widget shows this value, or "--%" while it is unknown.
+  int batteryPercent = -1;
+#if defined(FEATURE_BATTERY_REPORTING) && FEATURE_BATTERY_REPORTING
+  battery.begin();
+  batteryPercent = battery.readPercentage();
+#endif
+  if (!apiClient.heartbeat(credentials.apiUrl, credentials.deviceId, credentials.token, appliedFrame.hash, WiFi.RSSI(), requestAck, batteryPercent))
     Serial.println("[Main] Heartbeat failed");
   else Serial.println("[Main] Heartbeat accepted by server");
   const uint32_t elapsed = (millis() - frame.receivedAt) / 1000;

@@ -209,6 +209,8 @@ export interface DisplayData {
   notionError?: { code: string; message: string };
   calendar?: CalendarData;
   aiUsage?: AiUsageData;
+  /** The charge the viewing device last reported. Absent when unknown. */
+  battery?: { percent: number };
   nextRefresh: number;
 }
 

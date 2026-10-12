@@ -24,7 +24,8 @@ public:
                          const char* appliedHash, uint8_t* buffer, size_t capacity);
   RefreshCheck checkRefreshRequest(const char* baseUrl, const char* deviceId, const char* token);
   bool heartbeat(const char* baseUrl, const char* deviceId, const char* token,
-                 const char* appliedHash, int rssi, const char* refreshRequestId = nullptr);
+                 const char* appliedHash, int rssi, const char* refreshRequestId = nullptr,
+                 int batteryPercent = -1);
 private:
   WiFiClientSecure client;
   bool begin(HTTPClient& http, const char* baseUrl, const char* deviceId,
