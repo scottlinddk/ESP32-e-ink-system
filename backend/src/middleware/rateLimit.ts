@@ -55,11 +55,22 @@ export function createRateLimiter(
     redis: r,
     limiter: Ratelimit.slidingWindow(requests, window),
     prefix: `rl:${prefix}`,
+    timeout: 1000, // fail open after 1s instead of the 5s default if Redis is slow
     ephemeralCache: new Map(), // per-instance in-process cache reduces Redis round-trips
   });
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const { success, limit, remaining, reset } = await limiter.limit(keyForRequest(req));
+    let result: Awaited<ReturnType<typeof limiter.limit>>;
+    try {
+      result = await limiter.limit(keyForRequest(req));
+    } catch (err) {
+      // Fail open: a Redis outage or exhausted Upstash quota must not take the API down.
+      // Express 4 never catches async middleware rejections, so without this the request hangs.
+      logger.warn({ err, prefix }, 'Rate limiter unavailable, allowing request');
+      next();
+      return;
+    }
+    const { success, limit, remaining, reset } = result;
 
     res.setHeader('X-RateLimit-Limit', limit);
     res.setHeader('X-RateLimit-Remaining', remaining);
