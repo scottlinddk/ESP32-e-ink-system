@@ -2,14 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Request, Response } from 'express';
 import { createRateLimiter } from '../middleware/rateLimit';
 
-const limits = vi.hoisted(() => ({ keys: [] as string[] }));
+const limits = vi.hoisted(() => ({ keys: [] as string[], fail: false }));
 vi.mock('@upstash/redis', () => ({ Redis: class {} }));
 vi.mock('@upstash/ratelimit', () => ({ Ratelimit: class {
   static slidingWindow() { return {}; }
-  async limit(key: string) { limits.keys.push(key); return { success: true, limit: 120, remaining: 119, reset: Date.now() + 60000 }; }
+  async limit(key: string) { if (limits.fail) throw new Error('ERR max requests limit exceeded'); limits.keys.push(key); return { success: true, limit: 120, remaining: 119, reset: Date.now() + 60000 }; }
 } }));
 vi.mock('../lib/logger', () => ({ logger: { warn: vi.fn() } }));
-afterEach(() => { vi.unstubAllEnvs(); limits.keys = []; });
+afterEach(() => { vi.unstubAllEnvs(); limits.keys = []; limits.fail = false; });
 
 describe('device rate-limit identity', () => {
   it('gives four devices on one gateway separate budgets', async () => {
@@ -27,5 +27,15 @@ describe('device rate-limit identity', () => {
     const limiter = createRateLimiter(30, '1 m', 'Limited', 'invalid-device');
     await limiter({ headers: { 'x-forwarded-for': '203.0.113.5' } } as unknown as Request, { setHeader: vi.fn() } as unknown as Response, () => {});
     expect(limits.keys).toEqual(['203.0.113.5']);
+  });
+  it('fails open when Redis errors, e.g. the Upstash quota is exhausted', async () => {
+    vi.stubEnv('UPSTASH_REDIS_REST_URL', 'https://redis.example.org'); vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', 'test-only');
+    limits.fail = true;
+    const limiter = createRateLimiter(30, '1 m', 'Limited', 'fail-open');
+    const next = vi.fn();
+    const response = { setHeader: vi.fn(), status: vi.fn() } as unknown as Response;
+    await limiter({ headers: {} } as unknown as Request, response, next);
+    expect(next).toHaveBeenCalledOnce();
+    expect(response.status).not.toHaveBeenCalled();
   });
 });
