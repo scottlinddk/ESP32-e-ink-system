@@ -125,12 +125,14 @@ RefreshCheck ApiClient::checkRefreshRequest(const char* baseUrl, const char* dev
 }
 
 bool ApiClient::heartbeat(const char* baseUrl, const char* deviceId, const char* token,
-                          const char* appliedHash, int rssi, const char* refreshRequestId) {
+                          const char* appliedHash, int rssi, const char* refreshRequestId, int batteryPercent) {
   HTTPClient http;
   if (!begin(http, baseUrl, deviceId, token, "/heartbeat")) return false;
   JsonDocument doc;
   doc["firmware_version"] = FIRMWARE_VERSION;
   doc["rssi"] = constrain(rssi, -150, 0);
+  // Negative means no verified reading; omitting it keeps the last reported value on the server.
+  if (batteryPercent >= 0) doc["battery_percent"] = constrain(batteryPercent, 0, 100);
   // A failed/unknown frame must clear an older acknowledgement on the server.
   // Deploy the API's nullable last_applied_hash contract before this firmware.
   if (feed::validHash(appliedHash)) doc["last_applied_hash"] = appliedHash;

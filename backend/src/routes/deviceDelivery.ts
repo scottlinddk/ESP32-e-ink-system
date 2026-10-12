@@ -7,6 +7,7 @@ import { getApiKeys } from '../services/database';
 import { buildDisplayData } from '../services/displayData';
 import { resolveDevicePreferences } from '../services/deviceDisplays';
 import { renderDisplayData, renderDisplayDataRaw } from '../utils/bmpGenerator';
+import { withReportedBattery } from '../services/deviceBattery';
 import { frameMetadata } from '../utils/displayProfile';
 import { layoutForDisplayData, resolveDisplaySchedule } from '../services/displaySchedule';
 import { createRateLimiter } from '../middleware/rateLimit';
@@ -96,7 +97,8 @@ feedRouter.get('/:id/frame', async (req, res) => {
     }
     // The page selected when source collection began stays paired with its data.
     const layout = layoutForDisplayData(prefs, data);
-    const frame = format === 'bmp' ? renderDisplayData(data, layout, prefs) : renderDisplayDataRaw(data, layout, prefs);
+    const shown = await withReportedBattery(data, layout, owner, req.params.id);
+    const frame = format === 'bmp' ? renderDisplayData(shown, layout, prefs) : renderDisplayDataRaw(shown, layout, prefs);
     const metadata = frameMetadata(prefs.display_profile);
     const hash = createHash('sha256').update(frame).digest('hex');
     const etag = `"${hash}"`;
