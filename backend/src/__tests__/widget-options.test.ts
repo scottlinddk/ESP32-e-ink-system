@@ -92,19 +92,19 @@ describe('energy chart drawing', () => {
   it('labels the current hour, the average and the six-hour ticks', () => {
     const { canvas, texts } = recordingCanvas();
     renderEnergyChart(canvas, { x: 0, y: 0, width: 250, height: 100 }, { ...price, basis: 'consumer', hours }, 'day', at(7));
-    expect(texts).toEqual(['Est 07: 3.14 DKK/kWh', 'Avg 2.15', '00', '06', '12', '18']);
+    expect(texts).toEqual(['Est 07: 3.14 DKK/kWh', 'Avg 2.15', '0 kr', '1 kr', '2 kr', '3 kr', '00', '06', '12', '18']);
   });
 
   it('leaves out the average when it does not fit beside the price', () => {
     const { canvas, texts } = recordingCanvas();
     renderEnergyChart(canvas, { x: 0, y: 0, width: 250, height: 100 }, { ...price, hours }, 'day', at(7));
-    expect(texts).toEqual(['Spot 07: 3.14 DKK/kWh', '00', '06', '12', '18']);
+    expect(texts).toEqual(['Spot 07: 3.14 DKK/kWh', '0 kr', '1 kr', '2 kr', '3 kr', '00', '06', '12', '18']);
   });
 
   it('labels the first hour of the rest-of-day view', () => {
     const { canvas, texts } = recordingCanvas();
     renderEnergyChart(canvas, { x: 0, y: 0, width: 250, height: 100 }, { ...price, basis: 'consumer', hours }, 'rest', at(9));
-    expect(texts).toEqual(['Est 09: 3.14 DKK/kWh', 'Avg 2.15', '09', '12', '18']);
+    expect(texts).toEqual(['Est 09: 3.14 DKK/kWh', 'Avg 2.15', '0 kr', '1 kr', '2 kr', '3 kr', '09', '12', '18']);
   });
 
   it('shortens the header to fit a narrow widget instead of cutting the unit', () => {
@@ -116,8 +116,8 @@ describe('energy chart drawing', () => {
   it('draws the current hour as an outline and the others filled', () => {
     const { canvas, black } = recordingCanvas();
     renderEnergyChart(canvas, { x: 0, y: 0, width: 250, height: 100 }, { ...price, hours }, 'day', at(7));
-    // Slots are 246/24 px wide starting at x=2; sample a pixel inside each bar, above the baseline.
-    const inside = (index: number) => `${2 + Math.floor(index * 246 / 24) + 3},88`;
+    // The axis takes 36px, so slots are 210/24 px wide starting at x=2; sample a pixel inside each bar, above the baseline.
+    const inside = (index: number) => `${2 + Math.floor(index * 210 / 24) + 3},88`;
     expect(black.has(inside(6))).toBe(true);
     expect(black.has(inside(7))).toBe(false);
     expect(black.has(inside(8))).toBe(true);
@@ -127,7 +127,7 @@ describe('energy chart drawing', () => {
     const { canvas, black } = recordingCanvas();
     const negative = hours.map((hour) => ({ ...hour, price: hour.hour === 3 ? -50 : 50 }));
     renderEnergyChart(canvas, { x: 0, y: 0, width: 250, height: 100 }, { ...price, average: 40, hours: negative }, 'day', at(7));
-    const x3 = 2 + Math.floor(3 * 246 / 24) + 3;
+    const x3 = 2 + Math.floor(3 * 246 / 24) + 3; // axis labels would be too wide here, so it is left out
     expect(black.has(`${x3},88`)).toBe(true); // the negative bar reaches down
     expect(black.has(`${x3},30`)).toBe(false); // nothing above zero
   });
@@ -171,5 +171,19 @@ describe('rendering with layout options', () => {
     ));
     const texts = draw.mock.calls.map(([text]) => text);
     expect(texts).toEqual(['One', 'Two', 'Wed All day: A']);
+  });
+});
+
+describe('energy chart y axis', () => {
+  it('labels whole kroner on the right of the bars', () => {
+    const { canvas, texts } = recordingCanvas();
+    renderEnergyChart(canvas, { x: 0, y: 0, width: 250, height: 100 }, { ...price, hours }, 'day', at(7));
+    expect(texts.filter((text) => text.endsWith(' kr'))).toEqual(['0 kr', '1 kr', '2 kr', '3 kr']);
+  });
+
+  it('leaves the axis out of a narrow widget', () => {
+    const { canvas, texts } = recordingCanvas();
+    renderEnergyChart(canvas, { x: 0, y: 0, width: 100, height: 100 }, { ...price, hours }, 'day', at(7));
+    expect(texts.some((text) => text.endsWith(' kr') && text.length <= 5)).toBe(false);
   });
 });
