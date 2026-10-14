@@ -3,10 +3,10 @@ import path from 'path';
 import { createHash } from 'crypto';
 import {
   buildManifestFromRelease, fetchFirmwareReleases, fetchLatestFirmwareRelease, firmwareDisplayName, isReleaseAssetFilename,
-  parseAssetFilename, releaseDate, type FirmwareAsset, type FirmwarePanel,
+  PANEL_FACTORY_ASSETS, parseAssetFilename, releaseDate, type FirmwareAsset, type FirmwarePanel,
 } from './githubRelease';
 
-export const FACTORY_FILES: FirmwareAsset[] = ['firmware-factory.bin', 'firmware-elecrow-factory.bin', 'firmware-elecrow-v12-factory.bin'];
+export const FACTORY_FILES: FirmwareAsset[] = ['firmware-factory.bin', 'firmware-elecrow-factory.bin', 'firmware-elecrow-v12-factory.bin', 'firmware-waveshare-rlcd-42-factory.bin'];
 
 /**
  * Explicit opt-in for locally packaged artifacts; never guess a build directory.
@@ -35,27 +35,26 @@ export function parseReleaseTag(value: unknown): string | undefined | null {
 export interface InstallableRelease { tag: string; version: string; releasedAt: string | null }
 
 /** Releases the installer can switch between, newest first. A local build directory offers only itself. */
-export async function listInstallableReleases(): Promise<InstallableRelease[]> {
+export async function listInstallableReleases(panel: FirmwarePanel = 'original'): Promise<InstallableRelease[]> {
   if (process.env.FIRMWARE_RELEASE_DIR) {
-    const manifest = await getInstallManifest();
+    const manifest = await getInstallManifest(panel);
     return manifest ? [{ tag: '', version: manifest.version, releasedAt: manifest.release_date ?? null }] : [];
   }
-  return (await fetchFirmwareReleases()).map(({ tag, version, releasedAt }) => ({ tag, version, releasedAt }));
+  return (await fetchFirmwareReleases(undefined, panel)).map(({ tag, version, releasedAt }) => ({ tag, version, releasedAt }));
 }
 
 /** The newest release, or the exact `tag`. Local builds ignore the tag: they hold exactly one version. */
 export async function getInstallManifest(panel: FirmwarePanel = 'original', tag?: string) {
   const directory = process.env.FIRMWARE_RELEASE_DIR;
   if (!directory) {
-    const release = await fetchLatestFirmwareRelease(tag);
+    const release = await fetchLatestFirmwareRelease(tag, panel);
     return release ? buildManifestFromRelease(release, process.env.BACKEND_PUBLIC_BASE_URL?.trim(), panel) : null;
   }
-  const filename = panel === 'v12' ? 'manifest-elecrow-v12.json' : 'manifest.json';
+  const filename = { original: 'manifest.json', v12: 'manifest-elecrow-v12.json', rlcd42: 'manifest-waveshare-rlcd-42.json', waveshare213: 'manifest.json' }[panel];
   const manifest = JSON.parse(await readFile(path.resolve(directory, filename), 'utf8'));
-  const expected: Array<[string, FirmwareAsset]> = panel === 'v12'
-    ? [['ESP32-S3', 'firmware-elecrow-v12-factory.bin']]
-    : [['ESP32', 'firmware-factory.bin'], ['ESP32-S3', 'firmware-elecrow-factory.bin']];
-  if (!manifest.name || typeof manifest.version !== 'string' || !Array.isArray(manifest.builds) || manifest.builds.length !== expected.length) throw new Error('Invalid local factory manifest');
+  const chips: Partial<Record<FirmwareAsset, string>> = { 'firmware-factory.bin': 'ESP32' };
+  const expected: Array<[string, FirmwareAsset]> = PANEL_FACTORY_ASSETS[panel].map(asset => [chips[asset] ?? 'ESP32-S3', asset]);
+  if (!manifest.name || typeof manifest.version !== 'string' || !Array.isArray(manifest.builds) || manifest.builds.length < expected.length) throw new Error('Invalid local factory manifest');
   const builds = await Promise.all(expected.map(async ([chipFamily, asset]) => {
     const build = manifest.builds.find((entry: { chipFamily: string }) => entry.chipFamily === chipFamily);
     const name = build?.parts?.[0]?.path;

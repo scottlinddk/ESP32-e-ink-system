@@ -64,7 +64,7 @@ The browser manifest must contain a complete merged image at offset **0**. The m
 | Waveshare / ESP32 | `waveshare-esp32-213-v2_fw-<version>_factory.bin` | `manifest.json` |
 | Original CrowPanel / SSD1680 | `elecrow-crowpanel-213_fw-<version>_factory.bin` | `manifest.json` |
 | CrowPanel V1.2 / JD79661 | `elecrow-crowpanel-213-v12_fw-<version>_factory.bin` | `manifest-elecrow-v12.json` |
-| Waveshare ESP32-S3-RLCD-4.2 / ST7305 | `waveshare-esp32-s3-rlcd-42_fw-<version>_factory.bin` | `manifest-waveshare-rlcd-42.json` (not yet offered on the Flash page) |
+| Waveshare ESP32-S3-RLCD-4.2 / ST7305 | `waveshare-esp32-s3-rlcd-42_fw-<version>_factory.bin` | `manifest-waveshare-rlcd-42.json` |
 
 Releases published before the rename use the legacy names `firmware-factory.bin`, `firmware-elecrow-factory.bin` and `firmware-elecrow-v12-factory.bin`; the backend accepts either spelling per file, so older releases stay installable.
 

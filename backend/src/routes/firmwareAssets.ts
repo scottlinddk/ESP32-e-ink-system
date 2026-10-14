@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { Readable } from 'stream';
-import { describeAssetFilename, fetchLatestFirmwareRelease, isReleaseAssetFilename, parseAssetFilename } from '../services/githubRelease';
+import { parseFirmwarePanel, describeAssetFilename, fetchLatestFirmwareRelease, isReleaseAssetFilename, parseAssetFilename } from '../services/githubRelease';
 import { getInstallManifest, parseReleaseTag, readLocalFactory } from '../services/firmwareInstall';
 
 const router = Router();
@@ -9,7 +9,7 @@ router.get('/manifest.json', async (req, res, next) => {
   try {
     const tag = parseReleaseTag(req.query.tag);
     if (tag === null) { res.status(400).json({ error: 'Invalid firmware release tag' }); return; }
-    const manifest = await getInstallManifest(req.query.panel === 'v12' ? 'v12' : 'original', tag);
+    const manifest = await getInstallManifest(parseFirmwarePanel(req.query.panel), tag);
     res.setHeader('Cache-Control', 'no-store');
     if (!manifest) { res.status(503).json({ error: 'No complete firmware release is available yet.' }); return; }
     res.json(manifest);

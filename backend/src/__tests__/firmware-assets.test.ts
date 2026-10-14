@@ -42,7 +42,7 @@ describe('release binary proxy', () => {
     vi.mocked(fetchLatestFirmwareRelease).mockResolvedValue({ tag: 'dev-old', version: 'dev-old', releasedAt: null, assets: { [name]: 'https://example.com/a.bin' } });
     const response = await realFetch(`${base}manifest.json?panel=v12&tag=dev-old`);
     expect(response.status).toBe(200);
-    expect(fetchLatestFirmwareRelease).toHaveBeenCalledWith('dev-old');
+    expect(fetchLatestFirmwareRelease).toHaveBeenCalledWith('dev-old', 'v12');
     expect(await response.json()).toMatchObject({ name: 'Elecrow CrowPanel 2.13 V1.2 FW dev-old', builds: [{ parts: [{ path: 'releases/dev-old/elecrow-crowpanel-213-v12_fw-dev-old_factory.bin' }] }] });
     expect((await realFetch(`${base}manifest.json?tag=..%2Fetc`)).status).toBe(400);
   });

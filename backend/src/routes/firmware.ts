@@ -7,6 +7,7 @@ import {
   getFirmwareVersionById,
   upsertUser,
 } from '../services/database';
+import { parseFirmwarePanel } from '../services/githubRelease';
 import { getInstallManifest, listInstallableReleases, parseReleaseTag } from '../services/firmwareInstall';
 import type { FirmwareVersion } from '../types';
 
@@ -112,9 +113,9 @@ router.post(
  */
 router.get(
   '/public-releases',
-  async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const releases = await listInstallableReleases().catch(() => []);
+      const releases = await listInstallableReleases(parseFirmwarePanel(req.query.panel)).catch(() => []);
       res.setHeader('Cache-Control', 'no-store');
       res.json({ releases });
     } catch (err) {
@@ -136,7 +137,7 @@ router.get(
     try {
       const tag = parseReleaseTag(req.query.tag);
       if (tag === null) { res.status(400).json({ error: 'Invalid firmware release tag' }); return; }
-      const manifest = await getInstallManifest(req.query.panel === 'v12' ? 'v12' : 'original', tag).catch(() => null);
+      const manifest = await getInstallManifest(parseFirmwarePanel(req.query.panel), tag).catch(() => null);
       if (!manifest) {
         res.status(503).json({ error: 'Firmware release not currently available. Try again later.' });
         return;
@@ -159,7 +160,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const manifest = await getInstallManifest(req.query.panel === 'v12' ? 'v12' : 'original').catch(() => null);
+      const manifest = await getInstallManifest(parseFirmwarePanel(req.query.panel)).catch(() => null);
       if (!manifest) {
         // Never offer an application-only image as a recovery installation.
         res.status(503).json({ error: 'Firmware release not currently available. Try again later.' });

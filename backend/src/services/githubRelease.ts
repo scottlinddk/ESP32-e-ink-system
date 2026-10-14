@@ -7,6 +7,7 @@ export const FIRMWARE_ASSETS = [
   'firmware.bin', 'firmware-elecrow.bin', 'firmware-elecrow-v12.bin',
   'bootloader.bin', 'partitions.bin', 'bootloader-elecrow.bin', 'partitions-elecrow.bin',
   'bootloader-elecrow-v12.bin', 'partitions-elecrow-v12.bin',
+  'firmware-waveshare-rlcd-42-factory.bin',
 ] as const;
 export type FirmwareAsset = typeof FIRMWARE_ASSETS[number];
 
@@ -38,12 +39,26 @@ const TTL = 5 * 60 * 1000;
 /** How many recent releases the installer offers. */
 export const SELECTABLE_RELEASES = 5;
 
-export type FirmwarePanel = 'original' | 'v12';
+export type FirmwarePanel = 'original' | 'v12' | 'rlcd42' | 'waveshare213';
 /** Human-readable hardware each install manifest targets. */
 export const PANEL_BOARD_NAMES: Record<FirmwarePanel, string> = {
   original: 'Elecrow CrowPanel 2.13',
   v12: 'Elecrow CrowPanel 2.13 V1.2',
+  rlcd42: 'Waveshare ESP32-S3-RLCD-4.2',
+  waveshare213: 'Waveshare ESP32 2.13 V2',
 };
+
+/** The factory image each install choice needs. Boards added later are optional for older releases. */
+export const PANEL_FACTORY_ASSETS: Record<FirmwarePanel, FirmwareAsset[]> = {
+  original: ['firmware-factory.bin', 'firmware-elecrow-factory.bin'],
+  v12: ['firmware-elecrow-v12-factory.bin'],
+  rlcd42: ['firmware-waveshare-rlcd-42-factory.bin'],
+  waveshare213: ['firmware-factory.bin'],
+};
+
+export function parseFirmwarePanel(value: unknown): FirmwarePanel {
+  return value === 'v12' || value === 'rlcd42' || value === 'waveshare213' ? value : 'original';
+}
 
 /** A descriptive firmware name: board, "FW" and version. */
 export function firmwareDisplayName(panel: FirmwarePanel, version: string): string {
@@ -53,9 +68,10 @@ export function firmwareDisplayName(panel: FirmwarePanel, version: string): stri
 // Keep in sync with Board.slug and asset_name() in firmware/scripts/package_web_firmware.py.
 const ASSET_BOARD_SLUGS: Record<string, string> = {
   '': 'waveshare-esp32-213-v2', '-elecrow': 'elecrow-crowpanel-213', '-elecrow-v12': 'elecrow-crowpanel-213-v12',
+  '-waveshare-rlcd-42': 'waveshare-esp32-s3-rlcd-42',
 };
-const LEGACY_ASSET = /^(firmware|bootloader|partitions)(-elecrow(?:-v12)?)?(-factory)?\.bin$/;
-const DESCRIPTIVE_ASSET = /^(waveshare-esp32-213-v2|elecrow-crowpanel-213(?:-v12)?)_fw-([a-zA-Z0-9._-]+)_(factory|app|bootloader|partitions)\.bin$/;
+const LEGACY_ASSET = /^(firmware|bootloader|partitions)(-elecrow(?:-v12)?|-waveshare-rlcd-42)?(-factory)?\.bin$/;
+const DESCRIPTIVE_ASSET = /^(waveshare-esp32-213-v2|elecrow-crowpanel-213(?:-v12)?|waveshare-esp32-s3-rlcd-42)_fw-([a-zA-Z0-9._-]+)_(factory|app|bootloader|partitions)\.bin$/;
 
 /** Release filename naming the board, "fw", the version and the image type. */
 export function describeAssetFilename(name: FirmwareAsset, version: string): string {
@@ -127,14 +143,19 @@ async function fetchReleases(tag?: string): Promise<FirmwareRelease[]> {
   return releases;
 }
 
-/** The newest complete releases, newest first. Dev prereleases are intentional. */
-export async function fetchFirmwareReleases(limit = SELECTABLE_RELEASES): Promise<FirmwareRelease[]> {
-  return (await fetchReleases()).slice(0, limit);
+/** True when the release carries every factory image the panel needs. */
+export function releaseSupportsPanel(release: FirmwareRelease, panel: FirmwarePanel): boolean {
+  return PANEL_FACTORY_ASSETS[panel].every(asset => release.assets[asset]);
 }
 
-/** The newest complete build, or the exact release for a pinned tag. */
-export async function fetchLatestFirmwareRelease(tag?: string): Promise<FirmwareRelease | null> {
-  return (await fetchReleases(tag))[0] ?? null;
+/** The newest complete releases that can install `panel`, newest first. Dev prereleases are intentional. */
+export async function fetchFirmwareReleases(limit = SELECTABLE_RELEASES, panel: FirmwarePanel = 'original'): Promise<FirmwareRelease[]> {
+  return (await fetchReleases()).filter(release => releaseSupportsPanel(release, panel)).slice(0, limit);
+}
+
+/** The newest complete build for `panel`, or the exact release for a pinned tag. */
+export async function fetchLatestFirmwareRelease(tag?: string, panel: FirmwarePanel = 'original'): Promise<FirmwareRelease | null> {
+  return (await fetchReleases(tag)).find(release => releaseSupportsPanel(release, panel)) ?? null;
 }
 
 /** Paths are relative to /firmware/ unless a public backend base is configured. */
@@ -150,7 +171,11 @@ export function buildManifestFromRelease(release: FirmwareRelease, proxyBase?: s
     ...(release.releasedAt ? { release_date: release.releasedAt } : {}),
     new_install_prompt_erase: true,
     new_install_improv_wait_time: 0,
-    builds: panel === 'v12' ? [
+    builds: panel === 'waveshare213' ? [
+      { chipFamily: 'ESP32', parts: [part('firmware-factory.bin')] },
+    ] : panel === 'rlcd42' ? [
+      { chipFamily: 'ESP32-S3', parts: [part('firmware-waveshare-rlcd-42-factory.bin')] },
+    ] : panel === 'v12' ? [
       { chipFamily: 'ESP32-S3', parts: [part('firmware-elecrow-v12-factory.bin')] },
     ] : [
       { chipFamily: 'ESP32', parts: [part('firmware-factory.bin')] },
