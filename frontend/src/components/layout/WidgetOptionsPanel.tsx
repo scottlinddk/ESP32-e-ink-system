@@ -110,6 +110,19 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
           </Field>
         )}
 
+        {kind === 'status' && (
+          <Field label={da ? 'Visning' : 'View'} htmlFor={`${fieldId}-view`}
+            helper={da ? 'Kompakt viser kun klokkeslættet og kan gøres smal. Brug et finere gitter for at gøre linjen lavere.'
+              : 'Compact shows the time alone and can be made narrow. Choose a finer grid to make the bar shorter.'}>
+            <Select id={`${fieldId}-view`} value={widget.options?.view === 'condensed' ? 'condensed' : 'full'}
+              options={[
+                { value: 'full', label: da ? 'Fuld: opdateringsinterval og klokkeslæt' : 'Full: refresh interval and time' },
+                { value: 'condensed', label: da ? 'Kompakt: kun klokkeslæt' : 'Compact: time only' },
+              ]}
+              onChange={(e) => onChange({ view: e.target.value === 'condensed' ? 'condensed' : undefined })} />
+          </Field>
+        )}
+
         {widgetAcceptsZoom(widget.i) && (
           <Field label={da ? 'Tekststørrelse' : 'Text size'} htmlFor={`${fieldId}-zoom`}
             helper={da ? 'Forstørrer tekst og grafik i hele tal. Er widgetten for lille til størrelsen, bruges en mindre.'

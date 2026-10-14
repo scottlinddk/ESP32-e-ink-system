@@ -6,7 +6,7 @@ import { tickerIdFromWidget } from './tickerWidgets';
 // so the same source can be shown differently on another scheduled page.
 export const MAX_WIDGET_ITEMS = 10;
 
-export type WidgetOptionKind = 'energy' | 'list' | 'ticker' | 'ai-usage';
+export type WidgetOptionKind = 'energy' | 'list' | 'ticker' | 'ai-usage' | 'status';
 
 /** Which options a widget accepts, or null when it has none. */
 export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
@@ -14,6 +14,7 @@ export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
   if (widgetId === 'news' || widgetId === 'calendar' || newsFeedIdFromWidget(widgetId)) return 'list';
   if (tickerIdFromWidget(widgetId)) return 'ticker';
   if (widgetId === 'ai-usage') return 'ai-usage';
+  if (widgetId === 'status') return 'status';
   return null;
 }
 

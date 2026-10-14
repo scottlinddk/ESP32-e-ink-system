@@ -9,12 +9,13 @@ import { WidgetLayout, DisplayLayout } from '../../types';
 import { Icon } from '../ui/Logo';
 import { clampWidgetToGrid } from '../../lib/layoutPlacement';
 
-// The editor renders at 3× scale so grid cells are large enough to interact with.
+// The editor renders at 3× scale so grid cells are large enough to interact with. The canvas
+// is always 750 × 360 px, whatever the grid: a finer grid has smaller cells, not a larger canvas.
 const SCALE = 3;
-const GRID_COLS = 10;
-const GRID_ROWS = 6;
-const ROW_HEIGHT = 20 * SCALE;   // 60px per row
 const GRID_WIDTH = 250 * SCALE;  // 750px total width
+const GRID_HEIGHT = 120 * SCALE; // 360px total height
+// Below this a cell is too small for the remove button and the 28px resize handle of the base grid.
+const FINE_ROW_HEIGHT = 40;
 
 /**
  * Widgets keep exactly where the user puts them (no compaction), and a move or
@@ -46,7 +47,7 @@ export function layoutFromGrid(layout: DisplayLayout, rglLayout: Layout): Displa
     // Never emit a widget outside the grid, whatever the library reports.
     return {
       i: item.i,
-      ...clampWidgetToGrid({ x: item.x, y: item.y, w: item.w, h: item.h }, GRID_COLS, GRID_ROWS),
+      ...clampWidgetToGrid({ x: item.x, y: item.y, w: item.w, h: item.h }, layout.cols, layout.rows),
       // The flag is kept in the saved layout; it only means "cannot be removed" here.
       static: orig?.static,
       // Moving or resizing never drops a widget's display options.
@@ -61,6 +62,8 @@ export function GridEditor({ layout, widgetMeta, onLayoutChange, onRemoveWidget,
     onLayoutChange(layoutFromGrid(layout, rglLayout));
   }
 
+  const rowHeight = GRID_HEIGHT / layout.rows;
+  const fine = rowHeight < FINE_ROW_HEIGHT;
   const rglLayout: Layout = layout.widgets.map((w): LayoutItem => ({
     i: w.i,
     x: w.x,
@@ -71,19 +74,26 @@ export function GridEditor({ layout, widgetMeta, onLayoutChange, onRemoveWidget,
     static: false,
     minW: 2,
     minH: 1,
-    maxW: GRID_COLS,
-    maxH: GRID_ROWS,
+    maxW: layout.cols,
+    maxH: layout.rows,
   }));
 
   return (
     <div>
-      <div className="grid-editor-canvas" style={{ width: GRID_WIDTH }}>
+      <div
+        className={cn('grid-editor-canvas', fine && 'grid-editor-canvas--fine')}
+        // The CSS gridlines follow the cells of whichever grid the layout uses.
+        style={{ width: GRID_WIDTH, '--grid-col': `${GRID_WIDTH / layout.cols}px`, '--grid-row': `${rowHeight}px` } as React.CSSProperties}
+      >
         <GridLayout
           width={GRID_WIDTH}
           gridConfig={{
-            cols: GRID_COLS,
-            rowHeight: ROW_HEIGHT,
-            maxRows: GRID_ROWS,
+            cols: layout.cols,
+            rowHeight,
+            maxRows: layout.rows,
+            // No gaps, so a cell is exactly as wide and tall as its gridline says.
+            margin: [0, 0],
+            containerPadding: [0, 0],
           }}
           dragConfig={{ handle: '.widget-drag-handle' }}
           compactor={layoutCompactor}
@@ -101,7 +111,8 @@ export function GridEditor({ layout, widgetMeta, onLayoutChange, onRemoveWidget,
                 // Pointer down, not click: a drag never ends in a click, and dragging a widget selects it too.
                 onPointerDown={() => onSelectWidget?.(widget.i)}
                 className={cn(
-                  'h-full border rounded-sm flex items-center justify-between px-2 overflow-hidden select-none group',
+                  'h-full border rounded-sm flex items-center justify-between overflow-hidden select-none group',
+                  fine ? 'px-1' : 'px-2',
                   'transition-[border-color,box-shadow] duration-[150ms]',
                   'bg-surface border-border cursor-grab hover:border-accent hover:shadow-1',
                   selected && 'border-accent shadow-[0_0_0_1px_var(--accent)]'
@@ -135,7 +146,8 @@ export function GridEditor({ layout, widgetMeta, onLayoutChange, onRemoveWidget,
                 {removable && (
                   <button
                     className={cn(
-                      'flex-shrink-0 w-[22px] h-[22px] rounded-full border border-border bg-transparent cursor-pointer flex items-center justify-center text-fg3 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-error hover:border-error hover:text-white transition-[opacity,background-color,color,border-color] duration-[150ms] [&_.material-symbols-outlined]:text-[14px]',
+                      'flex-shrink-0 rounded-full border border-border bg-transparent cursor-pointer flex items-center justify-center text-fg3 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-error hover:border-error hover:text-white transition-[opacity,background-color,color,border-color] duration-[150ms] [&_.material-symbols-outlined]:text-[14px]',
+                      fine ? 'w-[14px] h-[14px]' : 'w-[22px] h-[22px]',
                       // Touch screens have no hover, so a selected widget always shows its remove button.
                       selected && 'opacity-100'
                     )}

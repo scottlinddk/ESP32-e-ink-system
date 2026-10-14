@@ -13,6 +13,8 @@ import { GridEditor, WIDGET_META } from '../components/layout/GridEditor';
 import { LayoutPreviewPane } from '../components/layout/LayoutPreviewPane';
 import { WidgetOptionsPanel } from '../components/layout/WidgetOptionsPanel';
 import { updateWidgetOptions } from '../lib/widgetOptions';
+import { GRID_SCALES, changeGrid, gridLabel, layoutScale, updateLayoutInvert, type GridScale } from '../lib/layoutGrid';
+import { Switch } from '../components/ui/Switch';
 import { ZOOMS, autoZoom, inheritedZoom, updateLayoutZoom, zoomLabel } from '../lib/zoom';
 import { DEFAULT_DISPLAY_PROFILE, type DisplayProfile } from '../lib/displayProfile';
 import { Field } from '../components/ui/Field';
@@ -148,6 +150,20 @@ function LayoutEditorWorkspace() {
     if (selectedId) setLayout((prev) => updateWidgetOptions(prev, selectedId, change));
   }
 
+  const scale = layoutScale(layout);
+  // A finer grid always works. A coarser one only when every widget sits on whole coarse cells.
+  const gridOptions = GRID_SCALES.map((option) => ({
+    value: String(option),
+    label: option === 1
+      ? `${gridLabel(option)} (${app.lang === 'da' ? 'standard' : 'default'})`
+      : gridLabel(option),
+    disabled: changeGrid(layout, option) === null,
+  }));
+
+  function handleGridScale(next: GridScale) {
+    setLayout((prev) => changeGrid(prev, next) ?? prev);
+  }
+
   function handleRemoveWidget(widgetId: string) {
     setLayout((prev) => ({ ...prev, widgets: prev.widgets.filter((w) => w.i !== widgetId) }));
   }
@@ -165,8 +181,8 @@ function LayoutEditorWorkspace() {
     if (problem) {
       // The editor should never allow this; stop here with a clear message instead of a server error.
       app.toast({ type: 'error', title: t.layoutSaveFailed, msg: app.lang === 'da'
-        ? 'Widgets skal ligge inden for gitteret på 10 × 6 og må ikke overlappe.'
-        : 'Widgets must stay inside the 10 × 6 grid and must not overlap.' });
+        ? `Widgets skal ligge inden for gitteret på ${layout.cols} × ${layout.rows} og må ikke overlappe.`
+        : `Widgets must stay inside the ${layout.cols} × ${layout.rows} grid and must not overlap.` });
       return;
     }
     setSaving(true);
@@ -250,6 +266,26 @@ function LayoutEditorWorkspace() {
                 onChange={(e) => setLayout((prev) => updateLayoutZoom(prev, e.target.value === 'auto' ? undefined : Number(e.target.value)))} />
             </Field>
           </div>
+          <div className="mb-3 grid grid-cols-2 gap-3 max-w-xl max-[500px]:grid-cols-1">
+            <Field label={app.lang === 'da' ? 'Gitterstørrelse' : 'Grid size'} htmlFor="layout-grid"
+              helper={app.lang === 'da'
+                ? 'Et finere gitter giver mindre widgets og mere præcis placering på større skærme. Eksisterende widgets bliver, hvor de er.'
+                : 'A finer grid allows smaller widgets and more precise placement on larger displays. Existing widgets stay where they are.'}>
+              <Select id="layout-grid" value={String(scale ?? 1)} options={gridOptions}
+                onChange={(e) => handleGridScale(Number(e.target.value) as GridScale)} />
+            </Field>
+            <Field label={app.lang === 'da' ? 'Farver' : 'Colours'}
+              helper={app.lang === 'da'
+                ? 'Hvid tekst på sort baggrund i stedet for sort på hvid. Et billede beholder sine egne farver.'
+                : 'White text on a black background instead of black on white. A photo keeps its own colours.'}>
+              <label className="flex items-center gap-2.5 min-h-[42px] text-sm cursor-pointer">
+                <Switch checked={layout.invert === true}
+                  onChange={(e) => setLayout((prev) => updateLayoutInvert(prev, e.target.checked))}
+                  label={app.lang === 'da' ? 'Invertér farver' : 'Invert colours'} />
+                {app.lang === 'da' ? 'Invertér farver' : 'Invert colours'}
+              </label>
+            </Field>
+          </div>
           <div className="overflow-x-auto">
             <GridEditor
               layout={layout}
@@ -276,7 +312,7 @@ function LayoutEditorWorkspace() {
           )}
           <div className="flex flex-col gap-0.5 mt-2 [&_.material-symbols-outlined]:text-[14px]">
             <p className="flex items-center gap-1 text-xs text-fg3 m-0">
-              <Icon name="info" /> Grid: 10 columns × 6 rows · size and orientation from saved display profile
+              <Icon name="info" /> Grid: {layout.cols} columns × {layout.rows} rows · size and orientation from saved display profile
             </p>
             <p className="flex items-center gap-1 text-xs text-fg3 m-0">
               <Icon name="drag_indicator" /> Drag the handle to move · drag the bottom-right corner to resize

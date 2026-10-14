@@ -8,6 +8,7 @@ Select a widget in **Edit layout** (tap or click it, or focus it and press Enter
 | `news`, `news:<id>`, `calendar` | `items` | 1–10 rows at most. Also limited by how many items the source fetches and by the widget's height. |
 | `ticker:<id>` | `view`, `items` | `full` or `condensed`, and stocks per page for `condensed`. Overrides the ticker's own settings. See [Stock ticker widgets](TICKER_WIDGET.md). |
 | `ai-usage` | `view` | `full` (default, quota windows plus token breakdown) or `condensed` (quota windows only). A widget too short for the chosen view drops detail, down to one line per provider. See [AI usage](AI_USAGE.md). |
+| `status` | `view` | `full` (default, refresh interval and time) or `condensed` (the time alone, so the bar can be narrow). See [A smaller status bar](LAYOUT_GRID.md#a-smaller-status-bar). |
 | every widget except `custom-image` | `zoom` | 1–4. Enlarges the widget's text and graphics. See [Zoom](#zoom). |
 
 Options are stored on the layout widget:

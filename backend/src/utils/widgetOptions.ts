@@ -11,9 +11,11 @@ export const ENERGY_VIEWS = ['summary', 'day', 'rest'] as const;
 export type EnergyView = typeof ENERGY_VIEWS[number];
 export const TICKER_VIEWS = ['full', 'condensed'] as const;
 export const AI_USAGE_VIEWS = TICKER_VIEWS;
+/** `condensed` shows the time alone, for a status bar made small. */
+export const STATUS_VIEWS = TICKER_VIEWS;
 export const MAX_WIDGET_ITEMS = 10;
 
-export type WidgetOptionKind = 'energy' | 'list' | 'ticker' | 'ai-usage';
+export type WidgetOptionKind = 'energy' | 'list' | 'ticker' | 'ai-usage' | 'status';
 
 /** Which options a widget accepts, or null when it has none. */
 export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
@@ -21,6 +23,7 @@ export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
   if (widgetId === 'news' || widgetId === 'calendar' || newsFeedIdFromWidget(widgetId)) return 'list';
   if (tickerIdFromWidget(widgetId)) return 'ticker';
   if (widgetId === 'ai-usage') return 'ai-usage';
+  if (widgetId === 'status') return 'status';
   return null;
 }
 
@@ -29,6 +32,7 @@ const ALLOWED_KEYS: Record<WidgetOptionKind, readonly string[]> = {
   list: ['items'],
   ticker: ['view', 'items'],
   'ai-usage': ['view'],
+  status: ['view'],
 };
 
 /** Zoom applies to every widget that draws with the text font; an image is placed by pixel instead. */
@@ -58,7 +62,7 @@ export function parseWidgetOptions(widgetId: string, value: unknown): WidgetOpti
     options.zoom = value.zoom;
   }
   if (value.view !== undefined) {
-    const views: readonly string[] = kind === 'energy' ? ENERGY_VIEWS : kind === 'ai-usage' ? AI_USAGE_VIEWS : TICKER_VIEWS;
+    const views: readonly string[] = kind === 'energy' ? ENERGY_VIEWS : kind === 'ai-usage' ? AI_USAGE_VIEWS : kind === 'status' ? STATUS_VIEWS : TICKER_VIEWS;
     if (typeof value.view !== 'string' || !views.includes(value.view)) throw new Error('Widget view is not supported.');
     options.view = value.view as WidgetOptions['view'];
   }

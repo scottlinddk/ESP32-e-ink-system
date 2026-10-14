@@ -17,6 +17,7 @@ import { renderWeekNumberWidget } from './weekNumber';
 import { renderBatteryWidget, compactBatteryWidth, drawCompactBattery } from './batteryRenderer';
 import { renderAiUsageWidget } from './aiUsageRenderer';
 import { chooseZoom, fitZoom } from './zoom';
+import { BASE_GRID_COLS, BASE_GRID_ROWS } from './layoutGrid';
 import { ZoomCanvas, logicalBounds, type Bounds, type DrawingCanvas } from './zoomCanvas';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
@@ -145,21 +146,39 @@ export class BmpCanvas implements DrawingCanvas {
     this.pixels = new Uint8Array(this.rowBytes * this.profile.height).fill(0xff);
   }
 
-  setPixel(x: number, y: number, black: boolean): void {
-    if (x < this.clip.left || x >= this.clip.right || y < this.clip.top || y >= this.clip.bottom) return;
-    if (!Number.isInteger(x) || !Number.isInteger(y)) return;
+  /** Byte and bit of a logical pixel in the stored (unrotated) bitmap. */
+  private locate(x: number, y: number): { byteIdx: number; bitMask: number } {
     let px = x, py = y;
     switch (this.profile.rotation) {
       case 90: px = this.profile.width - 1 - y; py = x; break;
       case 180: px = this.profile.width - 1 - x; py = this.profile.height - 1 - y; break;
       case 270: px = y; py = this.profile.height - 1 - x; break;
     }
-    const byteIdx = py * this.rowBytes + Math.floor(px / 8);
-    const bitMask = 0x80 >> (px % 8);
+    return { byteIdx: py * this.rowBytes + Math.floor(px / 8), bitMask: 0x80 >> (px % 8) };
+  }
+
+  setPixel(x: number, y: number, black: boolean): void {
+    if (x < this.clip.left || x >= this.clip.right || y < this.clip.top || y >= this.clip.bottom) return;
+    if (!Number.isInteger(x) || !Number.isInteger(y)) return;
+    const { byteIdx, bitMask } = this.locate(x, y);
     if (black) {
       this.pixels[byteIdx] &= ~bitMask;
     } else {
       this.pixels[byteIdx] |= bitMask;
+    }
+  }
+
+  /** Swaps black and white inside `bounds`, ignoring the clip. Row padding bits are never touched. */
+  invertArea(bounds: WidgetBounds): void {
+    const left = Math.max(0, Math.floor(bounds.x));
+    const top = Math.max(0, Math.floor(bounds.y));
+    const right = Math.min(this.width, Math.ceil(bounds.x + bounds.width));
+    const bottom = Math.min(this.height, Math.ceil(bounds.y + bounds.height));
+    for (let y = top; y < bottom; y++) {
+      for (let x = left; x < right; x++) {
+        const { byteIdx, bitMask } = this.locate(x, y);
+        this.pixels[byteIdx] ^= bitMask;
+      }
     }
   }
 
@@ -280,8 +299,9 @@ export class BmpCanvas implements DrawingCanvas {
 
 // ── Grid constants ───────────────────────────────────────────────────────────
 
-export const GRID_COLS = 10;
-export const GRID_ROWS = 6;
+// The base grid; a layout may use a finer one (see layoutGrid.ts), so cells are sized from the layout.
+export const GRID_COLS = BASE_GRID_COLS;
+export const GRID_ROWS = BASE_GRID_ROWS;
 export const COL_PX = 25;  // DISPLAY_WIDTH / GRID_COLS
 export const ROW_PX = 20;  // ~DISPLAY_HEIGHT / GRID_ROWS
 
@@ -299,9 +319,9 @@ export const DEFAULT_LAYOUT: DisplayLayout = {
 
 export type WidgetBounds = Bounds;
 
-function getWidgetBounds(w: WidgetLayout, canvas: BmpCanvas): WidgetBounds {
-  const colPx = canvas.width / GRID_COLS;
-  const rowPx = Math.floor(canvas.height / GRID_ROWS);
+function getWidgetBounds(w: WidgetLayout, canvas: BmpCanvas, layout: Pick<DisplayLayout, 'cols' | 'rows'>): WidgetBounds {
+  const colPx = canvas.width / layout.cols;
+  const rowPx = Math.floor(canvas.height / layout.rows);
   return {
     x: Math.floor(w.x * colPx),
     y: w.y * rowPx,
@@ -548,7 +568,8 @@ function renderStatusWidget(
   bounds: WidgetBounds,
   nextRefresh: number,
   timezone = DEFAULT_DISPLAY_TIMEZONE,
-  battery?: DisplayData['battery']
+  battery?: DisplayData['battery'],
+  options?: WidgetLayout['options']
 ): void {
   const { x, y, width } = bounds;
   canvas.drawHLine(x, y, width);
@@ -558,9 +579,10 @@ function renderStatusWidget(
     timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   }).format(now);
   const refreshMin = Math.round(nextRefresh / 60000);
-  const text = `Refresh: ${refreshMin}min  ${timeStr}`;
+  // The condensed view is the time alone, so the bar stays readable at a few columns wide.
+  const text = options?.view === 'condensed' ? timeStr : `Refresh: ${refreshMin}min  ${timeStr}`;
   canvas.drawText(text, x + 2, statusY, width - 4);
-  // Right-aligned, and only when it fits beside the refresh text without truncating it.
+  // Right-aligned, and only when it fits beside the text without truncating it.
   const batteryW = compactBatteryWidth(battery);
   if (batteryW > 0 && text.length * 8 + 6 + batteryW <= width - 4) drawCompactBattery(canvas, x + width - 2, statusY, battery);
 }
@@ -614,11 +636,13 @@ function populateCanvas(
   preferences?: RenderPreferences
 ): void {
   const effectiveLayout = layout ?? DEFAULT_LAYOUT;
+  // Where a photo was drawn; an inverted layout leaves it as it was.
+  const photos: WidgetBounds[] = [];
   for (const widget of effectiveLayout.widgets) {
     const feedId = newsFeedIdFromWidget(widget.i);
     const setting = feedId ? 'show_news' : WIDGET_ENABLED_SETTING[widget.i as keyof typeof WIDGET_ENABLED_SETTING];
     if (setting && preferences?.[setting] === false) continue;
-    const physical = getWidgetBounds(widget, canvas);
+    const physical = getWidgetBounds(widget, canvas, effectiveLayout);
     // A custom image is raster data placed by pixel, so zooming it would only coarsen it.
     const zoom = widget.i === 'custom-image' ? 1
       : fitZoom(chooseZoom(widget.options?.zoom, effectiveLayout.zoom, canvas), physical.width, physical.height);
@@ -650,7 +674,10 @@ function populateCanvas(
           if (data.customText) target.drawWrappedText(data.customText, bounds.x + 2, bounds.y + 2, bounds.width - 4);
           break;
         case 'custom-image':
-          if (data.customImage) drawCustomImage(canvas, bounds, data.customImage, { x: 0, y: 0, width: canvas.width, height: canvas.height });
+          if (data.customImage) {
+            drawCustomImage(canvas, bounds, data.customImage, { x: 0, y: 0, width: canvas.width, height: canvas.height });
+            photos.push(physical);
+          }
           break;
         case 'energy':  renderEnergyWidget(target, bounds, data.price, data.priceError, widget.options); break;
         case 'weather': renderWeatherWidget(target, bounds, data.weather, data.weatherError); break;
@@ -664,9 +691,14 @@ function populateCanvas(
         case 'ai-usage': renderAiUsageWidget(target, bounds, data.aiUsage, {
           view: widget.options?.view === 'condensed' ? 'condensed' : 'full', timeZone: preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE,
         }); break;
-        case 'status':  renderStatusWidget(target, bounds, data.nextRefresh, preferences?.display_timezone, data.battery); break;
+        case 'status':  renderStatusWidget(target, bounds, data.nextRefresh, preferences?.display_timezone, data.battery, widget.options); break;
       }
     });
+  }
+  if (effectiveLayout.invert) {
+    // Everything, unpainted background included, then the photos back: inverting twice restores them.
+    canvas.invertArea({ x: 0, y: 0, width: canvas.width, height: canvas.height });
+    for (const photo of photos) canvas.invertArea(photo);
   }
 }
 
