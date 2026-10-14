@@ -26,9 +26,9 @@ export function FlashPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    loadPublicFirmwareReleases(controller.signal).then(setReleases).catch(() => { if (!controller.signal.aborted) setReleases([]); });
+    loadPublicFirmwareReleases(controller.signal, panel || undefined).then(setReleases).catch(() => { if (!controller.signal.aborted) setReleases([]); });
     return () => { controller.abort(); };
-  }, [attempt]);
+  }, [attempt, panel]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -55,7 +55,7 @@ export function FlashPage() {
   return (
     <main className="max-w-[760px] mx-auto px-6 py-10 text-fg1">
       <h1 className="text-h2 mb-3">Install ESP32 E-Ink firmware</h1>
-      <p className="mb-6 text-fg2">Flash your Elecrow CrowPanel 2.13-inch e-paper display through USB, then connect it to Wi-Fi for automatic dashboard updates.</p>
+      <p className="mb-6 text-fg2">Flash your Elecrow CrowPanel 2.13-inch e-paper display or Waveshare ESP32-S3-RLCD-4.2 through USB, then connect it to Wi-Fi for automatic dashboard updates.</p>
 
       {!secure ? <p role="alert" className="mb-5 text-error">Open this page over HTTPS or on localhost. Browsers block USB flashing on ordinary HTTP addresses, including a Raspberry Pi LAN address.</p>
         : !supported && <p role="alert" className="mb-5 text-error">Use Chrome or Edge on a desktop computer. This browser does not provide Web Serial.</p>}
@@ -64,12 +64,14 @@ export function FlashPage() {
         <h2 className="text-h5 mb-3">1. Connect and select your hardware</h2>
         <p className="mb-3">Use a USB data cable and turn the display power switch on. Close Arduino, PlatformIO, and other serial monitors before connecting.</p>
         <label htmlFor="panel" className="block font-medium mb-2">Display revision</label>
-        <select id="panel" value={panel} onChange={event => setPanel(event.target.value as ElecrowPanel | '')} className="select-native w-full p-3 border border-border-strong rounded-sm bg-surface text-fg1">
+        <select id="panel" value={panel} onChange={event => { setPanel(event.target.value as ElecrowPanel | ''); setTag(''); }} className="select-native w-full p-3 border border-border-strong rounded-sm bg-surface text-fg1">
           <option value="">Check your board label and select a revision…</option>
-          <option value="original">CrowPanel 2.13 original — SSD1680 (or ESP32 + Waveshare 2.13 V2)</option>
+          <option value="original">CrowPanel 2.13 original — SSD1680</option>
           <option value="v12">CrowPanel 2.13 V1.2 — JD79661</option>
+          <option value="waveshare213">Waveshare ESP32 2.13″ V2 e-paper (classic ESP32)</option>
+          <option value="rlcd42">Waveshare ESP32-S3-RLCD-4.2 — 4.2″ reflective LCD (ST7305)</option>
         </select>
-        <p className="mt-3 text-sm text-fg2">Both CrowPanel revisions use ESP32-S3. USB detection cannot distinguish their display controllers. Check the product revision before installing.</p>
+        <p className="mt-3 text-sm text-fg2">All ESP32-S3 boards here report the same USB chip, so USB detection cannot tell them apart. Pick the board you actually own before installing.</p>
         {releases.length > 1 && <>
           <label htmlFor="release" className="block font-medium mt-5 mb-2">Firmware version</label>
           <select id="release" value={tag || releases[0].tag} onChange={event => setTag(event.target.value === releases[0].tag ? '' : event.target.value)} className="select-native w-full p-3 border border-border-strong rounded-sm bg-surface text-fg1">

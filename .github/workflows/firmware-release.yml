@@ -102,6 +102,6 @@ jobs:
             `waveshare-esp32-s3-rlcd-42`) are complete browser/USB installation images at offset 0.
             `manifest.json` covers Waveshare 2.13 and original CrowPanel; `manifest-elecrow-v12.json`
             covers the V1.2 panel; `manifest-waveshare-rlcd-42.json` covers the Waveshare
-            ESP32-S3-RLCD-4.2 (USB install with esptool or ESP Web Tools; not yet on the Flash page). The `app`,
+            ESP32-S3-RLCD-4.2 (also selectable on the Flash page). The `app`,
             `bootloader` and `partitions` binaries are application-only parts.
             SHA256SUMS records the binaries produced by the build. See docs/FIRMWARE_FLASHING.md.

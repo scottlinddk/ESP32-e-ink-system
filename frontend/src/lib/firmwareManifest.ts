@@ -1,4 +1,4 @@
-export type ElecrowPanel = 'original' | 'v12';
+export type ElecrowPanel = 'original' | 'v12' | 'rlcd42' | 'waveshare213';
 export interface FlashManifest {
   name: string;
   version?: string;
@@ -52,8 +52,8 @@ export interface FirmwareReleaseOption {
 }
 
 /** Recent installable releases, newest first. An unavailable list is not fatal: the newest release still installs. */
-export async function loadPublicFirmwareReleases(signal?: AbortSignal): Promise<FirmwareReleaseOption[]> {
-  const response = await fetch('/api/firmware/public-releases', { signal, cache: 'no-store' });
+export async function loadPublicFirmwareReleases(signal?: AbortSignal, panel?: ElecrowPanel): Promise<FirmwareReleaseOption[]> {
+  const response = await fetch(`/api/firmware/public-releases${panel ? `?${new URLSearchParams({ panel })}` : ''}`, { signal, cache: 'no-store' });
   if (!response.ok) return [];
   const body = await response.json() as { releases?: unknown };
   if (!Array.isArray(body.releases)) return [];

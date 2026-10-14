@@ -136,4 +136,22 @@ describe('factory release selection', () => {
     expect(isReleaseAssetFilename('elecrow-crowpanel-213_fw-dev-1_factory.bin', 'firmware-elecrow-factory.bin', 'dev-1')).toBe(true);
     expect(isReleaseAssetFilename('elecrow-crowpanel-213_fw-dev-2_factory.bin', 'firmware-elecrow-factory.bin', 'dev-1')).toBe(false);
   });
+
+  it('offers the Waveshare RLCD-4.2 only from releases that contain its image', async () => {
+    const rlcd = 'waveshare-esp32-s3-rlcd-42_fw-dev-new_factory.bin';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify([
+      { ...release('dev-new', [...names, rlcd]), published_at: '2026-10-12T00:00:00Z' },
+      { ...release('dev-old'), published_at: '2026-10-05T00:00:00Z' },
+    ]))));
+    const { fetchFirmwareReleases, fetchLatestFirmwareRelease, buildManifestFromRelease, parseAssetFilename } = await import('../services/githubRelease');
+    expect((await fetchFirmwareReleases()).map(value => value.tag)).toEqual(['dev-new', 'dev-old']);
+    expect((await fetchFirmwareReleases(5, 'rlcd42')).map(value => value.tag)).toEqual(['dev-new']);
+    const selected = await fetchLatestFirmwareRelease(undefined, 'rlcd42');
+    expect(buildManifestFromRelease(selected!, undefined, 'rlcd42')).toMatchObject({
+      name: 'Waveshare ESP32-S3-RLCD-4.2 FW dev-new',
+      builds: [{ chipFamily: 'ESP32-S3', parts: [{ path: `releases/dev-new/${rlcd}`, offset: 0 }] }],
+    });
+    expect(buildManifestFromRelease(selected!, undefined, 'waveshare213').builds[0].chipFamily).toBe('ESP32');
+    expect(parseAssetFilename(rlcd)).toEqual({ asset: 'firmware-waveshare-rlcd-42-factory.bin', version: 'dev-new' });
+  });
 });
