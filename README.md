@@ -25,7 +25,7 @@ The JSON preview, BMP preview and Bluetooth payload share one live-data pipeline
 
 Weather has a **Test weather** action and specific setup/error messages. Save an OpenWeatherMap Current Weather key, enter coordinates with decimal points, and test before saving the display settings. See [weather setup and troubleshooting](docs/WEATHER.md).
 
-The image renderer supports validated monochrome panel sizes and clockwise rotation, defaulting to **250 × 122**. Choose native dimensions on the Dashboard. The bundled firmware accepts row-padded 250 × 122 Bluetooth pushes in manual setup mode. The separate OpenDisplay path retains its byte-aligned width requirement. See [display profiles](docs/DISPLAY_PROFILES.md) and [Bluetooth setup](docs/BLUETOOTH_DELIVERY.md). A profile does not install a new board driver.
+The image renderer supports validated monochrome panel sizes and clockwise rotation, defaulting to **250 × 122**. Choose native dimensions on the Dashboard. The bundled firmware accepts row-padded 250 × 122 Bluetooth pushes in manual setup mode. The separate OpenDisplay path retains its byte-aligned width requirement. See [display profiles](docs/DISPLAY_PROFILES.md) and [Bluetooth setup](docs/BLUETOOTH_DELIVERY.md). A profile does not install a new board driver. Larger panels, such as the 400 × 300 Waveshare RLCD, draw text and graphics enlarged: the layout editor sets a **text size** (1–4×) for the whole layout and for each widget, and unset sizes follow the panel automatically. See [widget options](docs/WIDGET_OPTIONS.md#zoom).
 
 ## Data sources
 

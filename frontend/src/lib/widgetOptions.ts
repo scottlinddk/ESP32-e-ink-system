@@ -17,6 +17,11 @@ export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
   return null;
 }
 
+/** Every widget that draws with the text font can be zoomed; an image is placed by pixel instead. */
+export function widgetAcceptsZoom(widgetId: string): boolean {
+  return widgetId !== 'custom-image';
+}
+
 /**
  * Applies a change to one widget's options. A field set to undefined is removed, and a
  * widget left without options loses the property, so the saved layout stays minimal.

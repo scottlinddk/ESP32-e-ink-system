@@ -8,6 +8,7 @@ Select a widget in **Edit layout** (tap or click it, or focus it and press Enter
 | `news`, `news:<id>`, `calendar` | `items` | 1–10 rows at most. Also limited by how many items the source fetches and by the widget's height. |
 | `ticker:<id>` | `view`, `items` | `full` or `condensed`, and stocks per page for `condensed`. Overrides the ticker's own settings. See [Stock ticker widgets](TICKER_WIDGET.md). |
 | `ai-usage` | `view` | `full` (default) or `condensed`, one line per provider. A widget too short for the full view is drawn condensed. See [AI usage](AI_USAGE.md). |
+| every widget except `custom-image` | `zoom` | 1–4. Enlarges the widget's text and graphics. See [Zoom](#zoom). |
 
 Options are stored on the layout widget:
 
@@ -16,3 +17,21 @@ Options are stored on the layout widget:
 ```
 
 The backend validates them with the layout (`backend/src/utils/widgetOptions.ts`, mirrored in `frontend/src/lib/widgetOptions.ts`). Unknown fields, values outside the ranges above and options on widgets without any are rejected; an empty `options` object is dropped. Layouts without options render exactly as before. Templates export and import options as part of the layout.
+
+## Zoom
+
+The widgets are drawn with an 8 × 8 pixel font, which reads well on the 250 × 122 panel but looks small on a 400 × 300 one. Zoom enlarges everything a widget draws (text, lines, bars, cells) by a whole factor from 1 to 4. A widget is laid out on a canvas that many times smaller and each pixel becomes a block, so it shows fewer or shorter lines rather than clipped ones.
+
+Zoom is chosen at three levels, the most specific first:
+
+1. **Widget**: `options.zoom` on a layout widget (the **Text size** field under the grid). Unset follows the layout.
+2. **Layout**: `zoom` beside `widgets` (the **Layout text size** field above the grid). Unset means automatic.
+3. **Automatic**: the largest whole factor that still leaves a logical canvas of about 200 × 100, judged on the panel's size after rotation, capped at 4. 250 × 122 stays 1×, 400 × 300 gives 2× and 800 × 480 gives 4×.
+
+```json
+{ "version": 1, "cols": 10, "rows": 6, "zoom": 2, "widgets": [
+  { "i": "energy", "x": 0, "y": 0, "w": 10, "h": 3, "options": { "view": "day", "zoom": 1 } },
+  { "i": "status", "x": 0, "y": 5, "w": 10, "h": 1, "static": true } ] }
+```
+
+Choose **1×** for a layout to keep the pre-zoom look on a larger panel. A zoom too large for a widget (less than one text line, or about four characters, would remain) is lowered until it fits, so a one-row widget never shows half a line. `custom-image` is never zoomed: it is placed by pixel and already scales to its area. The layout editor labels the automatic choice from the saved display profile; a device that declares its own panel size follows that size on the server.

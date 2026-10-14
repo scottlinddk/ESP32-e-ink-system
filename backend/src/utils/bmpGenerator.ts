@@ -16,6 +16,8 @@ import { energyView } from './widgetOptions';
 import { renderWeekNumberWidget } from './weekNumber';
 import { renderBatteryWidget, compactBatteryWidth, drawCompactBattery } from './batteryRenderer';
 import { renderAiUsageWidget } from './aiUsageRenderer';
+import { chooseZoom, fitZoom } from './zoom';
+import { ZoomCanvas, logicalBounds, type Bounds, type DrawingCanvas } from './zoomCanvas';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -125,7 +127,7 @@ export const DISPLAY_HEIGHT = 122;
 // Row stride must be a multiple of 4 bytes (BMP requirement)
 
 
-export class BmpCanvas {
+export class BmpCanvas implements DrawingCanvas {
   private pixels: Uint8Array;
   private clip: { left: number; top: number; right: number; bottom: number };
   readonly profile: DisplayProfile;
@@ -213,14 +215,16 @@ export class BmpCanvas {
     }
   }
 
-  // Word-wrap text within a box; returns the y position after the last line
-  drawWrappedText(text: string, x: number, y: number, w: number, lineH = 10): number {
-    const maxChars = Math.floor(w / 8);
-    if (maxChars < 1 || y + 8 > this.clip.bottom || !Number.isFinite(lineH) || lineH < 1) return y;
+  // Word-wrap text within a box; returns the y position after the last line.
+  // `scale` enlarges the glyphs, so a line holds fewer characters and is `8 * scale` tall.
+  drawWrappedText(text: string, x: number, y: number, w: number, lineH = 10, scale = 1): number {
+    const glyph = 8 * scale;
+    const maxChars = Math.floor(w / glyph);
+    if (maxChars < 1 || y + glyph > this.clip.bottom || !Number.isFinite(lineH) || lineH < 1) return y;
     let cy = y;
     for (const line of wrapBitmapText(text, maxChars)) {
-      if (cy + 8 > this.clip.bottom) break;
-      this.drawText(line, x, cy, w);
+      if (cy + glyph > this.clip.bottom) break;
+      this.drawText(line, x, cy, w, scale);
       cy += lineH;
     }
     return cy;
@@ -293,7 +297,7 @@ export const DEFAULT_LAYOUT: DisplayLayout = {
   ],
 };
 
-export interface WidgetBounds { x: number; y: number; width: number; height: number; }
+export type WidgetBounds = Bounds;
 
 function getWidgetBounds(w: WidgetLayout, canvas: BmpCanvas): WidgetBounds {
   const colPx = canvas.width / GRID_COLS;
@@ -315,7 +319,7 @@ function trendArrow(trend?: 'up' | 'down' | 'stable'): string {
 // ── Per-widget renderers ──────────────────────────────────────────────────────
 
 function renderEnergyWidget(
-  canvas: BmpCanvas,
+  canvas: DrawingCanvas,
   bounds: WidgetBounds,
   price?: DisplayData['price'],
   problem?: DisplayData['priceError'],
@@ -353,7 +357,7 @@ function renderEnergyWidget(
 }
 
 function renderWeatherWidget(
-  canvas: BmpCanvas,
+  canvas: DrawingCanvas,
   bounds: WidgetBounds,
   weather?: DisplayData['weather'],
   problem?: DisplayData['weatherError'],
@@ -378,7 +382,7 @@ function renderWeatherWidget(
 }
 
 function renderNewsWidget(
-  canvas: BmpCanvas,
+  canvas: DrawingCanvas,
   bounds: WidgetBounds,
   news?: DisplayData['news'],
   problem?: DisplayData['newsError'],
@@ -399,7 +403,7 @@ function renderNewsWidget(
 }
 
 function renderMontaWidget(
-  canvas: BmpCanvas,
+  canvas: DrawingCanvas,
   bounds: WidgetBounds,
   data?: DisplayData['monta'],
   fields: string[] = ['charger_status', 'active_session']
@@ -443,7 +447,7 @@ function renderMontaWidget(
 }
 
 function renderZaptecWidget(
-  canvas: BmpCanvas,
+  canvas: DrawingCanvas,
   bounds: WidgetBounds,
   data?: DisplayData['zaptec'],
   fields: string[] = ['charger_status', 'active_session', 'installation_info']
@@ -483,7 +487,7 @@ function renderZaptecWidget(
 }
 
 function renderNotionWidget(
-  canvas: BmpCanvas,
+  canvas: DrawingCanvas,
   bounds: WidgetBounds,
   data?: DisplayData['notion'],
   problem?: DisplayData['notionError'],
@@ -525,7 +529,7 @@ function renderNotionWidget(
   }
 }
 
-function renderCalendarWidget(canvas: BmpCanvas, bounds: WidgetBounds, data?: DisplayData['calendar'], limit?: number): void {
+function renderCalendarWidget(canvas: DrawingCanvas, bounds: WidgetBounds, data?: DisplayData['calendar'], limit?: number): void {
   const { x, y, width, height } = bounds;
   if (y > 0) canvas.drawHLine(x, y, width);
   let textY = y + 2;
@@ -540,7 +544,7 @@ function renderCalendarWidget(canvas: BmpCanvas, bounds: WidgetBounds, data?: Di
 }
 
 function renderStatusWidget(
-  canvas: BmpCanvas,
+  canvas: DrawingCanvas,
   bounds: WidgetBounds,
   nextRefresh: number,
   timezone = DEFAULT_DISPLAY_TIMEZONE,
@@ -562,7 +566,7 @@ function renderStatusWidget(
 }
 
 /** Draws a ticker view's elements, offset to the widget. Text sizes are whole multiples of the 8x8 font. */
-function drawRenderedWidget(canvas: BmpCanvas, bounds: WidgetBounds, rendered: RenderedWidget): void {
+function drawRenderedWidget(canvas: DrawingCanvas, bounds: WidgetBounds, rendered: RenderedWidget): void {
   for (const element of rendered.elements) {
     const x = bounds.x + element.x;
     const y = bounds.y + element.y;
@@ -577,7 +581,7 @@ function drawRenderedWidget(canvas: BmpCanvas, bounds: WidgetBounds, rendered: R
 }
 
 function renderTickerWidget(
-  canvas: BmpCanvas,
+  canvas: DrawingCanvas,
   bounds: WidgetBounds,
   setting: TickerWidgetSetting | undefined,
   result: TickerResult | undefined,
@@ -614,9 +618,15 @@ function populateCanvas(
     const feedId = newsFeedIdFromWidget(widget.i);
     const setting = feedId ? 'show_news' : WIDGET_ENABLED_SETTING[widget.i as keyof typeof WIDGET_ENABLED_SETTING];
     if (setting && preferences?.[setting] === false) continue;
-    const bounds = getWidgetBounds(widget, canvas);
+    const physical = getWidgetBounds(widget, canvas);
+    // A custom image is raster data placed by pixel, so zooming it would only coarsen it.
+    const zoom = widget.i === 'custom-image' ? 1
+      : fitZoom(chooseZoom(widget.options?.zoom, effectiveLayout.zoom, canvas), physical.width, physical.height);
+    // Widgets draw on a smaller logical canvas that ZoomCanvas enlarges; zoom 1 draws directly.
+    const target: DrawingCanvas = zoom === 1 ? canvas : new ZoomCanvas(canvas, zoom);
+    const bounds = zoom === 1 ? physical : logicalBounds(physical, zoom);
     const tickerId = tickerIdFromWidget(widget.i);
-    canvas.withClip(bounds, () => {
+    canvas.withClip(physical, () => {
       if (tickerId) {
         const stored = storedTickerWidgets(preferences?.ticker_widgets).find((item) => item.id === tickerId);
         // Layout options override the ticker's own view and page size for this placement only.
@@ -625,36 +635,36 @@ function populateCanvas(
           ...(widget.options?.view === 'full' || widget.options?.view === 'condensed' ? { view: widget.options.view } : {}),
           ...(widget.options?.items ? { per_page: widget.options.items } : {}),
         };
-        renderTickerWidget(canvas, bounds, setting, data.tickers?.[tickerId], preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE);
+        renderTickerWidget(target, bounds, setting, data.tickers?.[tickerId], preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE);
         return;
       }
       if (feedId) {
         // A removed feed has no result; it renders as unavailable until the widget is removed.
         const feed = data.newsFeeds?.[feedId];
-        renderNewsWidget(canvas, bounds, feed?.items, feed?.error, widget.options?.items);
+        renderNewsWidget(target, bounds, feed?.items, feed?.error, widget.options?.items);
         return;
       }
       switch (widget.i) {
-        case 'custom-webhook': renderWebhookWidget(canvas, bounds, data.customWebhook); break;
+        case 'custom-webhook': renderWebhookWidget(target, bounds, data.customWebhook); break;
         case 'custom-text':
-          if (data.customText) canvas.drawWrappedText(data.customText, bounds.x + 2, bounds.y + 2, bounds.width - 4);
+          if (data.customText) target.drawWrappedText(data.customText, bounds.x + 2, bounds.y + 2, bounds.width - 4);
           break;
         case 'custom-image':
           if (data.customImage) drawCustomImage(canvas, bounds, data.customImage, { x: 0, y: 0, width: canvas.width, height: canvas.height });
           break;
-        case 'energy':  renderEnergyWidget(canvas, bounds, data.price, data.priceError, widget.options); break;
-        case 'weather': renderWeatherWidget(canvas, bounds, data.weather, data.weatherError); break;
-        case 'news':    renderNewsWidget(canvas, bounds, data.news, data.newsError, widget.options?.items); break;
-        case 'monta':   renderMontaWidget(canvas, bounds, data.monta, preferences?.monta_fields ?? undefined); break;
-        case 'zaptec':  renderZaptecWidget(canvas, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined); break;
-        case 'notion':  renderNotionWidget(canvas, bounds, data.notion, data.notionError); break;
-        case 'calendar': renderCalendarWidget(canvas, bounds, data.calendar, widget.options?.items); break;
-        case 'week-number': renderWeekNumberWidget(canvas, bounds, new Date(), preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE); break;
-        case 'battery': renderBatteryWidget(canvas, bounds, data.battery); break;
-        case 'ai-usage': renderAiUsageWidget(canvas, bounds, data.aiUsage, {
+        case 'energy':  renderEnergyWidget(target, bounds, data.price, data.priceError, widget.options); break;
+        case 'weather': renderWeatherWidget(target, bounds, data.weather, data.weatherError); break;
+        case 'news':    renderNewsWidget(target, bounds, data.news, data.newsError, widget.options?.items); break;
+        case 'monta':   renderMontaWidget(target, bounds, data.monta, preferences?.monta_fields ?? undefined); break;
+        case 'zaptec':  renderZaptecWidget(target, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined); break;
+        case 'notion':  renderNotionWidget(target, bounds, data.notion, data.notionError); break;
+        case 'calendar': renderCalendarWidget(target, bounds, data.calendar, widget.options?.items); break;
+        case 'week-number': renderWeekNumberWidget(target, bounds, new Date(), preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE); break;
+        case 'battery': renderBatteryWidget(target, bounds, data.battery); break;
+        case 'ai-usage': renderAiUsageWidget(target, bounds, data.aiUsage, {
           view: widget.options?.view === 'condensed' ? 'condensed' : 'full', timeZone: preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE,
         }); break;
-        case 'status':  renderStatusWidget(canvas, bounds, data.nextRefresh, preferences?.display_timezone, data.battery); break;
+        case 'status':  renderStatusWidget(target, bounds, data.nextRefresh, preferences?.display_timezone, data.battery); break;
       }
     });
   }
