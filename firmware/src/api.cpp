@@ -36,6 +36,9 @@ FrameResult ApiClient::fetchFrame(const char* baseUrl, const char* deviceId, con
     strlcpy(result.error, "Invalid device configuration", sizeof(result.error));
     return result;
   }
+  // Declare the panel's native size so the server renders for this board without a manual display profile.
+  http.addHeader("X-Device-Width", String(unsigned(kBoard.width)));
+  http.addHeader("X-Device-Height", String(unsigned(kBoard.height)));
   const char* headers[] = {"Retry-After", "X-Image-SHA256", "X-Display-Width", "X-Display-Height",
     "X-Display-Rotation", "X-Display-Row-Bytes", "X-Display-Encoding", "X-Refresh-Mode", "X-Refresh-Request-ID", "X-Instant-Updates", "Content-Type", "Transfer-Encoding"};
   http.collectHeaders(headers, sizeof(headers) / sizeof(headers[0]));

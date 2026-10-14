@@ -8,7 +8,7 @@ import { buildDisplayData } from '../services/displayData';
 import { resolveDevicePreferences } from '../services/deviceDisplays';
 import { renderDisplayData, renderDisplayDataRaw } from '../utils/bmpGenerator';
 import { withReportedBattery } from '../services/deviceBattery';
-import { frameMetadata } from '../utils/displayProfile';
+import { declaredPanelSize, frameMetadata, parseDisplayProfile } from '../utils/displayProfile';
 import { layoutForDisplayData, resolveDisplaySchedule } from '../services/displaySchedule';
 import { createRateLimiter } from '../middleware/rateLimit';
 import { classifyDatabaseError, DATABASE_FAILURE_HINTS } from '../services/databaseHealth';
@@ -82,7 +82,10 @@ feedRouter.get('/:id/frame', async (req, res) => {
     const refreshRequestId = refresh.requestId;
     // Every response, including quiet 204 and 304, tells the device whether to stay online.
     res.setHeader('X-Instant-Updates', refresh.instantUpdates ? '1' : '0');
-    const prefs = await resolveDevicePreferences(owner, req.params.id);
+    const saved = await resolveDevicePreferences(owner, req.params.id);
+    // The board's own panel size wins over the saved profile dimensions; rotation stays a user choice.
+    const panel = declaredPanelSize(req.get('x-device-width'), req.get('x-device-height'));
+    const prefs = panel ? { ...saved, display_profile: { ...parseDisplayProfile(saved.display_profile), ...panel } } : saved;
     const schedule = resolveDisplaySchedule(prefs);
     if (!refreshRequestId && schedule.schedule?.quiet) {
       res.setHeader('Retry-After', String(remainingRetry(schedule.nextRefresh, Date.now(), schedule.schedule.nextTransitionAt)));
