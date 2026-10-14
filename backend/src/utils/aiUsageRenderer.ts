@@ -1,12 +1,21 @@
 import type { AiCostEstimate, AiLimitView, AiProviderView, AiUsageData } from '../aiUsage/types';
 
-// AI usage widget. Full view, per provider:
-//   CLAUDE            2.1M ~$4.80     today's tokens, estimated at API prices
-//   5h [######    ] 58% 14:20         quota window, used share, local reset time
-//   7d [###       ] 31% Mon
-//   API month $45.20                  billed this month (Admin API)
-// Condensed view: one line per provider. Lines that do not fit are dropped from the
-// bottom; columns that do not fit are dropped from the right.
+// AI usage widget, modelled on Claude's own usage panel. A view that does
+// not fit the widget's height falls back to the next one down, so a small widget degrades instead of clipping:
+//
+// detailed (view "full")            stacked (view "condensed")
+//   CLAUDE        2.1M ~$4.80         CLAUDE        2.1M ~$4.80
+//   Session  Resets in 58m 15%        Session  Resets in 58m 15%
+//   [####-----------------]           [####-----------------]
+//   Weekly  Resets Thu 20:00 68%      Weekly  Resets Thu 20:00 68%
+//   [##############--------]          [##############--------]
+//   Input        6  Output    795     API month $45.20
+//   Cache read 234k Cache write 49k
+//   Cache hit 83%  API month $45.20
+//
+// inline: one row per window, label, bar, percent and reset time on a single line.
+// line:   one line per provider.
+// Rows that do not fit are dropped from the bottom; columns, from the right.
 
 export interface AiUsageCanvas {
   drawText(text: string, x: number, y: number, maxWidth?: number, scale?: number, black?: boolean): void;
@@ -15,6 +24,8 @@ export interface AiUsageCanvas {
 }
 export interface AiUsageBounds { x: number; y: number; width: number; height: number }
 export type AiUsageView = 'full' | 'condensed';
+type Level = 'detailed' | 'stacked' | 'inline' | 'line';
+const LEVELS: readonly Level[] = ['detailed', 'stacked', 'inline', 'line'];
 
 const GLYPH = 8;
 const LINE = 10;
@@ -59,6 +70,26 @@ export function formatAge(observedAt: string, now: Date): string {
   if (minutes < 60) return `${minutes}m`;
   if (minutes < 48 * 60) return `${Math.floor(minutes / 60)}h`;
   return `${Math.floor(minutes / 1440)}d`;
+}
+
+/** Weekday and local time for a reset more than a day away, e.g. "Thu 20:00". */
+function weekdayTime(at: Date, timeZone: string): string {
+  const day = new Intl.DateTimeFormat('en-GB', { timeZone, weekday: 'short' }).format(at);
+  return `${day} ${new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at)}`;
+}
+
+/** When a window resets, as Claude words it: "in 58m", "14:20" within a day, otherwise "Thu 20:00". */
+export function formatResetIn(resetsAt: string, now: Date, timeZone: string): string {
+  const at = new Date(resetsAt);
+  const ms = at.getTime() - now.getTime();
+  if (ms < 60 * 60_000) return `in ${Math.max(1, Math.ceil(ms / 60_000))}m`;
+  if (ms < 24 * 3_600_000) return formatReset(resetsAt, now, timeZone);
+  return weekdayTime(at, timeZone);
+}
+
+/** Claude's names for its two windows; any other window keeps its length ("30m"). */
+function limitName(label: string): string {
+  return label === '5h' ? 'Session' : label === '7d' ? 'Weekly' : label;
 }
 
 function percentText(limit: AiLimitView): string {
@@ -143,6 +174,137 @@ function drawFull(canvas: AiUsageCanvas, bounds: AiUsageBounds, data: AiUsageDat
   });
 }
 
+// Stacked rows: a text line over a full-width bar, as in Claude's usage panel.
+const BAR_H = 6;
+const STACK_ROW = GLYPH + 1 + BAR_H + 1;
+const SEPARATOR = 3;
+/** Two lines of token counts, plus one for cache hit rate and the billed month. */
+const BREAKDOWN_LINES = 2;
+
+function drawSolidBar(canvas: AiUsageCanvas, x: number, y: number, width: number, share: number): void {
+  canvas.drawHLine(x, y, width);
+  canvas.drawHLine(x, y + BAR_H - 1, width);
+  canvas.fillRect(x, y, 1, BAR_H);
+  canvas.fillRect(x + width - 1, y, 1, BAR_H);
+  const fill = Math.round((width - 2) * Math.max(0, Math.min(1, share)));
+  if (fill > 0) canvas.fillRect(x + 1, y + 1, fill, BAR_H - 2);
+}
+
+function drawStackedLimit(canvas: AiUsageCanvas, limit: AiLimitView, x: number, y: number, width: number, now: Date, timeZone: string): void {
+  const name = limitName(limit.label);
+  const percent = percentText(limit);
+  const percentWidth = textWidth(percent);
+  canvas.drawText(percent, x + width - percentWidth, y, percentWidth);
+  const nameWidth = Math.min(textWidth(name), width - percentWidth - GLYPH);
+  if (nameWidth > 0) canvas.drawText(name, x, y, nameWidth);
+  // Once a window has reset its old reset time means nothing, so it is left out.
+  if (limit.usedPercent !== null) {
+    const when = formatResetIn(limit.resetsAt, now, timeZone);
+    const room = width - percentWidth - GLYPH - (nameWidth + GLYPH);
+    const text = [`Resets ${when}`, when].find((candidate) => textWidth(candidate) <= room);
+    if (text) canvas.drawText(text, x + width - percentWidth - GLYPH - textWidth(text), y, textWidth(text));
+  }
+  if (width >= 6) drawSolidBar(canvas, x, y + GLYPH + 1, width, (limit.usedPercent ?? 0) / 100);
+}
+
+/** Share of input-side tokens served from cache, as in Claude's "Cache hit". Null without cache traffic. */
+function cacheHit(estimate: AiCostEstimate | null): number | null {
+  const tokens = estimate?.breakdown;
+  if (!tokens || tokens.cacheRead + tokens.cacheWrite === 0) return null;
+  return Math.round(100 * tokens.cacheRead / (tokens.input + tokens.cacheRead + tokens.cacheWrite));
+}
+
+/** The billed month, or what is wrong with the Admin API key. */
+function apiText(provider: AiProviderView, width: number): string {
+  if (provider.adminError) {
+    return provider.adminError.code === 'invalid_key' || provider.adminError.code === 'forbidden' ? 'API: check key' : 'API: unavailable';
+  }
+  if (provider.monthCostUsd === null) return '';
+  const month = `API month ${formatUsd(provider.monthCostUsd)}`;
+  return width >= textWidth(month) ? month : `API ${formatUsd(provider.monthCostUsd)}`;
+}
+
+function hasBreakdown(provider: AiProviderView): boolean {
+  return !!provider.today?.breakdown;
+}
+
+function summaryLine(provider: AiProviderView, detailed: boolean): boolean {
+  return (detailed && cacheHit(provider.today) !== null) || !!provider.adminError || provider.monthCostUsd !== null;
+}
+
+function providerHeight(provider: AiProviderView, detailed: boolean): number {
+  return LINE + provider.limits.length * STACK_ROW
+    + (detailed && hasBreakdown(provider) ? BREAKDOWN_LINES * LINE : 0)
+    + (summaryLine(provider, detailed && hasBreakdown(provider)) ? LINE : 0);
+}
+
+function stackedHeight(data: AiUsageData, detailed: boolean): number {
+  return data.providers.reduce((sum, provider, index) => sum + providerHeight(provider, detailed) + (index > 0 ? SEPARATOR : 0), 0);
+}
+
+/** A label with a right-aligned value in a column of `width` pixels. */
+function drawCell(canvas: AiUsageCanvas, label: string, value: string, x: number, y: number, width: number): void {
+  canvas.drawText(label, x, y, Math.max(0, width - textWidth(value) - GAP));
+  rightText(canvas, value, x + width, y, x + textWidth(label) + GAP);
+}
+
+// Cache labels come in tiers so both cells of a row use the same wording.
+const CACHE_LABELS: ReadonlyArray<readonly [string, string]> = [['Cache read', 'Cache write'], ['Cache rd', 'Cache wr'], ['Rd', 'Wr']];
+
+function drawBreakdown(canvas: AiUsageCanvas, provider: AiProviderView, x: number, y: number, width: number): void {
+  const tokens = provider.today!.breakdown!;
+  const column = Math.floor((width - GLYPH) / 2);
+  const right = x + width - column;
+  const read = formatTokens(tokens.cacheRead);
+  const write = formatTokens(tokens.cacheWrite);
+  const [readLabel, writeLabel] = CACHE_LABELS.find(([r, w]) =>
+    textWidth(r) + GAP + textWidth(read) <= column && textWidth(w) + GAP + textWidth(write) <= column) ?? CACHE_LABELS[CACHE_LABELS.length - 1];
+  drawCell(canvas, 'Input', formatTokens(tokens.input), x, y, column);
+  drawCell(canvas, 'Output', formatTokens(tokens.output), right, y, column);
+  drawCell(canvas, readLabel, read, x, y + LINE, column);
+  drawCell(canvas, writeLabel, write, right, y + LINE, column);
+}
+
+function drawStacked(canvas: AiUsageCanvas, bounds: AiUsageBounds, data: AiUsageData, now: Date, timeZone: string, detailed: boolean): void {
+  const x = bounds.x + PAD;
+  const width = bounds.width - 2 * PAD;
+  let y = bounds.y + PAD;
+  data.providers.forEach((provider, index) => {
+    if (index > 0) {
+      canvas.drawHLine(bounds.x, y, bounds.width);
+      y += SEPARATOR;
+    }
+    const name = provider.label.toUpperCase() + (isStale(provider, now) ? ` ${formatAge(provider.limitsObservedAt!, now)}` : '');
+    canvas.drawText(name, x, y, width);
+    if (provider.today) {
+      const today = [formatTokens(provider.today.tokens), formatEstimate(provider.today)].filter(Boolean).join(' ');
+      rightText(canvas, today, x + width, y, x + textWidth(name) + GLYPH);
+    }
+    y += LINE;
+    for (const limit of provider.limits) {
+      drawStackedLimit(canvas, limit, x, y, width, now, timeZone);
+      y += STACK_ROW;
+    }
+    const grid = detailed && hasBreakdown(provider);
+    if (grid) {
+      drawBreakdown(canvas, provider, x, y, width);
+      y += BREAKDOWN_LINES * LINE;
+    }
+    if (summaryLine(provider, grid)) {
+      const api = apiText(provider, width);
+      const hit = grid ? cacheHit(provider.today) : null;
+      const left = hit === null ? '' : `Cache hit ${hit}%`;
+      if (left) canvas.drawText(left, x, y, width);
+      if (api) {
+        // Without room beside the cache hit rate the billed month is dropped, not overlapped.
+        if (!left) canvas.drawText(api, x, y, width);
+        else rightText(canvas, api, x + width, y, x + textWidth(left) + GLYPH);
+      }
+      y += LINE;
+    }
+  });
+}
+
 function drawCondensed(canvas: AiUsageCanvas, bounds: AiUsageBounds, data: AiUsageData, now: Date): void {
   const x = bounds.x + PAD;
   const width = bounds.width - 2 * PAD;
@@ -170,8 +332,14 @@ export function renderAiUsageWidget(
     canvas.drawText(data ? 'AI usage: no source' : 'AI usage: unavailable', bounds.x + PAD, bounds.y + PAD, bounds.width - 2 * PAD);
     return;
   }
-  // A widget too short for the full view falls back to one line per provider.
-  const fullHeight = data.providers.reduce((sum, provider) => sum + LINE * (1 + Math.min(1, provider.limits.length)), 0);
-  if (options.view === 'condensed' || bounds.height < fullHeight) drawCondensed(canvas, bounds, data, now);
-  else drawFull(canvas, bounds, data, now, options.timeZone);
+  // Each view falls back to the next one down until one fits the widget's height.
+  const inlineHeight = data.providers.reduce((sum, provider) => sum + LINE * (1 + Math.min(1, provider.limits.length)), 0);
+  const heights: Record<Level, number> = {
+    detailed: stackedHeight(data, true), stacked: stackedHeight(data, false), inline: inlineHeight, line: 0,
+  };
+  const level = LEVELS.slice(LEVELS.indexOf(options.view === 'condensed' ? 'stacked' : 'detailed'))
+    .find((candidate) => candidate === 'line' || bounds.height >= heights[candidate] + PAD) ?? 'line';
+  if (level === 'detailed' || level === 'stacked') drawStacked(canvas, bounds, data, now, options.timeZone, level === 'detailed');
+  else if (level === 'inline') drawFull(canvas, bounds, data, now, options.timeZone);
+  else drawCondensed(canvas, bounds, data, now);
 }

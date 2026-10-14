@@ -100,11 +100,11 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
 
         {kind === 'ai-usage' && (
           <Field label={da ? 'Visning' : 'View'} htmlFor={`${fieldId}-view`}
-            helper={da ? 'En lav widget viser altid én linje pr. udbyder.' : 'A short widget always shows one line per provider.'}>
+            helper={da ? 'En lav widget viser færre detaljer, til sidst én linje pr. udbyder.' : 'A short widget shows less detail, down to one line per provider.'}>
             <Select id={`${fieldId}-view`} value={widget.options?.view === 'condensed' ? 'condensed' : 'full'}
               options={[
-                { value: 'full', label: da ? 'Kvoter som søjler, tokens og pris' : 'Quota bars, tokens and cost' },
-                { value: 'condensed', label: da ? 'Én linje pr. udbyder' : 'One line per provider' },
+                { value: 'full', label: da ? 'Detaljeret: kvoter, tokens og pris' : 'Detailed: quota, token breakdown and cost' },
+                { value: 'condensed', label: da ? 'Kompakt: kun kvoter' : 'Condensed: quota limits only' },
               ]}
               onChange={(e) => onChange({ view: e.target.value === 'condensed' ? 'condensed' : undefined })} />
           </Field>

@@ -1,16 +1,21 @@
 # AI usage widget
 
-The **AI usage** widget shows how much of your Claude and ChatGPT/Codex allowance you have used, today's tokens with an estimated cost, and the billed API cost this month.
+The **AI usage** widget shows how much of your Claude and ChatGPT/Codex allowance you have used, today's tokens with an estimated cost, and the billed API cost this month. It mirrors the usage panel in Claude itself, with two views.
 
-![AI usage widget, full view on a whole 250 × 122 panel, and condensed and half-width placements](images/ai-usage-widget.png)
+![AI usage widget on a 250 × 122 panel: detailed (top left), condensed (top right), and the one-line and half-width fallbacks (bottom)](images/ai-usage-widget.png)
 
-For each provider the full view shows:
+**Detailed** (the default) shows, for each provider:
 
 - **Header:** today's tokens and their estimated cost at public API prices (`~$4.80`). A `+` means some models have no known price, so the figure is a lower bound.
-- **Quota bars:** subscription windows such as `5h` and `7d`, with the used share and the local reset time (`14:20` within a day, otherwise the weekday). After a window resets it reads `reset` until the next report arrives.
+- **Quota windows:** `Session` (5 hours) and `Weekly` (7 days), each with the used share, a bar, and when it resets: `in 58m` within the hour, the local time (`14:20`) within a day, otherwise weekday and time (`Thu 20:00`). After a window resets it reads `reset` until the next report arrives.
+- **Token breakdown:** today's input, output, cache read and cache write tokens, and the **cache hit** share (cache reads of all input-side tokens). Counts and cost include every computer and the Admin API, so they can differ from the numbers in Claude's own panel, which covers one machine and one session.
 - **`API month`:** the billed API cost this calendar month (UTC), from the provider's Admin API.
 
-When the last quota report is more than an hour old, its age follows the provider name (`OPENAI 4h`), or a `*` in the condensed view. A widget shorter than the full view falls back to one line per provider. In the layout editor, choose **One line per provider** to force the condensed view.
+**Condensed** keeps the header and the quota windows, and drops the token breakdown.
+
+A view that does not fit the widget falls back to the next one down: the breakdown goes first, then the stacked bars give way to one row per window (`5h`, `7d`), and the shortest widgets show one line per provider. The breakdown takes 30 px per provider, so on a whole 250 × 122 panel it fits for one provider with token counts, or for two when only one of them has counts. With token counts from both, the widget shows the condensed layout. Give it more height in the layout editor to see both breakdowns. In the layout editor, choose **Condensed: quota limits only** to always skip the breakdown.
+
+When the last quota report is more than an hour old, its age follows the provider name (`OPENAI 4h`), or a `*` in the one-line view.
 
 ## Where the numbers come from
 
