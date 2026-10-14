@@ -116,6 +116,15 @@ describe('authenticated device delivery', () => {
     expect(bmpBytes.toString('ascii', 0, 2)).toBe('BM'); expect(bmpBytes.readInt32LE(18)).toBe(250);
     expect(state.deliveries.get('device-a')?.last_applied_hash).toBeNull();
   });
+  it('renders for the panel size the device declares instead of the saved profile', async () => {
+    const token = await create();
+    const response = await frame(token, { 'X-Device-Width': '400', 'X-Device-Height': '300' });
+    expect(response.headers.get('x-display-width')).toBe('400'); expect(response.headers.get('x-display-height')).toBe('300');
+    expect(response.headers.get('x-display-row-bytes')).toBe('50');
+    expect(Buffer.from(await response.arrayBuffer())).toHaveLength(50 * 300);
+    const invalid = await frame(token, { 'X-Device-Width': '99999', 'X-Device-Height': 'abc' });
+    expect(invalid.headers.get('x-display-width')).toBe('250');
+  });
   it('logs a safe gateway reason when frame preferences receive an HTML proxy error', async () => {
     const token = await create();
     vi.mocked(getPreferences).mockRejectedValueOnce({ message: `<html><title>404 Not Found</title><body>private upstream detail ${token}</body></html>` });

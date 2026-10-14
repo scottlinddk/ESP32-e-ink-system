@@ -24,3 +24,15 @@ export function frameMetadata(value?: DisplayProfile | null) {
   const rowBytes = Math.ceil(profile.width / 8);
   return { ...profile, rowBytes, byteLength: rowBytes * profile.height, encoding: 'mono-msb-white1' as const };
 }
+
+/**
+ * Native panel size a device declares with X-Device-Width / X-Device-Height, or null when absent or invalid.
+ * A fixed-panel board knows its own size, so it must not depend on a manually saved profile.
+ */
+export function declaredPanelSize(width: unknown, height: unknown): { width: number; height: number } | null {
+  if (typeof width !== 'string' || typeof height !== 'string' || !/^\d{2,4}$/.test(width) || !/^\d{2,4}$/.test(height)) return null;
+  try {
+    const { width: w, height: h } = parseDisplayProfile({ width: Number(width), height: Number(height), rotation: 0, colorMode: 'bw' });
+    return { width: w, height: h };
+  } catch { return null; }
+}
