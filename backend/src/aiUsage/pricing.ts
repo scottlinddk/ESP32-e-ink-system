@@ -64,9 +64,14 @@ export function estimateCost(models: ModelTokens[]): AiCostEstimate {
   let cost = 0;
   let priced = false;
   let partial = false;
+  const breakdown = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   for (const entry of models) {
     const count = totalTokens(entry);
     tokens += count;
+    breakdown.input += entry.input;
+    breakdown.output += entry.output;
+    breakdown.cacheRead += entry.cacheRead;
+    breakdown.cacheWrite += entry.cacheWrite;
     if (count === 0) continue;
     const rate = modelPrice(entry.model);
     if (!rate) { partial = true; continue; }
@@ -75,7 +80,7 @@ export function estimateCost(models: ModelTokens[]): AiCostEstimate {
     cost += (entry.input * rate.input + entry.output * rate.output + (entry.cacheWrite - longWrites) * rate.cacheWrite
       + longWrites * rate.cacheWrite1h + entry.cacheRead * rate.cacheRead) / 1_000_000;
   }
-  return { tokens, costUsd: priced ? cost : null, partial: priced && partial };
+  return { tokens, breakdown, costUsd: priced ? cost : null, partial: priced && partial };
 }
 
 /** Adds counts for the same normalized model together. */

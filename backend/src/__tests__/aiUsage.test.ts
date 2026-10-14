@@ -37,7 +37,10 @@ describe('AI usage pricing', () => {
     expect(estimate.costUsd).toBeCloseTo(37.2, 6);
     expect(estimate.tokens).toBe(5_000_010);
     expect(estimate.partial).toBe(true);
-    expect(estimateCost([{ model: 'unknown', input: 5, output: 0, cacheWrite: 0, cacheWrite1h: 0, cacheRead: 0 }])).toEqual({ tokens: 5, costUsd: null, partial: false });
+    // Counts by kind include unpriced models; cache writes are not split by lifetime.
+    expect(estimate.breakdown).toEqual({ input: 1_000_010, output: 1_000_000, cacheRead: 1_000_000, cacheWrite: 2_000_000 });
+    expect(estimateCost([{ model: 'unknown', input: 5, output: 0, cacheWrite: 0, cacheWrite1h: 0, cacheRead: 0 }]))
+      .toEqual({ tokens: 5, breakdown: { input: 5, output: 0, cacheRead: 0, cacheWrite: 0 }, costUsd: null, partial: false });
   });
 
   it('adds counts for the same model reported under different IDs', () => {

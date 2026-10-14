@@ -173,7 +173,12 @@ export interface AiUsageProviderView {
   label: string;
   limits: Array<{ label: string; usedPercent: number | null; resetsAt: string }>;
   limitsObservedAt: string | null;
-  today: { tokens: number; costUsd: number | null; partial: boolean } | null;
+  today: {
+    tokens: number;
+    breakdown?: { input: number; output: number; cacheRead: number; cacheWrite: number };
+    costUsd: number | null;
+    partial: boolean;
+  } | null;
   monthCostUsd: number | null;
   adminError?: { code: string; message: string };
 }

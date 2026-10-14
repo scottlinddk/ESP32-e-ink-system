@@ -69,8 +69,18 @@ export interface AiLimitView {
   resetsAt: string;
 }
 
+/** Today's token counts by kind, summed over models. `input` excludes cache reads and writes. */
+export interface AiTokenBreakdown {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
 export interface AiCostEstimate {
   tokens: number;
+  /** Absent only in data built before the breakdown existed. */
+  breakdown?: AiTokenBreakdown;
   /** Estimated at public API list prices. Null when no model in the counts has a known price. */
   costUsd: number | null;
   /** Some tokens belong to models without a known price, so costUsd is a lower bound. */

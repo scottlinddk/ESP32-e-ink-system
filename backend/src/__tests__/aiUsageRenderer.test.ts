@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatEstimate, formatReset, formatTokens, formatUsd, renderAiUsageWidget } from '../utils/aiUsageRenderer';
+import { formatEstimate, formatReset, formatResetIn, formatTokens, formatUsd, renderAiUsageWidget } from '../utils/aiUsageRenderer';
 import { BmpCanvas } from '../utils/bmpGenerator';
 import type { AiProviderView, AiUsageData } from '../aiUsage/types';
 
@@ -11,6 +11,15 @@ const claude: AiProviderView = {
     { label: '7d', usedPercent: 31, resetsAt: '2026-10-12T08:00:00Z' },
   ],
   today: { tokens: 2_100_000, costUsd: 4.8, partial: false }, monthCostUsd: 45.2,
+};
+// Claude's own example: 15% of the session, 68% of the week, 83% of input served from cache.
+const detailedClaude: AiProviderView = {
+  ...claude,
+  limits: [
+    { label: '5h', usedPercent: 15, resetsAt: '2026-10-07T10:58:00Z' },
+    { label: '7d', usedPercent: 68, resetsAt: '2026-10-08T18:00:00Z' },
+  ],
+  today: { tokens: 283_601, breakdown: { input: 6, output: 795, cacheRead: 234_100, cacheWrite: 49_500 }, costUsd: 0.23, partial: false },
 };
 const openai: AiProviderView = {
   provider: 'openai', label: 'OpenAI', limitsObservedAt: '2026-10-07T06:00:00Z',
@@ -42,23 +51,53 @@ describe('AI usage formatting', () => {
     expect(formatReset('2026-10-07T12:20:00Z', NOW, 'Europe/Copenhagen')).toBe('14:20');
     expect(formatReset('2026-10-12T08:00:00Z', NOW, 'Europe/Copenhagen')).toBe('Mon');
   });
+
+  it('words a reset as Claude does: minutes ahead, then the time, then weekday and time', () => {
+    expect(formatResetIn('2026-10-07T10:58:00Z', NOW, 'Europe/Copenhagen')).toBe('in 58m');
+    expect(formatResetIn('2026-10-07T10:00:20Z', NOW, 'Europe/Copenhagen')).toBe('in 1m');
+    expect(formatResetIn('2026-10-07T12:20:00Z', NOW, 'Europe/Copenhagen')).toBe('14:20');
+    expect(formatResetIn('2026-10-08T18:00:00Z', NOW, 'Europe/Copenhagen')).toBe('Thu 20:00');
+  });
 });
 
 describe('AI usage widget', () => {
-  it('draws each provider with quota bars, today and the billed month', () => {
+  it('draws stacked quota windows with the billed month, and marks stale or failed sources', () => {
     const texts = render({ providers: [claude, openai] }).texts.map((entry) => entry.text);
-    expect(texts).toEqual(expect.arrayContaining(['CLAUDE', '2.1M ~$4.80', '5h', '58%', '14:20', '7d', '31%', 'Mon', 'API month $45.20']));
+    expect(texts).toEqual(expect.arrayContaining(['CLAUDE', '2.1M ~$4.80', 'Session', '58%', 'Resets 14:20', 'Weekly', '31%', 'Resets Mon 10:00', 'API month $45.20']));
     // A reset window reads "reset", a stale report shows its age, a rejected key says so.
     expect(texts).toEqual(expect.arrayContaining(['OPENAI 4h', 'reset', '49%', 'API: check key']));
     // The reset window's old reset time (09:00 UTC, 11:00 local) is not drawn.
-    expect(texts).not.toContain('11:00');
+    expect(texts.join(' ')).not.toContain('11:00');
   });
 
-  it('falls back to one line per provider when condensed or too short', () => {
-    for (const canvas of [render({ providers: [claude, openai] }, 122, 'condensed'), render({ providers: [claude, openai] }, 24)]) {
-      const texts = canvas.texts.map((entry) => entry.text);
-      expect(texts).toEqual(['Claude 5h 58% 7d 31%', '~$4.80', 'OpenAI 5h reset 7d 49%*']);
-    }
+  it('adds the token breakdown and cache hit rate to the detailed view when there is room', () => {
+    const texts = render({ providers: [detailedClaude] }).texts.map((entry) => entry.text);
+    expect(texts).toEqual(expect.arrayContaining([
+      'Session', 'Resets in 58m', '15%', 'Weekly', 'Resets Thu 20:00', '68%',
+      'Input', '6', 'Output', '795', 'Cache rd', '234k', 'Cache wr', '49.5k', 'Cache hit 83%', 'API month $45.20',
+    ]));
+  });
+
+  it('keeps the breakdown out of the condensed view', () => {
+    const texts = render({ providers: [detailedClaude] }, 122, 'condensed').texts.map((entry) => entry.text);
+    expect(texts).toEqual(expect.arrayContaining(['Session', 'Resets in 58m', '15%', 'Weekly', '68%', 'API month $45.20']));
+    expect(texts).not.toContain('Input');
+    expect(texts).not.toContain('Cache hit 83%');
+  });
+
+  it('drops the breakdown before the quota windows when the widget is too short for it', () => {
+    // 52px holds the header, two stacked windows and the month, but not the token grid.
+    const texts = render({ providers: [detailedClaude] }, 54).texts.map((entry) => entry.text);
+    expect(texts).toEqual(expect.arrayContaining(['Session', 'Weekly', 'API month $45.20']));
+    expect(texts).not.toContain('Input');
+  });
+
+  it('falls back to inline bars, then to one line per provider, as the widget gets shorter', () => {
+    const inline = render({ providers: [claude, openai] }, 45).texts.map((entry) => entry.text);
+    expect(inline).toEqual(expect.arrayContaining(['5h', '58%', '14:20', '7d', '31%']));
+    expect(inline).not.toContain('Session');
+    expect(render({ providers: [claude, openai] }, 24).texts.map((entry) => entry.text))
+      .toEqual(['Claude 5h 58% 7d 31%', '~$4.80', 'OpenAI 5h reset 7d 49%*']);
   });
 
   it('never draws outside its bounds on the real canvas', () => {
