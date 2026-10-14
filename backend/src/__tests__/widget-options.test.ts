@@ -23,7 +23,8 @@ describe('widget options validation', () => {
     expect(widgetOptionKind('news:abc')).toBe('list');
     expect(widgetOptionKind('calendar')).toBe('list');
     expect(widgetOptionKind('ticker:abc')).toBe('ticker');
-    expect(widgetOptionKind('status')).toBeNull();
+    expect(widgetOptionKind('status')).toBe('status');
+    expect(widgetOptionKind('week-number')).toBeNull();
   });
 
   it('keeps valid options and drops an empty object', () => {

@@ -6,8 +6,8 @@ import type { TickerResult } from '../ticker';
 import type { AiUsageData } from '../aiUsage/types';
 export interface WidgetLayout {
   i: string;       // 'energy' | 'weather' | 'news' | 'status'
-  x: number;       // 0–9
-  y: number;       // 0–5
+  x: number;       // 0 to cols - 1
+  y: number;       // 0 to rows - 1
   w: number;       // column span
   h: number;       // row span
   static?: boolean;
@@ -16,7 +16,7 @@ export interface WidgetLayout {
 }
 
 export interface WidgetOptions {
-  /** energy: 'summary' | 'day' | 'rest'; ticker: 'full' | 'condensed' (overrides the ticker's own view); ai-usage: 'full' | 'condensed'. */
+  /** energy: 'summary' | 'day' | 'rest'; ticker: 'full' | 'condensed' (overrides the ticker's own view); ai-usage: 'full' | 'condensed'; status: 'full' | 'condensed' (the time alone). */
   view?: 'summary' | 'day' | 'rest' | 'full' | 'condensed';
   /** news, calendar: most rows drawn; ticker: stocks per page in the condensed view. 1–10. */
   items?: number;
@@ -26,10 +26,13 @@ export interface WidgetOptions {
 
 export interface DisplayLayout {
   version: 1;
-  cols: 10;
-  rows: 6;
+  /** 10 × 6, 20 × 12 or 40 × 24 (see utils/layoutGrid.ts). */
+  cols: number;
+  rows: number;
   /** Default zoom for every widget, 1–4. Unset picks one from the panel size (see utils/zoom.ts). */
   zoom?: number;
+  /** White text on a black background. Photos keep their own colours. */
+  invert?: boolean;
   widgets: WidgetLayout[];
 }
 

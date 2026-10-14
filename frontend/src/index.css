@@ -87,16 +87,16 @@ button { font-family: inherit; }
     repeating-linear-gradient(
       0deg,
       transparent,
-      transparent calc(60px - 1px),
-      var(--color-divider) calc(60px - 1px),
-      var(--color-divider) 60px
+      transparent calc(var(--grid-row, 60px) - 1px),
+      var(--color-divider) calc(var(--grid-row, 60px) - 1px),
+      var(--color-divider) var(--grid-row, 60px)
     ),
     repeating-linear-gradient(
       90deg,
       transparent,
-      transparent calc(75px - 1px),
-      var(--color-divider) calc(75px - 1px),
-      var(--color-divider) 75px
+      transparent calc(var(--grid-col, 75px) - 1px),
+      var(--color-divider) calc(var(--grid-col, 75px) - 1px),
+      var(--color-divider) var(--grid-col, 75px)
     );
   border: 1px solid var(--color-divider);
   border-radius: var(--radius-md);
@@ -122,4 +122,17 @@ button { font-family: inherit; }
   height: 9px;
   border-right: 3px solid var(--accent);
   border-bottom: 3px solid var(--accent);
+}
+/* Cells of a finer grid are small, so a smaller handle leaves room to grab the widget itself. */
+.grid-editor-canvas--fine .react-grid-item:not(.react-grid-placeholder) > .react-resizable-handle {
+  width: 16px;
+  height: 16px;
+}
+.grid-editor-canvas--fine .react-grid-item > .react-resizable-handle::after {
+  right: 2px;
+  bottom: 2px;
+  width: 7px;
+  height: 7px;
+  border-right-width: 2px;
+  border-bottom-width: 2px;
 }

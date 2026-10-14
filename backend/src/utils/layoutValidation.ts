@@ -3,6 +3,7 @@ import { MAX_NEWS_FEEDS, newsFeedIdFromWidget } from './newsFeeds';
 import { MAX_TICKER_WIDGETS, tickerIdFromWidget } from './tickerWidgets';
 import { parseWidgetOptions } from './widgetOptions';
 import { isZoom, MAX_ZOOM, MIN_ZOOM } from './zoom';
+import { BASE_GRID_COLS, BASE_GRID_ROWS, GRID_SCALES, gridScale } from './layoutGrid';
 
 export const DISPLAY_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'week-number', 'battery', 'ai-usage', 'status'] as const;
 
@@ -19,12 +20,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Validate untrusted layouts before any provider requests or pixel rendering. */
 export function parseDisplayLayout(value: unknown): DisplayLayout {
-  if (!isRecord(value) || value.version !== 1 || value.cols !== 10 || value.rows !== 6) {
-    throw new LayoutValidationError('Layout must use version 1 and a 10 × 6 grid.');
+  if (!isRecord(value) || value.version !== 1 || gridScale(value.cols, value.rows) === null) {
+    const sizes = GRID_SCALES.map((scale) => `${BASE_GRID_COLS * scale} × ${BASE_GRID_ROWS * scale}`).join(', ');
+    throw new LayoutValidationError(`Layout must use version 1 and a ${sizes} grid.`);
   }
-  if (Object.keys(value).some((key) => !['version', 'cols', 'rows', 'zoom', 'widgets'].includes(key))) {
+  if (Object.keys(value).some((key) => !['version', 'cols', 'rows', 'zoom', 'invert', 'widgets'].includes(key))) {
     throw new LayoutValidationError('Layout contains unsupported fields.');
   }
+  if (value.invert !== undefined && typeof value.invert !== 'boolean') {
+    throw new LayoutValidationError('Layout invert must be true or false.');
+  }
+  const cols = value.cols as number;
+  const rows = value.rows as number;
   if (value.zoom !== undefined && !isZoom(value.zoom)) {
     throw new LayoutValidationError(`Layout zoom must be a whole number from ${MIN_ZOOM} to ${MAX_ZOOM}.`);
   }
@@ -46,8 +53,8 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
       throw new LayoutValidationError('Widget positions and sizes must be whole numbers.');
     }
     const { x, y, w, h } = input as unknown as WidgetLayout;
-    if (x < 0 || y < 0 || w < 1 || h < 1 || x + w > 10 || y + h > 6) {
-      throw new LayoutValidationError('Widgets must fit inside the 10 × 6 grid.');
+    if (x < 0 || y < 0 || w < 1 || h < 1 || x + w > cols || y + h > rows) {
+      throw new LayoutValidationError(`Widgets must fit inside the ${cols} × ${rows} grid.`);
     }
     if (input.static !== undefined && typeof input.static !== 'boolean') {
       throw new LayoutValidationError('The widget static flag must be a boolean.');
@@ -62,5 +69,6 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
     seen.add(input.i);
     widgets.push({ i: input.i, x, y, w, h, ...(input.static === undefined ? {} : { static: input.static }), ...(options ? { options } : {}) });
   }
-  return { version: 1, cols: 10, rows: 6, ...(value.zoom === undefined ? {} : { zoom: value.zoom }), widgets };
+  // A false flag is the default, so it is not stored.
+  return { version: 1, cols, rows, ...(value.zoom === undefined ? {} : { zoom: value.zoom }), ...(value.invert === true ? { invert: true } : {}), widgets };
 }

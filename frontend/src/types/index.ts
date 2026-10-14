@@ -3,8 +3,8 @@ import type { DisplayProfile } from '../lib/displayProfile';
 
 export interface WidgetLayout {
   i: string;        // 'energy' | 'weather' | 'news' | 'status'
-  x: number;        // 0–9
-  y: number;        // 0–5
+  x: number;        // 0 to cols - 1
+  y: number;        // 0 to rows - 1
   w: number;        // column span
   h: number;        // row span
   static?: boolean;
@@ -25,10 +25,13 @@ export interface WidgetOptions {
 
 export interface DisplayLayout {
   version: 1;
-  cols: 10;
-  rows: 6;
+  /** 10 × 6, 20 × 12 or 40 × 24. Mirrors backend/src/utils/layoutGrid.ts. */
+  cols: number;
+  rows: number;
   /** Default zoom for every widget, 1–4. Unset picks one from the panel size. */
   zoom?: number;
+  /** White text on a black background. Photos keep their own colours. */
+  invert?: boolean;
   widgets: WidgetLayout[];
 }
 

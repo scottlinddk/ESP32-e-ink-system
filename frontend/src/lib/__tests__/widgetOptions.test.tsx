@@ -20,7 +20,7 @@ const panel = (widget: WidgetLayout, lang: 'da' | 'en' = 'en', tickerSetting?: T
 describe('widget option kinds', () => {
   it('matches the backend', () => {
     expect(['energy', 'news', 'news:abc', 'calendar', 'ticker:t1', 'status', 'weather'].map(widgetOptionKind))
-      .toEqual(['energy', 'list', 'list', 'list', 'ticker', null, null]);
+      .toEqual(['energy', 'list', 'list', 'list', 'ticker', 'status', null]);
   });
 });
 
