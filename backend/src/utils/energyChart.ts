@@ -39,6 +39,28 @@ export function selectEnergyBars(hours: readonly EnergyPriceHour[], view: Exclud
 
 const twoDigits = (hour: number) => String(hour).padStart(2, '0');
 
+const AXIS_GAP = 4;
+/** The axis may take at most this share of the width, so narrow widgets keep their bars. */
+const AXIS_MAX_SHARE = 0.25;
+/** Minimum pixel distance between two axis labels (two glyph heights). */
+const AXIS_MIN_SPACING = 2 * GLYPH;
+/** Tick steps in DKK/kWh; prices are in øre. */
+const AXIS_STEPS_DKK = [0.25, 0.5, 1, 2, 5, 10, 20, 50];
+
+/** Axis tick values in øre, from the smallest step whose labels do not touch. */
+export function axisTicks(low: number, high: number, chartH: number): number[] {
+  const span = high - low || 1;
+  const stepDkk = AXIS_STEPS_DKK.find((step) => (step * 100 / span) * (chartH - 1) >= AXIS_MIN_SPACING);
+  if (stepDkk === undefined) return [];
+  const step = stepDkk * 100;
+  const ticks: number[] = [];
+  for (let tick = Math.ceil(low / step) * step; tick <= high + 1e-9; tick += step) ticks.push(tick);
+  return ticks;
+}
+
+/** An øre value as whole DKK without trailing zeros: 200 -> "2", 50 -> "0.5". */
+const formatKr = (ore: number) => String(Number((ore / 100).toFixed(2)));
+
 /** Draws the header, bars, average line and hour labels inside `bounds`. */
 export function renderEnergyChart(
   canvas: ChartCanvas,
@@ -79,7 +101,14 @@ export function renderEnergyChart(
   const toY = (value: number) => bottom - Math.round(((value - low) / span) * (chartH - 1));
   const zeroY = toY(0);
 
-  const slot = innerW / bars.length;
+  // Y axis on the right in DKK ("2 kr"), shown only when the widget is wide and tall enough.
+  const ticks = axisTicks(low, high, chartH);
+  const axisLabels = ticks.map((tick) => `${formatKr(tick)} kr`);
+  const axisW = Math.max(0, ...axisLabels.map((label) => label.length)) * GLYPH + AXIS_GAP;
+  const showAxis = ticks.length >= 2 && axisW <= innerW * AXIS_MAX_SHARE;
+  const plotW = showAxis ? innerW - axisW : innerW;
+
+  const slot = plotW / bars.length;
   const gap = slot >= 6 ? 2 : slot >= 3 ? 1 : 0;
   const barX = (index: number) => left + Math.floor(index * slot);
   const centres: number[] = [];
@@ -105,16 +134,26 @@ export function renderEnergyChart(
   });
 
   // Baseline at zero and a dotted line at the day's average.
-  canvas.drawHLine(left, zeroY, innerW);
+  canvas.drawHLine(left, zeroY, plotW);
   const avgY = toY(price.average);
-  if (avgY !== zeroY) for (let px = left; px < left + innerW; px += 3) canvas.setPixel(px, avgY, true);
+  if (avgY !== zeroY) for (let px = left; px < left + plotW; px += 3) canvas.setPixel(px, avgY, true);
+
+  if (showAxis) {
+    const axisX = left + plotW + AXIS_GAP;
+    ticks.forEach((tick, index) => {
+      const tickY = toY(tick);
+      canvas.fillRect(left + plotW + 1, tickY, 2, 1); // tick mark beside the labels
+      const textY = Math.min(Math.max(top, tickY - 3), bottom - GLYPH + 1);
+      canvas.drawText(axisLabels[index], axisX, textY, axisW - AXIS_GAP);
+    });
+  }
 
   // Hour labels at 00, 06, 12 and 18, plus the first hour of the rest-of-day view.
   let lastEnd = -Infinity;
   bars.forEach((bar, index) => {
     if (!(bar.hour % 6 === 0 || (view === 'rest' && index === 0))) return;
     const text = twoDigits(bar.hour);
-    const textX = Math.min(Math.max(left, centres[index] - GLYPH + 1), left + innerW - 2 * GLYPH);
+    const textX = Math.min(Math.max(left, centres[index] - GLYPH + 1), left + plotW - 2 * GLYPH);
     if (textX < lastEnd + 4) return;
     canvas.drawText(text, textX, labelY, 2 * GLYPH);
     lastEnd = textX + 2 * GLYPH;
