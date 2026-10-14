@@ -13,6 +13,10 @@ import { GridEditor, WIDGET_META } from '../components/layout/GridEditor';
 import { LayoutPreviewPane } from '../components/layout/LayoutPreviewPane';
 import { WidgetOptionsPanel } from '../components/layout/WidgetOptionsPanel';
 import { updateWidgetOptions } from '../lib/widgetOptions';
+import { ZOOMS, autoZoom, inheritedZoom, updateLayoutZoom, zoomLabel } from '../lib/zoom';
+import { DEFAULT_DISPLAY_PROFILE, type DisplayProfile } from '../lib/displayProfile';
+import { Field } from '../components/ui/Field';
+import { Select } from '../components/ui/select';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { LoadBox } from '../components/ui/Spinner';
@@ -67,6 +71,7 @@ function LayoutEditorWorkspace() {
   const [deviceName, setDeviceName] = useState<string | null>(null);
   const [newsFeeds, setNewsFeeds] = useState<NewsFeed[]>([]);
   const [tickers, setTickers] = useState<TickerWidgetSetting[]>([]);
+  const [displayProfile, setDisplayProfile] = useState<DisplayProfile>(DEFAULT_DISPLAY_PROFILE);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -82,6 +87,7 @@ function LayoutEditorWorkspace() {
       if (cancelled) return;
       setNewsFeeds(preferences.news_feeds ?? []);
       setTickers(preferences.ticker_widgets ?? []);
+      setDisplayProfile(preferences.display_profile ?? DEFAULT_DISPLAY_PROFILE);
       if (deviceId) {
         const device = devices?.devices.find((item) => item.id === deviceId);
         if (!device) throw new Error('Device no longer exists');
@@ -231,6 +237,19 @@ function LayoutEditorWorkspace() {
       <div className="grid grid-cols-[1fr_300px] gap-5 items-start max-[900px]:grid-cols-1">
         {/* Grid canvas */}
         <div className="min-w-0">
+          <div className="mb-3 max-w-sm">
+            <Field label={app.lang === 'da' ? 'Tekststørrelse for layoutet' : 'Layout text size'} htmlFor="layout-zoom"
+              helper={app.lang === 'da'
+                ? 'Forstør tekst og grafik på større skærme. Hver widget kan vælge sin egen størrelse.'
+                : 'Enlarge text and graphics on larger displays. Each widget can choose its own size.'}>
+              <Select id="layout-zoom" value={layout.zoom === undefined ? 'auto' : String(layout.zoom)}
+                options={[
+                  { value: 'auto', label: `${app.lang === 'da' ? 'Automatisk' : 'Automatic'} (${zoomLabel(autoZoom(displayProfile))}, ${displayProfile.width} × ${displayProfile.height})` },
+                  ...ZOOMS.map((zoom) => ({ value: String(zoom), label: zoomLabel(zoom) })),
+                ]}
+                onChange={(e) => setLayout((prev) => updateLayoutZoom(prev, e.target.value === 'auto' ? undefined : Number(e.target.value)))} />
+            </Field>
+          </div>
           <div className="overflow-x-auto">
             <GridEditor
               layout={layout}
@@ -249,6 +268,7 @@ function LayoutEditorWorkspace() {
                 label={widgetMeta[selectedWidget.i]?.label ?? selectedWidget.i}
                 lang={app.lang}
                 ticker={selectedTickerId ? tickers.find((ticker) => ticker.id === selectedTickerId) : undefined}
+                inheritedZoom={inheritedZoom(layout, displayProfile)}
                 onChange={handleWidgetOptions}
                 onClose={() => setSelectedId(null)}
               />
@@ -262,7 +282,7 @@ function LayoutEditorWorkspace() {
               <Icon name="drag_indicator" /> Drag the handle to move · drag the bottom-right corner to resize
             </p>
             <p className="flex items-center gap-1 text-xs text-fg3 m-0">
-              <Icon name="tune" /> {app.lang === 'da' ? 'Tryk på en widget for at vælge visning og antal' : 'Tap a widget to choose its view and how many items it shows'}
+              <Icon name="tune" /> {app.lang === 'da' ? 'Tryk på en widget for at vælge visning, tekststørrelse og antal' : 'Tap a widget to choose its view, text size and how many items it shows'}
             </p>
             <p className="flex items-center gap-1 text-xs text-fg3 m-0">
               <Icon name="open_in_full" /> {app.lang === 'da'

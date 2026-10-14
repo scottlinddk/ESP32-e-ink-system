@@ -3,7 +3,8 @@
 // =========================================================================
 import React from 'react';
 import type { EnergyView, TickerView, TickerWidgetSetting, WidgetLayout, WidgetOptions } from '../../types';
-import { MAX_WIDGET_ITEMS, widgetOptionKind } from '../../lib/widgetOptions';
+import { MAX_WIDGET_ITEMS, widgetAcceptsZoom, widgetOptionKind } from '../../lib/widgetOptions';
+import { ZOOMS, zoomLabel } from '../../lib/zoom';
 import { Card } from '../ui/card';
 import { Field } from '../ui/Field';
 import { Select } from '../ui/select';
@@ -15,6 +16,8 @@ interface WidgetOptionsPanelProps {
   lang: 'da' | 'en';
   /** The ticker's own settings, used to name the default it falls back to. */
   ticker?: TickerWidgetSetting;
+  /** Zoom the widget is drawn at when it has none of its own: the layout's, else the panel's automatic one. */
+  inheritedZoom?: number;
   onChange: (change: WidgetOptions) => void;
   onClose: () => void;
 }
@@ -30,7 +33,7 @@ function countOptions(autoLabel: string) {
 
 const parseCount = (value: string) => (value === AUTO ? undefined : Number(value));
 
-export function WidgetOptionsPanel({ widget, label, lang, ticker, onChange, onClose }: WidgetOptionsPanelProps) {
+export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom, onChange, onClose }: WidgetOptionsPanelProps) {
   const da = lang === 'da';
   const kind = widgetOptionKind(widget.i);
   const fieldId = `widget-options-${widget.i.replace(/[^a-z0-9]/gi, '-')}`;
@@ -107,7 +110,20 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, onChange, onCl
           </Field>
         )}
 
-        {!kind && (
+        {widgetAcceptsZoom(widget.i) && (
+          <Field label={da ? 'Tekststørrelse' : 'Text size'} htmlFor={`${fieldId}-zoom`}
+            helper={da ? 'Forstørrer tekst og grafik i hele tal. Er widgetten for lille til størrelsen, bruges en mindre.'
+              : 'Enlarges text and graphics in whole steps. A widget too small for the size uses a smaller one.'}>
+            <Select id={`${fieldId}-zoom`} value={widget.options?.zoom === undefined ? AUTO : String(widget.options.zoom)}
+              options={[
+                { value: AUTO, label: `${da ? 'Som layoutet' : 'Follow layout'}${inheritedZoom ? ` (${zoomLabel(inheritedZoom)})` : ''}` },
+                ...ZOOMS.map((zoom) => ({ value: String(zoom), label: zoomLabel(zoom) })),
+              ]}
+              onChange={(e) => onChange({ zoom: e.target.value === AUTO ? undefined : Number(e.target.value) })} />
+          </Field>
+        )}
+
+        {!kind && !widgetAcceptsZoom(widget.i) && (
           <p className="text-sm text-fg2 m-0">
             {da ? 'Denne widget har ingen visningsindstillinger. Flyt eller tilpas størrelsen i gitteret.' : 'This widget has no display options. Move or resize it in the grid.'}
           </p>

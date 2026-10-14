@@ -3,7 +3,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { GridEditor, layoutFromGrid } from '../../components/layout/GridEditor';
 import { WidgetOptionsPanel } from '../../components/layout/WidgetOptionsPanel';
-import { updateWidgetOptions, widgetOptionKind } from '../widgetOptions';
+import { updateWidgetOptions, widgetAcceptsZoom, widgetOptionKind } from '../widgetOptions';
+import { autoZoom, inheritedZoom, updateLayoutZoom } from '../zoom';
 import type { DisplayLayout, TickerWidgetSetting, WidgetLayout } from '../../types';
 
 const layout: DisplayLayout = { version: 1, cols: 10, rows: 6, widgets: [
@@ -85,6 +86,55 @@ describe('widget options panel', () => {
   });
 
   it('says when a widget has nothing to set', () => {
-    expect(panel(layout.widgets[2])).toContain('no display options');
+    expect(panel({ i: 'custom-image', x: 0, y: 0, w: 5, h: 2 })).toContain('no display options');
+    expect(panel({ i: 'custom-image', x: 0, y: 0, w: 5, h: 2 })).not.toContain('Text size');
+  });
+
+  it('offers a text size to every widget that draws text, naming what it follows', () => {
+    const html = (widget: WidgetLayout) => renderToStaticMarkup(
+      <WidgetOptionsPanel widget={widget} label="Widget" lang="en" inheritedZoom={2} onChange={vi.fn()} onClose={vi.fn()} />);
+    for (const id of ['status', 'weather', 'energy', 'news', 'ticker:t1']) {
+      const markup = html({ i: id, x: 0, y: 0, w: 5, h: 2 });
+      expect(markup).toContain('Text size');
+      expect(markup).toContain('Follow layout (2×)');
+      expect(markup).toContain('<option value="4">4×</option>');
+    }
+    expect(html({ i: 'status', x: 0, y: 0, w: 5, h: 2, options: { zoom: 3 } })).toMatch(/<option value="3" selected="">3×<\/option>/);
+    expect(panel({ i: 'weather', x: 0, y: 0, w: 5, h: 2 }, 'da')).toContain('Tekststørrelse');
+  });
+});
+
+describe('zoom', () => {
+  it('matches the backend rule for the automatic zoom', () => {
+    const profile = (width: number, height: number, rotation: 0 | 90 | 180 | 270 = 0) => ({ width, height, rotation });
+    expect([profile(250, 122), profile(296, 128), profile(400, 300), profile(800, 480), profile(1600, 1200)].map(autoZoom))
+      .toEqual([1, 1, 2, 4, 4]);
+    expect(autoZoom(profile(300, 400))).toBe(1);
+    expect(autoZoom(profile(300, 400, 90))).toBe(2); // rotation swaps the logical canvas
+  });
+
+  it('follows the layout, else the panel', () => {
+    const rlcd = { width: 400, height: 300, rotation: 0 as const };
+    expect(inheritedZoom({}, rlcd)).toBe(2);
+    expect(inheritedZoom({ zoom: 3 }, rlcd)).toBe(3);
+  });
+
+  it('sets and clears the layout zoom without touching widgets', () => {
+    const zoomed = updateLayoutZoom(layout, 3);
+    expect(zoomed.zoom).toBe(3);
+    expect(zoomed.widgets).toBe(layout.widgets);
+    expect('zoom' in updateLayoutZoom(zoomed, undefined)).toBe(false);
+  });
+
+  it('is kept by moving and resizing', () => {
+    const moved = layoutFromGrid({ ...layout, zoom: 2 }, layout.widgets);
+    expect(moved.zoom).toBe(2);
+  });
+
+  it('stores a widget zoom with its other options and removes it again', () => {
+    const both = updateWidgetOptions(layout, 'energy', { zoom: 2 });
+    expect(both.widgets[0].options).toEqual({ view: 'day', zoom: 2 });
+    expect('options' in updateWidgetOptions(updateWidgetOptions(layout, 'news', { zoom: 2 }), 'news', { zoom: undefined }).widgets[1]).toBe(false);
+    expect(['custom-image', 'status', 'weather'].map(widgetAcceptsZoom)).toEqual([false, true, true]);
   });
 });

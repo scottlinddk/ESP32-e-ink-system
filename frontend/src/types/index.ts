@@ -19,12 +19,16 @@ export interface WidgetOptions {
   view?: EnergyView | TickerView;
   /** news, calendar: most rows drawn; ticker: stocks per page in the condensed view. 1–10. */
   items?: number;
+  /** Whole-number enlargement of the widget, 1–4. Overrides the layout's zoom; unset follows it. */
+  zoom?: number;
 }
 
 export interface DisplayLayout {
   version: 1;
   cols: 10;
   rows: 6;
+  /** Default zoom for every widget, 1–4. Unset picks one from the panel size. */
+  zoom?: number;
   widgets: WidgetLayout[];
 }
 
