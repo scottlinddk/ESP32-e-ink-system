@@ -11,7 +11,7 @@ import { calendarProvider, storedCalendarWidgets } from '../utils/calendarWidget
 import { fetchMontaData } from './monta';
 import { fetchZaptecData } from './zaptec';
 import { fetchNotionData, NotionCredentials, NotionSourceError } from './notion';
-import { DisplayData, UserPreferences } from '../types/index';
+import { DisplayData, DisplayLayout, UserPreferences } from '../types/index';
 import { logger } from '../lib/logger';
 import { resolveDisplaySchedule } from './displaySchedule';
 import { parseCustomImage } from '../utils/customContent';
@@ -96,7 +96,9 @@ function calendarFetchOptions(timezone: string, days: number, limit: number) {
 export async function buildDisplayData(
   userId: string,
   prefs: UserPreferences,
-  apiKeyMap: Record<string, string>
+  apiKeyMap: Record<string, string>,
+  /** The layout about to be drawn, when it is not the one the preferences select (a draft or a chosen page). */
+  layout?: DisplayLayout | null,
 ): Promise<DisplayData> {
   const resolved = resolveDisplaySchedule(prefs);
   const result: DisplayData = {
@@ -159,7 +161,7 @@ export async function buildDisplayData(
     );
     // The forecast and air quality are separate provider requests, made only for the views that draw
     // them. They fail on their own: the current reading and the other views never depend on them.
-    const needs = weatherNeeds(resolved.layout);
+    const needs = weatherNeeds(layout === undefined ? resolved.layout : layout);
     if (needs.forecast) {
       tasks.push(
         withSourceDeadline((signal) => fetchWeatherForecast(prefs.weather_location, weatherKey, signal))

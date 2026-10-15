@@ -424,7 +424,7 @@ describe('device presentation API and render paths', () => {
     expect(bmp.readInt32LE(18)).toBe(400); expect(Math.abs(bmp.readInt32LE(22))).toBe(300);
     expect(state.writes).toBe(writes);
     expect((await getDeviceDisplay('owner', A)).preferences.active_layout_id).toBe('weather');
-    expect(buildDisplayData).toHaveBeenCalledWith('owner', expect.objectContaining({ display_schedule: null, active_layout_id: null }), expect.any(Object));
+    expect(buildDisplayData).toHaveBeenCalledWith('owner', expect.objectContaining({ display_schedule: null, active_layout_id: null }), expect.any(Object), expect.objectContaining({ widgets: baseLayout.widgets }));
     expect((await fetch(`${base}/image/preview/draft`, { method: 'POST', headers, body: JSON.stringify({ device_id: FOREIGN, layout: baseLayout }) })).status).toBe(404);
   });
 
