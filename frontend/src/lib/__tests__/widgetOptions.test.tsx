@@ -88,6 +88,14 @@ describe('widget options panel', () => {
     expect(panel({ i: 'calendar', x: 0, y: 0, w: 5, h: 2 })).not.toContain('Number of columns');
   });
 
+  it('offers a font weight for news only, bold by default', () => {
+    const html = panel(layout.widgets[1]);
+    expect(html).toContain('Font weight');
+    expect(html).toMatch(/<option value="bold" selected="">Bold<\/option>/);
+    expect(panel({ ...layout.widgets[1], options: { weight: 'regular' } })).toMatch(/<option value="regular" selected="">Regular<\/option>/);
+    expect(panel({ i: 'calendar', x: 0, y: 0, w: 5, h: 2 })).not.toContain('Font weight');
+  });
+
   it('names the ticker defaults and shows stocks per page only for the list view', () => {
     const condensed = panel({ i: 'ticker:t1', x: 0, y: 0, w: 5, h: 3 }, 'en', ticker);
     expect(condensed).toContain('Widget default (List)');

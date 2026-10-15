@@ -155,6 +155,16 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
                 options={Array.from({ length: MAX_NEWS_COLUMNS }, (_, index) => ({ value: String(index + 1), label: String(index + 1) }))}
                 onChange={(e) => onChange({ columns: Number(e.target.value) === 1 ? undefined : Number(e.target.value) })} />
             </Field>
+            <Field label={da ? 'Skrifttykkelse' : 'Font weight'} htmlFor={`${fieldId}-weight`}
+              helper={da ? 'Skærmens skrifttype har kun én vægt. Fed er den tegnet to gange et billedpunkt fra hinanden, så en tykkere version ville smelte bogstaverne sammen.'
+                : 'The display font has a single weight. Bold is it drawn twice, a pixel apart, so a heavier one would run the letters together.'}>
+              <Select id={`${fieldId}-weight`} value={widget.options?.weight ?? 'bold'}
+                options={[
+                  { value: 'regular', label: da ? 'Normal' : 'Regular' },
+                  { value: 'bold', label: da ? 'Fed' : 'Bold' },
+                ]}
+                onChange={(e) => onChange({ weight: e.target.value === 'regular' ? 'regular' : undefined })} />
+            </Field>
           </>
         )}
 
