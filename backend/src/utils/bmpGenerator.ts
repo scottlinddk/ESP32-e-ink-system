@@ -220,25 +220,27 @@ export class BmpCanvas implements DrawingCanvas {
 
   // `scale` enlarges the 8x8 font, by a whole number or a fraction of one (at least 1);
   // `maxWidth` is in output pixels. `black = false` draws white glyphs, for text on a filled area.
-  drawChar(ch: number, x: number, y: number, scale = 1, black = true): void {
+  // `light` skips the glyph pixels where row + column is odd, leaving a checkerboard.
+  drawChar(ch: number, x: number, y: number, scale = 1, black = true, light = false): void {
     const glyph = bitmapGlyph(ch, FONT8X8);
     for (let row = 0; row < 8; row++) {
       const byte = glyph[row];
       for (let col = 0; col < 8; col++) {
         if (!(byte & (1 << col))) continue;
+        if (light && (row + col) % 2 === 1) continue;
         if (scale === 1) this.setPixel(x + col, y + row, black);
         else this.fillRect(x + col * scale, y + row * scale, scale, scale, black);
       }
     }
   }
 
-  drawText(text: string, x: number, y: number, maxWidth = this.width, scale = 1, black = true): void {
+  drawText(text: string, x: number, y: number, maxWidth = this.width, scale = 1, black = true, light = false): void {
     const step = 8 * scale;
     let index = 0;
     for (const ch of normalizeBitmapText(text)) {
       const cx = x + index * step;
       if (cx + step > x + maxWidth || cx + step > this.width) break;
-      this.drawChar(ch.codePointAt(0)!, cx, y, scale, black);
+      this.drawChar(ch.codePointAt(0)!, cx, y, scale, black, light);
       index++;
     }
   }
@@ -629,7 +631,7 @@ function populateCanvas(
       if (feedId) {
         // A removed feed has no result; it renders as unavailable until the widget is removed.
         const feed = data.newsFeeds?.[feedId];
-        renderNewsWidget(target, bounds, feed?.items, feed?.error, widget.options?.items, language, widget.options?.columns);
+        renderNewsWidget(target, bounds, feed?.items, feed?.error, widget.options?.items, language, widget.options?.columns, widget.options?.weight);
         return;
       }
       if (isWeatherWidget(widget.i)) {
@@ -651,7 +653,7 @@ function populateCanvas(
           }
           break;
         case 'energy':  renderEnergyWidget(target, bounds, data.price, data.priceError, widget.options, language); break;
-        case 'news':    renderNewsWidget(target, bounds, data.news, data.newsError, widget.options?.items, language, widget.options?.columns); break;
+        case 'news':    renderNewsWidget(target, bounds, data.news, data.newsError, widget.options?.items, language, widget.options?.columns, widget.options?.weight); break;
         case 'monta':   renderMontaWidget(target, bounds, data.monta, preferences?.monta_fields ?? undefined, language); break;
         case 'zaptec':  renderZaptecWidget(target, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined, language); break;
         case 'notion':  renderNotionWidget(target, bounds, data.notion, data.notionError, language); break;

@@ -10,7 +10,8 @@ export interface DrawingCanvas {
   withClip(bounds: Bounds, draw: () => void): void;
   drawHLine(x: number, y: number, w: number): void;
   fillRect(x: number, y: number, w: number, h: number, black?: boolean): void;
-  drawText(text: string, x: number, y: number, maxWidth?: number, scale?: number, black?: boolean): void;
+  /** `light` draws every other pixel of each glyph, a checkerboard, so the text reads paler. */
+  drawText(text: string, x: number, y: number, maxWidth?: number, scale?: number, black?: boolean, light?: boolean): void;
   drawWrappedText(text: string, x: number, y: number, w: number, lineH?: number, scale?: number): number;
 }
 
@@ -64,9 +65,11 @@ export class ZoomCanvas implements DrawingCanvas {
     this.target.fillRect(x * z, y * z, w * z, h * z, black);
   }
 
-  drawText(text: string, x: number, y: number, maxWidth = this.width, scale = 1, black = true): void {
+  drawText(text: string, x: number, y: number, maxWidth = this.width, scale = 1, black = true, light = false): void {
     const z = this.zoom;
-    this.target.drawText(text, x * z, y * z, maxWidth * z, scale * z, black);
+    // `light` is only passed on when set, so every other call keeps its original shape.
+    if (light) this.target.drawText(text, x * z, y * z, maxWidth * z, scale * z, black, true);
+    else this.target.drawText(text, x * z, y * z, maxWidth * z, scale * z, black);
   }
 
   /** Returns the logical y after the last line. */

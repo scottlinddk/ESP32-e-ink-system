@@ -24,6 +24,10 @@ export type CalendarView = typeof CALENDAR_VIEWS[number];
  */
 export const WEATHER_VIEWS = ['summary', 'current', 'hours', 'daily', 'details'] as const;
 export type WeatherView = typeof WEATHER_VIEWS[number];
+/** News headline weight. `bold` is the original look, so it is the default and is not stored. */
+export const NEWS_WEIGHTS = ['light', 'regular', 'bold'] as const;
+export type NewsWeight = typeof NEWS_WEIGHTS[number];
+export const DEFAULT_NEWS_WEIGHT: NewsWeight = 'bold';
 export const MAX_WIDGET_ITEMS = 10;
 export const MAX_NEWS_COLUMNS = 4;
 export const MIN_CALENDAR_DAYS = 2;
@@ -46,7 +50,7 @@ export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
 const ALLOWED_KEYS: Record<WidgetOptionKind, readonly string[]> = {
   energy: ['view'],
   weather: ['view', 'items'],
-  list: ['items', 'columns'],
+  list: ['items', 'columns', 'weight'],
   calendar: ['view', 'items', 'days'],
   ticker: ['view', 'items'],
   'ai-usage': ['view'],
@@ -96,6 +100,13 @@ export function parseWidgetOptions(widgetId: string, value: unknown): WidgetOpti
       throw new Error(`News columns must be a whole number from 1 to ${MAX_NEWS_COLUMNS}.`);
     }
     options.columns = value.columns;
+  }
+  if (value.weight !== undefined) {
+    if (typeof value.weight !== 'string' || !(NEWS_WEIGHTS as readonly string[]).includes(value.weight)) {
+      throw new Error(`News font weight must be one of ${NEWS_WEIGHTS.join(', ')}.`);
+    }
+    // The default is what an unset weight draws, so it is never stored.
+    if (value.weight !== DEFAULT_NEWS_WEIGHT) options.weight = value.weight as NewsWeight;
   }
   if (value.days !== undefined) {
     if (typeof value.days !== 'number' || !Number.isInteger(value.days) || value.days < MIN_CALENDAR_DAYS || value.days > MAX_CALENDAR_DAYS) {

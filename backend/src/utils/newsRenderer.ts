@@ -3,6 +3,7 @@ import { normalizeBitmapText, wrapBitmapText } from './bitmapText';
 import type { Bounds, DrawingCanvas } from './zoomCanvas';
 import { DEFAULT_DISPLAY_LANGUAGE, type DisplayLanguage } from './displayLanguage';
 import { displayStrings } from './displayStrings';
+import { DEFAULT_NEWS_WEIGHT, type NewsWeight } from './widgetOptions';
 
 const GLYPH = 8;
 /** A line of title is the glyph and a pixel of air; headlines are set apart by a few more. */
@@ -34,10 +35,18 @@ function takeLines(text: string, maxChars: number, limit: number): string[] {
 /** How many lines of title fit in `room` pixels; the last line needs no air below it. */
 const linesIn = (room: number) => Math.max(0, Math.floor((room + 1) / LINE_H));
 
-/** The 8x8 font has no bold, so a title is drawn twice, one pixel apart. */
-function drawBold(canvas: DrawingCanvas, text: string, x: number, y: number, maxWidth: number): void {
+/**
+ * The 8x8 font has one weight with 1 px strokes. Bold is a title drawn twice, one pixel apart; a
+ * heavier smear runs the letters together. Light cannot thin a 1 px stroke, so it drops every other
+ * glyph pixel instead, a dithered paler text that is the least legible of the three.
+ */
+function drawTitle(canvas: DrawingCanvas, text: string, x: number, y: number, maxWidth: number, weight: NewsWeight): void {
+  if (weight === 'light') {
+    canvas.drawText(text, x, y, maxWidth, 1, true, true);
+    return;
+  }
   canvas.drawText(text, x, y, maxWidth);
-  canvas.drawText(text, x + 1, y, maxWidth);
+  if (weight === 'bold') canvas.drawText(text, x + 1, y, maxWidth);
 }
 
 /**
@@ -53,6 +62,7 @@ export function renderNewsWidget(
   limit?: number,
   language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
   columns = 1,
+  weight: NewsWeight = DEFAULT_NEWS_WEIGHT,
 ): void {
   const { x, y, width, height } = bounds;
   const t = displayStrings(language).news;
@@ -98,7 +108,7 @@ export function renderNewsWidget(
     inColumn++;
     const left = x + 2 + column * (columnW + COLUMN_GAP);
     canvas.drawText(String(index + 1), left, cursor, rankW);
-    lines.forEach((line, row) => drawBold(canvas, line, left + rankW, cursor + row * LINE_H, columnW - rankW));
+    lines.forEach((line, row) => drawTitle(canvas, line, left + rankW, cursor + row * LINE_H, columnW - rankW, weight));
     cursor += lines.length * LINE_H - 1 + ROW_GAP;
   }
 }

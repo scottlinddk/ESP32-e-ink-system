@@ -24,6 +24,8 @@ export interface WidgetOptions {
   items?: number;
   /** news: how many columns the headlines are split into, 1–4. Unset is 1. A widget too narrow for that many shows fewer. */
   columns?: number;
+  /** news: headline weight. Unset is 'bold', the original look; 'regular' draws the headlines once, without the one-pixel smear; 'light' also drops every other glyph pixel. */
+  weight?: 'light' | 'regular' | 'bold';
   /** calendar days view: how many days are shown side by side, 2–7. Unset fits as many as the width allows. */
   days?: number;
   /** Enlargement of everything the widget draws, 1–4 in steps of 0.2. Overrides the layout's zoom; unset follows it. */
