@@ -73,4 +73,4 @@ shared with the caller. Draft previews and saving need the editor role.
 - Viewers and editors see the owner's data through the rendered screen. Share devices only with people you would show that screen to.
 - Shared devices are managed on the Sharing page and the layout editor; they are not yet in the Dashboard's device picker.
 - Invitations to people without an account are not stored; ask them to sign up first.
-- The Raspberry Pi gateway allowlist and grants include the new tables, but its migration, restore and smoke tooling (`migrate.py`, `restore.sh`, `smoke.mjs`) still list the original tables only.
+- On the Raspberry Pi database, re-apply `init/permissions.sql` and the nginx allowlist after `027`; see `docs/RASPBERRY_PI_DATABASE_MIGRATION.md`.

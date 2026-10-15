@@ -119,7 +119,7 @@ PY
 
 "${compose[@]}" exec -T postgres psql -X -v ON_ERROR_STOP=1 -U eink_admin -d postgres -c 'CREATE DATABASE eink_source'
 # Supabase compatibility roles created by target bootstrap are cluster-wide;
-# both fixture databases therefore apply the unchanged migrations through 026.
+# both fixture databases therefore apply the unchanged migrations through 027.
 "${compose[@]}" exec -T postgres bash -euc 'export LC_ALL=C; for migration in /migrations/*.sql; do psql -X -v ON_ERROR_STOP=1 -U eink_admin -d eink_source -f "$migration"; done'
 "${compose[@]}" exec -T postgres psql -X -v ON_ERROR_STOP=1 -U eink_admin -d eink_source <<'SQL'
 INSERT INTO users (id, email, display_name) VALUES ('00000000-0000-4000-8000-000000000001', 'fixture@example.invalid', E'Unicode æøå, "quotes"\nand newline');
@@ -150,6 +150,13 @@ INSERT INTO device_displays (device_id, owner_id, layout, display_schedule, acti
 SELECT '00000000-0000-4000-8000-000000000004', user_id, layout, display_schedule, 'fixture', display_profile, 'Europe/Copenhagen', 15, 3, '2026-10-02T10:01:02.123456Z'
 FROM user_preferences WHERE user_id = '00000000-0000-4000-8000-000000000001';
 INSERT INTO orders (id, user_id, amount_cents, status) VALUES ('00000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000001', 1250, 'ci-fixture');
+INSERT INTO users (id, email) VALUES ('00000000-0000-4000-8000-000000000010', 'collaborator@example.invalid');
+INSERT INTO user_connections (id, requester_id, addressee_id, status, responded_at)
+VALUES ('00000000-0000-4000-8000-000000000011', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000010', 'accepted', '2026-10-15T10:01:02.123456Z');
+INSERT INTO device_shares (device_id, owner_id, collaborator_id, role)
+VALUES ('00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000010', 'editor');
+INSERT INTO shared_items (id, sender_id, recipient_id, kind, name, payload)
+VALUES ('00000000-0000-4000-8000-000000000012', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000010', 'layout', 'Køkken', '{"layout":{"version":1,"cols":10,"rows":6,"widgets":[]}}');
 SQL
 
 run_python() { timeout 120 "${compose[@]}" run --rm -T --no-deps --entrypoint python tools - "$@"; }
@@ -172,7 +179,7 @@ import migrate, psycopg
 with psycopg.connect(service='eink-target') as connection:
     migrate.check_target_identity(connection)
     migrate.check_empty_target(connection)
-print('PASS: all eleven target tables remain empty.')
+print('PASS: all fourteen target tables remain empty.')
 PY
 }
 
@@ -188,10 +195,12 @@ with psycopg.connect(service='eink-ci-source') as connection:
     assert not report['schema_drift'], (report['schema_drift'], {
         table: details['constraints'] for table, details in report['tables'].items()
     })
-    assert all(report['tables'][table]['row_count'] == 1 for table in migrate.TABLES)
+    # The sharing fixtures need a second account; every other table holds one row.
+    expected_rows = {table: 2 if table == 'users' else 1 for table in migrate.TABLES}
+    assert {table: report['tables'][table]['row_count'] for table in migrate.TABLES} == expected_rows
     manifest = migrate.export_bundle(connection, Path('/work/bundle'))
-assert all(item['row_count'] == 1 for item in manifest['tables'].values())
-print('PASS: real PostgreSQL source inspection and consistent eleven-table export.')
+assert {table: item['row_count'] for table, item in manifest['tables'].items()} == expected_rows
+print('PASS: real PostgreSQL source inspection and consistent fourteen-table export.')
 PY
 
 # A unique expression/partial index is invisible to pg_constraint. It must
@@ -235,7 +244,7 @@ with (tampered / 'api_keys.csv').open('ab') as output:
     output.write(b'corrupt-fixture\n')
 # Both bundles have valid file/manifest hashes and reach COPY. The FK error
 # occurs in the final table. The padded integer is accepted by COPY but becomes
-# canonical 1250 on re-export, causing verification to fail after all eleven COPYs.
+# canonical 1250 on re-export, causing verification to fail after all fourteen COPYs.
 for name, old, new in (
     ('bad-fk', b'00000000-0000-4000-8000-000000000001', b'00000000-0000-4000-8000-000000000099'),
     ('bad-checksum', b'\n1250,', b'\n01250,'),
@@ -293,16 +302,17 @@ BEGIN
     ) OR has_database_privilege(client_role, 'eink', 'CONNECT,CREATE,TEMPORARY')
       OR has_schema_privilege(client_role, 'public', 'USAGE,CREATE')
       OR has_function_privilege(client_role, 'public.update_updated_at_column()', 'EXECUTE')
-      OR has_function_privilege(client_role, 'public.clear_device_display_on_transfer()', 'EXECUTE') THEN
+      OR has_function_privilege(client_role, 'public.clear_device_display_on_transfer()', 'EXECUTE')
+      OR has_function_privilege(client_role, 'public.clear_device_shares_on_transfer()', 'EXECUTE') THEN
       RAISE EXCEPTION 'Compatibility client roles gained membership/database/schema/function access';
     END IF;
-    FOREACH table_name IN ARRAY ARRAY['users','user_preferences','api_keys','devices','firmware_versions','api_usage','custom_webhooks','ai_usage_reports','device_delivery','device_displays','orders'] LOOP
+    FOREACH table_name IN ARRAY ARRAY['users','user_preferences','api_keys','devices','firmware_versions','api_usage','custom_webhooks','ai_usage_reports','device_delivery','device_displays','orders','user_connections','device_shares','shared_items'] LOOP
       IF has_table_privilege(client_role, 'public.' || table_name, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') THEN
         RAISE EXCEPTION 'Compatibility client role gained table access';
       END IF;
     END LOOP;
   END LOOP;
-  FOREACH table_name IN ARRAY ARRAY['custom_webhooks', 'ai_usage_reports', 'device_delivery', 'device_displays'] LOOP
+  FOREACH table_name IN ARRAY ARRAY['custom_webhooks', 'ai_usage_reports', 'device_delivery', 'device_displays', 'user_connections', 'device_shares', 'shared_items'] LOOP
     FOREACH privilege_name IN ARRAY ARRAY['SELECT','INSERT','UPDATE','DELETE'] LOOP
       IF NOT has_table_privilege('service_role', 'public.' || table_name, privilege_name) THEN
         RAISE EXCEPTION 'Missing service CRUD grant';

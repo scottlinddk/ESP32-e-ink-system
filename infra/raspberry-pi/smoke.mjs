@@ -42,6 +42,7 @@ const primaryKeys = {
   users: 'id', user_preferences: 'id', api_keys: 'id', devices: 'id',
   firmware_versions: 'id', api_usage: 'id', custom_webhooks: 'user_id', ai_usage_reports: 'user_id',
   device_delivery: 'device_id', device_displays: 'device_id', orders: 'id',
+  user_connections: 'id', device_shares: 'device_id', shared_items: 'id',
 };
 
 let fixtureId;
@@ -58,7 +59,7 @@ try {
   // Empty .single() must retain the error contract used in database.ts.
   const missing = await db.from('users').select('id').eq('id', randomUUID()).single();
   if (missing.error?.code !== 'PGRST116') throw new Error('Missing-row response is incompatible');
-  console.log('PASS: service-token access, denied anonymous/invalid access, all eleven table primary keys, missing-row contract.');
+  console.log('PASS: service-token access, denied anonymous/invalid access, all fourteen table primary keys, missing-row contract.');
 
   if (args.includes('--write-test')) {
     fixtureId = randomUUID();
@@ -175,11 +176,12 @@ try {
     } else {
       try {
         for (const [table, primaryKey] of Object.entries(primaryKeys)) {
-          const filter = table === 'users' ? 'id' : ['device_delivery', 'device_displays'].includes(table) ? 'owner_id' : 'user_id';
+          const filter = table === 'users' ? 'id' : ['device_delivery', 'device_displays', 'device_shares'].includes(table) ? 'owner_id'
+            : table === 'user_connections' ? 'requester_id' : table === 'shared_items' ? 'sender_id' : 'user_id';
           const remaining = check(await db.from(table).select(primaryKey).eq(filter, fixtureId).limit(1), `Cleanup ${table}`);
           if (remaining.length) throw new Error(`Dependent fixture remains in ${table}`);
         }
-        console.log('PASS: fixture deleted and cascades verified across all eleven tables.');
+        console.log('PASS: fixture deleted and cascades verified across all fourteen tables.');
       } catch (error) {
         console.error(error instanceof Error ? error.message : 'Cascade verification failed');
         process.exitCode = 1;

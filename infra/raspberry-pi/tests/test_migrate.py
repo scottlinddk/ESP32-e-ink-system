@@ -37,14 +37,14 @@ def triggers(table):
              "function_volatility": "v", "function_strict": False, "function_parallel": "u", "function_return_type": "trigger",
              "function_body_sha256": hashlib.sha256(b"BEGIN NEW.updated_at = now(); RETURN NEW; END;").hexdigest()}]
     if table == "devices":
-        result.insert(0, {
-            "name": "clear_device_display_on_transfer", "type": 17, "enabled": "O", "function_schema": "public",
-            "function_name": "clear_device_display_on_transfer",
-            "definition": "CREATE TRIGGER clear_device_display_on_transfer AFTER UPDATE OF user_id ON public.devices FOR EACH ROW WHEN (old.user_id IS DISTINCT FROM new.user_id) EXECUTE FUNCTION clear_device_display_on_transfer()",
-            "function_language": "plpgsql", "function_security_definer": True, "function_settings": ["search_path=public"],
-            "function_volatility": "v", "function_strict": False, "function_parallel": "u", "function_return_type": "trigger",
-            "function_body_sha256": hashlib.sha256(b"BEGIN DELETE FROM public.device_displays WHERE device_id = NEW.id; RETURN NEW; END;").hexdigest(),
-        })
+        for name, deleted in (("clear_device_shares_on_transfer", "device_shares"), ("clear_device_display_on_transfer", "device_displays")):
+            result.insert(0, {
+                "name": name, "type": 17, "enabled": "O", "function_schema": "public", "function_name": name,
+                "definition": f"CREATE TRIGGER {name} AFTER UPDATE OF user_id ON public.devices FOR EACH ROW WHEN (old.user_id IS DISTINCT FROM new.user_id) EXECUTE FUNCTION {name}()",
+                "function_language": "plpgsql", "function_security_definer": True, "function_settings": ["search_path=public"],
+                "function_volatility": "v", "function_strict": False, "function_parallel": "u", "function_return_type": "trigger",
+                "function_body_sha256": hashlib.sha256(f"BEGIN DELETE FROM public.{deleted} WHERE device_id = NEW.id; RETURN NEW; END;".encode()).hexdigest(),
+            })
     return result
 
 
@@ -117,7 +117,12 @@ class SchemaTests(unittest.TestCase):
         self.assertEqual(migrate.TABLES, (
             "users", "user_preferences", "api_keys", "devices", "firmware_versions", "api_usage",
             "custom_webhooks", "ai_usage_reports", "device_delivery", "device_displays", "orders",
+            "user_connections", "device_shares", "shared_items",
         ))
+        self.assertEqual(migrate.PRIMARY_KEYS["device_shares"], ("device_id", "collaborator_id"))
+        self.assertLess(migrate.TABLES.index("devices"), migrate.TABLES.index("device_shares"))
+        self.assertLess(migrate.TABLES.index("users"), migrate.TABLES.index("user_connections"))
+        self.assertLess(migrate.TABLES.index("users"), migrate.TABLES.index("shared_items"))
         self.assertEqual(migrate.PRIMARY_KEYS["custom_webhooks"], ("user_id",))
         self.assertEqual(migrate.PRIMARY_KEYS["ai_usage_reports"], ("user_id",))
         self.assertEqual(migrate.PRIMARY_KEYS["device_delivery"], ("device_id",))
@@ -180,7 +185,8 @@ class SchemaTests(unittest.TestCase):
 
     def test_every_tracked_check_is_required_and_bounds_cannot_be_weakened(self):
         self.assertEqual({table: len(checks) for table, checks in migrate.EXPECTED_CHECKS.items()},
-                         {"user_preferences": 11, "custom_webhooks": 2, "ai_usage_reports": 2, "device_delivery": 4, "device_displays": 8})
+                         {"user_preferences": 11, "custom_webhooks": 2, "ai_usage_reports": 2, "device_delivery": 4, "device_displays": 8,
+                          "user_connections": 2, "device_shares": 2, "shared_items": 5})
         for table in migrate.EXPECTED_CHECKS:
             for index, constraint in enumerate(migrate.EXPECTED_CONSTRAINTS[table]):
                 if constraint["type"] != "c":
@@ -300,12 +306,12 @@ class BundleTests(unittest.TestCase):
 
     def test_missing_table_file_rejected(self):
         (self.directory / "orders.csv").unlink()
-        with self.assertRaisesRegex(migrate.MigrationError, "11 CSV"):
+        with self.assertRaisesRegex(migrate.MigrationError, "14 CSV"):
             migrate.load_bundle(self.directory)
 
     def test_extra_file_rejected(self):
         (self.directory / "auth.csv").touch()
-        with self.assertRaisesRegex(migrate.MigrationError, "11 CSV"):
+        with self.assertRaisesRegex(migrate.MigrationError, "14 CSV"):
             migrate.load_bundle(self.directory)
 
     def test_manifest_cannot_select_external_file(self):
@@ -319,7 +325,7 @@ class BundleTests(unittest.TestCase):
             self.manifest["tables"].pop(table)
             (self.directory / f"{table}.csv").unlink()
         write_manifest(self.directory, self.manifest)
-        with self.assertRaisesRegex(migrate.MigrationError, "11 CSV"):
+        with self.assertRaisesRegex(migrate.MigrationError, "14 CSV"):
             migrate.load_bundle(self.directory)
 
     def test_pre018_nine_table_bundle_is_rejected(self):
@@ -327,14 +333,14 @@ class BundleTests(unittest.TestCase):
             self.manifest["tables"].pop(table)
             (self.directory / f"{table}.csv").unlink()
         write_manifest(self.directory, self.manifest)
-        with self.assertRaisesRegex(migrate.MigrationError, "11 CSV"):
+        with self.assertRaisesRegex(migrate.MigrationError, "14 CSV"):
             migrate.load_bundle(self.directory)
 
     def test_pre024_ten_table_bundle_is_rejected(self):
         self.manifest["tables"].pop("ai_usage_reports")
         (self.directory / "ai_usage_reports.csv").unlink()
         write_manifest(self.directory, self.manifest)
-        with self.assertRaisesRegex(migrate.MigrationError, "11 CSV"):
+        with self.assertRaisesRegex(migrate.MigrationError, "14 CSV"):
             migrate.load_bundle(self.directory)
 
     def test_webhook_and_delivery_data_are_checksummed(self):
@@ -378,6 +384,32 @@ class BundleTests(unittest.TestCase):
         self.assertEqual(migrate.load_bundle(self.directory), self.manifest)
 
 
+class SharingTablesTests(unittest.TestCase):
+    def test_sharing_tables_are_tracked_with_their_integrity_rules(self):
+        self.assertEqual(set(migrate.EXPECTED_COLUMNS["device_shares"]), {"device_id", "owner_id", "collaborator_id", "role", "created_at"})
+        self.assertEqual(migrate.EXPECTED_STANDALONE_UNIQUE, {"user_connections": ["user_connections_pair_key"]})
+        self.assertIn({"type": "f", "definition": "FOREIGN KEY (device_id, owner_id) REFERENCES devices(id, user_id) ON UPDATE CASCADE ON DELETE CASCADE"},
+                      migrate.EXPECTED_CONSTRAINTS["device_shares"])
+
+    def test_pair_index_is_required_and_other_unique_indexes_are_not_allowed(self):
+        migrate.check_unique_indexes("user_connections", ["user_connections_pair_key"])
+        with self.assertRaises(migrate.MigrationError):
+            migrate.check_unique_indexes("user_connections", [])
+        with self.assertRaises(migrate.MigrationError):
+            migrate.check_unique_indexes("shared_items", ["extra_unique"])
+
+    def test_share_reset_trigger_is_required_on_devices(self):
+        without = [item for item in triggers("devices") if item["name"] != "clear_device_shares_on_transfer"]
+        with self.assertRaisesRegex(migrate.MigrationError, "Trigger drift in devices"):
+            migrate.check_relations("devices", migrate.EXPECTED_CONSTRAINTS["devices"], without)
+        weakened = copy.deepcopy(triggers("devices"))
+        for item in weakened:
+            if item["name"] == "clear_device_shares_on_transfer":
+                item["function_security_definer"] = False
+        with self.assertRaisesRegex(migrate.MigrationError, "Trigger drift in devices"):
+            migrate.check_relations("devices", migrate.EXPECTED_CONSTRAINTS["devices"], weakened)
+
+
 class UniqueIndexGuardTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -396,7 +428,7 @@ class UniqueIndexGuardTests(unittest.TestCase):
         self.stack.enter_context(patch.object(migrate, "read_constraints", side_effect=lambda conn, table: migrate.EXPECTED_CONSTRAINTS[table]))
         self.stack.enter_context(patch.object(migrate, "read_triggers", side_effect=lambda conn, table: triggers(table)))
         self.stack.enter_context(patch.object(migrate, "read_standalone_unique_indexes",
-                                            side_effect=lambda conn, table: ["unique_lower_email"] if table == "users" else []))
+                                            side_effect=lambda conn, table: ["unique_lower_email"] if table == "users" else list(migrate.EXPECTED_STANDALONE_UNIQUE.get(table, []))))
         self.stack.enter_context(patch.object(migrate, "count_rows", return_value=0))
 
     def test_inspection_reports_standalone_unique_index_drift(self):
@@ -485,7 +517,7 @@ class TransactionTests(unittest.TestCase):
         self.mocks["verify_rows"].side_effect = migrate.MigrationError("checksum")
         with self.assertRaisesRegex(migrate.MigrationError, "checksum"):
             migrate.import_bundle(self.conn, self.directory)
-        self.assertEqual(self.mocks["copy_in"].call_count, 11)
+        self.assertEqual(self.mocks["copy_in"].call_count, 14)
         self.assertEqual(self.conn.transaction.return_value.__exit__.call_args.args[0], migrate.MigrationError)
 
     def test_corrupt_bundle_does_not_open_transaction(self):
@@ -523,7 +555,7 @@ class GuardAndCLITests(unittest.TestCase):
         with patch.object(migrate, "count_rows", side_effect=lambda conn, table: int(table == "orders")) as count:
             with self.assertRaisesRegex(migrate.MigrationError, "orders"):
                 migrate.check_empty_target(MagicMock())
-            self.assertEqual(count.call_count, 11)
+            self.assertEqual(count.call_count, 14)
 
     def test_nonempty_new_table_blocks_import(self):
         for table in ("custom_webhooks", "ai_usage_reports", "device_delivery", "device_displays"):
