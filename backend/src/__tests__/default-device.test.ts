@@ -17,6 +17,8 @@ vi.mock('../services/database', () => ({
   updateDeviceName: vi.fn(), deleteDevice: vi.fn(), getDefaultDeviceId: vi.fn(), setDefaultDeviceId: vi.fn(),
 }));
 
+vi.mock('../services/sharing', () => ({ listDevicesSharedWithMe: vi.fn().mockResolvedValue([]) }));
+
 const KITCHEN = '0b3c5c8e-1111-4a4a-9b9b-000000000001';
 const HALL = '0b3c5c8e-1111-4a4a-9b9b-000000000002';
 const device = (id: string) => ({ id, user_id: 'owner', device_id: `hw-${id}`, device_name: id,

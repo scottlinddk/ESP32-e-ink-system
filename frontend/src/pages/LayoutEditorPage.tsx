@@ -94,7 +94,7 @@ function LayoutEditorWorkspace() {
       setCalendars(preferences.calendar_widgets ?? []);
       setDisplayProfile(preferences.display_profile ?? DEFAULT_DISPLAY_PROFILE);
       if (deviceId) {
-        const device = devices?.devices.find((item) => item.id === deviceId);
+        const device = devices?.devices.find((item) => item.id === deviceId) ?? devices?.shared_devices?.find((item) => item.id === deviceId);
         if (!device) throw new Error('Device no longer exists');
         setDeviceName(device.device_name);
       }

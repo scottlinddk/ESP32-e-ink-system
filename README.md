@@ -13,6 +13,8 @@ The [integration setup guide](docs/INTEGRATIONS.md) maps every source to its wid
 
 The [device workspace guide](docs/DEVICE_WORKSPACES.md) explains per-device layouts, slideshows, live previews, manual and instant screen refresh, and migrations 018–020. Each device can also draw its widgets in **English or Danish** (**Display language** in the device's settings, migration 025); see [display language](docs/DEVICE_WORKSPACES.md#display-language). Shared content and legacy defaults are labelled separately from the selected device's settings.
 
+Use **Sharing** to connect with other users by email, give a connection viewer or editor access to a device (it keeps drawing with your data sources, and they never see your credentials), or send them a copy of a layout, widget or dashboard. See the [sharing guide](docs/SHARING.md). Apply `027_sharing.sql` to existing databases first.
+
 See the [integration and widget audit](docs/INTEGRATION_AUDIT.md) for supported behavior, provider compatibility fixes and validation limits.
 
 Use **Layout templates** on the Dashboard to export settings, review a JSON import or apply a starter layout. Templates omit credentials and private feed URLs; see the [format and compatibility guide](docs/DISPLAY_TEMPLATES.md).
