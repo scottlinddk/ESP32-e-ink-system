@@ -647,7 +647,7 @@ function populateCanvas(
       if (feedId) {
         // A removed feed has no result; it renders as unavailable until the widget is removed.
         const feed = data.newsFeeds?.[feedId];
-        renderNewsWidget(target, bounds, feed?.items, feed?.error, widget.options?.items, language);
+        renderNewsWidget(target, bounds, feed?.items, feed?.error, widget.options?.items, language, widget.options?.columns);
         return;
       }
       switch (widget.i) {
@@ -663,7 +663,7 @@ function populateCanvas(
           break;
         case 'energy':  renderEnergyWidget(target, bounds, data.price, data.priceError, widget.options, language); break;
         case 'weather': renderWeatherWidget(target, bounds, data.weather, data.weatherError, language); break;
-        case 'news':    renderNewsWidget(target, bounds, data.news, data.newsError, widget.options?.items, language); break;
+        case 'news':    renderNewsWidget(target, bounds, data.news, data.newsError, widget.options?.items, language, widget.options?.columns); break;
         case 'monta':   renderMontaWidget(target, bounds, data.monta, preferences?.monta_fields ?? undefined, language); break;
         case 'zaptec':  renderZaptecWidget(target, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined, language); break;
         case 'notion':  renderNotionWidget(target, bounds, data.notion, data.notionError, language); break;
