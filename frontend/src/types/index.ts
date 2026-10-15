@@ -92,6 +92,8 @@ export type EnergyPriceSettings = { mode: 'spot' } | {
 export interface UserPreferences {
   active_layout_id?: string | null;
   display_timezone?: string;
+  /** Per device: the language of the words on its display. Absent means English. */
+  display_language?: 'en' | 'da';
   show_custom_webhook?: boolean;
   custom_webhook_ttl_minutes?: number;
   show_ai_usage?: boolean;

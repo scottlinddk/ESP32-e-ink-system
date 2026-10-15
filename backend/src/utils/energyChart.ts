@@ -1,5 +1,7 @@
 import type { EnergyPrice, EnergyPriceHour } from '../types';
 import type { EnergyView } from './widgetOptions';
+import { DEFAULT_DISPLAY_LANGUAGE, formatDecimal, type DisplayLanguage } from './displayLanguage';
+import { displayStrings } from './displayStrings';
 
 // Hourly price bar chart for the 1-bit panel. Without colour, the current hour is drawn
 // as an outlined bar among filled ones, and the day's average as a dotted line.
@@ -68,7 +70,9 @@ export function renderEnergyChart(
   price: EnergyPrice & { hours: EnergyPriceHour[] },
   view: Exclude<EnergyView, 'summary'>,
   now: number,
+  language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
 ): void {
+  const t = displayStrings(language).energy;
   const { x, y, width, height } = bounds;
   const { bars, current } = selectEnergyBars(price.hours, view, now);
   const left = x + 2;
@@ -77,12 +81,12 @@ export function renderEnergyChart(
   // Header: the live interval price, which can differ from its hour's mean bar.
   // The longest variant that fits, so a narrow widget never shows a cut-off unit.
   const hourLabel = current >= 0 ? `${twoDigits(bars[current].hour)}: ` : '';
-  const basis = price.basis === 'consumer' ? 'Est' : 'Spot';
-  const value = (price.now / 100).toFixed(2);
-  const variants = [`${basis} ${hourLabel}${value} DKK/kWh`, `${hourLabel}${value} DKK/kWh`, `${hourLabel}${value} kr`, value];
+  const basis = price.basis === 'consumer' ? t.estimate : t.spot;
+  const value = formatDecimal(price.now / 100, 2, language);
+  const variants = [`${basis} ${hourLabel}${value} ${t.unit}`, `${hourLabel}${value} ${t.unit}`, `${hourLabel}${value} kr`, value];
   const header = variants.find((text) => text.length * GLYPH <= innerW) ?? value;
   canvas.drawText(header, left, y + 2, innerW);
-  const avgText = `Avg ${(price.average / 100).toFixed(2)}`;
+  const avgText = `${t.average} ${formatDecimal(price.average / 100, 2, language)}`;
   if ((header.length + 2 + avgText.length) * GLYPH <= innerW) {
     canvas.drawText(avgText, x + width - 2 - avgText.length * GLYPH, y + 2, avgText.length * GLYPH);
   }
@@ -103,7 +107,7 @@ export function renderEnergyChart(
 
   // Y axis on the right in DKK ("2 kr"), shown only when the widget is wide and tall enough.
   const ticks = axisTicks(low, high, chartH);
-  const axisLabels = ticks.map((tick) => `${formatKr(tick)} kr`);
+  const axisLabels = ticks.map((tick) => `${language === 'da' ? formatKr(tick).replace('.', ',') : formatKr(tick)} kr`);
   const axisW = Math.max(0, ...axisLabels.map((label) => label.length)) * GLYPH + AXIS_GAP;
   const showAxis = ticks.length >= 2 && axisW <= innerW * AXIS_MAX_SHARE;
   const plotW = showAxis ? innerW - axisW : innerW;

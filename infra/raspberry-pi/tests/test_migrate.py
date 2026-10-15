@@ -133,7 +133,7 @@ class SchemaTests(unittest.TestCase):
                                 "firmware_version", "battery_percent", "rssi", "last_applied_hash",
                                 "refresh_request_id", "refresh_requested_at", "refresh_applied_at", "instant_updates"},
             "device_displays": {"device_id", "owner_id", "layout", "display_schedule", "active_layout_id", "display_profile",
-                                "display_timezone", "refresh_interval_minutes", "revision", "updated_at"},
+                                "display_timezone", "display_language", "refresh_interval_minutes", "revision", "updated_at"},
         }
         for table, fields in expected.items():
             self.assertEqual(set(migrate.EXPECTED_COLUMNS[table]), fields)
@@ -180,7 +180,7 @@ class SchemaTests(unittest.TestCase):
 
     def test_every_tracked_check_is_required_and_bounds_cannot_be_weakened(self):
         self.assertEqual({table: len(checks) for table, checks in migrate.EXPECTED_CHECKS.items()},
-                         {"user_preferences": 10, "custom_webhooks": 2, "ai_usage_reports": 2, "device_delivery": 4, "device_displays": 7})
+                         {"user_preferences": 10, "custom_webhooks": 2, "ai_usage_reports": 2, "device_delivery": 4, "device_displays": 8})
         for table in migrate.EXPECTED_CHECKS:
             for index, constraint in enumerate(migrate.EXPECTED_CONSTRAINTS[table]):
                 if constraint["type"] != "c":
@@ -249,7 +249,7 @@ class SchemaTests(unittest.TestCase):
                 migrate.check_relations("devices", migrate.EXPECTED_CONSTRAINTS["devices"], value)
 
     def test_device_display_defaults_and_owner_foreign_keys_are_required(self):
-        for name in ("display_timezone", "refresh_interval_minutes", "revision", "updated_at"):
+        for name in ("display_timezone", "display_language", "refresh_interval_minutes", "revision", "updated_at"):
             fields = schema("device_displays")
             next(field for field in fields if field["name"] == name)["default"] = None
             with self.assertRaisesRegex(migrate.MigrationError, "incompatible default"):

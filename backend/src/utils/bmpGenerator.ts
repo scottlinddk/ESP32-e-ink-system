@@ -1,12 +1,11 @@
 import { parseDisplayProfile, DisplayProfile } from './displayProfile';
-import { DisplayData, DisplayLayout, TickerWidgetSetting, UserPreferences, WidgetLayout } from '../types/index';
+import { CalendarEvent, DisplayData, DisplayLayout, TickerWidgetSetting, UserPreferences, WidgetLayout } from '../types/index';
 import { bitmapGlyph, normalizeBitmapText, wrapBitmapText } from './bitmapText';
 import { drawCustomImage } from './customContent';
 import { renderWebhookWidget } from './webhookRenderer';
 import { DEFAULT_DISPLAY_TIMEZONE } from './displayTimezone';
-import { WEATHER_ERROR_LABELS } from './weatherErrors';
-import { ENERGY_PRICE_ERROR_LABELS } from './energyPriceErrors';
-import { NEWS_ERROR_LABELS } from './newsErrors';
+import { DEFAULT_DISPLAY_LANGUAGE, displayLanguageOrDefault, formatDecimal, type DisplayLanguage } from './displayLanguage';
+import { displayStrings, zonedDate } from './displayStrings';
 import { newsFeedIdFromWidget } from './newsFeeds';
 import { storedTickerWidgets, tickerIdFromWidget } from './tickerWidgets';
 import { renderTicker, renderTickerUnavailable, type TickerResult } from '../ticker';
@@ -344,14 +343,16 @@ function renderEnergyWidget(
   price?: DisplayData['price'],
   problem?: DisplayData['priceError'],
   options?: WidgetLayout['options'],
+  language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
 ): void {
   const { x, y, width, height } = bounds;
+  const t = displayStrings(language).energy;
   if (y > 0) canvas.drawHLine(x, y, width);
   const view = energyView(options);
   // Without hourly prices a chart view falls back to the summary rather than an empty chart.
   if (view !== 'summary' && price?.hours?.length) {
     renderEnergyChart(canvas, { x, y: y > 0 ? y + 1 : y, width, height: y > 0 ? height - 1 : height },
-      { ...price, hours: price.hours }, view, Date.now());
+      { ...price, hours: price.hours }, view, Date.now(), language);
     return;
   }
   const textY = y + 2;
@@ -360,18 +361,18 @@ function renderEnergyWidget(
     const { now, average, trend } = price;
     const arrow = trendArrow(trend);
     const consumer = price.basis === 'consumer';
-    canvas.drawText(`${consumer ? 'Est' : 'Spot'}: ${(now / 100).toFixed(2)} DKK/kWh ${arrow}`, x + 2, textY, maxW);
+    canvas.drawText(`${consumer ? t.estimate : t.spot}: ${formatDecimal(now / 100, 2, language)} ${t.unit} ${arrow}`, x + 2, textY, maxW);
     if (height >= 20) {
-      canvas.drawText(consumer ? 'Incl VAT; no fixed fees' : 'Excl tax/fees', x + 2, textY + 11, maxW);
+      canvas.drawText(consumer ? t.inclVat : t.exclTax, x + 2, textY + 11, maxW);
     }
     if (height >= 31) {
-      canvas.drawText(`Avg: ${(average / 100).toFixed(2)} DKK/kWh`, x + 2, textY + 22, maxW);
+      canvas.drawText(`${t.average}: ${formatDecimal(average / 100, 2, language)} ${t.unit}`, x + 2, textY + 22, maxW);
     }
   } else {
-    canvas.drawText(problem ? ENERGY_PRICE_ERROR_LABELS[problem.code] : 'Energy: unavailable', x + 2, textY, maxW);
+    canvas.drawText(problem ? t.errors[problem.code] : t.unavailable, x + 2, textY, maxW);
     // Name the codes to look up on the bill, e.g. after mixing two grid areas.
     if (height >= 20 && problem?.missingCodes?.length) {
-      canvas.drawText(`Missing: ${problem.missingCodes.join(', ')}`, x + 2, textY + 11, maxW);
+      canvas.drawText(`${t.missing}: ${problem.missingCodes.join(', ')}`, x + 2, textY + 11, maxW);
     }
   }
 }
@@ -381,20 +382,22 @@ function renderWeatherWidget(
   bounds: WidgetBounds,
   weather?: DisplayData['weather'],
   problem?: DisplayData['weatherError'],
+  language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
 ): void {
   const { x, y, width, height } = bounds;
+  const t = displayStrings(language).weather;
   if (y > 0) canvas.drawHLine(x, y, width);
   const textY = y + 2;
   const maxW = width - 4;
   if (weather) {
     const { temp, condition, windSpeed } = weather;
-    canvas.drawText(`${condition}  ${Math.round(temp)}C`, x + 2, textY, maxW);
+    canvas.drawText(`${t.conditions[condition] ?? condition}  ${Math.round(temp)}C`, x + 2, textY, maxW);
     if (height >= 20) {
-      canvas.drawText(`Wind: ${windSpeed.toFixed(1)} m/s`, x + 2, textY + 11, maxW);
+      canvas.drawText(`${t.wind}: ${formatDecimal(windSpeed, 1, language)} m/s`, x + 2, textY + 11, maxW);
     }
   } else {
-    const errorLabel = problem ? WEATHER_ERROR_LABELS[problem.code] : 'Unavailable';
-    canvas.drawText(height < 21 ? errorLabel : 'Weather', x + 2, textY, maxW);
+    const errorLabel = problem ? t.errors[problem.code] : t.unavailable;
+    canvas.drawText(height < 21 ? errorLabel : t.title, x + 2, textY, maxW);
     if (height >= 21) {
       canvas.drawText(errorLabel, x + 2, textY + 11, maxW);
     }
@@ -407,8 +410,10 @@ function renderNewsWidget(
   news?: DisplayData['news'],
   problem?: DisplayData['newsError'],
   limit?: number,
+  language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
 ): void {
   const { x, y, width, height } = bounds;
+  const t = displayStrings(language).news;
   if (y > 0) canvas.drawHLine(x, y, width);
   let textY = y + 2;
   const maxW = width - 4;
@@ -418,7 +423,7 @@ function renderNewsWidget(
       textY = canvas.drawWrappedText(item.title, x + 2, textY, maxW, 10) + 2;
     }
   } else {
-    canvas.drawText(news ? 'No headlines' : problem ? NEWS_ERROR_LABELS[problem.code] : 'News: unavailable', x + 2, textY, maxW);
+    canvas.drawText(news ? t.none : problem ? t.errors[problem.code] : t.unavailable, x + 2, textY, maxW);
   }
 }
 
@@ -426,15 +431,17 @@ function renderMontaWidget(
   canvas: DrawingCanvas,
   bounds: WidgetBounds,
   data?: DisplayData['monta'],
-  fields: string[] = ['charger_status', 'active_session']
+  fields: string[] = ['charger_status', 'active_session'],
+  language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
 ): void {
   const { x, y, width, height } = bounds;
+  const t = displayStrings(language).chargers;
   if (y > 0) canvas.drawHLine(x, y, width);
   const maxW = width - 4;
   let textY = y + 2;
 
   if (!data) {
-    canvas.drawText('Monta: unavailable', x + 2, textY, maxW);
+    canvas.drawText(t.unavailable('Monta'), x + 2, textY, maxW);
     return;
   }
 
@@ -444,7 +451,7 @@ function renderMontaWidget(
   if (fields.includes('charger_status') && data.chargePoints.length > 0) {
     const available = data.chargePoints.filter((cp) => cp.state === 'available').length;
     const charging = data.chargePoints.filter((cp) => cp.state === 'charging').length;
-    canvas.drawText(`${available} avail  ${charging} charging`, x + 2, textY, maxW);
+    canvas.drawText(t.status(available, charging), x + 2, textY, maxW);
     textY += 10;
   }
 
@@ -452,7 +459,7 @@ function renderMontaWidget(
     if (data.activeSessions.length > 0) {
       const s = data.activeSessions[0];
       canvas.drawText(
-        `${s.energyDeliveredKwh === null ? '?' : s.energyDeliveredKwh.toFixed(1)}kWh  ${s.durationMin ?? '?'}min`,
+        `${s.energyDeliveredKwh === null ? '?' : formatDecimal(s.energyDeliveredKwh, 1, language)}kWh  ${s.durationMin ?? '?'}min`,
         x + 2,
         textY,
         maxW
@@ -462,7 +469,7 @@ function renderMontaWidget(
   }
 
   if (fields.includes('today_stats') && data.todayKwh !== null && textY < y + height - 8) {
-    canvas.drawWrappedText(`Created today: ${data.todayKwh.toFixed(1)} kWh`, x + 2, textY, maxW);
+    canvas.drawWrappedText(`${t.createdToday}: ${formatDecimal(data.todayKwh, 1, language)} kWh`, x + 2, textY, maxW);
   }
 }
 
@@ -470,15 +477,17 @@ function renderZaptecWidget(
   canvas: DrawingCanvas,
   bounds: WidgetBounds,
   data?: DisplayData['zaptec'],
-  fields: string[] = ['charger_status', 'active_session', 'installation_info']
+  fields: string[] = ['charger_status', 'active_session', 'installation_info'],
+  language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
 ): void {
   const { x, y, width, height } = bounds;
+  const t = displayStrings(language).chargers;
   if (y > 0) canvas.drawHLine(x, y, width);
   const maxW = width - 4;
   let textY = y + 2;
 
   if (!data) {
-    canvas.drawText('Zaptec: unavailable', x + 2, textY, maxW);
+    canvas.drawText(t.unavailable('Zaptec'), x + 2, textY, maxW);
     return;
   }
 
@@ -491,14 +500,14 @@ function renderZaptecWidget(
   if (fields.includes('charger_status') && data.chargers.length > 0) {
     const available = data.chargers.filter((c) => c.operatingMode === 1).length;
     const charging = data.chargers.filter((c) => c.operatingMode === 3).length;
-    canvas.drawText(`${available} avail  ${charging} charging`, x + 2, textY, maxW);
+    canvas.drawText(t.status(available, charging), x + 2, textY, maxW);
     textY += 10;
   }
 
   if (fields.includes('active_session') && data.activeSession && textY < y + height - 8) {
     const s = data.activeSession;
     canvas.drawText(
-      `${s.energyDeliveredKwh === null ? '?' : s.energyDeliveredKwh.toFixed(1)}kWh  ${s.chargerName}`,
+      `${s.energyDeliveredKwh === null ? '?' : formatDecimal(s.energyDeliveredKwh, 1, language)}kWh  ${s.chargerName}`,
       x + 2,
       textY,
       maxW
@@ -511,19 +520,17 @@ function renderNotionWidget(
   bounds: WidgetBounds,
   data?: DisplayData['notion'],
   problem?: DisplayData['notionError'],
+  language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
 ): void {
   const { x, y, width, height } = bounds;
+  const t = displayStrings(language).notion;
   if (y > 0) canvas.drawHLine(x, y, width);
   const maxW = width - 4;
   let textY = y + 2;
 
   if (!data) {
-    const labels: Record<string, string> = {
-      data_source_required: 'Select data source', invalid_data_source: 'Check source ID',
-      invalid_configuration: 'Check Notion setup', invalid_token: 'Check Notion key',
-      access_denied: 'Share database', rate_limited: 'Notion API limit', timeout: 'Notion timed out',
-    };
-    canvas.drawWrappedText(labels[problem?.code ?? ''] ?? 'Notion: unavailable', x + 2, textY, maxW);
+    const labels: Record<string, string | undefined> = t.errors;
+    canvas.drawWrappedText(labels[problem?.code ?? ''] ?? t.unavailable, x + 2, textY, maxW);
     return;
   }
 
@@ -537,7 +544,7 @@ function renderNotionWidget(
   }
 
   if (data.rows.length === 0) {
-    canvas.drawText('No items', x + 2, textY, maxW);
+    canvas.drawText(t.none, x + 2, textY, maxW);
     return;
   }
 
@@ -549,17 +556,39 @@ function renderNotionWidget(
   }
 }
 
-function renderCalendarWidget(canvas: DrawingCanvas, bounds: WidgetBounds, data?: DisplayData['calendar'], limit?: number): void {
+/** Date and time words for an event, in the display language. The data's own labels are English. */
+function calendarLabels(event: CalendarEvent, timezone: string, language: DisplayLanguage): { dateLabel: string; timeLabel: string } {
+  if (language === DEFAULT_DISPLAY_LANGUAGE) return event;
+  const allDay = event.allDay;
+  const at = new Date(allDay ? `${event.start}T12:00:00Z` : event.start);
+  if (!Number.isFinite(at.getTime())) return event;
+  const t = displayStrings(language);
+  return {
+    dateLabel: t.dates.dayMonth(zonedDate(at, allDay ? 'UTC' : timezone)),
+    timeLabel: allDay ? t.calendar.allDay
+      : new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: timezone }).format(at),
+  };
+}
+
+function renderCalendarWidget(
+  canvas: DrawingCanvas,
+  bounds: WidgetBounds,
+  data?: DisplayData['calendar'],
+  limit?: number,
+  language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
+): void {
   const { x, y, width, height } = bounds;
+  const t = displayStrings(language).calendar;
   if (y > 0) canvas.drawHLine(x, y, width);
   let textY = y + 2;
   if (!data || data.events.length === 0) {
-    canvas.drawText(data ? 'No upcoming events' : 'Calendar: unavailable', x + 2, textY, width - 4);
+    canvas.drawText(data ? t.none : t.unavailable, x + 2, textY, width - 4);
     return;
   }
   for (const event of data.events.slice(0, limit)) {
     if (textY + 8 > y + height) break;
-    textY = canvas.drawWrappedText(`${event.dateLabel} ${event.timeLabel}: ${event.title}`, x + 2, textY, width - 4, 10) + 2;
+    const { dateLabel, timeLabel } = calendarLabels(event, data.timezone, language);
+    textY = canvas.drawWrappedText(`${dateLabel} ${timeLabel}: ${event.title}`, x + 2, textY, width - 4, 10) + 2;
   }
 }
 
@@ -569,7 +598,8 @@ function renderStatusWidget(
   nextRefresh: number,
   timezone = DEFAULT_DISPLAY_TIMEZONE,
   battery?: DisplayData['battery'],
-  options?: WidgetLayout['options']
+  options?: WidgetLayout['options'],
+  language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
 ): void {
   const { x, y, width } = bounds;
   canvas.drawHLine(x, y, width);
@@ -580,7 +610,7 @@ function renderStatusWidget(
   }).format(now);
   const refreshMin = Math.round(nextRefresh / 60000);
   // The condensed view is the time alone, so the bar stays readable at a few columns wide.
-  const text = options?.view === 'condensed' ? timeStr : `Refresh: ${refreshMin}min  ${timeStr}`;
+  const text = options?.view === 'condensed' ? timeStr : `${displayStrings(language).status.refresh}: ${refreshMin}min  ${timeStr}`;
   canvas.drawText(text, x + 2, statusY, width - 4);
   // Right-aligned, and only when it fits beside the text without truncating it.
   const batteryW = compactBatteryWidth(battery);
@@ -626,7 +656,7 @@ const WIDGET_ENABLED_SETTING = {
   'ai-usage': 'show_ai_usage',
 } as const;
 type RenderPreferences = Partial<Pick<UserPreferences,
-  'monta_fields' | 'zaptec_fields' | 'display_profile' | 'display_timezone' | 'ticker_widgets'
+  'monta_fields' | 'zaptec_fields' | 'display_profile' | 'display_timezone' | 'display_language' | 'ticker_widgets'
   | typeof WIDGET_ENABLED_SETTING[keyof typeof WIDGET_ENABLED_SETTING]>>;
 
 function populateCanvas(
@@ -636,6 +666,7 @@ function populateCanvas(
   preferences?: RenderPreferences
 ): void {
   const effectiveLayout = layout ?? DEFAULT_LAYOUT;
+  const language = displayLanguageOrDefault(preferences?.display_language);
   // Where a photo was drawn; an inverted layout leaves it as it was.
   const photos: WidgetBounds[] = [];
   for (const widget of effectiveLayout.widgets) {
@@ -665,11 +696,11 @@ function populateCanvas(
       if (feedId) {
         // A removed feed has no result; it renders as unavailable until the widget is removed.
         const feed = data.newsFeeds?.[feedId];
-        renderNewsWidget(target, bounds, feed?.items, feed?.error, widget.options?.items);
+        renderNewsWidget(target, bounds, feed?.items, feed?.error, widget.options?.items, language);
         return;
       }
       switch (widget.i) {
-        case 'custom-webhook': renderWebhookWidget(target, bounds, data.customWebhook); break;
+        case 'custom-webhook': renderWebhookWidget(target, bounds, data.customWebhook, language); break;
         case 'custom-text':
           if (data.customText) target.drawWrappedText(data.customText, bounds.x + 2, bounds.y + 2, bounds.width - 4);
           break;
@@ -679,19 +710,19 @@ function populateCanvas(
             photos.push(physical);
           }
           break;
-        case 'energy':  renderEnergyWidget(target, bounds, data.price, data.priceError, widget.options); break;
-        case 'weather': renderWeatherWidget(target, bounds, data.weather, data.weatherError); break;
-        case 'news':    renderNewsWidget(target, bounds, data.news, data.newsError, widget.options?.items); break;
-        case 'monta':   renderMontaWidget(target, bounds, data.monta, preferences?.monta_fields ?? undefined); break;
-        case 'zaptec':  renderZaptecWidget(target, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined); break;
-        case 'notion':  renderNotionWidget(target, bounds, data.notion, data.notionError); break;
-        case 'calendar': renderCalendarWidget(target, bounds, data.calendar, widget.options?.items); break;
-        case 'week-number': renderWeekNumberWidget(target, bounds, new Date(), preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE); break;
+        case 'energy':  renderEnergyWidget(target, bounds, data.price, data.priceError, widget.options, language); break;
+        case 'weather': renderWeatherWidget(target, bounds, data.weather, data.weatherError, language); break;
+        case 'news':    renderNewsWidget(target, bounds, data.news, data.newsError, widget.options?.items, language); break;
+        case 'monta':   renderMontaWidget(target, bounds, data.monta, preferences?.monta_fields ?? undefined, language); break;
+        case 'zaptec':  renderZaptecWidget(target, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined, language); break;
+        case 'notion':  renderNotionWidget(target, bounds, data.notion, data.notionError, language); break;
+        case 'calendar': renderCalendarWidget(target, bounds, data.calendar, widget.options?.items, language); break;
+        case 'week-number': renderWeekNumberWidget(target, bounds, new Date(), preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE, language); break;
         case 'battery': renderBatteryWidget(target, bounds, data.battery); break;
         case 'ai-usage': renderAiUsageWidget(target, bounds, data.aiUsage, {
-          view: widget.options?.view === 'condensed' ? 'condensed' : 'full', timeZone: preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE,
+          view: widget.options?.view === 'condensed' ? 'condensed' : 'full', timeZone: preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE, language,
         }); break;
-        case 'status':  renderStatusWidget(target, bounds, data.nextRefresh, preferences?.display_timezone, data.battery, widget.options); break;
+        case 'status':  renderStatusWidget(target, bounds, data.nextRefresh, preferences?.display_timezone, data.battery, widget.options, language); break;
       }
     });
   }

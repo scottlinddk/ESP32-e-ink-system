@@ -2,6 +2,9 @@
 // Thursday) of the display's local date, drawn large over a background that fills from
 // left to right as the ISO week-year passes. Text over the filled part is drawn white.
 
+import { DEFAULT_DISPLAY_LANGUAGE, type DisplayLanguage } from './displayLanguage';
+import { displayStrings } from './displayStrings';
+
 export interface WeekCanvas {
   drawHLine(x: number, y: number, w: number): void;
   fillRect(x: number, y: number, w: number, h: number, black?: boolean): void;
@@ -29,7 +32,6 @@ export interface IsoWeekInfo {
 const DAY_MS = 86_400_000;
 const GLYPH = 8;
 const PAD = 3;
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** The local calendar date in `timeZone`, as a UTC midnight, so date arithmetic ignores DST. */
 function localDate(now: Date, timeZone: string): Date {
@@ -60,13 +62,12 @@ export function isoWeekInfo(now: Date, timeZone: string): IsoWeekInfo {
   };
 }
 
-/** "Oct 5-11", or "Sep 29-Oct 5" when the week spans two months. */
-export function formatWeekRange(start: Date, end: Date): string {
-  const startMonth = MONTHS[start.getUTCMonth()];
-  const endMonth = MONTHS[end.getUTCMonth()];
-  return startMonth === endMonth
-    ? `${startMonth} ${start.getUTCDate()}-${end.getUTCDate()}`
-    : `${startMonth} ${start.getUTCDate()}-${endMonth} ${end.getUTCDate()}`;
+/** "Oct 5-11", or "Sep 29-Oct 5" when the week spans two months. Danish: "5.-11. okt.", "29. sep.-5. okt.". */
+export function formatWeekRange(start: Date, end: Date, language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE): string {
+  return displayStrings(language).week.range(
+    { day: start.getUTCDate(), month: start.getUTCMonth() },
+    { day: end.getUTCDate(), month: end.getUTCMonth() },
+  );
 }
 
 /** The largest whole font scale at which `text` fits in the box, at least 1. */
@@ -74,7 +75,11 @@ function fitScale(text: string, width: number, height: number): number {
   return Math.max(1, Math.min(Math.floor(width / (text.length * GLYPH)), Math.floor(height / GLYPH)));
 }
 
-export function renderWeekNumberWidget(canvas: WeekCanvas, bounds: WeekBounds, now: Date, timeZone: string): void {
+export function renderWeekNumberWidget(
+  canvas: WeekCanvas, bounds: WeekBounds, now: Date, timeZone: string,
+  language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
+): void {
+  const t = displayStrings(language).week;
   const { x, width } = bounds;
   if (bounds.y > 0) canvas.drawHLine(x, bounds.y, width);
   const y = bounds.y > 0 ? bounds.y + 1 : bounds.y;
@@ -97,16 +102,16 @@ export function renderWeekNumberWidget(canvas: WeekCanvas, bounds: WeekBounds, n
   const innerW = width - 2 * PAD;
   // Too small for a header: one line, with the longest label that fits.
   if (height < 28 || width < 40) {
-    const label = [`Week ${number}`, `W${number}`, number].find((item) => item.length * GLYPH <= width - 2) ?? number;
+    const label = [`${t.label} ${number}`, `${t.short}${number}`, number].find((item) => item.length * GLYPH <= width - 2) ?? number;
     centered(label, y, height, fitScale(label, width - 2, height - 2));
     return;
   }
 
   const year = String(info.year);
-  text('WEEK', x + PAD, y + PAD);
-  if (innerW >= ('WEEK'.length + 1 + year.length) * GLYPH) text(year, x + width - PAD - year.length * GLYPH, y + PAD);
+  text(t.title, x + PAD, y + PAD);
+  if (innerW >= (t.title.length + 1 + year.length) * GLYPH) text(year, x + width - PAD - year.length * GLYPH, y + PAD);
   let bottom = y + height;
-  const range = formatWeekRange(info.weekStart, info.weekEnd);
+  const range = formatWeekRange(info.weekStart, info.weekEnd, language);
   if (height >= 56 && range.length * GLYPH <= innerW) {
     bottom -= PAD + GLYPH;
     text(range, x + PAD, bottom);

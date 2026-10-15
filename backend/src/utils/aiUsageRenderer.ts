@@ -1,4 +1,6 @@
 import type { AiCostEstimate, AiLimitView, AiProviderView, AiUsageData } from '../aiUsage/types';
+import { DEFAULT_DISPLAY_LANGUAGE, type DisplayLanguage } from './displayLanguage';
+import { displayStrings, zonedDate } from './displayStrings';
 
 // AI usage widget, modelled on Claude's own usage panel. A view that does
 // not fit the widget's height falls back to the next one down, so a small widget degrades instead of clipping:
@@ -56,13 +58,17 @@ export function formatEstimate(estimate: AiCostEstimate): string {
   return `~${formatUsd(estimate.costUsd)}${estimate.partial ? '+' : ''}`;
 }
 
+function weekdayName(at: Date, timeZone: string, language: DisplayLanguage): string {
+  return displayStrings(language).dates.weekdays[zonedDate(at, timeZone).weekday];
+}
+
 /** Local reset time: "14:20" within a day, otherwise the weekday, e.g. "Mon". */
-export function formatReset(resetsAt: string, now: Date, timeZone: string): string {
+export function formatReset(resetsAt: string, now: Date, timeZone: string, language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE): string {
   const at = new Date(resetsAt);
   if (at.getTime() - now.getTime() < 24 * 3_600_000) {
     return new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at);
   }
-  return new Intl.DateTimeFormat('en-GB', { timeZone, weekday: 'short' }).format(at);
+  return weekdayName(at, timeZone, language);
 }
 
 export function formatAge(observedAt: string, now: Date): string {
@@ -73,27 +79,29 @@ export function formatAge(observedAt: string, now: Date): string {
 }
 
 /** Weekday and local time for a reset more than a day away, e.g. "Thu 20:00". */
-function weekdayTime(at: Date, timeZone: string): string {
-  const day = new Intl.DateTimeFormat('en-GB', { timeZone, weekday: 'short' }).format(at);
+function weekdayTime(at: Date, timeZone: string, language: DisplayLanguage): string {
+  const day = weekdayName(at, timeZone, language);
   return `${day} ${new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at)}`;
 }
 
 /** When a window resets, as Claude words it: "in 58m", "14:20" within a day, otherwise "Thu 20:00". */
-export function formatResetIn(resetsAt: string, now: Date, timeZone: string): string {
+export function formatResetIn(resetsAt: string, now: Date, timeZone: string, language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE): string {
   const at = new Date(resetsAt);
   const ms = at.getTime() - now.getTime();
-  if (ms < 60 * 60_000) return `in ${Math.max(1, Math.ceil(ms / 60_000))}m`;
-  if (ms < 24 * 3_600_000) return formatReset(resetsAt, now, timeZone);
-  return weekdayTime(at, timeZone);
+  if (ms < 60 * 60_000) return `${displayStrings(language).aiUsage.resetsIn} ${Math.max(1, Math.ceil(ms / 60_000))}m`;
+  if (ms < 24 * 3_600_000) return formatReset(resetsAt, now, timeZone, language);
+  return weekdayTime(at, timeZone, language);
 }
 
 /** Claude's names for its two windows; any other window keeps its length ("30m"). */
-function limitName(label: string): string {
-  return label === '5h' ? 'Session' : label === '7d' ? 'Weekly' : label;
+function limitName(label: string, language: DisplayLanguage): string {
+  const t = displayStrings(language).aiUsage;
+  return label === '5h' ? t.session : label === '7d' ? t.weekly : label;
 }
 
-function percentText(limit: AiLimitView): string {
-  return limit.usedPercent === null ? 'reset' : `${Math.min(100, Math.round(limit.usedPercent))}%`;
+// Keep the "reset" word within PERCENT_W (five glyphs) in every language.
+function percentText(limit: AiLimitView, language: DisplayLanguage): string {
+  return limit.usedPercent === null ? displayStrings(language).aiUsage.reset : `${Math.min(100, Math.round(limit.usedPercent))}%`;
 }
 
 function isStale(provider: AiProviderView, now: Date): boolean {
@@ -125,20 +133,21 @@ const RESET_W = 5 * GLYPH;
 const GAP = GLYPH / 2;
 const MIN_BAR = 3 * GLYPH;
 
-function drawLimit(canvas: AiUsageCanvas, limit: AiLimitView, x: number, y: number, width: number, now: Date, timeZone: string): void {
+function drawLimit(canvas: AiUsageCanvas, limit: AiLimitView, x: number, y: number, width: number, now: Date, timeZone: string, language: DisplayLanguage): void {
   const showReset = width >= LABEL_W + MIN_BAR + PERCENT_W + RESET_W + 3 * GAP;
   const right = x + width;
   const resetRight = right;
   const percentRight = showReset ? right - RESET_W - GAP : right;
   canvas.drawText(limit.label, x, y, LABEL_W);
   // Once a window has reset its old reset time means nothing, so it is left out.
-  if (showReset && limit.usedPercent !== null) rightText(canvas, formatReset(limit.resetsAt, now, timeZone), resetRight, y, x);
-  rightText(canvas, percentText(limit), percentRight, y, x + LABEL_W);
+  if (showReset && limit.usedPercent !== null) rightText(canvas, formatReset(limit.resetsAt, now, timeZone, language), resetRight, y, x);
+  rightText(canvas, percentText(limit, language), percentRight, y, x + LABEL_W);
   const barX = x + LABEL_W + GAP;
   drawBar(canvas, barX, y, percentRight - PERCENT_W - GAP - barX, (limit.usedPercent ?? 0) / 100);
 }
 
-function drawFull(canvas: AiUsageCanvas, bounds: AiUsageBounds, data: AiUsageData, now: Date, timeZone: string): void {
+function drawFull(canvas: AiUsageCanvas, bounds: AiUsageBounds, data: AiUsageData, now: Date, timeZone: string, language: DisplayLanguage): void {
+  const t = displayStrings(language).aiUsage;
   const x = bounds.x + PAD;
   const width = bounds.width - 2 * PAD;
   const bottom = bounds.y + bounds.height;
@@ -160,15 +169,15 @@ function drawFull(canvas: AiUsageCanvas, bounds: AiUsageBounds, data: AiUsageDat
     y += LINE;
     for (const limit of provider.limits) {
       if (!fits()) return;
-      drawLimit(canvas, limit, x, y, width, now, timeZone);
+      drawLimit(canvas, limit, x, y, width, now, timeZone, language);
       y += LINE;
     }
     if (provider.adminError && fits()) {
-      canvas.drawText(provider.adminError.code === 'invalid_key' || provider.adminError.code === 'forbidden' ? 'API: check key' : 'API: unavailable', x, y, width);
+      canvas.drawText(provider.adminError.code === 'invalid_key' || provider.adminError.code === 'forbidden' ? t.apiCheckKey : t.apiUnavailable, x, y, width);
       y += LINE;
     } else if (provider.monthCostUsd !== null && fits()) {
-      const month = `API month ${formatUsd(provider.monthCostUsd)}`;
-      canvas.drawText(width >= textWidth(month) ? month : `API ${formatUsd(provider.monthCostUsd)}`, x, y, width);
+      const month = `${t.apiMonth} ${formatUsd(provider.monthCostUsd)}`;
+      canvas.drawText(width >= textWidth(month) ? month : `${t.api} ${formatUsd(provider.monthCostUsd)}`, x, y, width);
       y += LINE;
     }
   });
@@ -190,18 +199,18 @@ function drawSolidBar(canvas: AiUsageCanvas, x: number, y: number, width: number
   if (fill > 0) canvas.fillRect(x + 1, y + 1, fill, BAR_H - 2);
 }
 
-function drawStackedLimit(canvas: AiUsageCanvas, limit: AiLimitView, x: number, y: number, width: number, now: Date, timeZone: string): void {
-  const name = limitName(limit.label);
-  const percent = percentText(limit);
+function drawStackedLimit(canvas: AiUsageCanvas, limit: AiLimitView, x: number, y: number, width: number, now: Date, timeZone: string, language: DisplayLanguage): void {
+  const name = limitName(limit.label, language);
+  const percent = percentText(limit, language);
   const percentWidth = textWidth(percent);
   canvas.drawText(percent, x + width - percentWidth, y, percentWidth);
   const nameWidth = Math.min(textWidth(name), width - percentWidth - GLYPH);
   if (nameWidth > 0) canvas.drawText(name, x, y, nameWidth);
   // Once a window has reset its old reset time means nothing, so it is left out.
   if (limit.usedPercent !== null) {
-    const when = formatResetIn(limit.resetsAt, now, timeZone);
+    const when = formatResetIn(limit.resetsAt, now, timeZone, language);
     const room = width - percentWidth - GLYPH - (nameWidth + GLYPH);
-    const text = [`Resets ${when}`, when].find((candidate) => textWidth(candidate) <= room);
+    const text = [`${displayStrings(language).aiUsage.resets} ${when}`, when].find((candidate) => textWidth(candidate) <= room);
     if (text) canvas.drawText(text, x + width - percentWidth - GLYPH - textWidth(text), y, textWidth(text));
   }
   if (width >= 6) drawSolidBar(canvas, x, y + GLYPH + 1, width, (limit.usedPercent ?? 0) / 100);
@@ -215,13 +224,14 @@ function cacheHit(estimate: AiCostEstimate | null): number | null {
 }
 
 /** The billed month, or what is wrong with the Admin API key. */
-function apiText(provider: AiProviderView, width: number): string {
+function apiText(provider: AiProviderView, width: number, language: DisplayLanguage): string {
+  const t = displayStrings(language).aiUsage;
   if (provider.adminError) {
-    return provider.adminError.code === 'invalid_key' || provider.adminError.code === 'forbidden' ? 'API: check key' : 'API: unavailable';
+    return provider.adminError.code === 'invalid_key' || provider.adminError.code === 'forbidden' ? t.apiCheckKey : t.apiUnavailable;
   }
   if (provider.monthCostUsd === null) return '';
-  const month = `API month ${formatUsd(provider.monthCostUsd)}`;
-  return width >= textWidth(month) ? month : `API ${formatUsd(provider.monthCostUsd)}`;
+  const month = `${t.apiMonth} ${formatUsd(provider.monthCostUsd)}`;
+  return width >= textWidth(month) ? month : `${t.api} ${formatUsd(provider.monthCostUsd)}`;
 }
 
 function hasBreakdown(provider: AiProviderView): boolean {
@@ -249,23 +259,23 @@ function drawCell(canvas: AiUsageCanvas, label: string, value: string, x: number
 }
 
 // Cache labels come in tiers so both cells of a row use the same wording.
-const CACHE_LABELS: ReadonlyArray<readonly [string, string]> = [['Cache read', 'Cache write'], ['Cache rd', 'Cache wr'], ['Rd', 'Wr']];
-
-function drawBreakdown(canvas: AiUsageCanvas, provider: AiProviderView, x: number, y: number, width: number): void {
+function drawBreakdown(canvas: AiUsageCanvas, provider: AiProviderView, x: number, y: number, width: number, language: DisplayLanguage): void {
+  const t = displayStrings(language).aiUsage;
+  const cacheLabels = t.cacheLabels;
   const tokens = provider.today!.breakdown!;
   const column = Math.floor((width - GLYPH) / 2);
   const right = x + width - column;
   const read = formatTokens(tokens.cacheRead);
   const write = formatTokens(tokens.cacheWrite);
-  const [readLabel, writeLabel] = CACHE_LABELS.find(([r, w]) =>
-    textWidth(r) + GAP + textWidth(read) <= column && textWidth(w) + GAP + textWidth(write) <= column) ?? CACHE_LABELS[CACHE_LABELS.length - 1];
-  drawCell(canvas, 'Input', formatTokens(tokens.input), x, y, column);
-  drawCell(canvas, 'Output', formatTokens(tokens.output), right, y, column);
+  const [readLabel, writeLabel] = cacheLabels.find(([r, w]) =>
+    textWidth(r) + GAP + textWidth(read) <= column && textWidth(w) + GAP + textWidth(write) <= column) ?? cacheLabels[cacheLabels.length - 1];
+  drawCell(canvas, t.input, formatTokens(tokens.input), x, y, column);
+  drawCell(canvas, t.output, formatTokens(tokens.output), right, y, column);
   drawCell(canvas, readLabel, read, x, y + LINE, column);
   drawCell(canvas, writeLabel, write, right, y + LINE, column);
 }
 
-function drawStacked(canvas: AiUsageCanvas, bounds: AiUsageBounds, data: AiUsageData, now: Date, timeZone: string, detailed: boolean): void {
+function drawStacked(canvas: AiUsageCanvas, bounds: AiUsageBounds, data: AiUsageData, now: Date, timeZone: string, detailed: boolean, language: DisplayLanguage): void {
   const x = bounds.x + PAD;
   const width = bounds.width - 2 * PAD;
   let y = bounds.y + PAD;
@@ -282,18 +292,18 @@ function drawStacked(canvas: AiUsageCanvas, bounds: AiUsageBounds, data: AiUsage
     }
     y += LINE;
     for (const limit of provider.limits) {
-      drawStackedLimit(canvas, limit, x, y, width, now, timeZone);
+      drawStackedLimit(canvas, limit, x, y, width, now, timeZone, language);
       y += STACK_ROW;
     }
     const grid = detailed && hasBreakdown(provider);
     if (grid) {
-      drawBreakdown(canvas, provider, x, y, width);
+      drawBreakdown(canvas, provider, x, y, width, language);
       y += BREAKDOWN_LINES * LINE;
     }
     if (summaryLine(provider, grid)) {
-      const api = apiText(provider, width);
+      const api = apiText(provider, width, language);
       const hit = grid ? cacheHit(provider.today) : null;
-      const left = hit === null ? '' : `Cache hit ${hit}%`;
+      const left = hit === null ? '' : `${displayStrings(language).aiUsage.cacheHit} ${hit}%`;
       if (left) canvas.drawText(left, x, y, width);
       if (api) {
         // Without room beside the cache hit rate the billed month is dropped, not overlapped.
@@ -305,14 +315,14 @@ function drawStacked(canvas: AiUsageCanvas, bounds: AiUsageBounds, data: AiUsage
   });
 }
 
-function drawCondensed(canvas: AiUsageCanvas, bounds: AiUsageBounds, data: AiUsageData, now: Date): void {
+function drawCondensed(canvas: AiUsageCanvas, bounds: AiUsageBounds, data: AiUsageData, now: Date, language: DisplayLanguage): void {
   const x = bounds.x + PAD;
   const width = bounds.width - 2 * PAD;
   let y = bounds.y + Math.max(1, Math.floor((bounds.height - data.providers.length * LINE) / 2));
   for (const provider of data.providers) {
     if (y + GLYPH > bounds.y + bounds.height) return;
     const stale = isStale(provider, now) ? '*' : '';
-    const limits = provider.limits.map((limit) => `${limit.label} ${percentText(limit)}`).join(' ');
+    const limits = provider.limits.map((limit) => `${limit.label} ${percentText(limit, language)}`).join(' ');
     const left = `${provider.label} ${limits}${stale}`.trim();
     canvas.drawText(left, x, y, width);
     const cost = provider.today ? formatEstimate(provider.today)
@@ -324,12 +334,14 @@ function drawCondensed(canvas: AiUsageCanvas, bounds: AiUsageBounds, data: AiUsa
 
 export function renderAiUsageWidget(
   canvas: AiUsageCanvas, bounds: AiUsageBounds, data: AiUsageData | undefined,
-  options: { view?: AiUsageView; now?: Date; timeZone: string },
+  options: { view?: AiUsageView; now?: Date; timeZone: string; language?: DisplayLanguage },
 ): void {
   if (bounds.height < GLYPH || bounds.width < 4 * GLYPH) return;
   const now = options.now ?? new Date();
+  const language = options.language ?? DEFAULT_DISPLAY_LANGUAGE;
+  const t = displayStrings(language).aiUsage;
   if (!data || !data.providers.length) {
-    canvas.drawText(data ? 'AI usage: no source' : 'AI usage: unavailable', bounds.x + PAD, bounds.y + PAD, bounds.width - 2 * PAD);
+    canvas.drawText(data ? t.noSource : t.unavailable, bounds.x + PAD, bounds.y + PAD, bounds.width - 2 * PAD);
     return;
   }
   // Each view falls back to the next one down until one fits the widget's height.
@@ -339,7 +351,7 @@ export function renderAiUsageWidget(
   };
   const level = LEVELS.slice(LEVELS.indexOf(options.view === 'condensed' ? 'stacked' : 'detailed'))
     .find((candidate) => candidate === 'line' || bounds.height >= heights[candidate] + PAD) ?? 'line';
-  if (level === 'detailed' || level === 'stacked') drawStacked(canvas, bounds, data, now, options.timeZone, level === 'detailed');
-  else if (level === 'inline') drawFull(canvas, bounds, data, now, options.timeZone);
-  else drawCondensed(canvas, bounds, data, now);
+  if (level === 'detailed' || level === 'stacked') drawStacked(canvas, bounds, data, now, options.timeZone, level === 'detailed', language);
+  else if (level === 'inline') drawFull(canvas, bounds, data, now, options.timeZone, language);
+  else drawCondensed(canvas, bounds, data, now, language);
 }

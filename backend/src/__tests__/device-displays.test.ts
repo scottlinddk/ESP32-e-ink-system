@@ -19,7 +19,8 @@ const B = '22222222-2222-4222-8222-222222222222';
 const FOREIGN = '33333333-3333-4333-8333-333333333333';
 const state = vi.hoisted(() => ({
   owners: new Map<string, string>(), rows: new Map<string, Record<string, unknown>>(),
-  error: null as null | { code: string; message: string }, writes: 0, transferOnWrite: false,
+  error: null as null | { code: string; message: string }, writeError: null as null | { code: string; message: string },
+  writes: 0, transferOnWrite: false,
 }));
 vi.mock('@clerk/backend', () => ({ createClerkClient: vi.fn() }));
 vi.mock('../middleware/auth', () => ({ requireAuth: (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -41,6 +42,7 @@ vi.mock('../services/database', () => ({
     const execute = async () => {
       if (table === 'device_displays' && state.error) return { data: null, error: state.error };
       if (operation) {
+        if (state.writeError) return { data: null, error: state.writeError };
         state.writes++;
         if (state.transferOnWrite) return { data: null, error: { code: '23503' } };
         if (operation === 'insert') {
@@ -79,7 +81,7 @@ const initial = () => ({ ...DEFAULT_PREFS, layout: baseLayout, display_schedule:
 const headers = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
 
 beforeEach(() => {
-  vi.clearAllMocks(); state.rows.clear(); state.error = null; state.writes = 0; state.transferOnWrite = false;
+  vi.clearAllMocks(); state.rows.clear(); state.error = null; state.writeError = null; state.writes = 0; state.transferOnWrite = false;
   state.owners.clear(); state.owners.set(A, 'owner'); state.owners.set(B, 'owner'); state.owners.set(FOREIGN, 'other');
   vi.stubEnv('CLERK_SECRET_KEY', 'test-only');
   vi.mocked(createClerkClient).mockReturnValue({ users: { getUser: vi.fn().mockResolvedValue({ emailAddresses: [{ emailAddress: 'owner@example.com' }] }) } } as unknown as ReturnType<typeof createClerkClient>);
@@ -155,6 +157,50 @@ describe('device display persistence', () => {
     expect(state.writes).toBe(0);
   });
 
+  it('stores the display language per device and leaves other devices alone', async () => {
+    const saved = await saveDeviceDisplay('owner', A, { display_language: 'da' });
+    expect(saved).toMatchObject({ inherited: false, preferences: { display_language: 'da', layout: baseLayout } });
+    expect(state.rows.get(A)).toMatchObject({ display_language: 'da' });
+    expect((await getDeviceDisplay('owner', A)).preferences.display_language).toBe('da');
+    expect((await resolveDevicePreferences('owner', A)).display_language).toBe('da');
+    expect((await getDeviceDisplay('owner', B)).preferences.display_language).toBeUndefined();
+    expect((await resolveDevicePreferences('owner', B)).display_language).toBeUndefined();
+    expect((await resolveDevicePreferences('owner')).display_language).toBeUndefined();
+    // Switching back is a plain update that keeps the rest of the presentation.
+    await saveDeviceDisplay('owner', A, { display_language: 'en' });
+    expect(state.rows.get(A)).toMatchObject({ display_language: 'en', layout: baseLayout });
+  });
+
+  it('keeps the language when other settings change and defaults a row without the column to English', async () => {
+    await saveDeviceDisplay('owner', A, { display_language: 'da' });
+    await saveDeviceDisplay('owner', A, { refresh_interval_minutes: 5 });
+    expect(state.rows.get(A)).toMatchObject({ display_language: 'da', refresh_interval_minutes: 5 });
+    delete state.rows.get(A)!.display_language;
+    expect((await getDeviceDisplay('owner', A)).preferences.display_language).toBe('en');
+  });
+
+  it.each(['fr', 'DA', '', null, 7, ['da']])('rejects the unsupported language %j without writing', async (language) => {
+    await expect(saveDeviceDisplay('owner', A, { display_language: language })).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining('one of: en, da') });
+    expect(state.writes).toBe(0);
+  });
+
+  it('does not write the language column unless it is being changed, so older databases keep saving', async () => {
+    await saveDeviceDisplay('owner', A, { display_timezone: 'UTC' });
+    expect(state.rows.get(A)).not.toHaveProperty('display_language');
+    await saveDeviceDisplay('owner', B, { active_layout_id: 'weather' });
+    expect(state.rows.get(B)).not.toHaveProperty('display_language');
+  });
+
+  it.each([['PGRST204', "Could not find the 'display_language' column of 'device_displays' in the schema cache"],
+    ['42703', 'column "display_language" of relation "device_displays" does not exist']])(
+    'asks for migration 025 when the column is missing (%s)', async (code, message) => {
+      state.writeError = { code, message };
+      await expect(saveDeviceDisplay('owner', A, { display_language: 'da' })).rejects.toMatchObject({ statusCode: 503, message: expect.stringContaining('025') });
+      // Any other storage error is still reported as itself.
+      state.writeError = { code: '42703', message: 'column "something_else" does not exist' };
+      await expect(saveDeviceDisplay('owner', A, { display_language: 'da' })).rejects.toMatchObject({ code: '42703' });
+    });
+
   it('reports an ownership change rejected atomically by the database as missing device', async () => {
     state.transferOnWrite = true;
     await expect(saveDeviceDisplay('owner', A, { display_timezone: 'UTC' })).rejects.toMatchObject({ statusCode: 404 });
@@ -222,6 +268,25 @@ describe('device presentation API and render paths', () => {
     expect(Buffer.from(await selected.arrayBuffer())).not.toEqual(Buffer.from(await legacy.arrayBuffer()));
     expect((await get(`/preview?device_id=${A}`)).status).toBe(200);
     expect(buildDisplayData).toHaveBeenCalledWith('owner', expect.objectContaining({ layout: otherLayout, refresh_interval_minutes: 4 }), { openweathermap: 'saved-owner-key' });
+  });
+
+  it('accepts the language over the API and draws it in previews and delivery of that device only', async () => {
+    expect((await put({ display_language: 'fr' })).status).toBe(400);
+    expect((await put({ display_language: 'da', weather_location: '0,0' })).status).toBe(400);
+    expect(state.writes).toBe(0);
+    const english = Buffer.from(await (await get(`/image/preview/raw?device_id=${A}`)).arrayBuffer());
+    expect(Buffer.from(await (await get(`/image/preview/raw?device_id=${B}`)).arrayBuffer())).toEqual(english);
+
+    const response = await put({ display_language: 'da' });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ inherited: false, preferences: { display_language: 'da' } });
+    const danish = Buffer.from(await (await get(`/image/preview/raw?device_id=${A}`)).arrayBuffer());
+    expect(danish).not.toEqual(english);
+    expect(Buffer.from(await (await frame(A, 'raw')).arrayBuffer())).toEqual(danish);
+    expect(Buffer.from(await (await get(`/image/preview?device_id=${A}`)).arrayBuffer()))
+      .toEqual(Buffer.from(await (await frame(A, 'bmp')).arrayBuffer()));
+    expect(Buffer.from(await (await get(`/image/preview/raw?device_id=${B}`)).arrayBuffer())).toEqual(english);
+    expect(Buffer.from(await (await get('/image/preview/raw')).arrayBuffer())).toEqual(english);
   });
 
   it('keeps rotating pages independent of the fixed selection', async () => {
