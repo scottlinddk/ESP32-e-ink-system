@@ -172,7 +172,9 @@ describe('rendering with layout options', () => {
       { i: 'calendar', x: 0, y: 3, w: 10, h: 3, options: { items: 1 } },
     ));
     const texts = draw.mock.calls.map(([text]) => text);
-    expect(texts).toEqual(['One', 'Two', 'Today, Thu 15 Oct', '09:00', 'A', 'A', '10:00']);
+    // Each headline is a rank, the bold title (drawn twice) and its source.
+    expect(texts).toEqual(['1', 'One', 'One', 'example.com', '2', 'Two', 'Two', 'example.com',
+      'Today, Thu 15 Oct', '09:00', 'A', 'A', '10:00']);
   });
 });
 
