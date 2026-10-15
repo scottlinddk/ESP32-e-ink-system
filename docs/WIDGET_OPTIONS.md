@@ -5,6 +5,7 @@ Select a widget in **Edit layout** (tap or click it, or focus it and press Enter
 | Widget | Option | Values |
 |---|---|---|
 | `energy` | `view` | `summary` (default), `day`, `rest`. See [Electricity prices](ELECTRICITY_PRICES.md#chart-views). |
+| `weather`, `weather:2` to `weather:4` | `view`, `items` | `view` is `summary` (default), `current`, `hours`, `daily` or `details`. `items` (1–10) is the most steps (`hours`) or days (`daily`) drawn. See [Weather views](WEATHER.md#views). |
 | `news`, `news:<id>` | `items`, `columns` | `items` (1–10) is the most rows drawn, also limited by how many items the source fetches and by the widget's height. `columns` (1–4, default 1) splits the headlines evenly side by side; a widget too narrow for that many (each column needs about 64 px) shows fewer. |
 | `calendar`, `calendar:<id>` | `view`, `items`, `days` | `view` is `list` (default), `day`, `days` or `month`. `items` (1–10) is the most events the list draws; `days` (2–7) is how many columns the `days` view shows, unset fitting as many as the width allows. A widget too small for its view shows the list. See [Calendar widgets](CALENDAR.md). |
 | `ticker:<id>` | `view`, `items` | `full` or `condensed`, and stocks per page for `condensed`. Overrides the ticker's own settings. See [Stock ticker widgets](TICKER_WIDGET.md). |

@@ -1,5 +1,6 @@
 import { fetchEnergyPrice } from './energinet';
-import { fetchWeather } from './weather';
+import { fetchAirQuality, fetchWeather, fetchWeatherForecast } from './weather';
+import { weatherNeeds } from '../utils/weatherWidgets';
 import { fetchNews } from './news';
 import { fetchRssNews } from './rss';
 import { fetchCalendar } from './calendar';
@@ -156,6 +157,26 @@ export async function buildDisplayData(
           logger.warn({ code: result.weatherError.code }, 'Weather fetch failed');
         })
     );
+    // The forecast and air quality are separate provider requests, made only for the views that draw
+    // them. They fail on their own: the current reading and the other views never depend on them.
+    const needs = weatherNeeds(resolved.layout);
+    if (needs.forecast) {
+      tasks.push(
+        withSourceDeadline((signal) => fetchWeatherForecast(prefs.weather_location, weatherKey, signal))
+          .then((forecast) => { result.weatherForecast = forecast; })
+          .catch((err: unknown) => {
+            result.weatherForecastError = weatherProblem(err);
+            logger.warn({ code: result.weatherForecastError.code }, 'Weather forecast fetch failed');
+          })
+      );
+    }
+    if (needs.air) {
+      tasks.push(
+        withSourceDeadline((signal) => fetchAirQuality(prefs.weather_location, weatherKey, signal))
+          .then((airQuality) => { result.airQuality = airQuality; })
+          .catch((err: unknown) => { logger.warn({ code: weatherProblem(err).code }, 'Air quality fetch failed'); })
+      );
+    }
   }
 
   if (prefs.show_news) {

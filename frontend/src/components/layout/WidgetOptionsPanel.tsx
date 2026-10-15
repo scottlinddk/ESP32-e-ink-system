@@ -2,7 +2,7 @@
 // WidgetOptionsPanel.tsx — display options for the widget selected in the layout editor
 // =========================================================================
 import React from 'react';
-import type { CalendarView, EnergyView, TickerView, TickerWidgetSetting, WidgetLayout, WidgetOptions } from '../../types';
+import type { CalendarView, EnergyView, TickerView, TickerWidgetSetting, WeatherView, WidgetLayout, WidgetOptions } from '../../types';
 import { MAX_CALENDAR_DAYS, MAX_NEWS_COLUMNS, MAX_WIDGET_ITEMS, MIN_CALENDAR_DAYS, widgetAcceptsZoom, widgetOptionKind } from '../../lib/widgetOptions';
 import { ZOOMS, zoomLabel } from '../../lib/zoom';
 import { Card } from '../ui/card';
@@ -63,6 +63,41 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
                 ]}
                 onChange={(e) => onChange({ view: e.target.value === 'summary' ? undefined : e.target.value as EnergyView })} />
             </Field>
+          );
+        })()}
+
+        {kind === 'weather' && (() => {
+          const view = (widget.options?.view ?? 'summary') as WeatherView;
+          const viewHelp: Record<WeatherView, string> = {
+            summary: da ? 'Vejret og vinden på to linjer. Kræver kun den aktuelle måling.' : 'The weather and wind on two lines. Needs only the current reading.',
+            current: da ? 'Stor temperatur med ikon, og føles som, luftfugtighed, vind og sol til siden eller nedenunder.' : 'A large temperature with an icon, and feels like, humidity, wind and sun beside or below it.',
+            hours: da ? 'De næste tidspunkter som søjler med ikon, temperatur og regnrisiko. Prognosen er i trin på 3 timer.' : 'The next steps as columns with an icon, temperature and chance of rain. The forecast comes in 3-hour steps.',
+            daily: da ? 'De kommende dage med ikon, højeste og laveste temperatur og regnrisiko. En bred, lav widget viser dagene side om side.' : 'The days ahead with an icon, high and low and chance of rain. A wide, short widget shows the days side by side.',
+            details: da ? 'En liste over målinger: føles som, fugt, vind, vindstød, tryk, skydække, sigtbarhed, regn, sol og luftkvalitet. Det, der mangler, udelades.' : 'A list of readings: feels like, humidity, wind, gusts, pressure, cloud cover, visibility, rain, sun and air quality. What is missing is left out.',
+          };
+          const needsForecast = view === 'hours' || view === 'daily';
+          return (
+            <>
+              <Field label={da ? 'Visning' : 'View'} htmlFor={`${fieldId}-view`}
+                helper={`${viewHelp[view]} ${view !== 'summary' ? (da ? 'Brug «Vejr (2)» til «Vejr (4)» i paletten for at vise flere visninger i samme layout.' : 'Use Weather (2) to (4) in the palette to show several views in one layout.') : ''}`.trim()}>
+                <Select id={`${fieldId}-view`} value={view}
+                  options={[
+                    { value: 'summary', label: da ? 'Kort: vejr og vind' : 'Brief: weather and wind' },
+                    { value: 'current', label: da ? 'Nu: stor temperatur' : 'Now: large temperature' },
+                    { value: 'hours', label: da ? 'Kommende timer' : 'Next hours' },
+                    { value: 'daily', label: da ? 'Kommende dage' : 'Next days' },
+                    { value: 'details', label: da ? 'Detaljer: målinger' : 'Details: readings' },
+                  ]}
+                  onChange={(e) => onChange({ view: e.target.value === 'summary' ? undefined : e.target.value as WeatherView })} />
+              </Field>
+              {needsForecast && (
+                <Field label={view === 'hours' ? (da ? 'Antal tidspunkter' : 'Number of steps') : (da ? 'Antal dage' : 'Number of days')} htmlFor={`${fieldId}-items`}
+                  helper={da ? 'Højst så mange som prognosen og pladsen rummer.' : 'At most as many as the forecast and the width allow.'}>
+                  <Select id={`${fieldId}-items`} value={items} options={countOptions(da ? 'Så mange som muligt' : 'As many as fit')}
+                    onChange={(e) => onChange({ items: parseCount(e.target.value) })} />
+                </Field>
+              )}
+            </>
           );
         })()}
 

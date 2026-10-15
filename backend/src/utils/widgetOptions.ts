@@ -1,6 +1,7 @@
 import type { WidgetOptions } from '../types';
 import { newsFeedIdFromWidget } from './newsFeeds';
 import { calendarIdFromWidget } from './calendarWidgets';
+import { isWeatherWidget } from './weatherWidgets';
 import { tickerIdFromWidget } from './tickerWidgets';
 import { isZoom, MAX_ZOOM, MIN_ZOOM } from './zoom';
 
@@ -17,16 +18,23 @@ export const STATUS_VIEWS = TICKER_VIEWS;
 /** `list` is the agenda grouped by day, `day` one day by the hour, `days` several side by side, `month` a month grid. */
 export const CALENDAR_VIEWS = ['list', 'day', 'days', 'month'] as const;
 export type CalendarView = typeof CALENDAR_VIEWS[number];
+/**
+ * `summary` is the one-line reading (the original look), `current` the large temperature with
+ * the readings beside it, `hours` the next 3-hour steps, `daily` the days ahead and `details` a list of readings.
+ */
+export const WEATHER_VIEWS = ['summary', 'current', 'hours', 'daily', 'details'] as const;
+export type WeatherView = typeof WEATHER_VIEWS[number];
 export const MAX_WIDGET_ITEMS = 10;
 export const MAX_NEWS_COLUMNS = 4;
 export const MIN_CALENDAR_DAYS = 2;
 export const MAX_CALENDAR_DAYS = 7;
 
-export type WidgetOptionKind = 'energy' | 'list' | 'calendar' | 'ticker' | 'ai-usage' | 'status';
+export type WidgetOptionKind = 'energy' | 'weather' | 'list' | 'calendar' | 'ticker' | 'ai-usage' | 'status';
 
 /** Which options a widget accepts, or null when it has none. */
 export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
   if (widgetId === 'energy') return 'energy';
+  if (isWeatherWidget(widgetId)) return 'weather';
   if (widgetId === 'calendar' || calendarIdFromWidget(widgetId)) return 'calendar';
   if (widgetId === 'news' || newsFeedIdFromWidget(widgetId)) return 'list';
   if (tickerIdFromWidget(widgetId)) return 'ticker';
@@ -37,6 +45,7 @@ export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
 
 const ALLOWED_KEYS: Record<WidgetOptionKind, readonly string[]> = {
   energy: ['view'],
+  weather: ['view', 'items'],
   list: ['items', 'columns'],
   calendar: ['view', 'items', 'days'],
   ticker: ['view', 'items'],
@@ -71,7 +80,7 @@ export function parseWidgetOptions(widgetId: string, value: unknown): WidgetOpti
     options.zoom = value.zoom;
   }
   if (value.view !== undefined) {
-    const views: readonly string[] = kind === 'energy' ? ENERGY_VIEWS : kind === 'calendar' ? CALENDAR_VIEWS
+    const views: readonly string[] = kind === 'energy' ? ENERGY_VIEWS : kind === 'weather' ? WEATHER_VIEWS : kind === 'calendar' ? CALENDAR_VIEWS
       : kind === 'ai-usage' ? AI_USAGE_VIEWS : kind === 'status' ? STATUS_VIEWS : TICKER_VIEWS;
     if (typeof value.view !== 'string' || !views.includes(value.view)) throw new Error('Widget view is not supported.');
     options.view = value.view as WidgetOptions['view'];
@@ -99,6 +108,10 @@ export function parseWidgetOptions(widgetId: string, value: unknown): WidgetOpti
 
 export function calendarView(options?: WidgetOptions): CalendarView {
   return (CALENDAR_VIEWS as readonly string[]).includes(options?.view ?? '') ? options!.view as CalendarView : 'list';
+}
+
+export function weatherView(options?: WidgetOptions): WeatherView {
+  return (WEATHER_VIEWS as readonly string[]).includes(options?.view ?? '') ? options!.view as WeatherView : 'summary';
 }
 
 export function energyView(options?: WidgetOptions): EnergyView {

@@ -2,7 +2,8 @@ import { calendarData, timedEvent } from './calendarFixtures';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DisplayLayout, EnergyPrice, WidgetLayout } from '../types/index';
 import { parseDisplayLayout, LayoutValidationError } from '../utils/layoutValidation';
-import { parseWidgetOptions, widgetOptionKind } from '../utils/widgetOptions';
+import { parseWidgetOptions, weatherView, WEATHER_VIEWS, widgetOptionKind } from '../utils/widgetOptions';
+import { isWeatherWidget, weatherNeeds, WEATHER_WIDGET_IDS } from '../utils/weatherWidgets';
 import { renderEnergyChart, selectEnergyBars, type ChartCanvas } from '../utils/energyChart';
 import { BmpCanvas, renderDisplayDataRaw } from '../utils/bmpGenerator';
 
@@ -20,6 +21,9 @@ function layout(...widgets: WidgetLayout[]): DisplayLayout {
 describe('widget options validation', () => {
   it('knows which widgets accept options', () => {
     expect(widgetOptionKind('energy')).toBe('energy');
+    expect(widgetOptionKind('weather')).toBe('weather');
+    expect(widgetOptionKind('weather:3')).toBe('weather');
+    expect(widgetOptionKind('weather:9')).toBeNull();
     expect(widgetOptionKind('news')).toBe('list');
     expect(widgetOptionKind('news:abc')).toBe('list');
     expect(widgetOptionKind('calendar')).toBe('calendar');
@@ -195,5 +199,88 @@ describe('energy chart y axis', () => {
     const { canvas, texts } = recordingCanvas();
     renderEnergyChart(canvas, { x: 0, y: 0, width: 100, height: 100 }, { ...price, hours }, 'day', at(7));
     expect(texts.some((text) => text.endsWith(' kr') && text.length <= 5)).toBe(false);
+  });
+});
+
+describe('weather views', () => {
+  it('accepts every view and an item count on the original and the extra placements', () => {
+    for (const view of WEATHER_VIEWS) {
+      expect(parseWidgetOptions('weather', { view })).toEqual({ view });
+      expect(parseWidgetOptions('weather:2', { view, items: 3, zoom: 2 })).toEqual({ view, items: 3, zoom: 2 });
+    }
+  });
+
+  it.each([
+    ['weather', { view: 'month' }], ['weather', { view: 'days' }], ['weather', { view: 'day' }], ['weather', { view: 'list' }],
+    ['weather', { view: '' }], ['weather', { items: 0 }], ['weather', { items: 11 }], ['weather', { days: 3 }],
+    ['weather:2', { view: 'rest' }], ['weather:5', { view: 'hours' }], ['weather:x', { view: 'hours' }],
+    ['calendar', { view: 'hours' }], ['energy', { view: 'daily' }],
+  ])('rejects %s options %j', (id, options) => {
+    expect(() => parseWidgetOptions(id, options)).toThrow();
+  });
+
+  it('reads the view, falling back to the summary for none or an unknown one', () => {
+    expect(weatherView({ view: 'hours' })).toBe('hours');
+    expect(weatherView(undefined)).toBe('summary');
+    expect(weatherView({ view: 'month' })).toBe('summary');
+  });
+
+  it('lets a layout place the weather up to four times, each with its own view, and no more', () => {
+    expect(WEATHER_WIDGET_IDS).toEqual(['weather', 'weather:2', 'weather:3', 'weather:4']);
+    const widgets = WEATHER_WIDGET_IDS.map((id, index) => ({ i: id, x: 0, y: index, w: 10, h: 1, options: { view: WEATHER_VIEWS[index + 1] } }));
+    const parsed = parseDisplayLayout(layout(...widgets as WidgetLayout[]));
+    expect(parsed.widgets.map((widget) => widget.options?.view)).toEqual(['current', 'hours', 'daily', 'details']);
+    expect(() => parseDisplayLayout(layout({ i: 'weather:5', x: 0, y: 0, w: 10, h: 1 }))).toThrow(LayoutValidationError);
+    expect(() => parseDisplayLayout(layout({ i: 'weather:2', x: 0, y: 0, w: 5, h: 1 }, { i: 'weather:2', x: 5, y: 0, w: 5, h: 1 }))).toThrow(LayoutValidationError);
+    expect(isWeatherWidget('weather:2')).toBe(true);
+    expect(isWeatherWidget('weather:5')).toBe(false);
+    expect(isWeatherWidget('news')).toBe(false);
+  });
+
+  it('works out which extra data a layout needs', () => {
+    const needs = (...views: Array<[string, string | undefined]>) => weatherNeeds(layout(...views.map(([i, view], row) => ({ i, x: 0, y: row, w: 10, h: 1, ...(view ? { options: { view } } : {}) }) as WidgetLayout)));
+    expect(weatherNeeds(null)).toEqual({ forecast: false, air: false });
+    expect(needs(['weather', undefined])).toEqual({ forecast: false, air: false });
+    expect(needs(['weather', 'current'], ['energy', 'day'])).toEqual({ forecast: false, air: false });
+    expect(needs(['weather', 'hours'])).toEqual({ forecast: true, air: false });
+    expect(needs(['weather:2', 'daily'])).toEqual({ forecast: true, air: false });
+    expect(needs(['weather', 'details'])).toEqual({ forecast: false, air: true });
+    expect(needs(['weather', 'daily'], ['weather:3', 'details'])).toEqual({ forecast: true, air: true });
+  });
+});
+
+describe('weather widgets in the image pipeline', () => {
+  const data = {
+    nextRefresh: 1000,
+    weather: { temp: 18, condition: 'clear', windSpeed: 5, icon: '01d', humidity: 73 },
+    weatherForecast: Array.from({ length: 40 }, (_, i) => ({ time: Math.floor(Date.now() / 1000) + i * 10_800, temp: 10 + (i % 6), condition: 'rain', icon: '10d', pop: 40, precipitation: 0 })),
+  };
+  const place = (view?: string, id = 'weather', h = 3): DisplayLayout => layout({ i: id, x: 0, y: 0, w: 10, h, ...(view ? { options: { view } } : {}) } as WidgetLayout);
+  const black = (bytes: Buffer) => [...bytes].reduce((count, byte) => count + 8 - byte.toString(2).replace(/0/g, '').length, 0);
+
+  it('draws more with a view than with the summary, and differently for each view', () => {
+    const renders = ['summary', 'current', 'hours', 'daily', 'details'].map((view) => renderDisplayDataRaw(data as never, place(view)));
+    expect(new Set(renders.map((bytes) => bytes.toString('hex'))).size).toBe(5);
+    expect(renderDisplayDataRaw(data as never, place())).toEqual(renders[0]);
+    expect(black(renders[2])).toBeGreaterThan(black(renders[0]));
+  });
+
+  it('draws an extra placement, and follows the weather setting for every placement', () => {
+    const extra = renderDisplayDataRaw(data as never, place('current', 'weather:2'));
+    expect(extra).toEqual(renderDisplayDataRaw(data as never, place('current')));
+    const off = renderDisplayDataRaw(data as never, place('current', 'weather:2'), { show_weather: false });
+    expect(black(off)).toBe(0);
+  });
+
+  it('draws on a rotated panel and on a larger panel with zoom', () => {
+    const rotated = renderDisplayDataRaw(data as never, place('hours', 'weather', 6), { display_profile: { width: 250, height: 122, rotation: 90, colorMode: 'bw' } });
+    expect(black(rotated)).toBeGreaterThan(0);
+    const zoomed = renderDisplayDataRaw(data as never, layout({ i: 'weather', x: 0, y: 0, w: 10, h: 6, options: { view: 'current', zoom: 2 } } as WidgetLayout), { display_profile: { width: 400, height: 300, rotation: 0, colorMode: 'bw' } });
+    expect(black(zoomed)).toBeGreaterThan(0);
+  });
+
+  it('draws the failure, not a view, when there is no current reading', () => {
+    const failed = { nextRefresh: 1000, weatherError: { code: 'invalid_key' as const, message: 'SECRET' } };
+    expect(renderDisplayDataRaw(failed, place('hours'))).toEqual(renderDisplayDataRaw(failed, place()));
   });
 });

@@ -11,6 +11,11 @@ import { DEFAULT_DISPLAY_LANGUAGE, type DisplayLanguage } from './displayLanguag
 
 /** A calendar day and its zero-based month, for week ranges. */
 export interface MonthDay { day: number; month: number }
+export interface WeatherLabels {
+  feelsLike: string; feelsShort: string; humidity: string; pressure: string; windSpeed: string; windDirection: string;
+  gusts: string; clouds: string; visibility: string; rain: string; sunrise: string; sunset: string; aqi: string;
+  pm25: string; pm10: string;
+}
 
 export interface DisplayStrings {
   /** Names are in the catalog, not the runtime's locale data, so a Node build without full ICU cannot fall back to English. */
@@ -26,6 +31,18 @@ export interface DisplayStrings {
   };
   weather: {
     title: string; wind: string; unavailable: string;
+    /** Today in the daily forecast. */
+    today: string;
+    /** Shown in a forecast view when the forecast could not be fetched. */
+    noForecast: string;
+    /** Labels of the readings, shortest first where space is tight. */
+    labels: WeatherLabels;
+    /** Shorter labels for a narrow column; same keys as `labels`. */
+    short: WeatherLabels;
+    /** The eight compass points, north first. */
+    compass: readonly string[];
+    /** European air quality index 1 to 5. */
+    airQuality: readonly string[];
     /** Keyed by the normalised condition in services/weather.ts. */
     conditions: Record<string, string>;
     errors: Record<WeatherErrorCode, string>;
@@ -82,6 +99,19 @@ const en: DisplayStrings = {
   },
   weather: {
     title: 'Weather', wind: 'Wind', unavailable: 'Unavailable',
+    today: 'Today', noForecast: 'No forecast',
+    labels: {
+      feelsLike: 'Feels like', feelsShort: 'Feels', humidity: 'Humidity', pressure: 'Pressure', windSpeed: 'Wind speed',
+      windDirection: 'Wind direction', gusts: 'Gusts', clouds: 'Cloud cover', visibility: 'Visibility', rain: 'Rain',
+      sunrise: 'Sunrise', sunset: 'Sunset', aqi: 'Air quality', pm25: 'PM2.5', pm10: 'PM10',
+    },
+    short: {
+      feelsLike: 'Feels', feelsShort: 'Feels', humidity: 'Humid', pressure: 'Press', windSpeed: 'Wind', windDirection: 'Dir',
+      gusts: 'Gust', clouds: 'Cloud', visibility: 'Vis', rain: 'Rain', sunrise: 'Rise', sunset: 'Set', aqi: 'AQI',
+      pm25: 'PM2.5', pm10: 'PM10',
+    },
+    compass: ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'],
+    airQuality: ['Good', 'Fair', 'Moderate', 'Poor', 'Very poor'],
     conditions: {
       clear: 'clear', cloudy: 'cloudy', rain: 'rain', drizzle: 'drizzle', storm: 'storm', snow: 'snow',
       mist: 'mist', fog: 'fog', haze: 'haze', dust: 'dust', smoke: 'smoke', sand: 'sand', ash: 'ash',
@@ -150,6 +180,19 @@ const da: DisplayStrings = {
   },
   weather: {
     title: 'Vejr', wind: 'Vind', unavailable: 'Ikke tilgængelig',
+    today: 'I dag', noForecast: 'Ingen prognose',
+    labels: {
+      feelsLike: 'Føles som', feelsShort: 'Føles', humidity: 'Luftfugtighed', pressure: 'Lufttryk', windSpeed: 'Vindhastighed',
+      windDirection: 'Vindretning', gusts: 'Vindstød', clouds: 'Skydække', visibility: 'Sigtbarhed', rain: 'Regn',
+      sunrise: 'Solopgang', sunset: 'Solnedgang', aqi: 'Luftkvalitet', pm25: 'PM2.5', pm10: 'PM10',
+    },
+    short: {
+      feelsLike: 'Føles', feelsShort: 'Føles', humidity: 'Fugt', pressure: 'Tryk', windSpeed: 'Vind', windDirection: 'Retn',
+      gusts: 'Stød', clouds: 'Sky', visibility: 'Sigt', rain: 'Regn', sunrise: 'Op', sunset: 'Ned', aqi: 'AQI',
+      pm25: 'PM2.5', pm10: 'PM10',
+    },
+    compass: ['N', 'NØ', 'Ø', 'SØ', 'S', 'SV', 'V', 'NV'],
+    airQuality: ['God', 'Rimelig', 'Moderat', 'Dårlig', 'Meget dårlig'],
     conditions: {
       clear: 'klart', cloudy: 'skyet', rain: 'regn', drizzle: 'støvregn', storm: 'torden', snow: 'sne',
       mist: 'dis', fog: 'tåge', haze: 'dis', dust: 'støv', smoke: 'røg', sand: 'sand', ash: 'aske',

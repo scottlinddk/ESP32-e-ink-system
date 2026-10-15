@@ -2,6 +2,7 @@ import type { DisplayLayout, WidgetLayout } from '../types';
 import { MAX_NEWS_FEEDS, newsFeedIdFromWidget } from './newsFeeds';
 import { MAX_TICKER_WIDGETS, tickerIdFromWidget } from './tickerWidgets';
 import { calendarIdFromWidget, MAX_CALENDAR_WIDGETS } from './calendarWidgets';
+import { EXTRA_WEATHER_WIDGETS, WEATHER_WIDGET_IDS } from './weatherWidgets';
 import { parseWidgetOptions } from './widgetOptions';
 import { isZoom, MAX_ZOOM, MIN_ZOOM } from './zoom';
 import { BASE_GRID_COLS, BASE_GRID_ROWS, GRID_SCALES, gridScale } from './layoutGrid';
@@ -36,7 +37,7 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
   if (value.zoom !== undefined && !isZoom(value.zoom)) {
     throw new LayoutValidationError(`Layout zoom must be a whole number from ${MIN_ZOOM} to ${MAX_ZOOM}.`);
   }
-  if (!Array.isArray(value.widgets) || value.widgets.length > DISPLAY_WIDGET_IDS.length + MAX_NEWS_FEEDS + MAX_TICKER_WIDGETS + MAX_CALENDAR_WIDGETS) {
+  if (!Array.isArray(value.widgets) || value.widgets.length > DISPLAY_WIDGET_IDS.length + EXTRA_WEATHER_WIDGETS + MAX_NEWS_FEEDS + MAX_TICKER_WIDGETS + MAX_CALENDAR_WIDGETS) {
     throw new LayoutValidationError('Layout widgets must be an array with at most one of each supported widget, news feed, stock widget and calendar.');
   }
 
@@ -44,7 +45,7 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
   const widgets: WidgetLayout[] = [];
   for (const input of value.widgets) {
     if (!isRecord(input) || typeof input.i !== 'string'
-      || !(DISPLAY_WIDGET_IDS.some((id) => id === input.i) || newsFeedIdFromWidget(input.i) || tickerIdFromWidget(input.i) || calendarIdFromWidget(input.i)) || seen.has(input.i)) {
+      || !(DISPLAY_WIDGET_IDS.some((id) => id === input.i) || WEATHER_WIDGET_IDS.some((id) => id === input.i) || newsFeedIdFromWidget(input.i) || tickerIdFromWidget(input.i) || calendarIdFromWidget(input.i)) || seen.has(input.i)) {
       throw new LayoutValidationError('Every widget must have a supported, unique ID.');
     }
     if (Object.keys(input).some((key) => !['i', 'x', 'y', 'w', 'h', 'static', 'options'].includes(key))) {
