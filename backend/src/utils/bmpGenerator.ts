@@ -7,6 +7,7 @@ import { DEFAULT_DISPLAY_TIMEZONE } from './displayTimezone';
 import { DEFAULT_DISPLAY_LANGUAGE, displayLanguageOrDefault, formatDecimal, type DisplayLanguage } from './displayLanguage';
 import { displayStrings } from './displayStrings';
 import { newsFeedIdFromWidget } from './newsFeeds';
+import { renderNewsWidget } from './newsRenderer';
 import { calendarIdFromWidget } from './calendarWidgets';
 import { renderCalendarWidget } from './calendarRenderer';
 import { storedTickerWidgets, tickerIdFromWidget } from './tickerWidgets';
@@ -403,29 +404,6 @@ function renderWeatherWidget(
     if (height >= 21) {
       canvas.drawText(errorLabel, x + 2, textY + 11, maxW);
     }
-  }
-}
-
-function renderNewsWidget(
-  canvas: DrawingCanvas,
-  bounds: WidgetBounds,
-  news?: DisplayData['news'],
-  problem?: DisplayData['newsError'],
-  limit?: number,
-  language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
-): void {
-  const { x, y, width, height } = bounds;
-  const t = displayStrings(language).news;
-  if (y > 0) canvas.drawHLine(x, y, width);
-  let textY = y + 2;
-  const maxW = width - 4;
-  if (news && news.length > 0) {
-    for (const item of news.slice(0, limit)) {
-      if (textY + 8 > y + height) break;
-      textY = canvas.drawWrappedText(item.title, x + 2, textY, maxW, 10) + 2;
-    }
-  } else {
-    canvas.drawText(news ? t.none : problem ? t.errors[problem.code] : t.unavailable, x + 2, textY, maxW);
   }
 }
 
