@@ -1,6 +1,6 @@
 import type { UserPreferences } from '../types';
 import { parseWebhookPreferences } from '../services/customWebhook';
-import { validateCalendarOptions } from '../services/calendar';
+import { validateCalendarOptions } from './calendarOptions';
 import { parseDisplayProfile } from './displayProfile';
 import { LayoutValidationError, parseDisplayLayout } from './layoutValidation';
 import { DisplaySchedule, parseDisplaySchedule, ScheduleValidationError } from './scheduleValidation';

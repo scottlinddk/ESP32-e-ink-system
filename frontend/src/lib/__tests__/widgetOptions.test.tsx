@@ -19,8 +19,8 @@ const panel = (widget: WidgetLayout, lang: 'da' | 'en' = 'en', tickerSetting?: T
 
 describe('widget option kinds', () => {
   it('matches the backend', () => {
-    expect(['energy', 'news', 'news:abc', 'calendar', 'ticker:t1', 'status', 'weather'].map(widgetOptionKind))
-      .toEqual(['energy', 'list', 'list', 'list', 'ticker', 'status', null]);
+    expect(['energy', 'news', 'news:abc', 'calendar', 'calendar:abc', 'ticker:t1', 'status', 'weather'].map(widgetOptionKind))
+      .toEqual(['energy', 'list', 'list', 'calendar', 'calendar', 'ticker', 'status', null]);
   });
 });
 
@@ -138,3 +138,49 @@ describe('zoom', () => {
     expect(['custom-image', 'status', 'weather'].map(widgetAcceptsZoom)).toEqual([false, true, true]);
   });
 });
+
+describe('calendar options panel', () => {
+  const calendar = (options?: WidgetLayout['options'], i = 'calendar'): WidgetLayout => ({ i, x: 0, y: 0, w: 10, h: 6, ...(options ? { options } : {}) });
+
+  it('offers the four views, with the list as the default', () => {
+    const html = panel(calendar());
+    for (const label of ['List', 'Day', 'Several days', 'Month']) expect(html).toContain(`>${label}</option>`);
+    expect(html).toMatch(/<option value="list" selected/);
+    expect(html).toContain('A widget too small for the view shows the list instead.');
+  });
+  it.each(['calendar', 'calendar:work'])('shows the number of events for the list view of %s only', (id) => {
+    expect(panel(calendar(undefined, id))).toContain('Number of events');
+    expect(panel(calendar({ view: 'month' }, id))).not.toContain('Number of events');
+    expect(panel(calendar({ view: 'day' }, id))).not.toContain('Number of events');
+  });
+  it('shows the number of days for the several-days view only', () => {
+    expect(panel(calendar({ view: 'days' }))).toContain('Number of days');
+    expect(panel(calendar({ view: 'days' }))).toContain('As many as fit');
+    expect(panel(calendar({ view: 'list' }))).not.toContain('Number of days');
+    const chosen = panel(calendar({ view: 'days', days: 3 }));
+    expect(chosen).toMatch(/<option value="3" selected/);
+    for (const days of [2, 3, 4, 5, 6, 7]) expect(chosen).toContain(`<option value="${days}"`);
+    expect(chosen).not.toContain('<option value="8"');
+  });
+  it('selects the saved view', () => {
+    expect(panel(calendar({ view: 'month' }))).toMatch(/<option value="month" selected/);
+    expect(panel(calendar({ view: 'days' }))).toMatch(/<option value="days" selected/);
+  });
+  it('is translated', () => {
+    const html = panel(calendar({ view: 'days' }), 'da');
+    for (const text of ['Visning', 'Flere dage', 'Måned', 'Antal dage', 'Så mange som der er plads til', 'Er widgetten for lille, vises listen i stedet.']) expect(html).toContain(text);
+  });
+  it('still offers the text size', () => {
+    expect(panel(calendar({ view: 'month' }))).toContain('Text size');
+  });
+  it('keeps the headline label for news', () => {
+    expect(panel({ i: 'news', x: 0, y: 0, w: 10, h: 2 })).toContain('Number of headlines');
+  });
+  it('sets a view and drops it again for the default', () => {
+    const month = updateWidgetOptions({ ...layout, widgets: [calendar()] }, 'calendar', { view: 'month' });
+    expect(month.widgets[0].options).toEqual({ view: 'month' });
+    const list = updateWidgetOptions(month, 'calendar', { view: undefined });
+    expect('options' in list.widgets[0]).toBe(false);
+  });
+});
+

@@ -3,6 +3,7 @@ import type { EnergyPriceSettings } from '../utils/energyPriceSettings';
 import type { NewsProblem } from '../utils/newsErrors';
 import type { EnergyPriceProblem } from '../utils/energyPriceErrors';
 import type { TickerResult } from '../ticker';
+import type { CalendarProblem } from '../utils/calendarErrors';
 import type { AiUsageData } from '../aiUsage/types';
 export interface WidgetLayout {
   i: string;       // 'energy' | 'weather' | 'news' | 'status'
@@ -16,10 +17,12 @@ export interface WidgetLayout {
 }
 
 export interface WidgetOptions {
-  /** energy: 'summary' | 'day' | 'rest'; ticker: 'full' | 'condensed' (overrides the ticker's own view); ai-usage: 'full' | 'condensed'; status: 'full' | 'condensed' (the time alone). */
-  view?: 'summary' | 'day' | 'rest' | 'full' | 'condensed';
-  /** news, calendar: most rows drawn; ticker: stocks per page in the condensed view. 1–10. */
+  /** energy: 'summary' | 'day' | 'rest'; calendar: 'list' | 'day' | 'days' | 'month'; ticker: 'full' | 'condensed' (overrides the ticker's own view); ai-usage: 'full' | 'condensed'; status: 'full' | 'condensed' (the time alone). */
+  view?: 'summary' | 'day' | 'rest' | 'full' | 'condensed' | 'list' | 'days' | 'month';
+  /** news, calendar list view: most rows drawn; ticker: stocks per page in the condensed view. 1–10. */
   items?: number;
+  /** calendar days view: how many days are shown side by side, 2–7. Unset fits as many as the width allows. */
+  days?: number;
   /** Whole-number enlargement of everything the widget draws, 1–4. Overrides the layout's zoom; unset follows it. */
   zoom?: number;
 }
@@ -72,6 +75,8 @@ export interface UserPreferences {
   /** Additional RSS/Atom feeds, each placed as its own `news:<id>` widget. */
   news_feeds?: NewsFeed[];
   ticker_widgets?: TickerWidgetSetting[];
+  /** Additional calendars, each placed as its own `calendar:<id>` widget. Their private URLs are stored encrypted in api_keys, never here. */
+  calendar_widgets?: CalendarWidgetSetting[];
   refresh_interval_minutes: number;
   layout: DisplayLayout | null;
   monta_fields: string[]; // e.g. ['charger_status', 'active_session', 'today_stats']
@@ -129,6 +134,15 @@ export interface TickerWidgetSetting {
   per_page: number | null; // condensed only; null fits as many rows as the widget allows
   dwell_minutes: number;   // how long a page stays before the next is due
   locale: 'da' | 'en';
+}
+
+/** An additional calendar. The layout widget ID is `calendar:<id>`; its ICS URL is the encrypted api_keys row `calendar:<id>`. */
+export interface CalendarWidgetSetting {
+  id: string;         // 1–16 lowercase letters/digits
+  name: string;       // layout editor label, may be empty
+  timezone: string;   // IANA zone used for event times and day boundaries
+  days: number;       // 1–30 days ahead for the list view
+  item_limit: number; // 1–10 events in the list view
 }
 
 export interface NewsFeedResult {
@@ -192,9 +206,32 @@ export interface CalendarEvent {
   allDay: boolean;
   dateLabel: string;
   timeLabel: string;
+  /** First calendar day in the calendar's time zone, YYYY-MM-DD. */
+  day: string;
+  /** Last calendar day, inclusive. An event ending exactly at midnight ends the day before. */
+  endDay: string;
+  /** Minutes after midnight of `day` for a timed event; null for an all-day one. */
+  startMinute: number | null;
+  /** Minutes after midnight of `endDay` (1440 when it ends at midnight); null for an all-day event. */
+  endMinute: number | null;
 }
 
-export interface CalendarData { timezone: string; events: CalendarEvent[] }
+export interface CalendarData {
+  timezone: string;
+  /** The calendar day and minute of the request, in `timezone`. */
+  today: string;
+  nowMinute: number;
+  /** The configured horizon and row count of the list view. */
+  days: number;
+  limit: number;
+  events: CalendarEvent[];
+}
+
+/** One additional calendar: its events, or why there are none. A failed source never shows stale data. */
+export interface CalendarResult {
+  calendar?: CalendarData;
+  error?: CalendarProblem;
+}
 
 export interface DisplayData {
   customWebhook?: CustomWebhookData;
@@ -215,6 +252,8 @@ export interface DisplayData {
   notion?: NotionData;
   notionError?: { code: string; message: string };
   calendar?: CalendarData;
+  /** Additional calendars keyed by calendar widget ID. */
+  calendars?: Record<string, CalendarResult>;
   aiUsage?: AiUsageData;
   /** The charge the viewing device last reported. Absent when unknown. */
   battery?: { percent: number };

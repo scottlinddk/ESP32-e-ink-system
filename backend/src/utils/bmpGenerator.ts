@@ -8,6 +8,8 @@ import { WEATHER_ERROR_LABELS } from './weatherErrors';
 import { ENERGY_PRICE_ERROR_LABELS } from './energyPriceErrors';
 import { NEWS_ERROR_LABELS } from './newsErrors';
 import { newsFeedIdFromWidget } from './newsFeeds';
+import { calendarIdFromWidget } from './calendarWidgets';
+import { renderCalendarWidget } from './calendarRenderer';
 import { storedTickerWidgets, tickerIdFromWidget } from './tickerWidgets';
 import { renderTicker, renderTickerUnavailable, type TickerResult } from '../ticker';
 import type { RenderedWidget } from '../ticker/render';
@@ -549,20 +551,6 @@ function renderNotionWidget(
   }
 }
 
-function renderCalendarWidget(canvas: DrawingCanvas, bounds: WidgetBounds, data?: DisplayData['calendar'], limit?: number): void {
-  const { x, y, width, height } = bounds;
-  if (y > 0) canvas.drawHLine(x, y, width);
-  let textY = y + 2;
-  if (!data || data.events.length === 0) {
-    canvas.drawText(data ? 'No upcoming events' : 'Calendar: unavailable', x + 2, textY, width - 4);
-    return;
-  }
-  for (const event of data.events.slice(0, limit)) {
-    if (textY + 8 > y + height) break;
-    textY = canvas.drawWrappedText(`${event.dateLabel} ${event.timeLabel}: ${event.title}`, x + 2, textY, width - 4, 10) + 2;
-  }
-}
-
 function renderStatusWidget(
   canvas: DrawingCanvas,
   bounds: WidgetBounds,
@@ -650,7 +638,14 @@ function populateCanvas(
     const target: DrawingCanvas = zoom === 1 ? canvas : new ZoomCanvas(canvas, zoom);
     const bounds = zoom === 1 ? physical : logicalBounds(physical, zoom);
     const tickerId = tickerIdFromWidget(widget.i);
+    const calendarId = calendarIdFromWidget(widget.i);
     canvas.withClip(physical, () => {
+      if (calendarId) {
+        // A removed calendar has no result; it renders as unavailable until the widget is removed.
+        const extra = data.calendars?.[calendarId];
+        renderCalendarWidget(target, bounds, { data: extra?.calendar, error: extra?.error }, widget.options);
+        return;
+      }
       if (tickerId) {
         const stored = storedTickerWidgets(preferences?.ticker_widgets).find((item) => item.id === tickerId);
         // Layout options override the ticker's own view and page size for this placement only.
@@ -685,7 +680,7 @@ function populateCanvas(
         case 'monta':   renderMontaWidget(target, bounds, data.monta, preferences?.monta_fields ?? undefined); break;
         case 'zaptec':  renderZaptecWidget(target, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined); break;
         case 'notion':  renderNotionWidget(target, bounds, data.notion, data.notionError); break;
-        case 'calendar': renderCalendarWidget(target, bounds, data.calendar, widget.options?.items); break;
+        case 'calendar': renderCalendarWidget(target, bounds, { data: data.calendar }, widget.options); break;
         case 'week-number': renderWeekNumberWidget(target, bounds, new Date(), preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE); break;
         case 'battery': renderBatteryWidget(target, bounds, data.battery); break;
         case 'ai-usage': renderAiUsageWidget(target, bounds, data.aiUsage, {

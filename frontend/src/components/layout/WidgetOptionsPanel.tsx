@@ -2,8 +2,8 @@
 // WidgetOptionsPanel.tsx — display options for the widget selected in the layout editor
 // =========================================================================
 import React from 'react';
-import type { EnergyView, TickerView, TickerWidgetSetting, WidgetLayout, WidgetOptions } from '../../types';
-import { MAX_WIDGET_ITEMS, widgetAcceptsZoom, widgetOptionKind } from '../../lib/widgetOptions';
+import type { CalendarView, EnergyView, TickerView, TickerWidgetSetting, WidgetLayout, WidgetOptions } from '../../types';
+import { MAX_CALENDAR_DAYS, MAX_WIDGET_ITEMS, MIN_CALENDAR_DAYS, widgetAcceptsZoom, widgetOptionKind } from '../../lib/widgetOptions';
 import { ZOOMS, zoomLabel } from '../../lib/zoom';
 import { Card } from '../ui/card';
 import { Field } from '../ui/Field';
@@ -33,6 +33,11 @@ function countOptions(autoLabel: string) {
 
 const parseCount = (value: string) => (value === AUTO ? undefined : Number(value));
 
+function dayCountOptions(autoLabel: string) {
+  return [{ value: AUTO, label: autoLabel },
+    ...Array.from({ length: MAX_CALENDAR_DAYS - MIN_CALENDAR_DAYS + 1 }, (_, index) => ({ value: String(index + MIN_CALENDAR_DAYS), label: String(index + MIN_CALENDAR_DAYS) }))];
+}
+
 export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom, onChange, onClose }: WidgetOptionsPanelProps) {
   const da = lang === 'da';
   const kind = widgetOptionKind(widget.i);
@@ -61,8 +66,48 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
           );
         })()}
 
+        {kind === 'calendar' && (() => {
+          const view = (widget.options?.view ?? 'list') as CalendarView;
+          const viewHelp: Record<CalendarView, string> = {
+            list: da ? 'Kommende aftaler, samlet under en overskrift for hver dag.' : 'Upcoming events, grouped under a heading for each day.',
+            day: da ? 'Ét døgn time for time, med aftalerne som blokke. Vises fra en time før nu.' : 'One day hour by hour, with the events as blocks. Starts an hour before now.',
+            days: da ? 'Flere dage side om side, time for time. Vises fra en time før nu.' : 'Several days side by side, hour by hour. Starts an hour before now.',
+            month: da ? 'Den aktuelle måned som et gitter. En prik pr. aftale på en dag, op til tre.' : 'The current month as a grid. One dot per event on a day, up to three.',
+          };
+          return (
+            <>
+              <Field label={da ? 'Visning' : 'View'} htmlFor={`${fieldId}-view`}
+                helper={`${viewHelp[view]} ${da ? 'Er widgetten for lille, vises listen i stedet.' : 'A widget too small for the view shows the list instead.'}`}>
+                <Select id={`${fieldId}-view`} value={view}
+                  options={[
+                    { value: 'list', label: da ? 'Liste' : 'List' },
+                    { value: 'day', label: da ? 'Dag' : 'Day' },
+                    { value: 'days', label: da ? 'Flere dage' : 'Several days' },
+                    { value: 'month', label: da ? 'Måned' : 'Month' },
+                  ]}
+                  onChange={(e) => onChange({ view: e.target.value === 'list' ? undefined : e.target.value as CalendarView })} />
+              </Field>
+              {view === 'list' && (
+                <Field label={da ? 'Antal begivenheder' : 'Number of events'} htmlFor={`${fieldId}-items`}
+                  helper={da ? 'Højst så mange som hentes og kan være i widgetten.' : 'At most as many as are fetched and fit in the widget.'}>
+                  <Select id={`${fieldId}-items`} value={items} options={countOptions(da ? 'Så mange som muligt' : 'As many as fit')}
+                    onChange={(e) => onChange({ items: parseCount(e.target.value) })} />
+                </Field>
+              )}
+              {view === 'days' && (
+                <Field label={da ? 'Antal dage' : 'Number of days'} htmlFor={`${fieldId}-days`}
+                  helper={da ? 'Hver dag skal være mindst fem tegn bred, ellers vises listen. Uden valg tilpasses antallet til bredden.' : 'Each day needs at least five characters of width, otherwise the list is shown. Left on automatic, the count follows the width.'}>
+                  <Select id={`${fieldId}-days`} value={widget.options?.days === undefined ? AUTO : String(widget.options.days)}
+                    options={dayCountOptions(da ? 'Så mange som der er plads til' : 'As many as fit')}
+                    onChange={(e) => onChange({ days: parseCount(e.target.value) })} />
+                </Field>
+              )}
+            </>
+          );
+        })()}
+
         {kind === 'list' && (
-          <Field label={widget.i === 'calendar' ? (da ? 'Antal begivenheder' : 'Number of events') : (da ? 'Antal overskrifter' : 'Number of headlines')}
+          <Field label={da ? 'Antal overskrifter' : 'Number of headlines'}
             htmlFor={`${fieldId}-items`}
             helper={da ? 'Højst så mange som hentes og kan være i widgetten.' : 'At most as many as are fetched and fit in the widget.'}>
             <Select id={`${fieldId}-items`} value={items} options={countOptions(da ? 'Så mange som muligt' : 'As many as fit')}

@@ -329,6 +329,26 @@ saves ticker widgets. Do not rerun 023 once the column exists. Current
 export/import validation requires the column, so restore older backups with their
 matching tools first.
 
+## Upgrade an existing database for additional calendars (025)
+
+After the existing database has migration 024, back it up and apply
+`025_calendar_widgets.sql`. It adds one `NOT NULL DEFAULT '[]'` JSONB column to
+`user_preferences`, so existing accounts keep their single calendar. The private
+ICS URL of each additional calendar is not in this column: it is an encrypted
+`api_keys` row named `calendar:<id>`, so the transfer allowlist and the
+`ENCRYPTION_KEY` rule below already cover it.
+
+```sh
+eink exec -T postgres psql -X -U eink_admin -d eink --single-transaction \
+  --set ON_ERROR_STOP=1 --file /migrations/025_calendar_widgets.sql \
+  --file /docker-entrypoint-initdb.d/permissions.sql
+```
+
+No gateway allowlist change is needed. Apply 025 before deploying the backend that
+saves additional calendars. Do not rerun 025 once the column exists. Current
+export/import validation requires the column, so restore older backups with their
+matching tools first.
+
 ## Migration gates and data scope (source only)
 
 Applies only when a live source database exists. The transfer allowlist is `users`, `user_preferences`, `api_keys`, `devices`,

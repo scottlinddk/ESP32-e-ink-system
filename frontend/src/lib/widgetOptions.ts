@@ -1,17 +1,22 @@
-import type { DisplayLayout, WidgetOptions } from '../types';
+import type { CalendarView, DisplayLayout, WidgetOptions } from '../types';
 import { newsFeedIdFromWidget } from './newsFeeds';
+import { calendarIdFromWidget } from './calendarWidgets';
 import { tickerIdFromWidget } from './tickerWidgets';
 
 // Mirrors backend/src/utils/widgetOptions.ts. Options belong to one placement in a layout,
 // so the same source can be shown differently on another scheduled page.
 export const MAX_WIDGET_ITEMS = 10;
+export const MIN_CALENDAR_DAYS = 2;
+export const MAX_CALENDAR_DAYS = 7;
+export const CALENDAR_VIEWS: readonly CalendarView[] = ['list', 'day', 'days', 'month'];
 
-export type WidgetOptionKind = 'energy' | 'list' | 'ticker' | 'ai-usage' | 'status';
+export type WidgetOptionKind = 'energy' | 'list' | 'calendar' | 'ticker' | 'ai-usage' | 'status';
 
 /** Which options a widget accepts, or null when it has none. */
 export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
   if (widgetId === 'energy') return 'energy';
-  if (widgetId === 'news' || widgetId === 'calendar' || newsFeedIdFromWidget(widgetId)) return 'list';
+  if (widgetId === 'calendar' || calendarIdFromWidget(widgetId)) return 'calendar';
+  if (widgetId === 'news' || newsFeedIdFromWidget(widgetId)) return 'list';
   if (tickerIdFromWidget(widgetId)) return 'ticker';
   if (widgetId === 'ai-usage') return 'ai-usage';
   if (widgetId === 'status') return 'status';

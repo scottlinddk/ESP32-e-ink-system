@@ -1,3 +1,4 @@
+import { calendarData, timedEvent } from './calendarFixtures';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DisplayData, DisplayLayout, WidgetLayout } from '../types/index';
 import {
@@ -302,7 +303,7 @@ describe('display widget boundaries', () => {
 describe('EV charging field selection', () => {
   it('renders a calendar agenda in BMP/raw and distinguishes empty/unavailable results', () => {
     const widgetLayout = layout({ i: 'calendar', x: 0, y: 0, w: 10, h: 4 });
-    const calendar = { timezone: 'Europe/Copenhagen', events: [{ title: 'Dentist', start: '2026-10-01T10:00:00Z', end: '2026-10-01T11:00:00Z', allDay: false, dateLabel: '1 Oct', timeLabel: '12:00' }] };
+    const calendar = calendarData([timedEvent('Dentist', 12 * 60, 13 * 60)]);
     const agenda = { nextRefresh: 60000, calendar };
     const raw = renderDisplayDataRaw(agenda, widgetLayout);
     expect(raw).toEqual(renderDisplayData(agenda, widgetLayout).subarray(62));

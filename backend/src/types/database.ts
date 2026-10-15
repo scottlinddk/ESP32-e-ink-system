@@ -694,6 +694,7 @@ export type Database = {
           news_item_limit: number
           news_feeds: Json
           ticker_widgets: Json
+          calendar_widgets: Json
           show_calendar: boolean
           calendar_timezone: string
           calendar_days: number
@@ -732,6 +733,7 @@ export type Database = {
           news_item_limit?: number
           news_feeds?: Json
           ticker_widgets?: Json
+          calendar_widgets?: Json
           show_calendar?: boolean
           calendar_timezone?: string
           calendar_days?: number
@@ -770,6 +772,7 @@ export type Database = {
           news_item_limit?: number
           news_feeds?: Json
           ticker_widgets?: Json
+          calendar_widgets?: Json
           show_calendar?: boolean
           calendar_timezone?: string
           calendar_days?: number

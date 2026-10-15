@@ -2,15 +2,9 @@ import { Worker } from 'node:worker_threads';
 import { fetchPublicFeed, MAX_FEED_BYTES } from '../utils/publicFeedFetch';
 import { runCalendarWorker } from './calendarWorker';
 import type { CalendarData } from '../types';
+import { validateCalendarOptions, type CalendarOptions } from '../utils/calendarOptions';
 
-export interface CalendarOptions { timezone: string; days: number; limit: number }
-
-export function validateCalendarOptions(options: CalendarOptions): void {
-  if (typeof options.timezone !== 'string' || options.timezone.length > 100 || !/^[A-Za-z_][A-Za-z0-9_+\/-]*$/.test(options.timezone)) throw new Error('Invalid calendar timezone');
-  try { new Intl.DateTimeFormat('en', { timeZone: options.timezone }); } catch { throw new Error('Invalid calendar timezone'); }
-  if (!Number.isInteger(options.days) || options.days < 1 || options.days > 30) throw new Error('Calendar days must be between 1 and 30');
-  if (!Number.isInteger(options.limit) || options.limit < 1 || options.limit > 10) throw new Error('Calendar event limit must be between 1 and 10');
-}
+export { validateCalendarOptions, MAX_CALENDAR_EVENTS, type CalendarOptions } from '../utils/calendarOptions';
 
 /** Bound both parser memory and CPU; an HTTP deadline alone cannot stop RRULE expansion. */
 export async function parseCalendar(text: string, options: CalendarOptions, now = new Date(), signal?: AbortSignal): Promise<CalendarData> {

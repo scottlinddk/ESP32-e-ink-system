@@ -1,5 +1,6 @@
 import type { WidgetOptions } from '../types';
 import { newsFeedIdFromWidget } from './newsFeeds';
+import { calendarIdFromWidget } from './calendarWidgets';
 import { tickerIdFromWidget } from './tickerWidgets';
 import { isZoom, MAX_ZOOM, MIN_ZOOM } from './zoom';
 
@@ -13,14 +14,20 @@ export const TICKER_VIEWS = ['full', 'condensed'] as const;
 export const AI_USAGE_VIEWS = TICKER_VIEWS;
 /** `condensed` shows the time alone, for a status bar made small. */
 export const STATUS_VIEWS = TICKER_VIEWS;
+/** `list` is the agenda grouped by day, `day` one day by the hour, `days` several side by side, `month` a month grid. */
+export const CALENDAR_VIEWS = ['list', 'day', 'days', 'month'] as const;
+export type CalendarView = typeof CALENDAR_VIEWS[number];
 export const MAX_WIDGET_ITEMS = 10;
+export const MIN_CALENDAR_DAYS = 2;
+export const MAX_CALENDAR_DAYS = 7;
 
-export type WidgetOptionKind = 'energy' | 'list' | 'ticker' | 'ai-usage' | 'status';
+export type WidgetOptionKind = 'energy' | 'list' | 'calendar' | 'ticker' | 'ai-usage' | 'status';
 
 /** Which options a widget accepts, or null when it has none. */
 export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
   if (widgetId === 'energy') return 'energy';
-  if (widgetId === 'news' || widgetId === 'calendar' || newsFeedIdFromWidget(widgetId)) return 'list';
+  if (widgetId === 'calendar' || calendarIdFromWidget(widgetId)) return 'calendar';
+  if (widgetId === 'news' || newsFeedIdFromWidget(widgetId)) return 'list';
   if (tickerIdFromWidget(widgetId)) return 'ticker';
   if (widgetId === 'ai-usage') return 'ai-usage';
   if (widgetId === 'status') return 'status';
@@ -30,6 +37,7 @@ export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
 const ALLOWED_KEYS: Record<WidgetOptionKind, readonly string[]> = {
   energy: ['view'],
   list: ['items'],
+  calendar: ['view', 'items', 'days'],
   ticker: ['view', 'items'],
   'ai-usage': ['view'],
   status: ['view'],
@@ -62,7 +70,8 @@ export function parseWidgetOptions(widgetId: string, value: unknown): WidgetOpti
     options.zoom = value.zoom;
   }
   if (value.view !== undefined) {
-    const views: readonly string[] = kind === 'energy' ? ENERGY_VIEWS : kind === 'ai-usage' ? AI_USAGE_VIEWS : kind === 'status' ? STATUS_VIEWS : TICKER_VIEWS;
+    const views: readonly string[] = kind === 'energy' ? ENERGY_VIEWS : kind === 'calendar' ? CALENDAR_VIEWS
+      : kind === 'ai-usage' ? AI_USAGE_VIEWS : kind === 'status' ? STATUS_VIEWS : TICKER_VIEWS;
     if (typeof value.view !== 'string' || !views.includes(value.view)) throw new Error('Widget view is not supported.');
     options.view = value.view as WidgetOptions['view'];
   }
@@ -72,7 +81,17 @@ export function parseWidgetOptions(widgetId: string, value: unknown): WidgetOpti
     }
     options.items = value.items;
   }
+  if (value.days !== undefined) {
+    if (typeof value.days !== 'number' || !Number.isInteger(value.days) || value.days < MIN_CALENDAR_DAYS || value.days > MAX_CALENDAR_DAYS) {
+      throw new Error(`Calendar days must be a whole number from ${MIN_CALENDAR_DAYS} to ${MAX_CALENDAR_DAYS}.`);
+    }
+    options.days = value.days;
+  }
   return Object.keys(options).length ? options : undefined;
+}
+
+export function calendarView(options?: WidgetOptions): CalendarView {
+  return (CALENDAR_VIEWS as readonly string[]).includes(options?.view ?? '') ? options!.view as CalendarView : 'list';
 }
 
 export function energyView(options?: WidgetOptions): EnergyView {

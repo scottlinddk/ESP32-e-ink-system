@@ -14,6 +14,7 @@ import { ScheduleValidationError } from '../utils/scheduleValidation';
 import { LayoutValidationError } from '../utils/layoutValidation';
 import { validatePublicHttpsUrl } from '../utils/publicFeedFetch';
 import { parseNewsFeeds } from '../utils/newsFeeds';
+import { calendarIdFromWidget, calendarProvider, CalendarWidgetValidationError, parseCalendarWidgets } from '../utils/calendarWidgets';
 import { parseTickerWidgets, TickerWidgetValidationError } from '../utils/tickerWidgets';
 import calendarRouter from './calendar';
 import { DEFAULT_DISPLAY_TIMEZONE } from '../utils/displayTimezone';
@@ -179,6 +180,19 @@ import { normalizeNotionCredentials } from '../utils/notionCredentials';
  *         description: Unauthorized
  */
 
+/** A removed calendar takes its private URL with it, so no unused credential stays stored. */
+async function removeOrphanedCalendarUrls(userId: string, keep: string[]): Promise<void> {
+  try {
+    for (const key of await getApiKeys(userId)) {
+      const id = calendarIdFromWidget(key.provider);
+      if (id !== null && !keep.includes(id)) await deleteApiKey(userId, calendarProvider(id));
+    }
+  } catch (error) {
+    // The settings are saved; a leftover row is invisible and is removed on the next save.
+    logger.warn({ err: error }, 'Unused calendar URLs could not be removed');
+  }
+}
+
 const router = Router();
 router.use('/calendar-credentials', calendarRouter);
 router.use('/templates', templatesRouter);
@@ -226,6 +240,7 @@ router.get(
         news_item_limit: 3,
         news_feeds: [],
         ticker_widgets: [],
+        calendar_widgets: [],
         refresh_interval_minutes: 30,
         layout: null,
         monta_fields: ['charger_status', 'active_session'],
@@ -286,6 +301,13 @@ router.post(
           res.status(400).json({ error: error.message }); return;
         }
       }
+      if (req.body.calendar_widgets !== undefined) {
+        try { updates.calendar_widgets = parseCalendarWidgets(req.body.calendar_widgets); }
+        catch (error) {
+          if (!(error instanceof CalendarWidgetValidationError)) throw error;
+          res.status(400).json({ error: error.message }); return;
+        }
+      }
       const userId = await getOrCreateUserFromClerk(req.clerkUserId!);
       if (news_source === 'rss' || news_feed_url === '' || show_news === true) {
         const current = await getPreferences(userId);
@@ -295,6 +317,7 @@ router.post(
         }
       }
       const prefs = await upsertPreferences(userId, updates);
+      if (updates.calendar_widgets) await removeOrphanedCalendarUrls(userId, updates.calendar_widgets.map((calendar) => calendar.id));
       res.json({ preferences: prefs });
     } catch (err) {
       if (err instanceof ScheduleValidationError || err instanceof LayoutValidationError) {
@@ -419,7 +442,7 @@ router.get(
       const keys = await getApiKeys(userId);
 
       // Mask the actual key values
-      const masked = keys.filter((k) => !['calendar', 'anthropic_admin', 'openai_admin'].includes(k.provider)).map((k) => ({
+      const masked = keys.filter((k) => !['calendar', 'anthropic_admin', 'openai_admin'].includes(k.provider) && calendarIdFromWidget(k.provider) === null).map((k) => ({
         id: k.id,
         provider: k.provider,
         api_key: k.api_key.slice(0, 6) + '••••••••',

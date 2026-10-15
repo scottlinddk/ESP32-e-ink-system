@@ -5,7 +5,8 @@ Select a widget in **Edit layout** (tap or click it, or focus it and press Enter
 | Widget | Option | Values |
 |---|---|---|
 | `energy` | `view` | `summary` (default), `day`, `rest`. See [Electricity prices](ELECTRICITY_PRICES.md#chart-views). |
-| `news`, `news:<id>`, `calendar` | `items` | 1–10 rows at most. Also limited by how many items the source fetches and by the widget's height. |
+| `news`, `news:<id>` | `items` | 1–10 rows at most. Also limited by how many items the source fetches and by the widget's height. |
+| `calendar`, `calendar:<id>` | `view`, `items`, `days` | `view` is `list` (default), `day`, `days` or `month`. `items` (1–10) is the most events the list draws; `days` (2–7) is how many columns the `days` view shows, unset fitting as many as the width allows. A widget too small for its view shows the list. See [Calendar widgets](CALENDAR.md). |
 | `ticker:<id>` | `view`, `items` | `full` or `condensed`, and stocks per page for `condensed`. Overrides the ticker's own settings. See [Stock ticker widgets](TICKER_WIDGET.md). |
 | `ai-usage` | `view` | `full` (default, quota windows plus token breakdown) or `condensed` (quota windows only). A widget too short for the chosen view drops detail, down to one line per provider. See [AI usage](AI_USAGE.md). |
 | `status` | `view` | `full` (default, refresh interval and time) or `condensed` (the time alone, so the bar can be narrow). See [A smaller status bar](LAYOUT_GRID.md#a-smaller-status-bar). |

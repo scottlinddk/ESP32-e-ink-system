@@ -1,6 +1,6 @@
 -- ============================================================
--- ESP32 e-ink system: combined migrations (001 to 024)
--- Source: backend/src/db/migrations/ @ b1cec65, plus 020 to 024
+-- ESP32 e-ink system: combined migrations (001 to 025)
+-- Source: backend/src/db/migrations/ @ b1cec65, plus 020 to 025
 -- Run ONCE against an EMPTY Supabase database (SQL Editor).
 -- Everything runs in one transaction: if a step fails, all is rolled back.
 -- Not idempotent (CREATE POLICY/TRIGGER, 015, 018, 019, 020): empty database only.
@@ -396,6 +396,13 @@ END $$;
 
 ALTER TABLE user_preferences
   ADD COLUMN IF NOT EXISTS show_ai_usage BOOLEAN NOT NULL DEFAULT false;
+
+-- ------------------------------------------------------------
+-- 025_calendar_widgets.sql
+-- ------------------------------------------------------------
+ALTER TABLE user_preferences
+  ADD COLUMN IF NOT EXISTS calendar_widgets JSONB NOT NULL DEFAULT '[]'::jsonb
+    CHECK (jsonb_typeof(calendar_widgets) = 'array' AND jsonb_array_length(calendar_widgets) <= 8 AND octet_length(calendar_widgets::text) <= 16000);
 
 COMMIT;
 
