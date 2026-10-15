@@ -13,8 +13,7 @@ import { GridEditor, WIDGET_META } from '../components/layout/GridEditor';
 import { LayoutPreviewPane } from '../components/layout/LayoutPreviewPane';
 import { WidgetOptionsPanel } from '../components/layout/WidgetOptionsPanel';
 import { updateWidgetOptions } from '../lib/widgetOptions';
-import { GRID_SCALES, changeGrid, gridLabel, layoutScale, updateLayoutInvert, type GridScale } from '../lib/layoutGrid';
-import { Switch } from '../components/ui/Switch';
+import { GRID_SCALES, changeGrid, gridLabel, layoutInvertMode, layoutScale, updateLayoutInvert, type GridScale, type InvertMode } from '../lib/layoutGrid';
 import { ZOOMS, autoZoom, inheritedZoom, updateLayoutZoom, zoomLabel } from '../lib/zoom';
 import { DEFAULT_DISPLAY_PROFILE, type DisplayProfile } from '../lib/displayProfile';
 import { Field } from '../components/ui/Field';
@@ -292,16 +291,17 @@ function LayoutEditorWorkspace() {
               <Select id="layout-grid" value={String(scale ?? 1)} options={gridOptions}
                 onChange={(e) => handleGridScale(Number(e.target.value) as GridScale)} />
             </Field>
-            <Field label={app.lang === 'da' ? 'Farver' : 'Colours'}
+            <Field label={app.lang === 'da' ? 'Farver' : 'Colours'} htmlFor="layout-invert"
               helper={app.lang === 'da'
-                ? 'Hvid tekst på sort baggrund i stedet for sort på hvid. Et billede beholder sine egne farver.'
-                : 'White text on a black background instead of black on white. A photo keeps its own colours.'}>
-              <label className="flex items-center gap-2.5 min-h-[42px] text-sm cursor-pointer">
-                <Switch checked={layout.invert === true}
-                  onChange={(e) => setLayout((prev) => updateLayoutInvert(prev, e.target.checked))}
-                  label={app.lang === 'da' ? 'Invertér farver' : 'Invert colours'} />
-                {app.lang === 'da' ? 'Invertér farver' : 'Invert colours'}
-              </label>
+                ? 'Hvid tekst på sort baggrund i stedet for sort på hvid. Et billede beholder sine egne farver. "Solnedgang til solopgang" bruger vejrets placering og skifter, når skærmen opdateres.'
+                : 'White text on a black background instead of black on white. A photo keeps its own colours. "Sunset to sunrise" uses the weather location and changes when the screen refreshes.'}>
+              <Select id="layout-invert" value={layoutInvertMode(layout)}
+                options={[
+                  { value: 'off', label: 'Normal' },
+                  { value: 'always', label: app.lang === 'da' ? 'Invertér altid' : 'Always inverted' },
+                  { value: 'sun', label: app.lang === 'da' ? 'Invertér fra solnedgang til solopgang' : 'Inverted from sunset to sunrise' },
+                ]}
+                onChange={(e) => setLayout((prev) => updateLayoutInvert(prev, e.target.value as InvertMode))} />
             </Field>
           </div>
           <div className="overflow-x-auto">

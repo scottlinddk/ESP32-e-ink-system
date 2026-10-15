@@ -37,8 +37,8 @@ export interface DisplayLayout {
   rows: number;
   /** Default zoom for every widget, 1–4. Unset picks one from the panel size (see utils/zoom.ts). */
   zoom?: number;
-  /** White text on a black background. Photos keep their own colours. */
-  invert?: boolean;
+  /** White text on a black background. Photos keep their own colours. `'sun'` inverts only between sunset and sunrise at the weather location. False is not stored. */
+  invert?: boolean | 'sun';
   widgets: WidgetLayout[];
 }
 

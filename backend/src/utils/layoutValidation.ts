@@ -29,8 +29,8 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
   if (Object.keys(value).some((key) => !['version', 'cols', 'rows', 'zoom', 'invert', 'widgets'].includes(key))) {
     throw new LayoutValidationError('Layout contains unsupported fields.');
   }
-  if (value.invert !== undefined && typeof value.invert !== 'boolean') {
-    throw new LayoutValidationError('Layout invert must be true or false.');
+  if (value.invert !== undefined && typeof value.invert !== 'boolean' && value.invert !== 'sun') {
+    throw new LayoutValidationError('Layout invert must be true, false or "sun".');
   }
   const cols = value.cols as number;
   const rows = value.rows as number;
@@ -72,5 +72,6 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
     widgets.push({ i: input.i, x, y, w, h, ...(input.static === undefined ? {} : { static: input.static }), ...(options ? { options } : {}) });
   }
   // A false flag is the default, so it is not stored.
-  return { version: 1, cols, rows, ...(value.zoom === undefined ? {} : { zoom: value.zoom }), ...(value.invert === true ? { invert: true } : {}), widgets };
+  const invert = value.invert === true || value.invert === 'sun' ? value.invert : undefined;
+  return { version: 1, cols, rows, ...(value.zoom === undefined ? {} : { zoom: value.zoom }), ...(invert ? { invert } : {}), widgets };
 }

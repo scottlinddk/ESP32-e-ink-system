@@ -38,8 +38,8 @@ export interface DisplayLayout {
   rows: number;
   /** Default zoom for every widget, 1–4. Unset picks one from the panel size. */
   zoom?: number;
-  /** White text on a black background. Photos keep their own colours. */
-  invert?: boolean;
+  /** White text on a black background. Photos keep their own colours. `'sun'` inverts only between sunset and sunrise. */
+  invert?: boolean | 'sun';
   widgets: WidgetLayout[];
 }
 
