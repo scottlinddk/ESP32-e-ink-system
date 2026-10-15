@@ -51,7 +51,7 @@ describe('list view', () => {
 
   it('groups events under a heading per day, all-day first, and hides what has ended', () => {
     const { strings } = draw(withData(events), { view: 'list' }, ROWS);
-    expect(strings()).toEqual(['Today, Thu 15 Oct', '• Restaffald', '06:00 D-draaber', '18:00 Dinner', 'Tomorrow, Fri 16 Oct', '• Fase 5']);
+    expect(strings()).toEqual(['Today, Thu 15 Oct', '#', 'Restaffald', '06:00', 'D-draaber', '09:00', '18:00', 'Dinner', '19:00']);
     expect(strings()).not.toContain('05:00 Earlier');
   });
   it('is the default view', () => {
@@ -80,7 +80,9 @@ describe('list view', () => {
     });
     it('are used from 70 pixels of height, rows below', () => {
       expect(draw(withData(events), { view: 'list' }, [250, 70]).strings()).toContain('06:00 - 09:00');
-      expect(draw(withData(events), { view: 'list' }, [250, 69]).strings()).toContain('06:00 D-draaber');
+      const rows = draw(withData(events), { view: 'list' }, [250, 69]).strings();
+      expect(rows).toContain('06:00');
+      expect(rows).not.toContain('06:00 - 09:00');
     });
     it('flow into columns on a wide widget, repeating the heading of a day that carries on', () => {
       const many = Array.from({ length: 8 }, (_, n) => timedEvent(`Event ${n}`, 9 * 60 + n * 30, 9 * 60 + n * 30 + 20));
@@ -96,24 +98,24 @@ describe('list view', () => {
     });
   });
   it('stops at the chosen number of rows and at the configured limit', () => {
-    expect(draw(withData(events), { view: 'list', items: 1 }, ROWS).strings()).toEqual(['Today, Thu 15 Oct', '• Restaffald']);
-    expect(draw(withData(events, { limit: 2 }), { view: 'list', items: 5 }, ROWS).strings()).toEqual(['Today, Thu 15 Oct', '• Restaffald', '06:00 D-draaber']);
+    expect(draw(withData(events), { view: 'list', items: 1 }, ROWS).strings()).toEqual(['Today, Thu 15 Oct', '#', 'Restaffald']);
+    expect(draw(withData(events, { limit: 2 }), { view: 'list', items: 5 }, ROWS).strings()).toEqual(['Today, Thu 15 Oct', '#', 'Restaffald', '06:00', 'D-draaber', '09:00']);
   });
   it('shows only the configured number of days', () => {
     const later = [allDayEvent('Next week', '2026-10-21')];
-    expect(draw(withData(later, { days: 7 }), { view: 'list' }, ROWS).strings()).toEqual(['Wed 21 Oct', '• Next week']);
+    expect(draw(withData(later, { days: 7 }), { view: 'list' }, ROWS).strings()).toEqual(['Wed 21 Oct', '#', 'Next week']);
     expect(draw(withData(later, { days: 3 }), { view: 'list' }).strings()).toEqual(['No upcoming events']);
   });
   it('keeps an event that began earlier under today', () => {
     const { strings } = draw(withData([allDayEvent('Trip', '2026-10-13', '2026-10-16')]), { view: 'list' }, ROWS);
-    expect(strings()).toEqual(['Today, Thu 15 Oct', '• Trip']);
+    expect(strings()).toEqual(['Today, Thu 15 Oct', '#', 'Trip']);
   });
-  it('wraps a long title under the time, at most two lines', () => {
-    const { strings } = draw(withData([timedEvent('A very long appointment title that will not fit on one line of the widget at all', 10 * 60, 11 * 60)]), { view: 'list' }, ROWS);
-    expect(strings()).toHaveLength(3);
-    expect(strings()[0]).toBe('Today, Thu 15 Oct');
-    expect(strings()[1]).toMatch(/^10:00 /);
-    expect(strings()[2]).not.toMatch(/^10:00 /);
+  it('keeps a long title on one line between the start and end pills', () => {
+    const title = 'A very long appointment title that will not fit on one line of the widget at all';
+    expect(draw(withData([timedEvent(title, 10 * 60, 11 * 60)]), { view: 'list' }, ROWS).strings()).toEqual(['Today, Thu 15 Oct', '10:00', title, '11:00']);
+  });
+  it('leaves the end pill out of a narrow widget', () => {
+    expect(draw(withData([timedEvent('Dinner', 18 * 60, 19 * 60)]), { view: 'list' }, [120, 69]).strings()).toEqual(['Today 15 Oct', '18:00', 'Dinner']);
   });
   it('shortens a heading that does not fit', () => {
     expect(draw(withData(events), { view: 'list' }, [120, 122]).strings()[0]).toBe('Today 15 Oct');
@@ -124,8 +126,8 @@ describe('list view', () => {
   });
   it('leaves out a heading that has no room for an event under it', () => {
     const { strings } = draw(withData(events), { view: 'list' }, [250, 40]);
-    expect(strings()).toEqual(['Today, Thu 15 Oct', '• Restaffald', '06:00 D-draaber']);
-    expect(draw(withData([allDayEvent('A'), allDayEvent('B', tomorrow)]), { view: 'list' }, [250, 30]).strings()).toEqual(['Today, Thu 15 Oct', '• A']);
+    expect(strings()).toEqual(['Today, Thu 15 Oct', '#', 'Restaffald', '06:00', 'D-draaber', '09:00']);
+    expect(draw(withData([allDayEvent('A'), allDayEvent('B', tomorrow)]), { view: 'list' }, [250, 30]).strings()).toEqual(['Today, Thu 15 Oct', '#', 'A']);
   });
   it('tells an empty calendar from an unavailable one', () => {
     expect(draw(withData([])).strings()).toEqual(['No upcoming events']);
@@ -410,6 +412,25 @@ describe('look of the grids', () => {
     const twentyFour = texts.find((entry) => entry.text === '24')!;
     expect(one.x + 8).toBeGreaterThan(twentyFour.x - 100);
     expect(texts.filter((entry) => entry.text === '28')).toHaveLength(2);
+  });
+});
+
+describe('month spans', () => {
+  const trip = allDayEvent('Michael OOO', '2026-10-20', '2026-10-23');
+  it('draws a multi-day all-day event once across its cells, not in each', () => {
+    const { strings } = draw(withData([trip]), { view: 'month' }, [700, 300]);
+    expect(strings().filter((text) => text === 'Michael OOO')).toHaveLength(1);
+  });
+  it('draws it again where it carries into the next week, and keeps the cells below clear of it', () => {
+    const across = allDayEvent('Michael OOO', '2026-10-22', '2026-10-27');
+    const { strings } = draw(withData([across, timedEvent('Lunch', 12 * 60, 13 * 60, '2026-10-23')]), { view: 'month' }, [700, 300]);
+    expect(strings().filter((text) => text === 'Michael OOO')).toHaveLength(2);
+    expect(strings()).toContain('Lunch');
+  });
+  it('shows the span as dots in a small month, like any event', () => {
+    const { strings, fills } = draw(withData([trip]), { view: 'month' }, [250, 122]);
+    expect(strings()).not.toContain('Michael OOO');
+    expect(fills.filter((fill) => fill.black && fill.w === 3 && fill.h === 3)).toHaveLength(4);
   });
 });
 

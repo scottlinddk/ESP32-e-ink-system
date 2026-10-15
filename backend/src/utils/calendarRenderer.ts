@@ -2,7 +2,7 @@ import type { CalendarData, CalendarEvent, WidgetOptions } from '../types';
 import type { Bounds, DrawingCanvas } from './zoomCanvas';
 import { wrapBitmapText } from './bitmapText';
 import { CALENDAR_ERROR_LABELS, type CalendarProblem } from './calendarErrors';
-import { dayOfMonth, monthGrid, monthName, monthShort, shiftDay, weekdayIndex, weekdayName } from './calendarDays';
+import { dayOfMonth, daysBetween, monthGrid, monthName, monthShort, shiftDay, weekdayIndex, weekdayName } from './calendarDays';
 import { calendarView, MAX_CALENDAR_DAYS, MIN_CALENDAR_DAYS } from './widgetOptions';
 
 // The four calendar views, drawn with the 8 x 8 font on a canvas that is already zoomed to the
@@ -27,6 +27,7 @@ const MIN_LIST_COLUMN = 20 * GLYPH;
 const COLUMN_GAP = GLYPH;
 const CELL_LINE = GLYPH + 1;
 const MIN_CELL_LIST_W = 6 * GLYPH;
+const MAX_SPAN_LANES = 2;
 
 export interface CalendarSource { data?: CalendarData; error?: CalendarProblem }
 
@@ -116,17 +117,57 @@ function groupLabel(day: string, today: string, pixels: number): string {
   return fitLabel([date, short, `${dayOfMonth(day)} ${monthShort(day)}`], pixels);
 }
 
-/** The lines an event takes in a column: a card has its title and time range, a row one line. */
-function eventLines(event: CalendarEvent, columnWidth: number, cards: boolean): { lines: string[]; indent: number; height: number } {
-  if (cards) {
-    const indent = 5;
-    const title = [...wrapBitmapText(event.title, Math.max(1, chars(columnWidth - indent)))].slice(0, 2);
-    const lines = [...title, timeRange(event) ?? 'All day'];
-    return { lines, indent, height: lines.length * LINE + 2 };
+/** The lines of an event card: its title (up to two lines) and its time range. */
+function cardLines(event: CalendarEvent, columnWidth: number): { lines: string[]; indent: number; height: number } {
+  const indent = 5;
+  const title = [...wrapBitmapText(event.title, Math.max(1, chars(columnWidth - indent)))].slice(0, 2);
+  const lines = [...title, timeRange(event) ?? 'All day'];
+  return { lines, indent, height: lines.length * LINE + 2 };
+}
+
+/** A black pill with white text, its corners cut. */
+function pill(canvas: DrawingCanvas, x: number, y: number, width: number, text: string): void {
+  canvas.fillRect(x + 1, y, width - 2, LINE);
+  canvas.fillRect(x, y + 1, width, LINE - 2);
+  canvas.drawText(text, x + Math.floor((width - text.length * GLYPH) / 2), y + 1, width, 1, false);
+}
+
+const SCHEDULE_ROW = LINE + 2;
+const PILL_W = 5 * GLYPH + 4;
+const MIN_END_PILL_WIDTH = 24 * GLYPH;
+
+/** One row per event: start time in a pill, bold title, end time in a shaded pill at the right. Days are shaded bars. */
+function drawSchedule(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, events: CalendarEvent[]): void {
+  const { x, y, width, height } = bounds;
+  const bottom = y + height;
+  const left = x + 2;
+  const inner = width - 4;
+  const withEnd = width >= MIN_END_PILL_WIDTH;
+  let cursor = y + 2;
+  let heading = '';
+  for (const event of events) {
+    const day = event.day < data.today ? data.today : event.day;
+    const needHeading = day !== heading;
+    if (cursor + (needHeading ? HEADING_H : 0) + SCHEDULE_ROW > bottom + 2) break;
+    if (needHeading) {
+      const label = groupLabel(day, data.today, inner - 8);
+      shade(canvas, left, cursor, inner, GLYPH + 1);
+      plate(canvas, label, left + Math.floor((inner - label.length * GLYPH) / 2), cursor + 1, inner);
+      cursor += HEADING_H;
+      heading = day;
+    }
+    pill(canvas, left, cursor, PILL_W, event.allDay ? '#' : event.timeLabel);
+    const range = timeRange(event);
+    const end = withEnd && range && range.includes(' - ') ? range.slice(-5) : null;
+    const titleX = left + PILL_W + 4;
+    const titleW = inner - PILL_W - 4 - (end ? PILL_W + 4 : 0);
+    bold(canvas, event.title, titleX, cursor + 1, titleW);
+    if (end) {
+      shade(canvas, left + inner - PILL_W, cursor, PILL_W, LINE);
+      plate(canvas, end, left + inner - PILL_W + 2, cursor + 1, PILL_W);
+    }
+    cursor += SCHEDULE_ROW;
   }
-  const prefix = event.allDay ? '• ' : `${event.timeLabel} `;
-  const title = [...wrapBitmapText(event.title, Math.max(1, chars(columnWidth) - prefix.length))].slice(0, 2);
-  return { lines: title.map((line, index) => index === 0 ? `${prefix}${line}` : line), indent: 0, height: title.length * LINE + 1 };
 }
 
 function drawList(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, items?: number): void {
@@ -147,9 +188,12 @@ function drawList(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, ite
     return;
   }
 
-  // A tall widget shows each event as a card (title, then its time range); a short one as a row.
-  // A wide one flows the days into columns, repeating the heading when a day carries on.
-  const cards = height >= CARD_MIN_HEIGHT;
+  // A tall widget shows each event as a card (title, then its time range); a short one as a schedule
+  // row. A wide card list flows the days into columns, repeating the heading when a day carries on.
+  if (height < CARD_MIN_HEIGHT) {
+    drawSchedule(canvas, bounds, data, events);
+    return;
+  }
   const columns = clamp(Math.floor((width - 4 + COLUMN_GAP) / (MIN_LIST_COLUMN + COLUMN_GAP)), 1, 3);
   const columnWidth = Math.floor((width - 4 - COLUMN_GAP * (columns - 1)) / columns);
   let column = 0;
@@ -158,7 +202,7 @@ function drawList(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, ite
   let heading = '';
   for (const event of events) {
     const day = event.day < data.today ? data.today : event.day;
-    const card = eventLines(event, columnWidth, cards);
+    const card = cardLines(event, columnWidth);
     let needHeading = day !== heading;
     // Start a new column when the heading and the event do not both fit in this one.
     if (cursor + (needHeading ? HEADING_H : 0) + card.height > bottom + 2 && cursor > y + 2) {
@@ -173,7 +217,7 @@ function drawList(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, ite
       heading = day;
     }
     if (cursor + GLYPH > bottom) break;
-    if (cards) canvas.fillRect(columnX, cursor, 2, Math.min(card.height - 2, bottom - cursor));
+    canvas.fillRect(columnX, cursor, 2, Math.min(card.height - 2, bottom - cursor));
     card.lines.forEach((line, index) => {
       if (cursor + index * LINE + GLYPH <= bottom) canvas.drawText(line, columnX + card.indent, cursor + index * LINE, columnWidth - card.indent);
     });
@@ -369,6 +413,33 @@ function drawMonth(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData): b
     for (let column = 1; column < 7; column++) dotted(canvas, gridX + column * cellW - 1, cellsTop, grid.weeks * cellH, true);
   }
   for (let row = 0; row < grid.weeks; row++) {
+    // Multi-day all-day events are drawn once across the cells of the week, not repeated in each.
+    const rowStart = shiftDay(grid.start, row * 7);
+    const rowEnd = shiftDay(rowStart, 6);
+    const spans: Array<{ event: CalendarEvent; lane: number }> = [];
+    if (listed) {
+      const laneEnds: string[] = [];
+      for (const event of data.events.filter((item) => item.allDay && item.day < item.endDay && item.endDay >= rowStart && item.day <= rowEnd)) {
+        const start = event.day < rowStart ? rowStart : event.day;
+        const lane = laneEnds.findIndex((end) => end < start);
+        const chosen = lane === -1 ? laneEnds.length : lane;
+        if (chosen >= MAX_SPAN_LANES) continue;
+        laneEnds[chosen] = event.endDay > rowEnd ? rowEnd : event.endDay;
+        spans.push({ event, lane: chosen });
+      }
+    }
+    const spanned = new Set(spans.map((span) => span.event));
+    const spanLines = spans.length ? Math.max(...spans.map((span) => span.lane)) + 1 : 0;
+    for (const { event, lane } of spans) {
+      const first = Math.max(0, daysBetween(rowStart, event.day));
+      const last = Math.min(6, daysBetween(rowStart, event.endDay));
+      const barX = gridX + first * cellW + 1;
+      const barW = (last - first + 1) * cellW - 3;
+      const barY = cellsTop + row * cellH + LINE + lane * CELL_LINE;
+      shade(canvas, barX, barY, barW, GLYPH);
+      if (event.day >= rowStart) canvas.fillRect(barX, barY, 2, GLYPH);
+      plate(canvas, event.title, barX + 5, barY, barW - 5);
+    }
     for (let column = 0; column < 7; column++) {
       const day = shiftDay(grid.start, row * 7 + column);
       const inMonth = day >= grid.first && day <= grid.last;
@@ -382,19 +453,22 @@ function drawMonth(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData): b
       if (day === data.today) drawBar(canvas, numberX - 1, cellY, numberW + 2, number);
       else plate(canvas, number, numberX, cellY + 1, cellW - 1);
       if (!inMonth) continue;
-      const list = byDay.get(day) ?? [];
-      if (!list.length) continue;
+      const all = byDay.get(day) ?? [];
+      if (!all.length) continue;
       if (listed) {
-        const lines = Math.floor((cellH - LINE) / CELL_LINE);
-        const shown = list.length > lines ? lines - 1 : list.length;
+        const list = all.filter((event) => !spanned.has(event));
+        const lines = Math.floor((cellH - LINE) / CELL_LINE) - spanLines;
+        if (!list.length || lines < 1) continue;
+        const shown = list.length > lines ? Math.max(1, lines - 1) : list.length;
+        const top = cellY + LINE + spanLines * CELL_LINE;
         for (let index = 0; index < shown; index++) {
-          const lineY = cellY + LINE + index * CELL_LINE;
+          const lineY = top + index * CELL_LINE;
           canvas.fillRect(cellX + 2, lineY, 2, GLYPH);
           plate(canvas, list[index].title, cellX + 6, lineY, cellW - 8);
         }
-        if (shown < list.length) plate(canvas, `+${list.length - shown} more`, cellX + 6, cellY + LINE + shown * CELL_LINE, cellW - 8);
+        if (shown < list.length && lines > 1) plate(canvas, `+${list.length - shown} more`, cellX + 6, top + shown * CELL_LINE, cellW - 8);
       } else {
-        const dots = Math.min(list.length, MAX_DOTS);
+        const dots = Math.min(all.length, MAX_DOTS);
         if (cellH >= 2 * LINE - 1) {
           // Room under the number.
           for (let dot = 0; dot < dots; dot++) canvas.fillRect(cellX + 1 + dot * 5, cellY + LINE + 2, 3, 3);
