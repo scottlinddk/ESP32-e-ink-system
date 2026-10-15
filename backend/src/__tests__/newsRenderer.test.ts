@@ -1,18 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BmpCanvas } from '../utils/bmpGenerator';
-import { fitOneLine, newsSource, renderNewsWidget } from '../utils/newsRenderer';
-
-describe('newsSource', () => {
-  it('returns the hostname without www', () => {
-    expect(newsSource('https://www.example.com/a/b?c=1')).toBe('example.com');
-    expect(newsSource('http://news.bbc.co.uk/x')).toBe('news.bbc.co.uk');
-  });
-  it('is empty for a missing, malformed or non-web URL', () => {
-    expect(newsSource('')).toBe('');
-    expect(newsSource('not a url')).toBe('');
-    expect(newsSource('javascript:alert(1)')).toBe('');
-  });
-});
+import { BmpCanvas, renderDisplayDataRaw } from '../utils/bmpGenerator';
+import { fitOneLine, renderNewsWidget } from '../utils/newsRenderer';
 
 describe('fitOneLine', () => {
   it('keeps text that fits and cuts the rest with an ellipsis', () => {
@@ -35,20 +23,16 @@ describe('renderNewsWidget', () => {
     return spy.mock.calls.map(([text, x, y]) => ({ text, x, y }));
   };
 
-  it('numbers each headline and shows its source below the title', () => {
+  it('numbers each headline and draws its bold title, without a source line', () => {
     const calls = draw(250, 122);
-    expect(calls.map((c) => c.text).slice(0, 4)).toEqual(['1', 'Headline 1', 'Headline 1', 'site1.example']);
-    expect(calls.filter((c) => /^site\d\.example$/.test(c.text))).toHaveLength(6);
+    expect(calls.map((c) => c.text).slice(0, 4)).toEqual(['1', 'Headline 1', 'Headline 1', '2']);
+    expect(calls.some((c) => c.text.includes('.example'))).toBe(false);
   });
   it('stops at the item limit', () => {
     expect(draw(250, 122, items, 2).filter((c) => /^\d$/.test(c.text)).map((c) => c.text)).toEqual(['1', '2']);
   });
   it('does not draw a headline that does not fit the height', () => {
     expect(draw(250, 20).filter((c) => /^\d$/.test(c.text))).toHaveLength(1);
-  });
-  it('uses a single line per headline without a source', () => {
-    const plain = items.map((item) => ({ ...item, url: '' }));
-    expect(draw(250, 122, plain).filter((c) => /^\d$/.test(c.text))).toHaveLength(6);
   });
   const ranks = (calls: ReturnType<typeof draw>) => calls.filter((c) => /^\d$/.test(c.text));
   it('defaults to one column, however wide the widget is', () => {
@@ -72,11 +56,34 @@ describe('renderNewsWidget', () => {
     }
   });
   it('moves to the next column when the first runs out of height', () => {
-    const many = Array.from({ length: 8 }, (_, i) => ({ title: `H${i + 1}`, url: `https://s${i}.example` }));
-    const placed = ranks(draw(800, 64, many, undefined, 2));
-    // Three rows fit a column, so six of the eight headlines show and the rest are dropped.
+    const many = Array.from({ length: 9 }, (_, i) => ({ title: `H${i + 1}`, url: '' }));
+    const placed = ranks(draw(800, 40, many, undefined, 2));
+    // Three rows fit a column, so six of the nine headlines show and the rest are dropped.
     expect(placed.map((c) => c.text)).toEqual(['1', '2', '3', '4', '5', '6']);
     expect(new Set(placed.slice(0, 3).map((c) => c.x)).size).toBe(1);
     expect(placed[3].x).toBeGreaterThan(placed[0].x);
+  });
+});
+
+describe('news text size', () => {
+  const news = Array.from({ length: 6 }, (_, i) => ({ title: `Headline ${i + 1}`, url: '' }));
+  const layout = (zoom?: number) => ({ version: 1 as const, cols: 10, rows: 6,
+    widgets: [{ i: 'news', x: 0, y: 0, w: 10, h: 6, ...(zoom ? { options: { zoom } } : {}) }] });
+  const scales = (zoom?: number) => {
+    const spy = vi.spyOn(BmpCanvas.prototype, 'drawText');
+    try {
+      renderDisplayDataRaw({ nextRefresh: 60_000, news }, layout(zoom));
+      return { scales: new Set(spy.mock.calls.map((call) => call[4] ?? 1)), ranks: spy.mock.calls.filter((call) => /^\d$/.test(call[0])).length };
+    } finally { spy.mockRestore(); }
+  };
+
+  it('draws the headlines larger with the widget text size, so fewer fit', () => {
+    const normal = scales();
+    const large = scales(2);
+    expect([...normal.scales]).toEqual([1]);
+    expect([...large.scales]).toEqual([2]);
+    expect(normal.ranks).toBe(6);
+    expect(large.ranks).toBeLessThan(normal.ranks);
+    expect(large.ranks).toBeGreaterThan(0);
   });
 });

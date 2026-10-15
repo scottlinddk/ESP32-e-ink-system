@@ -5,22 +5,11 @@ import { DEFAULT_DISPLAY_LANGUAGE, type DisplayLanguage } from './displayLanguag
 import { displayStrings } from './displayStrings';
 
 const GLYPH = 8;
-/** A headline row is the title, a one pixel gap and the source line. */
-const META_ROW_H = GLYPH * 2 + 1;
-const META_PITCH = META_ROW_H + 3;
-/** Without a source the row is the title alone. */
-const PLAIN_PITCH = 12;
+/** A headline row is the title and a few pixels of air. */
+const ROW_PITCH = 12;
 /** The narrowest column that still holds a rank and a few characters of title. */
 const MIN_COLUMN_W = 64;
 const COLUMN_GAP = 6;
-
-/** The hostname of an article, without a leading "www."; empty when the URL is missing or unusable. */
-export function newsSource(url: string): string {
-  try {
-    const { protocol, hostname } = new URL(url);
-    return protocol === 'http:' || protocol === 'https:' ? hostname.replace(/^www\./, '') : '';
-  } catch { return ''; }
-}
 
 /** Fits text on one line of `maxChars` glyphs, ending in "..." when it is cut. */
 export function fitOneLine(text: string, maxChars: number): string {
@@ -38,7 +27,7 @@ function drawBold(canvas: DrawingCanvas, text: string, x: number, y: number, max
 }
 
 /**
- * Numbered headlines, one per row: a bold title cut to one line over the article's source.
+ * Numbered headlines, one per row: a rank and a bold title cut to one line.
  * `columns` splits them side by side, as many as the width allows at the least.
  */
 export function renderNewsWidget(
@@ -75,11 +64,9 @@ export function renderNewsWidget(
   let inColumn = 0;
   let cursor = top;
   items.forEach((item, index) => {
-    const source = newsSource(item.url);
-    const rowH = source ? META_ROW_H : GLYPH;
-    if (inColumn >= perColumn || cursor + rowH > y + height) {
+    if (inColumn >= perColumn || cursor + GLYPH > y + height) {
       // Continue in the next column, or stop when the last one is full.
-      if (column + 1 >= columnCount || top + rowH > y + height) return;
+      if (column + 1 >= columnCount || top + GLYPH > y + height) return;
       column++;
       inColumn = 0;
       cursor = top;
@@ -88,7 +75,6 @@ export function renderNewsWidget(
     const left = x + 2 + column * (columnW + COLUMN_GAP);
     canvas.drawText(String(index + 1), left, cursor, rankW);
     drawBold(canvas, fitOneLine(item.title, textChars), left + rankW, cursor, columnW - rankW);
-    if (source) canvas.drawText(fitOneLine(source, textChars), left + rankW, cursor + GLYPH + 1, columnW - rankW);
-    cursor += source ? META_PITCH : PLAIN_PITCH;
+    cursor += ROW_PITCH;
   });
 }
