@@ -155,8 +155,8 @@ describe('hours view', () => {
 
   it('adds detail as the height grows, in order: the temperature, the time, the icon, then the chance of rain', () => {
     const at = (height: number) => {
-      const canvas = render({ x: 0, y: 0, width: 250, height }, 'hours');
-      return { temp: canvas.strings.some((text) => /°$/.test(text)), time: canvas.strings.some((text) => /^\d\d$/.test(text)),
+      const canvas = render({ x: 0, y: 0, width: 250, height }, 'hours', {}, { items: 1 });
+      return { temp: canvas.strings.some((text) => /°$/.test(text)), time: canvas.strings.some((text) => /^\d\d(:\d\d)?$/.test(text)),
         icon: canvas.pixels.length > 0, rain: canvas.strings.some((text) => /%$/.test(text)) };
     };
     expect(at(14)).toEqual({ temp: true, time: false, icon: false, rain: false });

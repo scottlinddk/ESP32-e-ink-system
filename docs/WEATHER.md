@@ -21,6 +21,8 @@ Choose the view of a weather widget by selecting it in **Edit layout** and using
 
 Set **Number of steps** (`hours`) or **Number of days** (`daily`) to show fewer than fit. The forecast comes in **3-hour steps**, which is what the provider offers on the free plan, so `hours` shows the next 6 to 8 of them, not every hour.
 
+Metrics are set apart by dotted rules: between the rows of `details`, `daily` and the readings of `current`, and between the columns of `hours` and the side-by-side `daily`. Rows are 12 px with a rule when that fits at least three, otherwise 10 px and tight, so a very short widget shows one more reading and no rules.
+
 Each placement fits its space. A view that is too small for everything draws less rather than overlapping or cutting text: icons go first, then the chance of rain and the low, then labels, and `details` switches to short labels and then leaves out units. A widget under 11 pixels tall draws nothing, and a failed reading draws the same short diagnosis as the summary. What each view needs, in pixels after text size is applied:
 
 | View | Needs |
@@ -28,7 +30,7 @@ Each placement fits its space. A view that is too small for everything draws les
 | `current` | 29 tall for a larger temperature with the condition under it, 11 for the temperature alone. The readings are 10 px a line, beside the temperature from about 220 wide and under it otherwise. The icon needs 12 px of width beside the temperature. |
 | `hours` | 36 wide per column. 22 tall for the time and temperature, 37 with the icon, 48 with the chance of rain; below 22 only the temperature. |
 | `daily` | Stacked: 11 tall per day, wide enough for the weekday and the high (the low, icon and chance of rain follow from about 105, 130 and 165 wide). Side by side (when the widget is more than about twice as wide as it is tall): 44 wide per day, 21 tall for the weekday and high, 31 with the low, 46 with the icon. |
-| `details` | 10 tall per reading, and about 14 characters of width for a full label beside its value. A list taller than the widget continues in a second column from about 240 wide. |
+| `details` | 12 tall per reading (10 without rules in a short widget), and about 14 characters of width for a full label beside its value. A list taller than the widget continues in a second column from about 240 wide. |
 
 On a large panel the automatic text size can make a narrow widget hold only a few characters. For a dashboard of several views, such as the current weather beside the forecast and the readings, set **Text size** to 2× on those widgets.
 

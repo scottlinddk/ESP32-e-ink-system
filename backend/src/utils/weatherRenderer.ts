@@ -14,6 +14,8 @@ import { weatherView } from './widgetOptions';
 
 const GLYPH = 8;
 const LINE = 10;
+/** A row set off by a dotted rule: the glyph with two pixels of air above and below. */
+const SEPARATED_ROW = 12;
 const PAD = 2;
 const STEP_SECONDS = 3 * 3600;
 const MIN_ICON = 12;
@@ -62,6 +64,11 @@ function centered(canvas: DrawingCanvas, text: string, centre: number, y: number
 function rightAligned(canvas: DrawingCanvas, text: string, left: number, right: number, y: number, scale = 1): void {
   const x = Math.max(left, right - textWidth(text, scale));
   canvas.drawText(text, x, y, right - x, scale);
+}
+
+/** A dotted rule, the separator between metrics. Every other pixel, so it stays light on a 1-bit panel. */
+function dotted(canvas: DrawingCanvas, x: number, y: number, length: number, vertical = false): void {
+  for (let offset = 0; offset < length; offset += 2) canvas.setPixel(vertical ? x : x + offset, vertical ? y + offset : y, true);
 }
 
 // ── Time ────────────────────────────────────────────────────────────────────
@@ -213,17 +220,27 @@ function drawCurrent(canvas: DrawingCanvas, area: Area, data: WeatherData, t: St
   let below = area.y + rowH + 3;
   if (withCondition && beside) canvas.drawText(condition, textX, area.y + GLYPH * scale + 2, area.x + area.width - textX);
   else if (withCondition && area.y + area.height - below >= GLYPH) { canvas.drawText(condition, area.x, below, area.width); below += LINE; }
-  // The readings go beside the block when there is room, else under it.
+  // The readings go beside the block when there is room, else under it, each row set off by a dotted rule.
   const sideW = area.width - blockW - 8;
   if (sideW >= SIDE_MIN) {
     const x = area.x + area.width - sideW;
-    currentLines(data, t, context.language, context.timeZone, sideW).slice(0, Math.floor(area.height / LINE))
-      .forEach((line, index) => canvas.drawText(line, x, area.y + index * LINE, sideW));
+    dotted(canvas, x - 5, area.y, area.height, true);
+    drawRows(canvas, currentLines(data, t, context.language, context.timeZone, sideW), x, area.y, sideW, area.height);
     return;
   }
-  const rows = Math.floor((area.y + area.height - below) / LINE);
-  currentLines(data, t, context.language, context.timeZone, area.width).slice(0, Math.max(0, rows))
-    .forEach((line, index) => canvas.drawText(line, area.x, below + index * LINE, area.width));
+  drawRows(canvas, currentLines(data, t, context.language, context.timeZone, area.width), area.x, below, area.width, area.y + area.height - below);
+}
+
+/** Rows of text with a dotted rule between them: 12 px a row when that fits three, else tight at 10 with no rules. */
+function drawRows(canvas: DrawingCanvas, lines: string[], x: number, y: number, width: number, height: number): void {
+  const separated = Math.floor(height / SEPARATED_ROW) >= 3;
+  const pitch = separated ? SEPARATED_ROW : LINE;
+  const shown = lines.slice(0, Math.max(0, Math.floor(height / pitch)));
+  shown.forEach((line, index) => {
+    const top = y + index * pitch;
+    canvas.drawText(line, x, top + (separated ? 2 : 0), width);
+    if (separated && index < shown.length - 1) dotted(canvas, x, top + pitch - 1, width);
+  });
 }
 
 // ── Hours ───────────────────────────────────────────────────────────────────
@@ -252,6 +269,7 @@ function drawHours(canvas: DrawingCanvas, area: Area, source: WeatherSource, t: 
   const popY = tempY + GLYPH * tempScale + 3;
   steps.slice(0, columns).forEach((step, index) => {
     const left = area.x + index * columnW, right = left + columnW, centre = left + columnW / 2;
+    if (index > 0 && area.height >= 2 * GLYPH + 3) dotted(canvas, left, area.y, area.height, true);
     const { hour, minute } = clockParts(step.time, context.timeZone);
     if (withTime) centered(canvas, columnW >= 6 * GLYPH ? `${pad2(hour)}:${pad2(minute)}` : pad2(hour), centre, timeY, left, right);
     if (icon) drawWeatherIcon(canvas, step.icon, Math.round(centre - icon / 2), iconY, icon);
@@ -289,6 +307,7 @@ function drawDailyRows(canvas: DrawingCanvas, area: Area, days: DaySummary[], t:
   shown.forEach((day, index) => {
     const top = area.y + index * rowH;
     const textY = top + Math.floor((rowH - GLYPH) / 2);
+    if (index > 0 && rowH >= 13) dotted(canvas, area.x, top, area.width);
     canvas.drawText(labels[index], area.x, textY, labelW);
     let x = area.x + labelW + 4;
     if (withIcon) { drawWeatherIcon(canvas, day.icon, x, top + Math.floor((rowH - iconSize) / 2), iconSize); x += iconSize + 4; }
@@ -315,6 +334,7 @@ function drawDailyStrip(canvas: DrawingCanvas, area: Area, days: DaySummary[], t
   if (icon) y += icon + 3;
   days.slice(0, columns).forEach((day, index) => {
     const left = area.x + index * columnW, right = left + columnW, centre = left + columnW / 2;
+    if (index > 0 && withLabel) dotted(canvas, left, area.y, area.height, true);
     if (withLabel) centered(canvas, dayLabel(day.day, index, today, t, context.language, columnW), centre, labelY, left, right);
     if (icon) drawWeatherIcon(canvas, day.icon, Math.round(centre - icon / 2), iconY, icon);
     centered(canvas, degrees(day.max), centre, y, left, right);
@@ -361,13 +381,17 @@ function readings(source: WeatherSource, data: WeatherData, t: Strings, context:
 
 function drawDetails(canvas: DrawingCanvas, area: Area, source: WeatherSource, data: WeatherData, t: Strings, context: Required<WeatherContext>): void {
   const list = readings(source, data, t, context);
-  const capacity = Math.max(1, Math.floor(area.height / LINE));
+  // Rows are 12 px with a dotted rule between them when that leaves at least three; else tight.
+  const separated = Math.floor(area.height / SEPARATED_ROW) >= 3;
+  const pitch = separated ? SEPARATED_ROW : LINE;
+  const capacity = Math.max(1, Math.floor(area.height / pitch));
   // One column with the full labels, unless the list is longer than the height allows.
   const columns = list.length > capacity && area.width >= 2 * MIN_DETAIL_COLUMN + 8 ? 2 : 1;
   const columnW = Math.floor((area.width - (columns - 1) * 8) / columns);
   // A short list gets looser rows, so it fills the widget instead of crowding its top.
   const perColumn = Math.min(capacity, Math.ceil(list.length / columns));
-  const rowH = clamp(Math.floor(area.height / Math.max(1, perColumn)), LINE, 14);
+  const rowH = clamp(Math.floor(area.height / Math.max(1, perColumn)), pitch, 16);
+  if (columns === 2) dotted(canvas, area.x + columnW + 3, area.y, Math.min(area.height, perColumn * rowH), true);
   list.slice(0, capacity * columns).forEach((reading, index) => {
     const column = Math.floor(index / Math.max(1, perColumn));
     if (column >= columns) return;
@@ -381,6 +405,8 @@ function drawDetails(canvas: DrawingCanvas, area: Area, source: WeatherSource, d
       : [Array.from(reading.short).slice(0, Math.max(0, roomFor(reading.bare))).join(''), reading.bare];
     canvas.drawText(label, x, y, columnW);
     rightAligned(canvas, value, x, x + columnW, y);
+    const row = index % Math.max(1, perColumn);
+    if (separated && row < perColumn - 1 && index < list.length - 1) dotted(canvas, x, area.y + (row + 1) * rowH - 1, columnW);
   });
 }
 
