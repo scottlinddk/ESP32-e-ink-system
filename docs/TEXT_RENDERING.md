@@ -21,5 +21,17 @@ full Unicode coverage, emoji, right-to-left layout, ligatures or script shaping.
 Accented letters have compacted bodies to fit the same eight-pixel cell. The
 additional glyphs are hand-drawn; no external font files are required.
 
+## Display language
+
+Widget wording comes from one catalog per language (`displayStrings.ts`), chosen by
+the device's **Display language** (English or Danish). A test requires both catalogs
+to have the same entries and to use only characters this font can draw, so a
+translation cannot render as `?`. Danish uses `æ ø å`, which are in the font.
+
+Month and weekday names are part of the catalog, not the runtime's locale data, so
+the result does not depend on how Node was built. Clock times stay `HH:mm` in both
+languages. See
+[device workspaces](DEVICE_WORKSPACES.md#display-language).
+
 The [Open Book's Unicode text support](https://www.oddlyspecificobjects.com/projects/openbook/)
 inspired this focused improvement for Danish household data and European names.

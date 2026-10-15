@@ -223,12 +223,12 @@ inherits its owner's account presentation. A device ownership change deletes its
 saved presentation, including when ownership is later returned. A composite
 device/owner foreign key also rejects delayed writes from a previous owner. The schema
 inspector validates that trigger's exact condition, function body and privileges;
-it also verifies all seven new CHECK constraints and both foreign keys.
+it also verifies all eight device presentation CHECK constraints (025 adds the display language) and both foreign keys.
 
 Exports and backups made before 018 have nine application tables, and those made
 before 024 have ten (no `ai_usage_reports`). Keep the matching older release's
 recovery tools with those backups; restore into that release's isolated schema,
-then apply the later migrations. The current importer and recovery script require
+then apply the later migrations. A source that has not yet received `025_display_language.sql` fails the schema check with a missing `display_language` column: apply 025 to it first. The current importer and recovery script require
 all eleven tables and reject older bundles instead of silently losing device
 settings or AI usage tokens. Production migration and physical Pi verification must be performed in
 the deployment environment; offline tests do not apply SQL there.
@@ -329,10 +329,10 @@ saves ticker widgets. Do not rerun 023 once the column exists. Current
 export/import validation requires the column, so restore older backups with their
 matching tools first.
 
-## Upgrade an existing database for additional calendars (025)
+## Upgrade an existing database for additional calendars (026)
 
-After the existing database has migration 024, back it up and apply
-`025_calendar_widgets.sql`. It adds one `NOT NULL DEFAULT '[]'` JSONB column to
+After the existing database has migration 025, back it up and apply
+`026_calendar_widgets.sql`. It adds one `NOT NULL DEFAULT '[]'` JSONB column to
 `user_preferences`, so existing accounts keep their single calendar. The private
 ICS URL of each additional calendar is not in this column: it is an encrypted
 `api_keys` row named `calendar:<id>`, so the transfer allowlist and the
@@ -340,12 +340,12 @@ ICS URL of each additional calendar is not in this column: it is an encrypted
 
 ```sh
 eink exec -T postgres psql -X -U eink_admin -d eink --single-transaction \
-  --set ON_ERROR_STOP=1 --file /migrations/025_calendar_widgets.sql \
+  --set ON_ERROR_STOP=1 --file /migrations/026_calendar_widgets.sql \
   --file /docker-entrypoint-initdb.d/permissions.sql
 ```
 
-No gateway allowlist change is needed. Apply 025 before deploying the backend that
-saves additional calendars. Do not rerun 025 once the column exists. Current
+No gateway allowlist change is needed. Apply 026 before deploying the backend that
+saves additional calendars. Do not rerun 026 once the column exists. Current
 export/import validation requires the column, so restore older backups with their
 matching tools first.
 

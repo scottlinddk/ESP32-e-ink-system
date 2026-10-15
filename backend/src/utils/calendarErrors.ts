@@ -6,9 +6,6 @@ const MESSAGES: Record<CalendarErrorCode, string> = {
   unavailable: 'Calendar unavailable: check the feed URL and supported format.',
   timeout: 'The calendar did not respond in time. Try again.',
 };
-export const CALENDAR_ERROR_LABELS: Record<CalendarErrorCode, string> = {
-  not_configured: 'Add calendar URL', unavailable: 'Unavailable', timeout: 'Timed out',
-};
 
 export function calendarProblem(code: CalendarErrorCode): CalendarProblem { return { code, message: MESSAGES[code] }; }
 

@@ -23,6 +23,7 @@ export type Database = {
           active_layout_id: string | null
           display_profile: Json | null
           display_timezone: string
+          display_language: string
           refresh_interval_minutes: number
           revision: number
           updated_at: string
@@ -35,6 +36,7 @@ export type Database = {
           active_layout_id?: string | null
           display_profile?: Json | null
           display_timezone?: string
+          display_language?: string
           refresh_interval_minutes?: number
           revision?: number
           updated_at?: string
@@ -47,6 +49,7 @@ export type Database = {
           active_layout_id?: string | null
           display_profile?: Json | null
           display_timezone?: string
+          display_language?: string
           refresh_interval_minutes?: number
           revision?: number
           updated_at?: string

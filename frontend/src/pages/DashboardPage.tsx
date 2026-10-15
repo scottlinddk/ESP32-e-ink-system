@@ -16,6 +16,8 @@ import { DeviceLayoutsCard } from '../components/dashboard/DeviceLayoutsCard';
 import { DeviceSlideshowCard } from '../components/dashboard/DeviceSlideshowCard';
 import { DisplayProfileCard } from '../components/dashboard/DisplayProfileCard';
 import { DisplayTimezoneCard } from '../components/dashboard/DisplayTimezoneCard';
+import { DisplayLanguageCard } from '../components/dashboard/DisplayLanguageCard';
+import { DISPLAY_LANGUAGE_NAMES, displayLanguageOf } from '../lib/displayLanguage';
 import { DisplayRefreshIntervalCard } from '../components/dashboard/DisplayRefreshIntervalCard';
 import { formatRefreshInterval } from '../lib/refreshInterval';
 import { Card } from '../components/ui/card';
@@ -162,6 +164,7 @@ function DeviceWorkspace({ device }: { device: Device }) {
               <dl className="dashboard-details-list">
                 <div><dt>{da ? 'Valgt fast layout' : 'Selected single layout'}</dt><dd>{activeLayout?.name ?? (da ? 'Grundlayout' : 'Base layout')}</dd></div>
                 <div><dt>{da ? 'Skærmens tidszone' : 'Display time zone'}</dt><dd>{preferences.display_timezone ?? 'Europe/Copenhagen'}</dd></div>
+                <div><dt>{da ? 'Skærmens sprog' : 'Display language'}</dt><dd>{DISPLAY_LANGUAGE_NAMES[displayLanguageOf(preferences.display_language)]}</dd></div>
                 <div><dt>{da ? 'Stille timer' : 'Quiet hours'}</dt><dd>{slideshow && quiet?.enabled ? `${quiet.start}–${quiet.end}` : (da ? 'Fra' : 'Off')}{slideshow && quiet?.enabled && <small>{preferences.display_schedule?.timezone}</small>}</dd></div>
                 <div><dt>Firmware</dt><dd>{device.firmware_version || (da ? 'Ikke rapporteret' : 'Not reported')}</dd></div>
                 <div><dt>{da ? 'Seneste kontakt' : 'Last device report'}</dt><dd>{lastSeen && Number.isFinite(lastSeen.getTime()) ? <time dateTime={lastSeen.toISOString()}>{lastSeen.toLocaleString(t.locale)}</time> : (da ? 'Ikke rapporteret' : 'Not reported')}</dd></div>
@@ -180,7 +183,7 @@ function DeviceWorkspace({ device }: { device: Device }) {
       <div id="workspace-layouts" hidden={view !== 'layouts'}><DeviceLayoutsCard deviceId={deviceId} /></div>
       <div id="workspace-slideshow" hidden={view !== 'slideshow'}><DeviceSlideshowCard deviceId={deviceId} /></div>
       <div id="workspace-settings" hidden={view !== 'settings'}>
-        <div className="dashboard-settings-grid"><DisplayRefreshIntervalCard deviceId={deviceId} /><DisplayTimezoneCard deviceId={deviceId} /><DisplayProfileCard deviceId={deviceId} /></div>
+        <div className="dashboard-settings-grid"><DisplayRefreshIntervalCard deviceId={deviceId} /><DisplayTimezoneCard deviceId={deviceId} /><DisplayLanguageCard deviceId={deviceId} /><DisplayProfileCard deviceId={deviceId} /></div>
         <p className="dashboard-scope-note">{da ? 'Indstillingerne gælder kun denne enhed. Første gang du gemmer, kopieres kontoens standardindstillinger til enheden.' : 'Settings apply only to this device. Your first save copies the account defaults to this device.'}</p>
         <p className="dashboard-hardware-id">{da ? 'Hardware-ID' : 'Hardware ID'}: <code>{device.device_id}</code> · UUID: <code>{deviceId}</code></p>
       </div>

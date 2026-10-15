@@ -3,6 +3,7 @@ import type { CalendarData, CalendarEvent, WidgetOptions } from '../types';
 import type { Bounds, DrawingCanvas } from '../utils/zoomCanvas';
 import { renderCalendarWidget, type CalendarSource } from '../utils/calendarRenderer';
 import { renderDisplayDataRaw } from '../utils/bmpGenerator';
+import type { DisplayLanguage } from '../utils/displayLanguage';
 import { allDayEvent, calendarData, timedEvent } from './calendarFixtures';
 
 interface Text { text: string; x: number; y: number; black: boolean }
@@ -29,9 +30,9 @@ function recorder(width = 250, height = 122) {
   return { canvas, texts, fills, strings: () => texts.map((entry) => entry.text) };
 }
 
-function draw(source: CalendarSource, options?: WidgetOptions, size: [number, number] = [250, 122]) {
+function draw(source: CalendarSource, options?: WidgetOptions, size: [number, number] = [250, 122], language: DisplayLanguage = 'en') {
   const out = recorder(...size);
-  renderCalendarWidget(out.canvas, { x: 0, y: 0, width: size[0], height: size[1] }, source, options);
+  renderCalendarWidget(out.canvas, { x: 0, y: 0, width: size[0], height: size[1] }, source, options, language);
   return out;
 }
 const withData = (events: CalendarEvent[], overrides: Partial<CalendarData> = {}): CalendarSource => ({ data: calendarData(events, overrides) });
@@ -132,8 +133,8 @@ describe('list view', () => {
   it('tells an empty calendar from an unavailable one', () => {
     expect(draw(withData([])).strings()).toEqual(['No upcoming events']);
     expect(draw({}).strings()).toEqual(['Calendar: unavailable']);
-    expect(draw({ error: { code: 'not_configured', message: '' } }).strings()).toEqual(['Calendar: Add calendar URL']);
-    expect(draw({ error: { code: 'timeout', message: '' } }).strings()).toEqual(['Calendar: Timed out']);
+    expect(draw({ error: { code: 'not_configured', message: '' } }).strings()).toEqual(['Calendar: add URL']);
+    expect(draw({ error: { code: 'timeout', message: '' } }).strings()).toEqual(['Calendar: timed out']);
   });
 });
 
@@ -207,7 +208,7 @@ describe('day view', () => {
   });
   it('shows an empty day, and a calendar that is unavailable, without hours', () => {
     expect(draw(withData([]), { view: 'day' }).strings()).toContain('05');
-    expect(draw({ error: { code: 'unavailable', message: '' } }, { view: 'day' }).strings()).toEqual(['Calendar: Unavailable']);
+    expect(draw({ error: { code: 'unavailable', message: '' } }, { view: 'day' }).strings()).toEqual(['Calendar: unavailable']);
   });
 });
 
@@ -431,6 +432,36 @@ describe('month spans', () => {
     const { strings, fills } = draw(withData([trip]), { view: 'month' }, [250, 122]);
     expect(strings()).not.toContain('Michael OOO');
     expect(fills.filter((fill) => fill.black && fill.w === 3 && fill.h === 3)).toHaveLength(4);
+  });
+});
+
+describe('display language', () => {
+  const events = [timedEvent('Møde', 9 * 60, 10 * 60), allDayEvent('Ferie', '2026-10-16')];
+  const da = (options: WidgetOptions, size?: [number, number]) => draw(withData(events), options, size, 'da').strings();
+
+  it('translates the list headings and the all-day word', () => {
+    expect(da({ view: 'list' }, [250, 200])).toEqual(['I dag, tors. 15. okt.', 'Møde', '09:00 - 10:00', 'I morgen, fre. 16. okt.', 'Ferie', 'Hele dagen']);
+  });
+  it('translates the month title, the weekdays and the overflow', () => {
+    const month = da({ view: 'month' });
+    expect(month).toContain('oktober 2026');
+    expect(month).toContain('man.');
+    expect(month).toContain('søn.');
+    const many = Array.from({ length: 6 }, (_, n) => timedEvent(`Punkt ${n}`, 8 * 60 + n * 60, 8 * 60 + n * 60 + 30));
+    expect(draw(withData(many), { view: 'month' }, [700, 300], 'da').strings().some((text) => /^\+\d+ mere$/.test(text))).toBe(true);
+  });
+  it('translates the grid headings and the strip overflow', () => {
+    expect(draw(withData(events), { view: 'days', days: 2 }, [400, 122], 'da').strings()).toContain('tors. 15/10');
+    const strip = ['A', 'B', 'C', 'D'].map((title) => allDayEvent(`Heldag ${title}`));
+    expect(draw(withData(strip), { view: 'days' }, [250, 122], 'da').strings()).toContain('+3 mere');
+  });
+  it('translates the empty and failed states', () => {
+    expect(draw(withData([]), undefined, undefined, 'da').strings()).toEqual(['Ingen kommende aftaler']);
+    expect(draw({ error: { code: 'not_configured', message: '' } }, undefined, undefined, 'da').strings()).toEqual(['Kalender: tilføj adresse']);
+    expect(draw({ error: { code: 'timeout', message: '' } }, undefined, undefined, 'da').strings()).toEqual(['Kalender: timeout']);
+  });
+  it('is English without a language', () => {
+    expect(draw(withData(events), { view: 'list' }, [250, 200]).strings()).toEqual(draw(withData(events), { view: 'list' }, [250, 200], 'en').strings());
   });
 });
 

@@ -39,7 +39,7 @@ def columns(required: dict[str, str], optional: dict[str, str]) -> dict[str, tup
 
 
 TS = "timestamp with time zone"
-# The final schema after all tracked migrations through 025_calendar_widgets.
+# The final schema after all tracked migrations through 026_calendar_widgets.
 # Do not automatically repair a live source.
 EXPECTED_COLUMNS = {
     "users": columns({"id": "uuid", "email": "text"}, {
@@ -81,7 +81,7 @@ EXPECTED_COLUMNS = {
         "refresh_request_id": "uuid", "refresh_requested_at": TS, "refresh_applied_at": TS,
     }),
     "device_displays": columns({
-        "device_id": "uuid", "owner_id": "uuid", "display_timezone": "text",
+        "device_id": "uuid", "owner_id": "uuid", "display_timezone": "text", "display_language": "text",
         "refresh_interval_minutes": "integer", "revision": "integer", "updated_at": TS,
     }, {"layout": "jsonb", "display_schedule": "jsonb", "active_layout_id": "text", "display_profile": "jsonb"}),
     "orders": columns({"id": "uuid", "user_id": "uuid"}, {
@@ -121,7 +121,8 @@ EXPECTED_DEFAULTS["custom_webhooks"]["rows"] = "'[]'::jsonb"
 EXPECTED_DEFAULTS["ai_usage_reports"]["providers"] = "'{}'::jsonb"
 EXPECTED_DEFAULTS["device_delivery"].update({"rotated_at": "now()", "instant_updates": "false"})
 EXPECTED_DEFAULTS["device_displays"].update({
-    "display_timezone": "'Europe/Copenhagen'::text", "refresh_interval_minutes": "30", "revision": "1",
+    "display_timezone": "'Europe/Copenhagen'::text", "display_language": "'en'::text",
+    "refresh_interval_minutes": "30", "revision": "1",
 })
 
 # PostgreSQL's pretty constraint definitions, including every tracked CHECK.
@@ -161,6 +162,7 @@ EXPECTED_CHECKS = {
         "CHECK (active_layout_id IS NULL OR active_layout_id ~ '^[A-Za-z0-9_-]{1,48}$'::text)",
         "CHECK (display_profile IS NULL OR jsonb_typeof(display_profile) = 'object'::text)",
         "CHECK (length(display_timezone) >= 1 AND length(display_timezone) <= 64)",
+        "CHECK (display_language = ANY (ARRAY['en'::text, 'da'::text]))",
         "CHECK (refresh_interval_minutes >= 1 AND refresh_interval_minutes <= 1440)",
         "CHECK (revision > 0)",
     ),

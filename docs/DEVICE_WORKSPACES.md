@@ -22,6 +22,31 @@ account settings remain intact. Devices without their own configuration continue
 to inherit account settings. A device configuration never follows a device into
 another owner's account.
 
+## Display language
+
+**Display language** in the device's settings switches the words its widgets draw
+between English and Danish. It is saved per device, so a kitchen display can read
+Danish while another stays English, and the next image delivered to that device uses
+it (a sleeping device picks it up when it next connects).
+
+Danish translates widget labels and error messages, weather conditions, the status
+bar, the week number widget, calendar dates and “all day”, sensor and charger
+widgets, and the AI usage labels and weekday names. It also writes decimals with a
+comma (`1,25 kr/kWh`), and shows the electricity price in `kr/kWh` instead of
+`DKK/kWh`. Clock times stay 24-hour `14:30` in both languages.
+
+Some text is not translated, by design:
+
+- News headlines, calendar event titles, notes and sensor names are shown as their
+  source provides them. News coverage is chosen separately under **News language**.
+- Stock ticker widgets keep their own `da`/`en` locale setting.
+- The web app has its own language switch and is not affected.
+
+The setting needs `025_display_language.sql`. Before it is applied, devices keep
+drawing English and saving any other setting still works; choosing a language
+returns “Apply database migration 025”. Account-wide previews that are not tied to a
+device, and templates, do not carry a language: it is a device setting.
+
 ## Slideshow on one device
 
 In **Display mode and slideshow** on the selected device's dashboard, choose

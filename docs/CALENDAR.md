@@ -11,6 +11,8 @@ Every calendar widget can be drawn in four views. Choose the view by selecting t
 | `days` | Several days side by side (`Thu 15/10`, today inverted), sharing the hour labels, with weekends shaded. | `days`: 2–7 columns. Unset fits as many as the width allows, with at least 10 characters per day. |
 | `month` | The month of today as a Monday-first grid: bold weekday names, the day numbers at the right of each cell, today inverted, weekends and the days around the month shaded. A large cell lists its events (bar and title, `+N more` when they do not fit), and a multi-day all-day event is one shaded bar across the week instead of a title in every cell; a small cell shows a dot for each event, up to three. | None. |
 
+All words and dates follow the device's [display language](DEVICE_WORKSPACES.md) (English or Danish): day names, `Today`/`I dag`, month names, `All day`/`Hele dagen` and the error messages.
+
 The look follows e-paper calendar dashboards such as TRMNL's Apple Calendar plugin, within what a 1-bit panel and the 8 × 8 font allow: grey becomes a dot pattern, and text over a pattern sits on a clean patch so it stays readable.
 
 `day` and `days` start an hour before now so what just happened and what comes next are both in view. How many hours show depends on the widget's height: at least 12 pixels an hour, so a tall widget, a larger panel or a lower text size shows more, and the whole day fits at about 300 pixels. Events outside the window are left out of that view; use the list for the rest of the day.
@@ -61,4 +63,4 @@ The JSON preview (`GET /api/preview`) returns the original calendar as `calendar
 | POST | `/api/preferences/calendar-credentials/widgets/{id}` | Body `{ "url": "https://…" }`. 404 unless `{id}` is a saved calendar |
 | DELETE | `/api/preferences/calendar-credentials/widgets/{id}` | Remove the stored URL |
 
-Apply `025_calendar_widgets.sql` to existing databases first; see the [database upgrade steps](RASPBERRY_PI_DATABASE_MIGRATION.md#upgrade-an-existing-database-for-additional-calendars-025).
+Apply `026_calendar_widgets.sql` to existing databases first; see the [database upgrade steps](RASPBERRY_PI_DATABASE_MIGRATION.md#upgrade-an-existing-database-for-additional-calendars-026).

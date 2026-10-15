@@ -1,8 +1,10 @@
 import type { CalendarData, CalendarEvent, WidgetOptions } from '../types';
 import type { Bounds, DrawingCanvas } from './zoomCanvas';
 import { wrapBitmapText } from './bitmapText';
-import { CALENDAR_ERROR_LABELS, type CalendarProblem } from './calendarErrors';
-import { dayOfMonth, daysBetween, monthGrid, monthName, monthShort, shiftDay, weekdayIndex, weekdayName } from './calendarDays';
+import type { CalendarProblem } from './calendarErrors';
+import { dayOfMonth, daysBetween, monthGrid, shiftDay, weekdayIndex } from './calendarDays';
+import { DEFAULT_DISPLAY_LANGUAGE, type DisplayLanguage } from './displayLanguage';
+import { displayStrings } from './displayStrings';
 import { calendarView, MAX_CALENDAR_DAYS, MIN_CALENDAR_DAYS } from './widgetOptions';
 
 // The four calendar views, drawn with the 8 x 8 font on a canvas that is already zoomed to the
@@ -82,22 +84,38 @@ function dotted(canvas: DrawingCanvas, x: number, y: number, length: number, ver
 
 const isWeekend = (day: string) => weekdayIndex(day) >= 5;
 
-export function renderCalendarWidget(canvas: DrawingCanvas, bounds: Bounds, source: CalendarSource, options?: WidgetOptions): void {
+/** The words and dates of the calendar in one display language. */
+function wording(language: DisplayLanguage) {
+  const t = displayStrings(language);
+  const monthIndex = (day: string) => Number(day.slice(5, 7)) - 1;
+  return {
+    t: t.calendar,
+    /** Monday-first weekday name; the catalog is Sunday-first. */
+    weekday: (day: string) => t.dates.weekdays[(weekdayIndex(day) + 1) % 7],
+    /** `15 Oct` or `15. okt.` */
+    dayMonth: (day: string) => t.dates.dayMonth({ day: dayOfMonth(day), month: monthIndex(day) }),
+    monthTitle: (day: string) => `${t.calendar.months[monthIndex(day)]} ${day.slice(0, 4)}`,
+  };
+}
+type Words = ReturnType<typeof wording>;
+
+export function renderCalendarWidget(canvas: DrawingCanvas, bounds: Bounds, source: CalendarSource, options?: WidgetOptions, language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE): void {
   const { x, y, width } = bounds;
   if (y > 0) canvas.drawHLine(x, y, width);
   const { data, error } = source;
+  const words = wording(language);
   if (!data) {
-    canvas.drawWrappedText(error ? `Calendar: ${CALENDAR_ERROR_LABELS[error.code]}` : 'Calendar: unavailable', x + 2, y + 2, width - 4, LINE);
+    canvas.drawWrappedText(error ? words.t.errors[error.code] : words.t.unavailable, x + 2, y + 2, width - 4, LINE);
     return;
   }
   const view = calendarView(options);
-  if (view === 'month' && drawMonth(canvas, bounds, data)) return;
-  if (view === 'day' && drawTimeline(canvas, bounds, data, 1)) return;
+  if (view === 'month' && drawMonth(canvas, bounds, data, words)) return;
+  if (view === 'day' && drawTimeline(canvas, bounds, data, 1, words)) return;
   if (view === 'days') {
     const columns = options?.days ?? clamp(Math.floor((width - GUTTER) / AUTO_DAY_COLUMN), MIN_CALENDAR_DAYS, MAX_CALENDAR_DAYS);
-    if (drawTimeline(canvas, bounds, data, columns)) return;
+    if (drawTimeline(canvas, bounds, data, columns, words)) return;
   }
-  drawList(canvas, bounds, data, options?.items);
+  drawList(canvas, bounds, data, words, options?.items);
 }
 
 // ── List ─────────────────────────────────────────────────────────────────────
@@ -109,19 +127,19 @@ function upcoming(data: CalendarData, limit: number): CalendarEvent[] {
     && !(event.endDay === data.today && event.endMinute !== null && event.endMinute <= data.nowMinute)).slice(0, limit);
 }
 
-function groupLabel(day: string, today: string, pixels: number): string {
-  const date = `${weekdayName(day)} ${dayOfMonth(day)} ${monthShort(day)}`;
-  const short = `${weekdayName(day)} ${dayOfMonth(day)}`;
-  if (day === today) return fitLabel([`Today, ${date}`, `Today ${dayOfMonth(day)} ${monthShort(day)}`, 'Today'], pixels);
-  if (day === shiftDay(today, 1)) return fitLabel([`Tomorrow, ${date}`, `Tomorrow ${dayOfMonth(day)} ${monthShort(day)}`, 'Tomorrow'], pixels);
-  return fitLabel([date, short, `${dayOfMonth(day)} ${monthShort(day)}`], pixels);
+function groupLabel(day: string, today: string, pixels: number, words: Words): string {
+  const date = `${words.weekday(day)} ${words.dayMonth(day)}`;
+  const short = `${words.weekday(day)} ${dayOfMonth(day)}`;
+  if (day === today) return fitLabel([`${words.t.today}, ${date}`, `${words.t.today} ${words.dayMonth(day)}`, words.t.today], pixels);
+  if (day === shiftDay(today, 1)) return fitLabel([`${words.t.tomorrow}, ${date}`, `${words.t.tomorrow} ${words.dayMonth(day)}`, words.t.tomorrow], pixels);
+  return fitLabel([date, short, words.dayMonth(day)], pixels);
 }
 
 /** The lines of an event card: its title (up to two lines) and its time range. */
-function cardLines(event: CalendarEvent, columnWidth: number): { lines: string[]; indent: number; height: number } {
+function cardLines(event: CalendarEvent, columnWidth: number, words: Words): { lines: string[]; indent: number; height: number } {
   const indent = 5;
   const title = [...wrapBitmapText(event.title, Math.max(1, chars(columnWidth - indent)))].slice(0, 2);
-  const lines = [...title, timeRange(event) ?? 'All day'];
+  const lines = [...title, timeRange(event) ?? words.t.allDay];
   return { lines, indent, height: lines.length * LINE + 2 };
 }
 
@@ -137,7 +155,7 @@ const PILL_W = 5 * GLYPH + 4;
 const MIN_END_PILL_WIDTH = 24 * GLYPH;
 
 /** One row per event: start time in a pill, bold title, end time in a shaded pill at the right. Days are shaded bars. */
-function drawSchedule(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, events: CalendarEvent[]): void {
+function drawSchedule(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, events: CalendarEvent[], words: Words): void {
   const { x, y, width, height } = bounds;
   const bottom = y + height;
   const left = x + 2;
@@ -150,7 +168,7 @@ function drawSchedule(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData,
     const needHeading = day !== heading;
     if (cursor + (needHeading ? HEADING_H : 0) + SCHEDULE_ROW > bottom + 2) break;
     if (needHeading) {
-      const label = groupLabel(day, data.today, inner - 8);
+      const label = groupLabel(day, data.today, inner - 8, words);
       shade(canvas, left, cursor, inner, GLYPH + 1);
       plate(canvas, label, left + Math.floor((inner - label.length * GLYPH) / 2), cursor + 1, inner);
       cursor += HEADING_H;
@@ -170,12 +188,12 @@ function drawSchedule(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData,
   }
 }
 
-function drawList(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, items?: number): void {
+function drawList(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, words: Words, items?: number): void {
   const { x, y, width, height } = bounds;
   const bottom = y + height;
   const events = upcoming(data, Math.min(items ?? data.limit, data.limit));
   if (events.length === 0) {
-    canvas.drawText('No upcoming events', x + 2, y + 2, width - 4);
+    canvas.drawText(words.t.none, x + 2, y + 2, width - 4);
     return;
   }
   // One or two lines of space is for events alone: a day heading would take half of it.
@@ -183,7 +201,7 @@ function drawList(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, ite
     let textY = y + 2;
     for (const event of events) {
       if (textY + GLYPH > bottom) break;
-      textY = canvas.drawWrappedText(`${event.dateLabel} ${event.timeLabel}: ${event.title}`, x + 2, textY, width - 4, LINE) + 2;
+      textY = canvas.drawWrappedText(`${words.dayMonth(event.day)} ${event.allDay || event.startMinute === null ? words.t.allDay : clock(event.startMinute)}: ${event.title}`, x + 2, textY, width - 4, LINE) + 2;
     }
     return;
   }
@@ -191,7 +209,7 @@ function drawList(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, ite
   // A tall widget shows each event as a card (title, then its time range); a short one as a schedule
   // row. A wide card list flows the days into columns, repeating the heading when a day carries on.
   if (height < CARD_MIN_HEIGHT) {
-    drawSchedule(canvas, bounds, data, events);
+    drawSchedule(canvas, bounds, data, events, words);
     return;
   }
   const columns = clamp(Math.floor((width - 4 + COLUMN_GAP) / (MIN_LIST_COLUMN + COLUMN_GAP)), 1, 3);
@@ -202,7 +220,7 @@ function drawList(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, ite
   let heading = '';
   for (const event of events) {
     const day = event.day < data.today ? data.today : event.day;
-    const card = cardLines(event, columnWidth);
+    const card = cardLines(event, columnWidth, words);
     let needHeading = day !== heading;
     // Start a new column when the heading and the event do not both fit in this one.
     if (cursor + (needHeading ? HEADING_H : 0) + card.height > bottom + 2 && cursor > y + 2) {
@@ -212,7 +230,7 @@ function drawList(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, ite
       needHeading = true;
     }
     if (needHeading) {
-      bold(canvas, groupLabel(day, data.today, columnWidth), columnX, cursor, columnWidth);
+      bold(canvas, groupLabel(day, data.today, columnWidth, words), columnX, cursor, columnWidth);
       cursor += HEADING_H;
       heading = day;
     }
@@ -255,10 +273,10 @@ function layoutSegments(events: CalendarEvent[], day: string, minMinutes: number
   return segments;
 }
 
-function dayHeading(day: string, single: boolean, pixels: number): string {
-  const weekday = weekdayName(day);
+function dayHeading(day: string, single: boolean, pixels: number, words: Words): string {
+  const weekday = words.weekday(day);
   const date = `${dayOfMonth(day)}/${Number(day.slice(5, 7))}`;
-  return fitLabel(single ? [`${weekday} ${dayOfMonth(day)} ${monthShort(day)}`, `${weekday} ${dayOfMonth(day)}`, `${dayOfMonth(day)}`]
+  return fitLabel(single ? [`${weekday} ${words.dayMonth(day)}`, `${weekday} ${dayOfMonth(day)}`, `${dayOfMonth(day)}`]
     : [`${weekday} ${date}`, `${weekday} ${dayOfMonth(day)}`, `${weekday.slice(0, 2)} ${dayOfMonth(day)}`, `${dayOfMonth(day)}`], pixels);
 }
 
@@ -272,7 +290,7 @@ function blockText(event: CalendarEvent, columns: number, capacity: number): str
 }
 
 /** The hour grid for one or more days. Returns false, drawing nothing, when it does not fit. */
-function drawTimeline(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, dayCount: number): boolean {
+function drawTimeline(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, dayCount: number, words: Words): boolean {
   const { x, y, width, height } = bounds;
   const bottom = y + height;
   const columnWidth = Math.floor((width - GUTTER - 1) / dayCount);
@@ -318,7 +336,7 @@ function drawTimeline(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData,
   days.forEach((day, index) => {
     const left = gridX + index * columnWidth;
     if (index > 0) canvas.fillRect(left, headingTop, 1, bottom - headingTop);
-    const heading = dayHeading(day, dayCount === 1, columnWidth - 3);
+    const heading = dayHeading(day, dayCount === 1, columnWidth - 3, words);
     if (day === data.today) drawBar(canvas, left + 1, headingTop, columnWidth - 1, heading);
     else bold(canvas, heading, left + 2, headingTop + 1, columnWidth - 3);
 
@@ -327,7 +345,7 @@ function drawTimeline(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData,
       const more = list.length > stripLines && line === stripLines - 1;
       const top = stripTop + line * LINE;
       canvas.fillRect(left + 1, top + 1, 2, GLYPH);
-      canvas.drawText(more ? `+${list.length - line} more` : list[line].title, left + 5, top + 1, columnWidth - 6);
+      canvas.drawText(more ? words.t.more(list.length - line) : list[line].title, left + 5, top + 1, columnWidth - 6);
     }
 
     // Where the day stands now. Drawn first, so an event under it stays readable.
@@ -377,7 +395,7 @@ function eventsByDay(events: CalendarEvent[], first: string, last: string): Map<
 }
 
 /** The month of today as a grid of weeks. Returns false when it does not fit. */
-function drawMonth(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData): boolean {
+function drawMonth(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, words: Words): boolean {
   const { x, y, width, height } = bounds;
   const bottom = y + height;
   const grid = monthGrid(data.today);
@@ -394,11 +412,11 @@ function drawMonth(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData): b
 
   const gridX = x + 1 + Math.floor((width - 2 - 7 * cellW) / 2);
   const cellsTop = top + headerH;
-  if (headerH >= 2 * LINE) bold(canvas, `${monthName(data.today)} ${data.today.slice(0, 4)}`, gridX, top + 1, width - 2);
+  if (headerH >= 2 * LINE) bold(canvas, words.monthTitle(data.today), gridX, top + 1, width - 2);
   if (headerH >= LINE) {
     const weekdaysY = top + headerH - LINE;
     for (let column = 0; column < 7; column++) {
-      const name = weekdayName(shiftDay(grid.start, column));
+      const name = words.weekday(shiftDay(grid.start, column));
       const label = cellW >= 3 * GLYPH + 2 ? name : name[0];
       bold(canvas, label, gridX + column * cellW + Math.floor((cellW - label.length * GLYPH) / 2), weekdaysY + 1, cellW);
     }
@@ -466,7 +484,7 @@ function drawMonth(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData): b
           canvas.fillRect(cellX + 2, lineY, 2, GLYPH);
           plate(canvas, list[index].title, cellX + 6, lineY, cellW - 8);
         }
-        if (shown < list.length && lines > 1) plate(canvas, `+${list.length - shown} more`, cellX + 6, top + shown * CELL_LINE, cellW - 8);
+        if (shown < list.length && lines > 1) plate(canvas, words.t.more(list.length - shown), cellX + 6, top + shown * CELL_LINE, cellW - 8);
       } else {
         const dots = Math.min(all.length, MAX_DOTS);
         if (cellH >= 2 * LINE - 1) {

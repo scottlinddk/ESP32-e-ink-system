@@ -10,11 +10,6 @@ const MESSAGES: Record<WeatherErrorCode, string> = {
   invalid_response: 'OpenWeatherMap returned incomplete or invalid weather data. Try again later.',
 };
 
-export const WEATHER_ERROR_LABELS: Record<WeatherErrorCode, string> = {
-  missing_key: 'Add API key', invalid_location: 'Check location', invalid_key: 'Check API key',
-  rate_limited: 'API limit', unavailable: 'Unavailable', timeout: 'Timed out', invalid_response: 'Invalid data',
-};
-
 /** Only fixed messages may leave the provider boundary; never include a URL or response body. */
 export class WeatherSourceError extends Error {
   constructor(readonly code: WeatherErrorCode) {

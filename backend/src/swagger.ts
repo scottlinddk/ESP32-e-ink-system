@@ -51,6 +51,7 @@ const options: swaggerJsdoc.Options = {
           type: 'object',
           properties: {
             display_timezone: { type: 'string', maxLength: 64, default: 'Europe/Copenhagen', description: 'IANA time zone for the display clock and preview timestamp; independent of calendar and quiet hours' },
+            display_language: { type: 'string', enum: ['en', 'da'], default: 'en', description: 'Device only (PUT /api/devices/{id}/display): language of the words widgets draw on that device. Accounts have no such setting; a device that never chose one draws English. Needs migration 025.' },
             show_energy_price: { type: 'boolean' },
             show_weather: { type: 'boolean' },
             show_news: { type: 'boolean' },

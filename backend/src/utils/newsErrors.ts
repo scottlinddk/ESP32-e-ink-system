@@ -10,10 +10,6 @@ const MESSAGES: Record<NewsErrorCode, string> = {
   timeout: 'The news provider did not respond in time. Try again.',
   invalid_response: 'The news provider returned invalid data. Try again later.',
 };
-export const NEWS_ERROR_LABELS: Record<NewsErrorCode, string> = {
-  unsupported_coverage: 'Use RSS feed', missing_key: 'Add API key', invalid_key: 'Check API key',
-  rate_limited: 'API limit', unavailable: 'Unavailable', timeout: 'Timed out', invalid_response: 'Invalid data',
-};
 export class NewsSourceError extends Error {
   constructor(readonly code: NewsErrorCode) { super(MESSAGES[code]); this.name = 'NewsSourceError'; }
 }
