@@ -206,16 +206,19 @@ export class BmpCanvas implements DrawingCanvas {
     for (let i = 0; i < w; i++) this.setPixel(x + i, y, true);
   }
 
+  // Edges are rounded to whole pixels, so a fractional rectangle stays gap-free next to its neighbours.
   fillRect(x: number, y: number, w: number, h: number, black = true): void {
-    for (let row = y; row < y + h; row++) {
-      for (let col = x; col < x + w; col++) {
+    const left = Math.round(x), top = Math.round(y);
+    const right = Math.round(x + w), bottom = Math.round(y + h);
+    for (let row = top; row < bottom; row++) {
+      for (let col = left; col < right; col++) {
         this.setPixel(col, row, black);
       }
     }
   }
 
-  // `scale` enlarges the 8x8 font by a whole number; `maxWidth` is in output pixels.
-  // `black = false` draws white glyphs, for text on a filled area.
+  // `scale` enlarges the 8x8 font, by a whole number or a fraction of one (at least 1);
+  // `maxWidth` is in output pixels. `black = false` draws white glyphs, for text on a filled area.
   drawChar(ch: number, x: number, y: number, scale = 1, black = true): void {
     const glyph = bitmapGlyph(ch, FONT8X8);
     for (let row = 0; row < 8; row++) {
@@ -230,11 +233,12 @@ export class BmpCanvas implements DrawingCanvas {
 
   drawText(text: string, x: number, y: number, maxWidth = this.width, scale = 1, black = true): void {
     const step = 8 * scale;
-    let cx = x;
+    let index = 0;
     for (const ch of normalizeBitmapText(text)) {
+      const cx = x + index * step;
       if (cx + step > x + maxWidth || cx + step > this.width) break;
       this.drawChar(ch.codePointAt(0)!, cx, y, scale, black);
-      cx += step;
+      index++;
     }
   }
 

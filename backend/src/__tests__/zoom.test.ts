@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DisplayLayout, WidgetLayout } from '../types/index';
-import { autoZoom, chooseZoom, fitZoom, isZoom } from '../utils/zoom';
+import { autoZoom, chooseZoom, fitZoom, isWidgetZoom, isZoom } from '../utils/zoom';
 import { ZoomCanvas, logicalBounds } from '../utils/zoomCanvas';
 import { BmpCanvas, renderDisplayData, renderDisplayDataRaw } from '../utils/bmpGenerator';
 import { LayoutValidationError, parseDisplayLayout } from '../utils/layoutValidation';
@@ -41,6 +41,18 @@ describe('zoom choice', () => {
   it('accepts only whole numbers from 1 to 4', () => {
     expect([1, 2, 3, 4].every(isZoom)).toBe(true);
     for (const bad of [0, 5, 1.5, -1, '2', null, undefined, NaN]) expect(isZoom(bad)).toBe(false);
+  });
+
+  it('lets a widget zoom move in steps of 0.2', () => {
+    expect([1, 1.2, 1.4, 2.6, 3, 3.8, 4].every(isWidgetZoom)).toBe(true);
+    for (const bad of [0.8, 1.1, 2.5, 4.2, 5, -1, '2', null, undefined, NaN, Infinity]) expect(isWidgetZoom(bad)).toBe(false);
+  });
+
+  it('lowers a fine zoom in fine steps and a whole zoom in whole ones', () => {
+    expect(fitZoom(3.4, 160, 50)).toBe(3.4);
+    expect(fitZoom(3.4, 160, 25)).toBe(2.4); // 25 / 2.4 = 10 rows is the most that still fits
+    expect(fitZoom(1.4, 20, 100)).toBe(1);
+    expect(fitZoom(4, 160, 25)).toBe(2); // unchanged for whole zooms
   });
 });
 
@@ -87,6 +99,28 @@ describe('ZoomCanvas', () => {
     expect(draw.mock.calls.map(([text]) => text)).toEqual(['hello', 'world']);
     expect(after).toBe(20);
     draw.mockRestore();
+  });
+
+  it('draws a fine zoom with block edges rounded, leaving no gaps', () => {
+    const canvas = new BmpCanvas(RLCD);
+    const zoomed = new ZoomCanvas(canvas, 1.4);
+    expect([zoomed.width, zoomed.height]).toEqual([285, 214]);
+    // Three neighbouring logical pixels cover 0..4 physical pixels: 1.4, 2.8 and 4.2 round to 1, 3, 4.
+    for (const x of [0, 1, 2]) zoomed.setPixel(x, 0, true);
+    const raw = canvas.toRawPixels();
+    const blackAt = (x: number, y: number) => !(raw[y * 50 + (x >> 3)] & (0x80 >> (x & 7)));
+    expect([0, 1, 2, 3, 4].map((x) => blackAt(x, 0))).toEqual([true, true, true, true, false]);
+    expect(blackAt(0, 0)).toBe(true); // logical row 0 spans 0 to round(1.4) = 1
+    expect(blackAt(0, 1)).toBe(false);
+  });
+
+  it('draws text at a fine zoom within the widget', () => {
+    const canvas = new BmpCanvas(RLCD);
+    new ZoomCanvas(canvas, 1.4).drawText('Hi', 2, 2, 40);
+    const raw = canvas.toRawPixels();
+    let black = 0;
+    for (let y = 0; y < 300; y++) for (let x = 0; x < 400; x++) if (!(raw[y * 50 + (x >> 3)] & (0x80 >> (x & 7)))) black++;
+    expect(black).toBeGreaterThan(0);
   });
 
   it('rejects a zoom outside the supported range', () => {
@@ -144,6 +178,19 @@ describe('rendering with zoom', () => {
     expect(titles(4)).toBeGreaterThan(0);
   });
 
+  it('sizes news text between the whole zooms', () => {
+    const news = Array.from({ length: 10 }, (_, index) => ({ title: `Headline ${index}`, url: 'https://example.com' }));
+    const scales = (zoom: number) => {
+      const draw = vi.spyOn(BmpCanvas.prototype, 'drawText');
+      renderDisplayDataRaw({ nextRefresh: 1000, news }, layout(1, { i: 'news', x: 0, y: 0, w: 10, h: 6, options: { zoom } }), { display_profile: RLCD });
+      const scale = draw.mock.calls[1][4];
+      draw.mockRestore();
+      return scale;
+    };
+    expect(scales(1.4)).toBeCloseTo(1.4);
+    expect(scales(2.6)).toBeCloseTo(2.6);
+  });
+
   it('lowers a zoom that does not fit a single-row widget', () => {
     const draw = vi.spyOn(BmpCanvas.prototype, 'drawText');
     // A 250 x 122 panel has 20 px rows: zoom 3 would leave 6 logical px, too few for a line, so it gives way to 2.
@@ -153,9 +200,11 @@ describe('rendering with zoom', () => {
 
   it('draws nothing outside a zoomed widget', () => {
     const news = Array.from({ length: 5 }, (_, index) => ({ title: `Long headline number ${index} that wraps`, url: 'https://example.com' }));
-    const bmp = (zoom: number) => renderDisplayData({ nextRefresh: 1000, news }, layout(zoom, { i: 'news', x: 0, y: 0, w: 5, h: 2 }), { display_profile: RLCD });
-    const raw = (zoom: number) => renderDisplayDataRaw({ nextRefresh: 1000, news }, layout(zoom, { i: 'news', x: 0, y: 0, w: 5, h: 2 }), { display_profile: RLCD });
-    for (const zoom of [1, 2, 4]) {
+    // The zoom is the widget's own, so fine steps are allowed (the layout's stays whole).
+    const widget = (zoom: number): WidgetLayout => ({ i: 'news', x: 0, y: 0, w: 5, h: 2, options: { zoom } });
+    const bmp = (zoom: number) => renderDisplayData({ nextRefresh: 1000, news }, layout(undefined, widget(zoom)), { display_profile: RLCD });
+    const raw = (zoom: number) => renderDisplayDataRaw({ nextRefresh: 1000, news }, layout(undefined, widget(zoom)), { display_profile: RLCD });
+    for (const zoom of [1, 1.4, 2, 2.6, 4]) {
       const pixels = raw(zoom);
       expect(bmp(zoom).length).toBeGreaterThan(0);
       for (let y = 0; y < 300; y++) for (let byte = 0; byte < 50; byte++) {
@@ -189,7 +238,13 @@ describe('zoom validation', () => {
     expect(() => parseDisplayLayout({ ...layout(undefined, { i: 'status', x: 0, y: 5, w: 10, h: 1 }), zoom })).toThrow(LayoutValidationError);
   });
 
-  it.each([['energy', { zoom: 0 }], ['news', { zoom: 5 }], ['weather', { zoom: 2.5 }], ['status', { zoom: '2' }],
+  it('accepts a widget zoom in steps of 0.2 but a layout zoom only whole', () => {
+    expect(parseWidgetOptions('news', { items: 3, zoom: 1.4 })).toEqual({ zoom: 1.4, items: 3 });
+    expect(parseWidgetOptions('status', { zoom: 3.8 })).toEqual({ zoom: 3.8 });
+    expect(() => parseDisplayLayout({ ...layout(undefined, { i: 'status', x: 0, y: 5, w: 10, h: 1 }), zoom: 1.4 })).toThrow(LayoutValidationError);
+  });
+
+  it.each([['energy', { zoom: 0 }], ['news', { zoom: 5 }], ['weather', { zoom: 2.5 }], ['status', { zoom: '2' }], ['news', { zoom: 1.1 }],
     ['weather', { zoom: 2, days: 3 }], ['custom-image', { zoom: 2 }]])('rejects %s options %j', (id, options) => {
     expect(() => parseWidgetOptions(id, options)).toThrow();
   });

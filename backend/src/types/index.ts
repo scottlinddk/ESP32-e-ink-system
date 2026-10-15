@@ -26,7 +26,7 @@ export interface WidgetOptions {
   columns?: number;
   /** calendar days view: how many days are shown side by side, 2–7. Unset fits as many as the width allows. */
   days?: number;
-  /** Whole-number enlargement of everything the widget draws, 1–4. Overrides the layout's zoom; unset follows it. */
+  /** Enlargement of everything the widget draws, 1–4 in steps of 0.2. Overrides the layout's zoom; unset follows it. */
   zoom?: number;
 }
 

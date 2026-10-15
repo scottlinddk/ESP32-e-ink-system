@@ -1,4 +1,4 @@
-import { MAX_ZOOM, MIN_ZOOM } from './zoom';
+import { isWidgetZoom, MAX_ZOOM, MIN_ZOOM } from './zoom';
 
 export interface Bounds { x: number; y: number; width: number; height: number }
 
@@ -34,7 +34,7 @@ export class ZoomCanvas implements DrawingCanvas {
   readonly height: number;
 
   constructor(private readonly target: DrawingCanvas, readonly zoom: number) {
-    if (!Number.isInteger(zoom) || zoom < MIN_ZOOM || zoom > MAX_ZOOM) throw new RangeError(`Zoom must be a whole number from ${MIN_ZOOM} to ${MAX_ZOOM}.`);
+    if (!isWidgetZoom(zoom)) throw new RangeError(`Zoom must be a multiple of 0.2 from ${MIN_ZOOM} to ${MAX_ZOOM}.`);
     this.width = Math.floor(target.width / zoom);
     this.height = Math.floor(target.height / zoom);
   }
@@ -46,7 +46,13 @@ export class ZoomCanvas implements DrawingCanvas {
 
   withClip(bounds: Bounds, draw: () => void): void {
     const z = this.zoom;
-    this.target.withClip({ x: bounds.x * z, y: bounds.y * z, width: bounds.width * z, height: bounds.height * z }, draw);
+    const left = Math.round(bounds.x * z);
+    const top = Math.round(bounds.y * z);
+    this.target.withClip({
+      x: left, y: top,
+      width: Math.round((bounds.x + bounds.width) * z) - left,
+      height: Math.round((bounds.y + bounds.height) * z) - top,
+    }, draw);
   }
 
   drawHLine(x: number, y: number, w: number): void {

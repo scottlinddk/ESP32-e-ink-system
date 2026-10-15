@@ -11,7 +11,7 @@ Select a widget in **Edit layout** (tap or click it, or focus it and press Enter
 | `ticker:<id>` | `view`, `items` | `full` or `condensed`, and stocks per page for `condensed`. Overrides the ticker's own settings. See [Stock ticker widgets](TICKER_WIDGET.md). |
 | `ai-usage` | `view` | `full` (default, quota windows plus token breakdown) or `condensed` (quota windows only). A widget too short for the chosen view drops detail, down to one line per provider. See [AI usage](AI_USAGE.md). |
 | `status` | `view` | `full` (default, refresh interval and time) or `condensed` (the time alone, so the bar can be narrow). See [A smaller status bar](LAYOUT_GRID.md#a-smaller-status-bar). |
-| every widget except `custom-image` | `zoom` | 1–4. Enlarges the widget's text and graphics. See [Zoom](#zoom). |
+| every widget except `custom-image` | `zoom` | 1–4 in steps of 0.2 (a slider in the editor). Enlarges the widget's text and graphics. See [Zoom](#zoom). |
 
 Options are stored on the layout widget:
 
@@ -27,8 +27,8 @@ The widgets are drawn with an 8 × 8 pixel font, which reads well on the 250 × 
 
 Zoom is chosen at three levels, the most specific first:
 
-1. **Widget**: `options.zoom` on a layout widget (the **Text size** field under the grid). Unset follows the layout.
-2. **Layout**: `zoom` beside `widgets` (the **Layout text size** field above the grid). Unset means automatic.
+1. **Widget**: `options.zoom` on a layout widget (the **Text size** slider under the grid). Any multiple of 0.2 from 1 to 4. Unset follows the layout.
+2. **Layout**: `zoom` beside `widgets` (the **Layout text size** field above the grid). A whole factor from 1 to 4. Unset means automatic.
 3. **Automatic**: the largest whole factor that still leaves a logical canvas of about 200 × 100, judged on the panel's size after rotation, capped at 4. 250 × 122 stays 1×, 400 × 300 gives 2× and 800 × 480 gives 4×.
 
 ```json
@@ -36,5 +36,7 @@ Zoom is chosen at three levels, the most specific first:
   { "i": "energy", "x": 0, "y": 0, "w": 10, "h": 3, "options": { "view": "day", "zoom": 1 } },
   { "i": "status", "x": 0, "y": 5, "w": 10, "h": 1, "static": true } ] }
 ```
+
+A fine zoom such as 1.4× has no matching bitmap font, so the 8 × 8 glyphs are resampled: each glyph pixel becomes a block whose edges are rounded to the nearest panel pixel. Strokes and gaps are therefore 1 or 2 px wide, and letter spacing varies by a pixel. Whole values (1×, 2×, 3×, 4×) are the sharpest; try the in-between ones on your panel and in the live preview before relying on them. The layout's own zoom stays whole.
 
 Choose **1×** for a layout to keep the pre-zoom look on a larger panel. A zoom too large for a widget (less than one text line, or about four characters, would remain) is lowered until it fits, so a one-row widget never shows half a line. `custom-image` is never zoomed: it is placed by pixel and already scales to its area. The layout editor labels the automatic choice from the saved display profile; a device that declares its own panel size follows that size on the server.

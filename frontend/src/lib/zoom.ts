@@ -7,6 +7,14 @@ import type { DisplayProfile } from './displayProfile';
 export const MIN_ZOOM = 1;
 export const MAX_ZOOM = 4;
 export const ZOOMS = [1, 2, 3, 4] as const;
+/** A widget's own zoom moves in finer steps than the layout's. */
+export const WIDGET_ZOOM_STEP = 0.2;
+
+/** Snaps a slider value to the nearest allowed widget zoom, free of floating point residue. */
+export function snapWidgetZoom(value: number): number {
+  const steps = Math.round(value / WIDGET_ZOOM_STEP);
+  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Number((steps * WIDGET_ZOOM_STEP).toFixed(1))));
+}
 
 const AUTO_MIN_WIDTH = 200;
 const AUTO_MIN_HEIGHT = 100;
@@ -31,4 +39,4 @@ export function updateLayoutZoom(layout: DisplayLayout, zoom: number | undefined
   return zoom === undefined ? rest : { ...rest, zoom };
 }
 
-export const zoomLabel = (zoom: number) => `${zoom}×`;
+export const zoomLabel = (zoom: number) => `${Number(zoom.toFixed(1))}×`;

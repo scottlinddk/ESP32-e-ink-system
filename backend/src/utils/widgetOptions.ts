@@ -3,7 +3,7 @@ import { newsFeedIdFromWidget } from './newsFeeds';
 import { calendarIdFromWidget } from './calendarWidgets';
 import { isWeatherWidget } from './weatherWidgets';
 import { tickerIdFromWidget } from './tickerWidgets';
-import { isZoom, MAX_ZOOM, MIN_ZOOM } from './zoom';
+import { isWidgetZoom, MAX_ZOOM, MIN_ZOOM } from './zoom';
 
 // Per-placement display options, stored on a layout widget. They change how a widget is
 // drawn, never what is fetched, so a scheduled page can show the same source differently.
@@ -76,7 +76,7 @@ export function parseWidgetOptions(widgetId: string, value: unknown): WidgetOpti
   }
   const options: WidgetOptions = {};
   if (value.zoom !== undefined) {
-    if (!isZoom(value.zoom)) throw new Error(`Widget zoom must be a whole number from ${MIN_ZOOM} to ${MAX_ZOOM}.`);
+    if (!isWidgetZoom(value.zoom)) throw new Error(`Widget zoom must be a multiple of 0.2 from ${MIN_ZOOM} to ${MAX_ZOOM}.`);
     options.zoom = value.zoom;
   }
   if (value.view !== undefined) {
