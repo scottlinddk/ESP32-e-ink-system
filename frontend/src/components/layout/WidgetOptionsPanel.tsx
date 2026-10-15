@@ -4,7 +4,7 @@
 import React from 'react';
 import type { CalendarView, EnergyView, TickerView, TickerWidgetSetting, WeatherView, WidgetLayout, WidgetOptions } from '../../types';
 import { MAX_CALENDAR_DAYS, MAX_NEWS_COLUMNS, MAX_WIDGET_ITEMS, MIN_CALENDAR_DAYS, widgetAcceptsZoom, widgetOptionKind } from '../../lib/widgetOptions';
-import { ZOOMS, zoomLabel } from '../../lib/zoom';
+import { MAX_ZOOM, MIN_ZOOM, WIDGET_ZOOM_STEP, snapWidgetZoom, zoomLabel } from '../../lib/zoom';
 import { Card } from '../ui/card';
 import { Field } from '../ui/Field';
 import { Select } from '../ui/select';
@@ -211,18 +211,26 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
           </Field>
         )}
 
-        {widgetAcceptsZoom(widget.i) && (
-          <Field label={da ? 'Tekststørrelse' : 'Text size'} htmlFor={`${fieldId}-zoom`}
-            helper={da ? 'Forstørrer tekst og grafik i hele tal. Er widgetten for lille til størrelsen, bruges en mindre.'
-              : 'Enlarges text and graphics in whole steps. A widget too small for the size uses a smaller one.'}>
-            <Select id={`${fieldId}-zoom`} value={widget.options?.zoom === undefined ? AUTO : String(widget.options.zoom)}
-              options={[
-                { value: AUTO, label: `${da ? 'Som layoutet' : 'Follow layout'}${inheritedZoom ? ` (${zoomLabel(inheritedZoom)})` : ''}` },
-                ...ZOOMS.map((zoom) => ({ value: String(zoom), label: zoomLabel(zoom) })),
-              ]}
-              onChange={(e) => onChange({ zoom: e.target.value === AUTO ? undefined : Number(e.target.value) })} />
-          </Field>
-        )}
+        {widgetAcceptsZoom(widget.i) && (() => {
+          const own = widget.options?.zoom;
+          const shown = own ?? inheritedZoom ?? MIN_ZOOM;
+          const followLabel = `${da ? 'Som layoutet' : 'Follow layout'}${inheritedZoom ? ` (${zoomLabel(inheritedZoom)})` : ''}`;
+          return (
+            <Field label={da ? 'Tekststørrelse' : 'Text size'} htmlFor={`${fieldId}-zoom`}
+              helper={da ? 'Forstørrer tekst og grafik. Er widgetten for lille til størrelsen, bruges en mindre.'
+                : 'Enlarges text and graphics. A widget too small for the size uses a smaller one.'}>
+              <div className="flex items-center gap-3">
+                <input id={`${fieldId}-zoom`} type="range" min={MIN_ZOOM} max={MAX_ZOOM} step={WIDGET_ZOOM_STEP} value={shown}
+                  className="flex-1 min-w-0 cursor-pointer accent-[var(--accent)]" aria-valuetext={zoomLabel(shown)}
+                  onChange={(e) => onChange({ zoom: snapWidgetZoom(Number(e.target.value)) })} />
+                <output htmlFor={`${fieldId}-zoom`} className="w-12 text-right text-sm tabular-nums text-fg1">{zoomLabel(shown)}</output>
+              </div>
+              {own === undefined
+                ? <span className="text-xs text-fg3">{followLabel}</span>
+                : <Button variant="text" size="sm" icon="restart_alt" className="self-start" onClick={() => onChange({ zoom: undefined })}>{followLabel}</Button>}
+            </Field>
+          );
+        })()}
 
         {!kind && !widgetAcceptsZoom(widget.i) && (
           <p className="text-sm text-fg2 m-0">

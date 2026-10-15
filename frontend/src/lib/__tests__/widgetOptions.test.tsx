@@ -5,7 +5,7 @@ import { GridEditor, layoutFromGrid } from '../../components/layout/GridEditor';
 import { WidgetOptionsPanel } from '../../components/layout/WidgetOptionsPanel';
 import { updateWidgetOptions, widgetAcceptsZoom, widgetOptionKind } from '../widgetOptions';
 import { isWeatherWidget, WEATHER_WIDGET_IDS, weatherWidgetLabel } from '../weatherWidgets';
-import { autoZoom, inheritedZoom, updateLayoutZoom } from '../zoom';
+import { autoZoom, inheritedZoom, snapWidgetZoom, updateLayoutZoom, zoomLabel } from '../zoom';
 import type { DisplayLayout, TickerWidgetSetting, WidgetLayout } from '../../types';
 
 const layout: DisplayLayout = { version: 1, cols: 10, rows: 6, widgets: [
@@ -107,10 +107,24 @@ describe('widget options panel', () => {
       const markup = html({ i: id, x: 0, y: 0, w: 5, h: 2 });
       expect(markup).toContain('Text size');
       expect(markup).toContain('Follow layout (2×)');
-      expect(markup).toContain('<option value="4">4×</option>');
+      // A slider in steps of 0.2, resting on what the widget follows.
+      expect(markup).toMatch(/type="range"/);
+      expect(markup).toMatch(/min="1"/);
+      expect(markup).toMatch(/max="4"/);
+      expect(markup).toMatch(/step="0.2"/);
+      expect(markup).toMatch(/value="2"/);
     }
-    expect(html({ i: 'status', x: 0, y: 0, w: 5, h: 2, options: { zoom: 3 } })).toMatch(/<option value="3" selected="">3×<\/option>/);
+    const own = html({ i: 'status', x: 0, y: 0, w: 5, h: 2, options: { zoom: 2.6 } });
+    expect(own).toMatch(/value="2.6"/);
+    expect(own).toContain('2.6×');
     expect(panel({ i: 'weather', x: 0, y: 0, w: 5, h: 2 }, 'da')).toContain('Tekststørrelse');
+  });
+});
+
+describe('widget zoom steps', () => {
+  it('snaps slider values to 0.2 without floating point residue', () => {
+    expect([1, 1.2, 1.4000000000000001, 2.6, 2.61, 3.99, 4, 0, 9].map(snapWidgetZoom)).toEqual([1, 1.2, 1.4, 2.6, 2.6, 4, 4, 1, 4]);
+    expect(zoomLabel(snapWidgetZoom(1.4000000000000001))).toBe('1.4×');
   });
 });
 
