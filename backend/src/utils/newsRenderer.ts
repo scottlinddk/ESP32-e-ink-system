@@ -1,26 +1,16 @@
 import type { DisplayData } from '../types/index';
-import { normalizeBitmapText } from './bitmapText';
+import { normalizeBitmapText, wrapBitmapText } from './bitmapText';
 import type { Bounds, DrawingCanvas } from './zoomCanvas';
 import { DEFAULT_DISPLAY_LANGUAGE, type DisplayLanguage } from './displayLanguage';
 import { displayStrings } from './displayStrings';
 
 const GLYPH = 8;
-/** A headline row is the title, a one pixel gap and the source line. */
-const META_ROW_H = GLYPH * 2 + 1;
-const META_PITCH = META_ROW_H + 3;
-/** Without a source the row is the title alone. */
-const PLAIN_PITCH = 12;
+/** A line of title is the glyph and a pixel of air; headlines are set apart by a few more. */
+const LINE_H = GLYPH + 1;
+const ROW_GAP = 4;
 /** The narrowest column that still holds a rank and a few characters of title. */
 const MIN_COLUMN_W = 64;
 const COLUMN_GAP = 6;
-
-/** The hostname of an article, without a leading "www."; empty when the URL is missing or unusable. */
-export function newsSource(url: string): string {
-  try {
-    const { protocol, hostname } = new URL(url);
-    return protocol === 'http:' || protocol === 'https:' ? hostname.replace(/^www\./, '') : '';
-  } catch { return ''; }
-}
 
 /** Fits text on one line of `maxChars` glyphs, ending in "..." when it is cut. */
 export function fitOneLine(text: string, maxChars: number): string {
@@ -31,6 +21,19 @@ export function fitOneLine(text: string, maxChars: number): string {
   return `${characters.slice(0, maxChars - 3).join('').trimEnd()}...`;
 }
 
+/** The first `limit` lines of a title wrapped to `maxChars` glyphs, without laying out the rest. */
+function takeLines(text: string, maxChars: number, limit: number): string[] {
+  const lines: string[] = [];
+  for (const line of wrapBitmapText(text.replace(/\s+/gu, ' ').trim(), maxChars)) {
+    if (lines.length >= limit) break;
+    lines.push(line);
+  }
+  return lines;
+}
+
+/** How many lines of title fit in `room` pixels; the last line needs no air below it. */
+const linesIn = (room: number) => Math.max(0, Math.floor((room + 1) / LINE_H));
+
 /** The 8x8 font has no bold, so a title is drawn twice, one pixel apart. */
 function drawBold(canvas: DrawingCanvas, text: string, x: number, y: number, maxWidth: number): void {
   canvas.drawText(text, x, y, maxWidth);
@@ -38,7 +41,8 @@ function drawBold(canvas: DrawingCanvas, text: string, x: number, y: number, max
 }
 
 /**
- * Numbered headlines, one per row: a bold title cut to one line over the article's source.
+ * Numbered headlines: a rank and a bold title that wraps over as many lines as it needs. A headline
+ * is never split between columns; one too long for a whole column is cut with "..." on its last line.
  * `columns` splits them side by side, as many as the width allows at the least.
  */
 export function renderNewsWidget(
@@ -71,24 +75,30 @@ export function renderNewsWidget(
 
   // Headlines are split evenly between the columns, unless a column runs out of room first.
   const perColumn = Math.ceil(items.length / columnCount);
+  const columnRoom = y + height - top;
   let column = 0;
   let inColumn = 0;
   let cursor = top;
-  items.forEach((item, index) => {
-    const source = newsSource(item.url);
-    const rowH = source ? META_ROW_H : GLYPH;
-    if (inColumn >= perColumn || cursor + rowH > y + height) {
+  for (const [index, item] of items.entries()) {
+    const wanted = takeLines(item.title, textChars, linesIn(columnRoom) + 1);
+    let room = y + height - cursor;
+    if (inColumn >= perColumn || (inColumn > 0 && wanted.length > linesIn(room))) {
       // Continue in the next column, or stop when the last one is full.
-      if (column + 1 >= columnCount || top + rowH > y + height) return;
+      if (column + 1 >= columnCount) break;
       column++;
       inColumn = 0;
       cursor = top;
+      room = columnRoom;
     }
+    const fit = linesIn(room);
+    if (fit < 1) break;
+    const lines = wanted.length ? wanted.slice(0, fit) : [''];
+    // Only a headline taller than its column gets here cut: mark where its last line stops.
+    if (wanted.length > fit) lines[fit - 1] = fitOneLine(`${wanted[fit - 1]} ${wanted[fit]}`, textChars);
     inColumn++;
     const left = x + 2 + column * (columnW + COLUMN_GAP);
     canvas.drawText(String(index + 1), left, cursor, rankW);
-    drawBold(canvas, fitOneLine(item.title, textChars), left + rankW, cursor, columnW - rankW);
-    if (source) canvas.drawText(fitOneLine(source, textChars), left + rankW, cursor + GLYPH + 1, columnW - rankW);
-    cursor += source ? META_PITCH : PLAIN_PITCH;
-  });
+    lines.forEach((line, row) => drawBold(canvas, line, left + rankW, cursor + row * LINE_H, columnW - rankW));
+    cursor += lines.length * LINE_H - 1 + ROW_GAP;
+  }
 }
