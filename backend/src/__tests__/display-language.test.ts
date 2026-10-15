@@ -1,3 +1,4 @@
+import { allDayEvent, calendarData, timedEvent } from './calendarFixtures';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AiProviderView } from '../aiUsage/types';
 import type { DisplayData, DisplayLayout, UserPreferences } from '../types/index';
@@ -239,13 +240,16 @@ describe('widget text per language', () => {
   });
 
   it('translates calendar dates, all-day events and empty states', () => {
-    const calendar: Partial<DisplayData> = { calendar: { timezone: 'Europe/Copenhagen', events: [
-      { title: 'Møde', start: '2026-10-15T12:30:00.000Z', end: '2026-10-15T13:30:00.000Z', allDay: false, dateLabel: '15 Oct', timeLabel: '14:30' },
-      { title: 'Ferie', start: '2026-10-16', end: '2026-10-17', allDay: true, dateLabel: '16 Oct', timeLabel: 'All day' },
-    ] } };
-    expect(drawn(calendar, ['calendar'], {}, 2)).toEqual(['15 Oct 14:30: Møde', '16 Oct All day: Ferie']);
-    expect(drawn(calendar, ['calendar'], { display_language: 'da' }, 2)).toEqual(['15. okt. 14:30: Møde', '16. okt. Hele dagen: Ferie']);
-    expect(drawn({ calendar: { timezone: 'UTC', events: [] } }, ['calendar'], { display_language: 'da' })).toEqual(['Ingen kommende aftaler']);
+    const calendar: Partial<DisplayData> = { calendar: calendarData([
+      timedEvent('Møde', 14 * 60 + 30, 15 * 60 + 30),
+      allDayEvent('Ferie', '2026-10-16'),
+    ], { nowMinute: 0 }) };
+    expect(drawn(calendar, ['calendar'], {}, 3)).toEqual(['Today, Thu 15 Oct', '14:30', 'Møde', 'Møde', '15:30', 'Tomorrow, Fri 16 Oct', '#', 'Ferie', 'Ferie']);
+    expect(drawn(calendar, ['calendar'], { display_language: 'da' }, 3))
+      .toEqual(['I dag, tors. 15. okt.', '14:30', 'Møde', 'Møde', '15:30', 'I morgen, fre. 16. okt.', '#', 'Ferie', 'Ferie']);
+    // A one-row widget has no room for headings: dates and the all-day word are spelled out.
+    expect(drawn({ calendar: calendarData([allDayEvent('Ferie', '2026-10-16')], { nowMinute: 0 }) }, ['calendar'], { display_language: 'da' }, 1)).toEqual(['16. okt. Hele dagen: Ferie']);
+    expect(drawn({ calendar: calendarData() }, ['calendar'], { display_language: 'da' })).toEqual(['Ingen kommende aftaler']);
     expect(drawn({}, ['calendar'], { display_language: 'da' })).toEqual(['Kalender: ikke tilgængelig']);
   });
 

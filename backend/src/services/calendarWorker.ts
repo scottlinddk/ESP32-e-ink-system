@@ -7,8 +7,9 @@ export function runCalendarWorker(): void {
   const { parentPort, workerData } = require('node:worker_threads') as typeof import('node:worker_threads');
   const ical = require(workerData.icalPath) as typeof import('node-ical');
   const windowsZones = require(require('node:path').join(require('node:path').dirname(workerData.icalPath), 'windowsZones.json')) as Record<string, { iana: string[] }>;
-  const { text, timezone, days, limit, now } = workerData as {
+  const { text, timezone, days, limit, now, range, maxEvents } = workerData as {
     text: string; timezone: string; days: number; limit: number; now: number;
+    range?: { from: string; to: string }; maxEvents?: number;
   };
   try {
     const lines = text.replace(/^\uFEFF/, '').replace(/\r?\n[ \t]/g, '').trim().split(/\r?\n/);
@@ -66,12 +67,21 @@ export function runCalendarWorker(): void {
     });
     if (stack.length || !version) throw new Error();
     const calendar = ical.sync.parseICS(normalized.join('\r\n'));
-    if (calendar.vcalendar?.method === 'CANCEL') {
-      parentPort!.postMessage({ result: { timezone, events: [] } });
-      return;
-    }
     const start = new Date(now);
     const finish = new Date(now + days * 86_400_000);
+    // Local calendar day and minute of an instant in the chosen timezone.
+    const zoned = (date: Date) => {
+      const parts = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(date);
+      const part = (type: string) => parts.find((p) => p.type === type)!.value;
+      return { day: `${part('year')}-${part('month')}-${part('day')}`, minute: Number(part('hour')) * 60 + Number(part('minute')) };
+    };
+    const shiftDay = (day: string, by: number) => new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)) + by)).toISOString().slice(0, 10);
+    const local = zoned(start);
+    const empty: CalendarData = { timezone, today: local.day, nowMinute: local.minute, days, limit, events: [] };
+    if (calendar.vcalendar?.method === 'CANCEL') {
+      parentPort!.postMessage({ result: empty });
+      return;
+    }
     const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     const selectedDate = (date: Date) => {
       const parts = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
@@ -80,7 +90,10 @@ export function runCalendarWorker(): void {
     const today = selectedDate(start);
     const lastDay = selectedDate(finish);
     // A margin includes all-day events on the current local calendar day.
-    const range = { from: new Date(now - 2 * 86_400_000), to: new Date(finish.getTime() + 2 * 86_400_000), expandOngoing: true };
+    // With a day range the window is whole local days, otherwise the next `days` from now.
+    const expansion = range
+      ? { from: new Date(Date.parse(`${range.from}T00:00:00Z`) - 2 * 86_400_000), to: new Date(Date.parse(`${range.to}T00:00:00Z`) + 3 * 86_400_000), expandOngoing: true }
+      : { from: new Date(now - 2 * 86_400_000), to: new Date(finish.getTime() + 2 * 86_400_000), expandOngoing: true };
     const events: Array<CalendarEvent & { sort: string }> = [];
     let expanded = 0;
     const add = (instance: EventInstance) => {
@@ -90,13 +103,29 @@ export function runCalendarWorker(): void {
       const allDay = instance.isFullDay;
       const begin = allDay ? dateKey(instance.start) : instance.start.toISOString();
       const end = allDay ? dateKey(instance.end) : instance.end.toISOString();
-      if (allDay ? end <= today || begin > lastDay : instance.start > finish || (instance.end > instance.start ? instance.end <= start : instance.start < start)) return;
       const day = allDay ? begin : selectedDate(instance.start);
+      let endDay = day;
+      let startMinute: number | null = null;
+      let endMinute: number | null = null;
+      if (allDay) {
+        endDay = end > begin ? shiftDay(end, -1) : begin;
+      } else {
+        const first = zoned(instance.start);
+        const last = zoned(instance.end);
+        startMinute = first.minute;
+        // The end is exclusive: an event that stops at midnight belongs to the day before.
+        const midnight = instance.end > instance.start && last.minute === 0;
+        endDay = midnight ? shiftDay(last.day, -1) : last.day;
+        endMinute = midnight ? 1440 : last.minute;
+        if (endDay < day) { endDay = day; endMinute = startMinute; }
+      }
+      if (range ? endDay < range.from || day > range.to
+        : allDay ? end <= today || begin > lastDay : instance.start > finish || (instance.end > instance.start ? instance.end <= start : instance.start < start)) return;
       const summary = typeof instance.summary === 'string' ? instance.summary : instance.summary?.val;
       const title = String(summary || 'Untitled event').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 256);
       const dateLabel = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: allDay ? 'UTC' : timezone }).format(allDay ? new Date(`${begin}T12:00:00Z`) : instance.start);
       const timeLabel = allDay ? 'All day' : new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: timezone }).format(instance.start);
-      events.push({ title, start: begin, end, allDay, dateLabel, timeLabel, sort: `${day} ${allDay ? '00:00' : timeLabel}` });
+      events.push({ title, start: begin, end, allDay, dateLabel, timeLabel, day, endDay, startMinute, endMinute, sort: `${day} ${allDay ? '00:00' : timeLabel}` });
     };
     for (const component of Object.values(calendar)) {
       if (component?.type !== 'VEVENT') continue;
@@ -105,7 +134,7 @@ export function runCalendarWorker(): void {
       if (!event.start || !Number.isFinite(event.start.getTime())) throw new Error();
       // Expand the master without overrides, then handle each override directly.
       // This also finds occurrences moved into the window from a distant date.
-      for (const instance of ical.expandRecurringEvent({ ...event, recurrences: undefined }, range)) {
+      for (const instance of ical.expandRecurringEvent({ ...event, recurrences: undefined }, expansion)) {
         const key = instance.isFullDay ? dateKey(instance.start) : instance.start.toISOString();
         if (!event.recurrences?.[key]) add(instance);
       }
@@ -114,11 +143,11 @@ export function runCalendarWorker(): void {
         const detached = { ...override, rrule: undefined } as VEvent;
         // A moved occurrence without DTEND inherits the master's duration.
         if (!detached.end && event.end) detached.end = new Date(detached.start.getTime() + event.end.getTime() - event.start.getTime());
-        for (const instance of ical.expandRecurringEvent(detached, range)) add(instance);
+        for (const instance of ical.expandRecurringEvent(detached, expansion)) add(instance);
       }
     }
     events.sort((a, b) => a.sort.localeCompare(b.sort) || a.start.localeCompare(b.start));
-    const result: CalendarData = { timezone, events: events.slice(0, limit).map(({ sort: _sort, ...event }) => event) };
+    const result: CalendarData = { ...empty, events: events.slice(0, maxEvents ?? limit).map(({ sort: _sort, ...event }) => event) };
     parentPort!.postMessage({ result });
   } catch {
     // Parser exceptions can include feed content. Never pass them to logs/API.

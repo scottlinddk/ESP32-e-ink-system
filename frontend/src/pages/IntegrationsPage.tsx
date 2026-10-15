@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { DisplayCard } from '../components/dashboard/DisplayCard';
 import { ApiKeysCard } from '../components/dashboard/ApiKeysCard';
 import { CalendarCard } from '../components/dashboard/CalendarCard';
+import { CalendarWidgetsCard } from '../components/dashboard/CalendarWidgetsCard';
 import { CustomWebhookCard } from '../components/dashboard/CustomWebhookCard';
 import { AiUsageCard } from '../components/dashboard/AiUsageCard';
 import { Card } from '../components/ui/card';
@@ -93,7 +94,7 @@ export function IntegrationsPage() {
       <section id="sources" className="min-w-0 scroll-mt-20" aria-label={t.displayTitle}><DisplayCard /></section>
       <section id="credentials" className="min-w-0 scroll-mt-20" aria-label={t.apiTitle}><ApiKeysCard /></section>
     </div>
-    <section id="calendar" className="mt-5 scroll-mt-20" aria-label={da ? 'Kalender' : 'Calendar'}><CalendarCard /></section>
+    <section id="calendar" className="mt-5 scroll-mt-20" aria-label={da ? 'Kalender' : 'Calendar'}><CalendarCard /><div className="mt-5"><CalendarWidgetsCard /></div></section>
     <section id="home-assistant" className="mt-5 scroll-mt-20" aria-label="Home Assistant"><CustomWebhookCard /></section>
     <section id="ai-usage" className="mt-5 scroll-mt-20" aria-label={da ? 'AI-forbrug' : 'AI usage'}><AiUsageCard /></section>
     <Card className="mt-5" title={t.integrationLocalWidgets}>

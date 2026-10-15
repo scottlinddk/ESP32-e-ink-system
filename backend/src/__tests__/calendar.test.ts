@@ -54,7 +54,8 @@ describe('bounded ICS agenda', () => {
   it('keeps all-day dates and exclusive end dates in any selected timezone', async () => {
     const text = feed(event('DTSTART;VALUE=DATE:20260327\nDTEND;VALUE=DATE:20260329\nSUMMARY:Trip'), event('DTSTART;VALUE=DATE:20260326\nDTEND;VALUE=DATE:20260327\nSUMMARY:Finished', 'past'));
     const result = await parseCalendar(text, { ...options, timezone: 'Pacific/Honolulu' }, now);
-    expect(result.events).toEqual([{ title: 'Trip', start: '2026-03-27', end: '2026-03-29', allDay: true, dateLabel: '27 Mar', timeLabel: 'All day' }]);
+    expect(result.events).toEqual([{ title: 'Trip', start: '2026-03-27', end: '2026-03-29', allDay: true, dateLabel: '27 Mar', timeLabel: 'All day',
+      day: '2026-03-27', endDay: '2026-03-28', startMinute: null, endMinute: null }]);
   });
   it('includes ongoing events, excludes finished and cancelled masters, and limits sorted results', async () => {
     const result = await parseCalendar(feed(
@@ -112,3 +113,75 @@ describe('bounded ICS agenda', () => {
     expect(fetchPublicFeed).toHaveBeenCalledWith('https://secret.example/token-123', signal);
   });
 });
+
+describe('day range and event fields', () => {
+  const range = { from: '2026-03-23', to: '2026-04-05' };
+  const ranged = (text: string, extra: Partial<typeof options> & { range?: { from: string; to: string }; maxEvents?: number } = {}) => parseCalendar(text, { ...options, range, maxEvents: 50, ...extra }, now);
+
+  it('describes the local day, last day and minutes of timed and all-day events', async () => {
+    const result = await ranged(feed(
+      event('DTSTART:20260328T223000Z\nDTEND:20260328T233000Z\nSUMMARY:Late'),
+      event('DTSTART;VALUE=DATE:20260330\nDTEND;VALUE=DATE:20260402\nSUMMARY:Trip', 'trip'),
+    ));
+    // 22:30Z to 23:30Z is 23:30 to 00:30 in Copenhagen, so the event runs into the next day.
+    expect(result.events.find((e) => e.title === 'Late')).toMatchObject({ day: '2026-03-28', startMinute: 23 * 60 + 30, endDay: '2026-03-29', endMinute: 30 });
+    expect(result.events.find((e) => e.title === 'Trip')).toMatchObject({ allDay: true, day: '2026-03-30', endDay: '2026-04-01', startMinute: null, endMinute: null });
+  });
+  it('lets an event that ends at midnight belong to the day before', async () => {
+    // 20:00Z to 23:00Z is 21:00 to 00:00 in Copenhagen: the end is exclusive.
+    const result = await ranged(feed(event('DTSTART:20260328T200000Z\nDTEND:20260328T230000Z\nSUMMARY:Until midnight')));
+    expect(result.events[0]).toMatchObject({ day: '2026-03-28', startMinute: 21 * 60, endDay: '2026-03-28', endMinute: 1440 });
+  });
+  it('spans midnight with the end on the next day', async () => {
+    const result = await ranged(feed(event('DTSTART:20260328T210000Z\nDTEND:20260329T050000Z\nSUMMARY:Night')));
+    expect(result.events[0]).toMatchObject({ day: '2026-03-28', startMinute: 22 * 60, endDay: '2026-03-29', endMinute: 7 * 60 });
+  });
+  it('keeps what ended earlier today and what lies before today inside the range', async () => {
+    const result = await ranged(feed(
+      event('DTSTART:20260327T070000Z\nDTEND:20260327T080000Z\nSUMMARY:Earlier today', 'a'),
+      event('DTSTART:20260324T070000Z\nDTEND:20260324T080000Z\nSUMMARY:Last week', 'b'),
+      event('DTSTART:20260322T070000Z\nDTEND:20260322T080000Z\nSUMMARY:Before the range', 'c'),
+      event('DTSTART:20260406T070000Z\nDTEND:20260406T080000Z\nSUMMARY:After the range', 'd'),
+    ));
+    expect(result.events.map((e) => e.title)).toEqual(['Last week', 'Earlier today']);
+  });
+  it('includes an event that began before the range and is still on at its start', async () => {
+    const result = await ranged(feed(event('DTSTART;VALUE=DATE:20260320\nDTEND;VALUE=DATE:20260325\nSUMMARY:Long trip')));
+    expect(result.events[0]).toMatchObject({ day: '2026-03-20', endDay: '2026-03-24' });
+  });
+  it('expands recurrences across the range and honours exclusions', async () => {
+    const result = await ranged(feed(event('DTSTART:20260320T090000Z\nDTEND:20260320T100000Z\nRRULE:FREQ=DAILY\nEXDATE:20260325T090000Z\nSUMMARY:Daily')));
+    const days = result.events.map((e) => e.day);
+    expect(days[0]).toBe('2026-03-23');
+    expect(days).not.toContain('2026-03-25');
+    expect(days[days.length - 1]).toBe('2026-04-05');
+    expect(days).toHaveLength(13);
+  });
+  it('limits the count to maxEvents, keeping the earliest', async () => {
+    const days = Array.from({ length: 5 }, (_, n) => event(`DTSTART:2026032${3 + n}T090000Z\nSUMMARY:Day ${n}`, `u${n}`));
+    expect((await ranged(feed(...days), { maxEvents: 3 })).events.map((e) => e.title)).toEqual(['Day 0', 'Day 1', 'Day 2']);
+  });
+  it('reports today, the minute of the day and the configured horizon', async () => {
+    const result = await ranged('BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR');
+    expect(result).toMatchObject({ timezone: 'Europe/Copenhagen', today: '2026-03-27', nowMinute: 13 * 60, days: 7, limit: 10, events: [] });
+  });
+  it('keeps the upcoming-only behaviour without a range', async () => {
+    const result = await parse(feed(event('DTSTART:20260327T090000Z\nDTEND:20260327T100000Z\nSUMMARY:Finished'), event('DTSTART:20260327T150000Z\nSUMMARY:Later', 'b')));
+    expect(result.events.map((e) => e.title)).toEqual(['Later']);
+    expect(result.events[0]).toMatchObject({ day: '2026-03-27', startMinute: 16 * 60 });
+  });
+  it.each([
+    [{ range: { from: '2026-03-28', to: '2026-03-27' } }],
+    [{ range: { from: '2026-02-30', to: '2026-03-27' } }],
+    [{ range: { from: '2026-01-01', to: '2026-12-31' } }],
+    [{ range: { from: 'x', to: 'y' } }],
+    [{ maxEvents: 0 }],
+    [{ maxEvents: 301 }],
+    [{ maxEvents: 1.5 }],
+  ])('rejects invalid options %j', async (extra) => {
+    const valid = 'BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR';
+    await expect(ranged(valid)).resolves.toBeDefined();
+    await expect(ranged(valid, extra as never)).rejects.toThrow(/Calendar (range|event count)/);
+  });
+});
+

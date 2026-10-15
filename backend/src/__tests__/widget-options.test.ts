@@ -1,3 +1,4 @@
+import { calendarData, timedEvent } from './calendarFixtures';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DisplayLayout, EnergyPrice, WidgetLayout } from '../types/index';
 import { parseDisplayLayout, LayoutValidationError } from '../utils/layoutValidation';
@@ -21,7 +22,8 @@ describe('widget options validation', () => {
     expect(widgetOptionKind('energy')).toBe('energy');
     expect(widgetOptionKind('news')).toBe('list');
     expect(widgetOptionKind('news:abc')).toBe('list');
-    expect(widgetOptionKind('calendar')).toBe('list');
+    expect(widgetOptionKind('calendar')).toBe('calendar');
+    expect(widgetOptionKind('calendar:abc')).toBe('calendar');
     expect(widgetOptionKind('ticker:abc')).toBe('ticker');
     expect(widgetOptionKind('status')).toBe('status');
     expect(widgetOptionKind('week-number')).toBeNull();
@@ -164,13 +166,13 @@ describe('rendering with layout options', () => {
   it('caps news and calendar rows at the chosen count', () => {
     const draw = vi.spyOn(BmpCanvas.prototype, 'drawText');
     const news = ['One', 'Two', 'Three', 'Four'].map((title) => ({ title, url: 'https://example.com' }));
-    const events = ['A', 'B', 'C'].map((title) => ({ title, start: '2026-10-07', end: '2026-10-08', allDay: true, dateLabel: 'Wed', timeLabel: 'All day' }));
-    renderDisplayDataRaw({ nextRefresh: 1000, news, calendar: { timezone: 'Europe/Copenhagen', events } }, layout(
+    const events = ['A', 'B', 'C'].map((title, index) => timedEvent(title, 9 * 60 + index * 60, 10 * 60 + index * 60));
+    renderDisplayDataRaw({ nextRefresh: 1000, news, calendar: calendarData(events) }, layout(
       { i: 'news', x: 0, y: 0, w: 10, h: 3, options: { items: 2 } },
       { i: 'calendar', x: 0, y: 3, w: 10, h: 3, options: { items: 1 } },
     ));
     const texts = draw.mock.calls.map(([text]) => text);
-    expect(texts).toEqual(['One', 'Two', 'Wed All day: A']);
+    expect(texts).toEqual(['One', 'Two', 'Today, Thu 15 Oct', '09:00', 'A', 'A', '10:00']);
   });
 });
 

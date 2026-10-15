@@ -1,6 +1,6 @@
 -- ============================================================
--- ESP32 e-ink system: combined migrations (001 to 025)
--- Source: backend/src/db/migrations/ @ b1cec65, plus 020 to 025
+-- ESP32 e-ink system: combined migrations (001 to 026)
+-- Source: backend/src/db/migrations/ @ b1cec65, plus 020 to 026
 -- Run ONCE against an EMPTY Supabase database (SQL Editor).
 -- Everything runs in one transaction: if a step fails, all is rolled back.
 -- Not idempotent (CREATE POLICY/TRIGGER, 015, 018, 019, 020): empty database only.
@@ -408,6 +408,13 @@ ALTER TABLE public.device_displays
 
 COMMENT ON COLUMN public.device_displays.display_language IS
   'Display language for widget text: en or da; independent of news language and the web app language';
+
+-- ------------------------------------------------------------
+-- 026_calendar_widgets.sql
+-- ------------------------------------------------------------
+ALTER TABLE user_preferences
+  ADD COLUMN IF NOT EXISTS calendar_widgets JSONB NOT NULL DEFAULT '[]'::jsonb
+    CHECK (jsonb_typeof(calendar_widgets) = 'array' AND jsonb_array_length(calendar_widgets) <= 8 AND octet_length(calendar_widgets::text) <= 16000);
 
 COMMIT;
 

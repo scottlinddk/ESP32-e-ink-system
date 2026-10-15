@@ -6,7 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../lib/appContext';
 import { useAuth } from '../hooks/useAuth';
-import { DisplayLayout, DEFAULT_LAYOUT, NewsFeed, TickerWidgetSetting, WidgetOptions } from '../types';
+import { CalendarWidgetSetting, DisplayLayout, DEFAULT_LAYOUT, NewsFeed, TickerWidgetSetting, WidgetOptions } from '../types';
 import { saveLayout, getPreferences, savePreferences } from '../lib/api';
 import { findWidgetSpace, layoutProblem } from '../lib/layoutPlacement';
 import { GridEditor, WIDGET_META } from '../components/layout/GridEditor';
@@ -28,6 +28,7 @@ import { getDevices } from '../lib/api';
 import { deviceDashboardPath } from '../lib/deviceLayouts';
 import { newsFeedIdFromWidget, newsFeedLabel, newsFeedWidgetId } from '../lib/newsFeeds';
 import { tickerIdFromWidget, tickerLabel, tickerWidgetId } from '../lib/tickerWidgets';
+import { calendarIdFromWidget, calendarLabel, calendarWidgetId } from '../lib/calendarWidgets';
 
 const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'week-number', 'battery', 'ai-usage', 'status'] as const;
 
@@ -73,6 +74,7 @@ function LayoutEditorWorkspace() {
   const [deviceName, setDeviceName] = useState<string | null>(null);
   const [newsFeeds, setNewsFeeds] = useState<NewsFeed[]>([]);
   const [tickers, setTickers] = useState<TickerWidgetSetting[]>([]);
+  const [calendars, setCalendars] = useState<CalendarWidgetSetting[]>([]);
   const [displayProfile, setDisplayProfile] = useState<DisplayProfile>(DEFAULT_DISPLAY_PROFILE);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const mounted = useRef(true);
@@ -89,6 +91,7 @@ function LayoutEditorWorkspace() {
       if (cancelled) return;
       setNewsFeeds(preferences.news_feeds ?? []);
       setTickers(preferences.ticker_widgets ?? []);
+      setCalendars(preferences.calendar_widgets ?? []);
       setDisplayProfile(preferences.display_profile ?? DEFAULT_DISPLAY_PROFILE);
       if (deviceId) {
         const device = devices?.devices.find((item) => item.id === deviceId);
@@ -123,6 +126,18 @@ function LayoutEditorWorkspace() {
       widgetMeta[widget.i] = { id: widget.i, label: `${t.layoutWidgetNews}: ${app.lang === 'da' ? 'fjernet feed' : 'removed feed'}`, icon: 'newspaper' };
     }
   }
+  // Each additional calendar is its own widget, listed right after the main calendar.
+  const calendarName = app.lang === 'da' ? 'Kalender' : 'Calendar';
+  calendars.forEach((calendar, index) => {
+    const id = calendarWidgetId(calendar.id);
+    widgetMeta[id] = { id, label: `${calendarName}: ${calendarLabel(calendar, index)}`, icon: 'calendar_month' };
+  });
+  // A placed widget whose calendar was removed stays visible so it can be removed from the layout.
+  for (const widget of layout.widgets) {
+    if (!widgetMeta[widget.i] && calendarIdFromWidget(widget.i)) {
+      widgetMeta[widget.i] = { id: widget.i, label: `${calendarName}: ${app.lang === 'da' ? 'fjernet kalender' : 'removed calendar'}`, icon: 'calendar_month' };
+    }
+  }
   // Stock tickers are listed after the other widgets.
   const stocksLabel = app.lang === 'da' ? 'Aktier' : 'Stocks';
   for (const ticker of tickers) {
@@ -136,7 +151,8 @@ function LayoutEditorWorkspace() {
     }
   }
   const allWidgetIds = [
-    ...ALL_WIDGET_IDS.flatMap((id) => id === 'news' ? [id, ...newsFeeds.map((feed) => newsFeedWidgetId(feed.id))] : [id]),
+    ...ALL_WIDGET_IDS.flatMap((id) => id === 'news' ? [id, ...newsFeeds.map((feed) => newsFeedWidgetId(feed.id))]
+      : id === 'calendar' ? [id, ...calendars.map((calendar) => calendarWidgetId(calendar.id))] : [id]),
     ...tickers.map((ticker) => tickerWidgetId(ticker.id)),
   ];
   const activeWidgetIds = new Set(layout.widgets.map((w) => w.i));

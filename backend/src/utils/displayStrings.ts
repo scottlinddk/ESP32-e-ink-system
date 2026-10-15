@@ -1,6 +1,7 @@
 import type { EnergyPriceErrorCode } from './energyPriceErrors';
 import type { NewsErrorCode } from './newsErrors';
 import type { NotionSourceErrorCode } from '../services/notion';
+import type { CalendarErrorCode } from './calendarErrors';
 import type { WeatherErrorCode } from '../types/index';
 import { DEFAULT_DISPLAY_LANGUAGE, type DisplayLanguage } from './displayLanguage';
 
@@ -39,7 +40,13 @@ export interface DisplayStrings {
     unavailable: string; none: string;
     errors: Partial<Record<NotionSourceErrorCode, string>>;
   };
-  calendar: { none: string; unavailable: string; allDay: string };
+  calendar: {
+    none: string; unavailable: string; allDay: string; today: string; tomorrow: string;
+    more: (count: number) => string;
+    /** Full month names, January first, for the month view's title. */
+    months: readonly string[];
+    errors: Record<CalendarErrorCode, string>;
+  };
   status: { refresh: string };
   week: {
     title: string; label: string; short: string;
@@ -105,7 +112,12 @@ const en: DisplayStrings = {
       access_denied: 'Share database', rate_limited: 'Notion API limit', timeout: 'Notion timed out',
     },
   },
-  calendar: { none: 'No upcoming events', unavailable: 'Calendar: unavailable', allDay: 'All day' },
+  calendar: {
+    none: 'No upcoming events', unavailable: 'Calendar: unavailable', allDay: 'All day', today: 'Today', tomorrow: 'Tomorrow',
+    more: (count) => `+${count} more`,
+    months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    errors: { not_configured: 'Calendar: add URL', unavailable: 'Calendar: unavailable', timeout: 'Calendar: timed out' },
+  },
   status: { refresh: 'Refresh' },
   week: {
     title: 'WEEK', label: 'Week', short: 'W',
@@ -168,7 +180,12 @@ const da: DisplayStrings = {
       access_denied: 'Del databasen', rate_limited: 'Notion API-grænse', timeout: 'Notion timeout',
     },
   },
-  calendar: { none: 'Ingen kommende aftaler', unavailable: 'Kalender: ikke tilgængelig', allDay: 'Hele dagen' },
+  calendar: {
+    none: 'Ingen kommende aftaler', unavailable: 'Kalender: ikke tilgængelig', allDay: 'Hele dagen', today: 'I dag', tomorrow: 'I morgen',
+    more: (count) => `+${count} mere`,
+    months: ['januar', 'februar', 'marts', 'april', 'maj', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'december'],
+    errors: { not_configured: 'Kalender: tilføj adresse', unavailable: 'Kalender: ikke tilgængelig', timeout: 'Kalender: timeout' },
+  },
   status: { refresh: 'Opdatering' },
   week: {
     title: 'UGE', label: 'Uge', short: 'U',

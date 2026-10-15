@@ -3,6 +3,10 @@ import { fetchWeather } from './weather';
 import { fetchNews } from './news';
 import { fetchRssNews } from './rss';
 import { fetchCalendar } from './calendar';
+import { MAX_CALENDAR_EVENTS } from '../utils/calendarOptions';
+import { calendarFetchRange, localDay } from '../utils/calendarDays';
+import { calendarProblem, calendarProblemFrom } from '../utils/calendarErrors';
+import { calendarProvider, storedCalendarWidgets } from '../utils/calendarWidgets';
 import { fetchMontaData } from './monta';
 import { fetchZaptecData } from './zaptec';
 import { fetchNotionData, NotionCredentials, NotionSourceError } from './notion';
@@ -51,6 +55,7 @@ export const DEFAULT_PREFS: UserPreferences = {
   news_item_limit: 3,
   news_feeds: [],
   ticker_widgets: [],
+  calendar_widgets: [],
   refresh_interval_minutes: 30,
   layout: null,
   monta_fields: ['charger_status', 'active_session'],
@@ -80,6 +85,11 @@ async function withSourceDeadline<T>(load: (signal: AbortSignal) => Promise<T>):
     // when one fails early, as well as when the overall deadline expires.
     controller.abort();
   }
+}
+
+/** One fetch holds what every view needs: the month grid, and the configured horizon for the list. */
+function calendarFetchOptions(timezone: string, days: number, limit: number) {
+  return { timezone, days, limit, range: calendarFetchRange(localDay(new Date(), timezone), days), maxEvents: MAX_CALENDAR_EVENTS };
 }
 
 export async function buildDisplayData(
@@ -244,12 +254,28 @@ export async function buildDisplayData(
   }
 
   if (prefs.show_calendar && apiKeyMap.calendar) {
-    tasks.push(withSourceDeadline((signal) => fetchCalendar(apiKeyMap.calendar, {
-      timezone: prefs.calendar_timezone ?? 'Europe/Copenhagen',
-      days: prefs.calendar_days ?? 7,
-      limit: prefs.calendar_item_limit ?? 5,
-    }, signal)).then((calendar) => { result.calendar = calendar; })
+    const timezone = prefs.calendar_timezone ?? 'Europe/Copenhagen';
+    const days = prefs.calendar_days ?? 7;
+    tasks.push(withSourceDeadline((signal) => fetchCalendar(apiKeyMap.calendar, calendarFetchOptions(timezone, days, prefs.calendar_item_limit ?? 5), signal))
+      .then((calendar) => { result.calendar = calendar; })
       .catch(() => { logger.warn('Calendar source unavailable'); }));
+  }
+
+  // Additional calendars have no on/off switch: a configured calendar is loaded and only drawn
+  // when a layout places it. Each is fetched independently, so one failing calendar only marks
+  // its own widget unavailable. Calendar URLs are private and never logged.
+  const calendars = storedCalendarWidgets(prefs.calendar_widgets);
+  if (calendars.length) result.calendars = {};
+  for (const calendar of calendars) {
+    const url = apiKeyMap[calendarProvider(calendar.id)];
+    if (!url) { result.calendars![calendar.id] = { error: calendarProblem('not_configured') }; continue; }
+    tasks.push(withSourceDeadline((signal) => fetchCalendar(url, calendarFetchOptions(calendar.timezone, calendar.days, calendar.item_limit), signal))
+      .then((data) => { result.calendars![calendar.id] = { calendar: data }; })
+      .catch((err: unknown) => {
+        const problem = calendarProblemFrom(err);
+        result.calendars![calendar.id] = { error: problem };
+        logger.warn({ code: problem.code, calendarId: calendar.id }, 'Calendar widget source unavailable');
+      }));
   }
 
   await Promise.all(tasks);

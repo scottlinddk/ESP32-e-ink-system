@@ -93,6 +93,20 @@ const options: swaggerJsdoc.Options = {
             calendar_timezone: { type: 'string', default: 'Europe/Copenhagen' },
             calendar_days: { type: 'integer', minimum: 1, maximum: 30, default: 7 },
             calendar_item_limit: { type: 'integer', minimum: 1, maximum: 10, default: 5 },
+            calendar_widgets: {
+              type: 'array', maxItems: 8, default: [],
+              description: 'Additional calendars. Place each one in a layout as its own widget with ID `calendar:<id>`. Each calendar\'s private ICS URL is saved separately and stored encrypted (`/api/preferences/calendar-credentials/widgets/{id}`), never returned. Excluded from templates.',
+              items: {
+                type: 'object', required: ['id', 'name', 'timezone', 'days', 'item_limit'], additionalProperties: false,
+                properties: {
+                  id: { type: 'string', pattern: '^[a-z0-9]{1,16}$' },
+                  name: { type: 'string', maxLength: 40, description: 'Layout editor label; may be empty' },
+                  timezone: { type: 'string', maxLength: 100, example: 'Europe/Copenhagen' },
+                  days: { type: 'integer', minimum: 1, maximum: 30, description: 'Days ahead shown by the list view' },
+                  item_limit: { type: 'integer', minimum: 1, maximum: 10, description: 'Events shown by the list view' },
+                },
+              },
+            },
             refresh_interval_minutes: { type: 'integer', example: 30 },
           },
         },

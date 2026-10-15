@@ -1,12 +1,14 @@
 import { parseDisplayProfile, DisplayProfile } from './displayProfile';
-import { CalendarEvent, DisplayData, DisplayLayout, TickerWidgetSetting, UserPreferences, WidgetLayout } from '../types/index';
+import { DisplayData, DisplayLayout, TickerWidgetSetting, UserPreferences, WidgetLayout } from '../types/index';
 import { bitmapGlyph, normalizeBitmapText, wrapBitmapText } from './bitmapText';
 import { drawCustomImage } from './customContent';
 import { renderWebhookWidget } from './webhookRenderer';
 import { DEFAULT_DISPLAY_TIMEZONE } from './displayTimezone';
 import { DEFAULT_DISPLAY_LANGUAGE, displayLanguageOrDefault, formatDecimal, type DisplayLanguage } from './displayLanguage';
-import { displayStrings, zonedDate } from './displayStrings';
+import { displayStrings } from './displayStrings';
 import { newsFeedIdFromWidget } from './newsFeeds';
+import { calendarIdFromWidget } from './calendarWidgets';
+import { renderCalendarWidget } from './calendarRenderer';
 import { storedTickerWidgets, tickerIdFromWidget } from './tickerWidgets';
 import { renderTicker, renderTickerUnavailable, type TickerResult } from '../ticker';
 import type { RenderedWidget } from '../ticker/render';
@@ -556,42 +558,6 @@ function renderNotionWidget(
   }
 }
 
-/** Date and time words for an event, in the display language. The data's own labels are English. */
-function calendarLabels(event: CalendarEvent, timezone: string, language: DisplayLanguage): { dateLabel: string; timeLabel: string } {
-  if (language === DEFAULT_DISPLAY_LANGUAGE) return event;
-  const allDay = event.allDay;
-  const at = new Date(allDay ? `${event.start}T12:00:00Z` : event.start);
-  if (!Number.isFinite(at.getTime())) return event;
-  const t = displayStrings(language);
-  return {
-    dateLabel: t.dates.dayMonth(zonedDate(at, allDay ? 'UTC' : timezone)),
-    timeLabel: allDay ? t.calendar.allDay
-      : new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: timezone }).format(at),
-  };
-}
-
-function renderCalendarWidget(
-  canvas: DrawingCanvas,
-  bounds: WidgetBounds,
-  data?: DisplayData['calendar'],
-  limit?: number,
-  language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
-): void {
-  const { x, y, width, height } = bounds;
-  const t = displayStrings(language).calendar;
-  if (y > 0) canvas.drawHLine(x, y, width);
-  let textY = y + 2;
-  if (!data || data.events.length === 0) {
-    canvas.drawText(data ? t.none : t.unavailable, x + 2, textY, width - 4);
-    return;
-  }
-  for (const event of data.events.slice(0, limit)) {
-    if (textY + 8 > y + height) break;
-    const { dateLabel, timeLabel } = calendarLabels(event, data.timezone, language);
-    textY = canvas.drawWrappedText(`${dateLabel} ${timeLabel}: ${event.title}`, x + 2, textY, width - 4, 10) + 2;
-  }
-}
-
 function renderStatusWidget(
   canvas: DrawingCanvas,
   bounds: WidgetBounds,
@@ -681,7 +647,14 @@ function populateCanvas(
     const target: DrawingCanvas = zoom === 1 ? canvas : new ZoomCanvas(canvas, zoom);
     const bounds = zoom === 1 ? physical : logicalBounds(physical, zoom);
     const tickerId = tickerIdFromWidget(widget.i);
+    const calendarId = calendarIdFromWidget(widget.i);
     canvas.withClip(physical, () => {
+      if (calendarId) {
+        // A removed calendar has no result; it renders as unavailable until the widget is removed.
+        const extra = data.calendars?.[calendarId];
+        renderCalendarWidget(target, bounds, { data: extra?.calendar, error: extra?.error }, widget.options, language);
+        return;
+      }
       if (tickerId) {
         const stored = storedTickerWidgets(preferences?.ticker_widgets).find((item) => item.id === tickerId);
         // Layout options override the ticker's own view and page size for this placement only.
@@ -716,7 +689,7 @@ function populateCanvas(
         case 'monta':   renderMontaWidget(target, bounds, data.monta, preferences?.monta_fields ?? undefined, language); break;
         case 'zaptec':  renderZaptecWidget(target, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined, language); break;
         case 'notion':  renderNotionWidget(target, bounds, data.notion, data.notionError, language); break;
-        case 'calendar': renderCalendarWidget(target, bounds, data.calendar, widget.options?.items, language); break;
+        case 'calendar': renderCalendarWidget(target, bounds, { data: data.calendar }, widget.options, language); break;
         case 'week-number': renderWeekNumberWidget(target, bounds, new Date(), preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE, language); break;
         case 'battery': renderBatteryWidget(target, bounds, data.battery); break;
         case 'ai-usage': renderAiUsageWidget(target, bounds, data.aiUsage, {

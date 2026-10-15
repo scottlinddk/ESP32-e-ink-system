@@ -1,3 +1,4 @@
+import { allDayEvent, calendarData } from './calendarFixtures';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import type { Server } from 'http';
@@ -129,10 +130,12 @@ describe('live display data', () => {
     expect((await buildDisplayData('user-test', prefs, credentials)).priceError?.code).toBe('unavailable');
   });
   it('uses the encrypted calendar credential only when enabled and keeps empty calendars distinct from failures', async () => {
-    const calendar = { timezone: 'Europe/Copenhagen', events: [] };
+    const calendar = calendarData();
     vi.mocked(fetchCalendar).mockResolvedValue(calendar);
     expect((await buildDisplayData('user-test', { ...prefs, show_calendar: true }, { calendar: 'https://private.example.org/token' })).calendar).toEqual(calendar);
-    expect(fetchCalendar).toHaveBeenCalledWith('https://private.example.org/token', { timezone: 'Europe/Copenhagen', days: 7, limit: 5 }, expect.any(AbortSignal));
+    expect(fetchCalendar).toHaveBeenCalledWith('https://private.example.org/token', {
+      timezone: 'Europe/Copenhagen', days: 7, limit: 5, maxEvents: 300, range: { from: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), to: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) },
+    }, expect.any(AbortSignal));
     vi.mocked(fetchCalendar).mockRejectedValue(new Error('private URL must not leak'));
     expect((await buildDisplayData('user-test', { ...prefs, show_calendar: true }, { calendar: 'https://private.example.org/token' })).calendar).toBeUndefined();
     vi.mocked(fetchCalendar).mockClear();
@@ -293,7 +296,7 @@ describe('JSON, BMP and Bluetooth endpoints', () => {
   it('renders the calendar in JSON, BMP and raw without returning its private URL', async () => {
     const selected = { ...prefs, show_calendar: true,
       layout: { version: 1 as const, cols: 10 as const, rows: 6 as const, widgets: [{ i: 'calendar', x: 0, y: 0, w: 10, h: 6 }] } };
-    const calendar = { timezone: 'Europe/Copenhagen', events: [{ title: 'Appointment', start: '2026-09-28', end: '2026-09-29', allDay: true, dateLabel: '28 Sep', timeLabel: 'All day' }] };
+    const calendar = calendarData([allDayEvent('Appointment', '2026-09-28')], { today: '2026-09-28' });
     vi.mocked(getPreferences).mockResolvedValue(selected);
     vi.mocked(getApiKeys).mockResolvedValue([...Object.entries(credentials).map(([provider, api_key]) => ({ provider, api_key } as ApiKey)), { provider: 'calendar', api_key: 'https://private.example.org/secret-token' } as ApiKey]);
     vi.mocked(fetchCalendar).mockResolvedValue(calendar);

@@ -13,12 +13,16 @@ export interface WidgetLayout {
 }
 
 export type EnergyView = 'summary' | 'day' | 'rest';
+/** `list` is the agenda grouped by day, `day` one day by the hour, `days` several side by side, `month` a month grid. */
+export type CalendarView = 'list' | 'day' | 'days' | 'month';
 
 export interface WidgetOptions {
-  /** energy: EnergyView; ticker: TickerView, overriding the ticker's own view. */
-  view?: EnergyView | TickerView;
-  /** news, calendar: most rows drawn; ticker: stocks per page in the condensed view. 1–10. */
+  /** energy: EnergyView; calendar: CalendarView; ticker: TickerView, overriding the ticker's own view. */
+  view?: EnergyView | CalendarView | TickerView;
+  /** news, calendar list view: most rows drawn; ticker: stocks per page in the condensed view. 1–10. */
   items?: number;
+  /** calendar days view: how many days are shown side by side, 2–7. Unset fits as many as the width allows. */
+  days?: number;
   /** Whole-number enlargement of the widget, 1–4. Overrides the layout's zoom; unset follows it. */
   zoom?: number;
 }
@@ -58,6 +62,15 @@ export interface NewsFeed {
   id: string;
   name: string;
   feed_url: string;
+  item_limit: number;
+}
+
+/** An additional calendar. The layout widget ID is `calendar:<id>`. Mirrors backend/src/utils/calendarWidgets.ts. */
+export interface CalendarWidgetSetting {
+  id: string;
+  name: string;
+  timezone: string;
+  days: number;
   item_limit: number;
 }
 
@@ -119,6 +132,8 @@ export interface UserPreferences {
   /** Additional RSS/Atom feeds, each placed as its own `news:<id>` widget. */
   news_feeds?: NewsFeed[];
   ticker_widgets?: TickerWidgetSetting[];
+  /** Additional calendars. Each one's private ICS URL is stored encrypted, never returned. */
+  calendar_widgets?: CalendarWidgetSetting[];
   refresh_interval_minutes: number;
   layout: DisplayLayout | null;
   monta_fields: string[];
@@ -128,6 +143,15 @@ export interface UserPreferences {
   calendar_timezone?: string;
   calendar_days?: number;
   calendar_item_limit?: number;
+}
+
+export interface CalendarEvent {
+  title: string; start: string; end: string; allDay: boolean; dateLabel: string; timeLabel: string;
+  day: string; endDay: string; startMinute: number | null; endMinute: number | null;
+}
+
+export interface CalendarData {
+  timezone: string; today: string; nowMinute: number; days: number; limit: number; events: CalendarEvent[];
 }
 
 export interface EnergyPrice {
@@ -166,7 +190,9 @@ export interface DisplayData {
   weather?: WeatherData;
   weatherError?: WeatherError;
   news?: NewsItem[];
-  calendar?: { timezone: string; events: Array<{ title: string; start: string; end: string; allDay: boolean; dateLabel: string; timeLabel: string }> };
+  calendar?: CalendarData;
+  /** Additional calendars keyed by calendar widget ID. */
+  calendars?: Record<string, { calendar?: CalendarData; error?: { code: string; message: string } }>;
   aiUsage?: AiUsageData;
   nextRefresh: number;
 }

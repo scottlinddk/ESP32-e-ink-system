@@ -55,6 +55,8 @@ For calendars, apply `012_calendar.sql`, save the subscription URL in **Integrat
 
 The agenda uses `node-ical` for UTF-8 ICS 2.0: UTC/IANA TZID, known Outlook Windows timezone names and floating times, all-day dates with exclusive end dates, daily/weekly/monthly/yearly RRULEs, EXDATEs, moved instances and cancellations. Floating times use the selected timezone; ongoing events remain visible until they end. RDATE, EXRULE, RANGE overrides, unknown timezones and subdaily rules are rejected explicitly. The calendar uses the same public HTTPS/DNS/size/deadline restrictions as RSS, so local network calendars and compressed responses are unsupported. Parsing/recurrence expansion runs in a worker limited to two seconds, 64 MiB, 500 event components and 5,000 expanded instances. Empty calendars show “No upcoming events”; errors show “Calendar: unavailable”. Physical panel behavior still requires hardware validation.
 
+Every calendar widget has four views (list grouped by day, one day by the hour, several days side by side, and a month grid), chosen per layout placement. Add up to 8 more calendars, each with its own private URL, under **Additional calendars**: each becomes its own **Calendar: <name>** widget. See [Calendar widgets](docs/CALENDAR.md). Apply `026_calendar_widgets.sql` to existing databases first.
+
 Electricity spot prices come from the [Elprisen lige nu API](https://www.elprisenligenu.dk/elpris-api) for the current published interval (15 minutes since the day-ahead market moved to quarter-hours). Tariffs and taxes still come from Energinet's DataHub. Under Energy prices, choose spot or an estimated consumer price, select your household grid tariff and enter your supplier's markup excluding VAT. Consumer estimates include current grid/national tariffs, electricity tax and VAT, but exclude fixed subscriptions. Existing accounts retain spot mode. Apply `017_energy_price_settings.sql` first; see [electricity setup, coverage and sources](docs/ELECTRICITY_PRICES.md). Zero/negative prices and Danish daylight-saving days are supported, independently of your display clock.
 
 ## Install Wi-Fi firmware on a CrowPanel
@@ -129,6 +131,7 @@ Browser-facing paths below include `/api`; direct requests to the local Express 
 | POST | `/api/auth/login` | Synchronize authenticated user |
 | GET / POST | `/api/preferences` | Read/save source preferences and layout |
 | GET / POST / DELETE | `/api/preferences/calendar-credentials` | Calendar configured status, encrypted URL storage, removal |
+| GET · POST / DELETE | `/api/preferences/calendar-credentials/widgets[/{id}]` | Which additional calendars have a URL; encrypted URL storage and removal for one |
 | GET | `/api/tickers/search` | Search stock symbols; `region=dk` limits it to Nasdaq Copenhagen |
 | GET | `/api/preview` | Live display data as JSON |
 | GET | `/api/image/preview` | Actual saved-layout BMP preview |

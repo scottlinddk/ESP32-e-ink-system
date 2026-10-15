@@ -39,7 +39,7 @@ def columns(required: dict[str, str], optional: dict[str, str]) -> dict[str, tup
 
 
 TS = "timestamp with time zone"
-# The final schema after all tracked migrations through 025_display_language.
+# The final schema after all tracked migrations through 026_calendar_widgets.
 # Do not automatically repair a live source.
 EXPECTED_COLUMNS = {
     "users": columns({"id": "uuid", "email": "text"}, {
@@ -51,7 +51,7 @@ EXPECTED_COLUMNS = {
         "show_custom_image": "boolean", "show_calendar": "boolean", "calendar_timezone": "text",
         "calendar_days": "integer", "calendar_item_limit": "integer", "show_custom_webhook": "boolean",
         "custom_webhook_ttl_minutes": "integer", "display_timezone": "text", "energy_price_settings": "jsonb",
-        "news_feeds": "jsonb", "ticker_widgets": "jsonb", "show_ai_usage": "boolean",
+        "news_feeds": "jsonb", "ticker_widgets": "jsonb", "show_ai_usage": "boolean", "calendar_widgets": "jsonb",
     }, {
         "show_energy_price": "boolean", "show_weather": "boolean", "show_news": "boolean",
         "show_air_quality": "boolean", "energy_price_location": "text", "weather_location": "text",
@@ -108,7 +108,7 @@ EXPECTED_DEFAULTS["user_preferences"].update({
     "monta_fields": "'[\"charger_status\", \"active_session\"]'::jsonb",
     "zaptec_fields": "'[\"charger_status\", \"active_session\"]'::jsonb",
     "news_source": "'newsapi'::text", "news_feed_url": "''::text", "news_item_limit": "3", "news_feeds": "'[]'::jsonb",
-    "ticker_widgets": "'[]'::jsonb",
+    "ticker_widgets": "'[]'::jsonb", "calendar_widgets": "'[]'::jsonb",
     "show_custom_text": "false", "custom_text": "''::text", "show_custom_image": "false",
     "show_calendar": "false", "calendar_timezone": "'Europe/Copenhagen'::text", "calendar_days": "7",
     "calendar_item_limit": "5", "show_custom_webhook": "false", "custom_webhook_ttl_minutes": "60",
@@ -140,6 +140,7 @@ EXPECTED_CHECKS = {
         "CHECK (custom_webhook_ttl_minutes >= 1 AND custom_webhook_ttl_minutes <= 1440)",
         "CHECK (jsonb_typeof(news_feeds) = 'array'::text AND jsonb_array_length(news_feeds) <= 20 AND octet_length(news_feeds::text) <= 64000)",
         "CHECK (jsonb_typeof(ticker_widgets) = 'array'::text AND jsonb_array_length(ticker_widgets) <= 6 AND octet_length(ticker_widgets::text) <= 16000)",
+        "CHECK (jsonb_typeof(calendar_widgets) = 'array'::text AND jsonb_array_length(calendar_widgets) <= 8 AND octet_length(calendar_widgets::text) <= 16000)",
     ),
     "custom_webhooks": (
         "CHECK (token_hash IS NULL OR token_hash ~ '^[a-f0-9]{64}$'::text)",

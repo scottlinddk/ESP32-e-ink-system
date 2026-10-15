@@ -125,6 +125,19 @@ export async function deleteCalendarCredential(token: string): Promise<{ configu
   return request('/api/preferences/calendar-credentials', { method: 'DELETE', token });
 }
 
+/** Which additional calendars have a URL saved. The URLs themselves are never returned. */
+export async function getCalendarWidgetCredentialStatus(token: string): Promise<{ configured: string[] }> {
+  return request('/api/preferences/calendar-credentials/widgets', { token });
+}
+
+export async function saveCalendarWidgetCredential(token: string, id: string, url: string): Promise<{ configured: boolean }> {
+  return request(`/api/preferences/calendar-credentials/widgets/${encodeURIComponent(id)}`, { method: 'POST', token, body: JSON.stringify({ url }) });
+}
+
+export async function deleteCalendarWidgetCredential(token: string, id: string): Promise<{ configured: boolean }> {
+  return request(`/api/preferences/calendar-credentials/widgets/${encodeURIComponent(id)}`, { method: 'DELETE', token });
+}
+
 export interface DisplayTemplate {
   format: 'esp32-eink-template';
   version: 1;

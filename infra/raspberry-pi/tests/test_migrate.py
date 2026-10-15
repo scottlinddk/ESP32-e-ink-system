@@ -145,7 +145,7 @@ class SchemaTests(unittest.TestCase):
         required = {"news_source", "news_feed_url", "news_item_limit", "show_custom_text", "custom_text",
                     "show_custom_image", "show_calendar", "calendar_timezone", "calendar_days", "calendar_item_limit",
                     "show_custom_webhook", "custom_webhook_ttl_minutes", "display_timezone", "energy_price_settings",
-                    "news_feeds", "ticker_widgets", "show_ai_usage"}
+                    "news_feeds", "ticker_widgets", "show_ai_usage", "calendar_widgets"}
         optional = {"display_profile", "custom_image", "display_schedule"}
         for name in required | optional:
             with self.subTest(column=name):
@@ -180,7 +180,7 @@ class SchemaTests(unittest.TestCase):
 
     def test_every_tracked_check_is_required_and_bounds_cannot_be_weakened(self):
         self.assertEqual({table: len(checks) for table, checks in migrate.EXPECTED_CHECKS.items()},
-                         {"user_preferences": 10, "custom_webhooks": 2, "ai_usage_reports": 2, "device_delivery": 4, "device_displays": 8})
+                         {"user_preferences": 11, "custom_webhooks": 2, "ai_usage_reports": 2, "device_delivery": 4, "device_displays": 8})
         for table in migrate.EXPECTED_CHECKS:
             for index, constraint in enumerate(migrate.EXPECTED_CONSTRAINTS[table]):
                 if constraint["type"] != "c":
