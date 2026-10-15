@@ -11,6 +11,7 @@ import {
   getDefaultDeviceId,
   setDefaultDeviceId,
 } from '../services/database';
+import { listDevicesSharedWithMe } from '../services/sharing';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -193,10 +194,10 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = await resolveUserId(req.clerkUserId!);
-      const [devices, defaultId] = await Promise.all([getDevices(userId), getDefaultDeviceId(userId)]);
+      const [devices, defaultId, shared_devices] = await Promise.all([getDevices(userId), getDefaultDeviceId(userId), listDevicesSharedWithMe(userId)]);
       // A device reassigned to another account must not stay its previous owner's default.
       const default_device_id = devices.some((device) => device.id === defaultId) ? defaultId : null;
-      res.json({ devices, default_device_id });
+      res.json({ devices, default_device_id, shared_devices });
     } catch (err) {
       next(err);
     }

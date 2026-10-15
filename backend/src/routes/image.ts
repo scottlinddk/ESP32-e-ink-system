@@ -14,6 +14,7 @@ import { layoutForDisplayData } from '../services/displaySchedule';
 import { withReportedBattery } from '../services/deviceBattery';
 import { parsePreviewDeviceId, resolveDevicePreferences } from '../services/deviceDisplays';
 import { createError } from '../middleware/errorHandler';
+import { resolveDeviceAccess } from '../services/sharing';
 import type { DisplayData, DisplayLayout, DisplaySchedule, UserPreferences } from '../types';
 
 const router = Router();
@@ -72,11 +73,13 @@ router.post('/preview/draft', requireAuth, async (req: Request, res: Response, n
     // All data belongs to the verified Clerk identity, never to submitted IDs.
     const user = await getUserByEmail(email);
     if (!user) { res.status(404).json({ error: 'Complete sign-in before previewing a layout.' }); return; }
-    const prefs = await resolveDevicePreferences(user.id, deviceId);
-    const keys = await getApiKeys(user.id);
+    // Drafting is editing: a view-only collaborator may not render arbitrary layouts over the owner's data.
+    const dataOwner = deviceId ? (await resolveDeviceAccess(user.id, deviceId, 'editor')).ownerId : user.id;
+    const prefs = await resolveDevicePreferences(dataOwner, deviceId);
+    const keys = await getApiKeys(dataOwner);
     const apiKeyMap = Object.fromEntries(keys.map((key) => [key.provider, key.api_key]));
     const draftPrefs = prefs.display_schedule ? { ...prefs, display_schedule: null, ...(prefs.active_layout_id ? { active_layout_id: null } : {}) } : prefs;
-    const data = await withReportedBattery(await buildDisplayData(user.id, draftPrefs, apiKeyMap), layout, user.id, deviceId);
+    const data = await withReportedBattery(await buildDisplayData(dataOwner, draftPrefs, apiKeyMap), layout, dataOwner, deviceId);
     const bmp = renderDisplayData(data, layout, prefs);
     setPreviewHeaders(res, prefs, data, deviceId, 'draft');
     res.setHeader('Content-Type', 'image/bmp');
@@ -107,15 +110,16 @@ async function loadSavedPreview(req: Request): Promise<{ prefs: UserPreferences;
   if (!email) throw createError('No email on Clerk user', 400);
 
   const user = await upsertUser(email);
-  const prefs = await resolveDevicePreferences(user.id, deviceId);
+  const dataOwner = deviceId ? (await resolveDeviceAccess(user.id, deviceId, 'viewer')).ownerId : user.id;
+  const prefs = await resolveDevicePreferences(dataOwner, deviceId);
   const page = pageId === undefined ? undefined : prefs.display_schedule?.pages.find((entry) => entry.id === pageId);
   if (pageId !== undefined && !page) throw createError('Saved page not found. Reload saved settings.', 404);
-  const keys = await getApiKeys(user.id);
+  const keys = await getApiKeys(dataOwner);
   const apiKeyMap = Object.fromEntries(keys.map((key) => [key.provider, key.api_key]));
   // Sources do not depend on the layout, so a chosen page only bypasses page selection.
-  const built = await buildDisplayData(user.id, page ? { ...prefs, display_schedule: null } : prefs, apiKeyMap);
+  const built = await buildDisplayData(dataOwner, page ? { ...prefs, display_schedule: null } : prefs, apiKeyMap);
   const layout = page ? page.layout : layoutForDisplayData(prefs, built);
-  return { prefs, data: await withReportedBattery(built, layout, user.id, deviceId), deviceId, page, layout };
+  return { prefs, data: await withReportedBattery(built, layout, dataOwner, deviceId), deviceId, page, layout };
 }
 
 /**

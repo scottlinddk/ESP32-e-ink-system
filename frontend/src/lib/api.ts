@@ -238,6 +238,8 @@ export async function deleteEvCredentials(token: string, provider: string): Prom
 
 export interface DeviceList {
   devices: Device[];
+  /** Devices other people shared with this account. Never carries their credentials or hardware IDs. */
+  shared_devices?: SharedDevice[];
   /** The device the dashboard opens by default; null when unset. */
   default_device_id?: string | null;
 }
@@ -471,3 +473,42 @@ export async function fetchPreviewFrame(token: string, deviceId?: string, signal
     return { pixels, profile };
   } catch (error) { void response.body?.cancel().catch(() => {}); throw error; }
 }
+
+// ============================================================
+// Sharing
+// ============================================================
+
+export interface ShareUser { id: string; email: string; display_name: string | null }
+export type ShareRole = 'viewer' | 'editor';
+export interface SharedDevice { id: string; device_name: string; role: ShareRole; owner: ShareUser }
+export interface Connection { id: string; status: 'connected' | 'incoming' | 'outgoing'; user: ShareUser; created_at: string }
+export interface DeviceShare { collaborator: ShareUser; role: ShareRole; created_at: string }
+export type SharedItemKind = 'layout' | 'widget' | 'dashboard';
+export interface SharedItem {
+  id: string; kind: SharedItemKind; name: string; status: string; created_at: string;
+  from: ShareUser; to: ShareUser; summary: { widgets: string[]; pages: number };
+}
+export type ShareSource =
+  | { kind: 'layout'; device_id: string; page_id?: string | null }
+  | { kind: 'widget'; device_id: string; page_id?: string | null; widget_id: string }
+  | { kind: 'dashboard'; device_id: string };
+
+const json = (body: unknown) => JSON.stringify(body);
+
+export const getConnections = (token: string) => request<{ connections: Connection[] }>('/api/connections', { token });
+export const requestConnection = (token: string, email: string) => request<{ status: 'sent' }>('/api/connections', { token, method: 'POST', body: json({ email }) });
+export const acceptConnection = (token: string, id: string) => request<{ success: true }>(`/api/connections/${encodeURIComponent(id)}/accept`, { token, method: 'POST' });
+export const removeConnection = (token: string, id: string) => request<{ success: true }>(`/api/connections/${encodeURIComponent(id)}`, { token, method: 'DELETE' });
+
+export const getDeviceShares = (token: string, deviceId: string) => request<{ shares: DeviceShare[] }>(`/api/devices/${encodeURIComponent(deviceId)}/shares`, { token });
+export const shareDevice = (token: string, deviceId: string, collaboratorId: string, role: ShareRole) =>
+  request<{ success: true }>(`/api/devices/${encodeURIComponent(deviceId)}/shares`, { token, method: 'PUT', body: json({ collaborator_id: collaboratorId, role }) });
+export const revokeDeviceShare = (token: string, deviceId: string, collaboratorId: string) =>
+  request<{ success: true }>(`/api/devices/${encodeURIComponent(deviceId)}/shares/${encodeURIComponent(collaboratorId)}`, { token, method: 'DELETE' });
+
+export const getSharedItems = (token: string, box: 'inbox' | 'sent') => request<{ items: SharedItem[] }>(`/api/shared-items?box=${box}`, { token });
+export const sendSharedItem = (token: string, input: { recipient_id: string; source: ShareSource; name?: string }) =>
+  request<{ item: SharedItem; dropped: number }>('/api/shared-items', { token, method: 'POST', body: json(input) });
+export const acceptSharedItem = (token: string, id: string, target: { device_id: string; page_id?: string | null }) =>
+  request<{ success: true }>(`/api/shared-items/${encodeURIComponent(id)}/accept`, { token, method: 'POST', body: json(target) });
+export const dismissSharedItem = (token: string, id: string) => request<{ success: true }>(`/api/shared-items/${encodeURIComponent(id)}`, { token, method: 'DELETE' });

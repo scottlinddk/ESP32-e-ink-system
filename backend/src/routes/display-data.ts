@@ -7,6 +7,7 @@ import {
 } from '../services/database';
 import { buildDisplayData } from '../services/displayData';
 import { parsePreviewDeviceId, resolveDevicePreferences } from '../services/deviceDisplays';
+import { resolveDeviceAccess } from '../services/sharing';
 import { createClerkClient } from '@clerk/backend';
 
 /**
@@ -87,15 +88,17 @@ router.get(
 
       logApiUsage(user.id, '/api/preview');
 
-      const prefs = await resolveDevicePreferences(user.id, deviceId);
+      // A shared device draws with its owner's sources.
+      const dataOwner = deviceId ? (await resolveDeviceAccess(user.id, deviceId, 'viewer')).ownerId : user.id;
+      const prefs = await resolveDevicePreferences(dataOwner, deviceId);
 
-      const apiKeyRows = await getApiKeys(user.id);
+      const apiKeyRows = await getApiKeys(dataOwner);
       const apiKeyMap: Record<string, string> = {};
       for (const row of apiKeyRows) {
         apiKeyMap[row.provider] = row.api_key;
       }
 
-      const data = await buildDisplayData(user.id, prefs, apiKeyMap);
+      const data = await buildDisplayData(dataOwner, prefs, apiKeyMap);
       res.setHeader('Cache-Control', 'no-store');
       res.json(data);
     } catch (err) {

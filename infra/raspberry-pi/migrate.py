@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy only the eleven e-ink application tables; never copy Supabase internals.
+"""Copy only the fourteen e-ink application tables; never copy Supabase internals.
 
 Connection secrets belong in libpq service/password files, never command arguments.
 Exports contain encrypted API keys and personal data: keep the entire bundle private.
@@ -28,10 +28,12 @@ TARGET_DATABASE = "eink"
 TARGET_ROLE = "eink_admin"
 # Parents precede their children (device delivery/display rows reference devices).
 TABLES = ("users", "user_preferences", "api_keys", "devices", "firmware_versions", "api_usage",
-          "custom_webhooks", "ai_usage_reports", "device_delivery", "device_displays", "orders")
+          "custom_webhooks", "ai_usage_reports", "device_delivery", "device_displays", "orders",
+          "user_connections", "device_shares", "shared_items")
 # Stable complete-row checksums require the actual primary key, not an assumed id.
 PRIMARY_KEYS = {table: ("id",) for table in TABLES}
-PRIMARY_KEYS.update({"custom_webhooks": ("user_id",), "ai_usage_reports": ("user_id",), "device_delivery": ("device_id",), "device_displays": ("device_id",)})
+PRIMARY_KEYS.update({"custom_webhooks": ("user_id",), "ai_usage_reports": ("user_id",), "device_delivery": ("device_id",), "device_displays": ("device_id",),
+                         "device_shares": ("device_id", "collaborator_id")})
 
 
 def columns(required: dict[str, str], optional: dict[str, str]) -> dict[str, tuple[str, bool]]:
@@ -87,6 +89,16 @@ EXPECTED_COLUMNS = {
     "orders": columns({"id": "uuid", "user_id": "uuid"}, {
         "stripe_charge_id": "text", "amount_cents": "integer", "status": "text", "created_at": TS,
     }),
+    "user_connections": columns({
+        "id": "uuid", "requester_id": "uuid", "addressee_id": "uuid", "status": "text", "created_at": TS,
+    }, {"responded_at": TS}),
+    "device_shares": columns({
+        "device_id": "uuid", "owner_id": "uuid", "collaborator_id": "uuid", "role": "text", "created_at": TS,
+    }, {}),
+    "shared_items": columns({
+        "id": "uuid", "sender_id": "uuid", "recipient_id": "uuid", "kind": "text", "name": "text",
+        "payload": "jsonb", "status": "text", "created_at": TS,
+    }, {"responded_at": TS}),
 }
 
 # Missing defaults can break backend inserts even when all migrated rows match.
@@ -120,6 +132,8 @@ EXPECTED_DEFAULTS["orders"]["status"] = "'pending'::text"
 EXPECTED_DEFAULTS["custom_webhooks"]["rows"] = "'[]'::jsonb"
 EXPECTED_DEFAULTS["ai_usage_reports"]["providers"] = "'{}'::jsonb"
 EXPECTED_DEFAULTS["device_delivery"].update({"rotated_at": "now()", "instant_updates": "false"})
+EXPECTED_DEFAULTS["user_connections"]["status"] = "'pending'::text"
+EXPECTED_DEFAULTS["shared_items"]["status"] = "'pending'::text"
 EXPECTED_DEFAULTS["device_displays"].update({
     "display_timezone": "'Europe/Copenhagen'::text", "display_language": "'en'::text",
     "refresh_interval_minutes": "30", "revision": "1",
@@ -166,7 +180,29 @@ EXPECTED_CHECKS = {
         "CHECK (refresh_interval_minutes >= 1 AND refresh_interval_minutes <= 1440)",
         "CHECK (revision > 0)",
     ),
+    "user_connections": (
+        "CHECK (requester_id <> addressee_id)",
+        "CHECK (status = ANY (ARRAY['pending'::text, 'accepted'::text]))",
+    ),
+    "device_shares": (
+        "CHECK (owner_id <> collaborator_id)",
+        "CHECK (role = ANY (ARRAY['viewer'::text, 'editor'::text]))",
+    ),
+    "shared_items": (
+        "CHECK (jsonb_typeof(payload) = 'object'::text)",
+        "CHECK (kind = ANY (ARRAY['layout'::text, 'widget'::text, 'dashboard'::text]))",
+        "CHECK (length(name) >= 1 AND length(name) <= 80)",
+        "CHECK (sender_id <> recipient_id)",
+        "CHECK (status = ANY (ARRAY['pending'::text, 'accepted'::text, 'declined'::text]))",
+    ),
 }
+
+# Integrity rules that are legitimately a standalone unique index (an expression index
+# cannot be a constraint): one connection row per pair of users, whichever side asked.
+EXPECTED_STANDALONE_UNIQUE = {"user_connections": ["user_connections_pair_key"]}
+
+# Trigger name (also its function) -> the table whose rows it deletes when a device changes owner.
+TRANSFER_RESET_TRIGGERS = {"clear_device_display_on_transfer": "device_displays", "clear_device_shares_on_transfer": "device_shares"}
 
 EXPECTED_CONSTRAINTS: dict[str, list[dict[str, str]]] = {}
 for _table in TABLES:
@@ -175,6 +211,15 @@ for _table in TABLES:
         _constraints.extend([
             {"type": "f", "definition": "FOREIGN KEY (device_id, owner_id) REFERENCES devices(id, user_id) ON UPDATE CASCADE ON DELETE CASCADE" if _table == "device_displays" else "FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE"},
             {"type": "f", "definition": "FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE"},
+        ])
+    elif _table == "user_connections":
+        _constraints.extend({"type": "f", "definition": f"FOREIGN KEY ({_column}) REFERENCES users(id) ON DELETE CASCADE"} for _column in ("requester_id", "addressee_id"))
+    elif _table == "shared_items":
+        _constraints.extend({"type": "f", "definition": f"FOREIGN KEY ({_column}) REFERENCES users(id) ON DELETE CASCADE"} for _column in ("sender_id", "recipient_id"))
+    elif _table == "device_shares":
+        _constraints.extend([
+            {"type": "f", "definition": "FOREIGN KEY (device_id, owner_id) REFERENCES devices(id, user_id) ON UPDATE CASCADE ON DELETE CASCADE"},
+            {"type": "f", "definition": "FOREIGN KEY (collaborator_id) REFERENCES users(id) ON DELETE CASCADE"},
         ])
     elif _table != "users":
         _constraints.append({"type": "f", "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"})
@@ -306,7 +351,7 @@ def read_standalone_unique_indexes(conn: Any, table: str) -> list[str]:
 
 
 def check_unique_indexes(table: str, indexes: list[str]) -> None:
-    if indexes:
+    if indexes != EXPECTED_STANDALONE_UNIQUE.get(table, []):
         raise MigrationError(f"Standalone unique index drift in {table}: " + ", ".join(indexes) +
                              ". Reconcile these integrity rules explicitly before migrating.")
 
@@ -337,20 +382,23 @@ def check_relations(table: str, constraints: list[dict[str, Any]], triggers: lis
     if constraints != EXPECTED_CONSTRAINTS[table]:
         raise MigrationError(f"Constraint drift in {table}: expected repository primary/unique/foreign keys and checks exactly.")
     expected_name = f"update_{table}_updated_at" if table in ("users", "user_preferences", "devices") else None
-    expected_names = ([expected_name] if expected_name else []) + (["clear_device_display_on_transfer"] if table == "devices" else [])
+    # An ownership transfer must not revive another owner's presentation or collaborators.
+    expected_names = ([expected_name] if expected_name else []) + (list(TRANSFER_RESET_TRIGGERS) if table == "devices" else [])
     if sorted(trigger.get("name", "") for trigger in triggers) != sorted(expected_names):
         raise MigrationError(f"Trigger drift in {table}: reconcile missing or extra triggers explicitly.")
     for trigger in triggers:
-        if trigger.get("name") == "clear_device_display_on_transfer":
+        reset_table = TRANSFER_RESET_TRIGGERS.get(trigger.get("name", ""))
+        if reset_table:
+            name = trigger["name"]
             expected = {
-                "type": 17, "enabled": "O", "function_schema": "public", "function_name": "clear_device_display_on_transfer",
+                "type": 17, "enabled": "O", "function_schema": "public", "function_name": name,
                 "function_language": "plpgsql", "function_security_definer": True, "function_settings": ["search_path=public"],
                 "function_volatility": "v", "function_strict": False, "function_parallel": "u", "function_return_type": "trigger",
-                "function_body_sha256": hashlib.sha256(b"BEGIN DELETE FROM public.device_displays WHERE device_id = NEW.id; RETURN NEW; END;").hexdigest(),
+                "function_body_sha256": hashlib.sha256(f"BEGIN DELETE FROM public.{reset_table} WHERE device_id = NEW.id; RETURN NEW; END;".encode()).hexdigest(),
             }
             definition = re.sub(r"\bpublic\.", "", trigger.get("definition", ""))
-            expected_definition = ("CREATE TRIGGER clear_device_display_on_transfer AFTER UPDATE OF user_id ON devices "
-                                   "FOR EACH ROW WHEN (old.user_id IS DISTINCT FROM new.user_id) EXECUTE FUNCTION clear_device_display_on_transfer()")
+            expected_definition = (f"CREATE TRIGGER {name} AFTER UPDATE OF user_id ON devices "
+                                   f"FOR EACH ROW WHEN (old.user_id IS DISTINCT FROM new.user_id) EXECUTE FUNCTION {name}()")
             if definition != expected_definition or any(trigger.get(key) != value for key, value in expected.items()):
                 raise MigrationError("Trigger drift in devices: expected the repository ownership-reset function and condition exactly.")
             continue

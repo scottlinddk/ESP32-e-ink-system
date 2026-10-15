@@ -15,6 +15,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ 
 const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage').then((m) => ({ default: m.IntegrationsPage })));
 const LayoutEditorPage = lazy(() => import('./pages/LayoutEditorPage').then((m) => ({ default: m.LayoutEditorPage })));
 const DevicesPage = lazy(() => import('./pages/DevicesPage').then((m) => ({ default: m.DevicesPage })));
+const SharingPage = lazy(() => import('./pages/SharingPage').then((m) => ({ default: m.SharingPage })));
 const FirmwarePage = lazy(() => import('./pages/FirmwarePage').then((m) => ({ default: m.FirmwarePage })));
 const AccountPage = lazy(() => import('./pages/AccountPage').then((m) => ({ default: m.AccountPage })));
 const DocsPage = lazy(() => import('./pages/DocsPage').then((m) => ({ default: m.DocsPage })));
@@ -52,6 +53,7 @@ createRoot(rootElement).render(
                 <Route path="/integrations" element={<IntegrationsPage />} />
                 <Route path="/layout" element={<LayoutEditorPage />} />
                 <Route path="/devices" element={<DevicesPage />} />
+                <Route path="/sharing" element={<SharingPage />} />
                 <Route path="/firmware" element={<FirmwarePage />} />
                 <Route path="/account" element={<AccountPage />} />
                 <Route path="/docs" element={<DocsPage />} />

@@ -18,6 +18,7 @@ import { feedRouter, managementRouter as deliveryManagementRouter } from './rout
 import customWebhookRouter from './routes/custom-webhook';
 import tickersRouter from './routes/tickers';
 import aiUsageRouter from './routes/ai-usage';
+import { connectionsRouter, deviceSharesRouter, sharedItemsRouter } from './routes/sharing';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { swaggerSpec } from './swagger';
 
@@ -92,6 +93,8 @@ const displayLimiter = createRateLimiter(
 app.use((req, res, next) => req.path.startsWith('/device-feed/') ? next() : globalLimiter(req, res, next));
 app.use('/image', displayLimiter);
 app.use('/tickers', createRateLimiter(30, '1 m', 'Too many ticker searches, please try again shortly.', 'ticker-search'));
+// Invitations carry an email address: keep guessing and spamming slow.
+app.use('/connections', createRateLimiter(30, '1 m', 'Too many connection requests, please wait a minute.', 'connections'));
 // A test bypasses the Admin API cache; Anthropic asks for at most one poll per minute.
 app.use('/ai-usage/test', createRateLimiter(3, '1 m', 'Too many usage tests, please wait a minute.', 'ai-usage-test'));
 
@@ -111,6 +114,9 @@ app.use('/preferences', preferencesRouter);
 app.use('/devices', devicesRouter);
 app.use('/devices', deviceDisplaysRouter);
 app.use('/devices', deliveryManagementRouter);
+app.use('/devices', deviceSharesRouter);
+app.use('/connections', connectionsRouter);
+app.use('/shared-items', sharedItemsRouter);
 app.use('/device-feed', feedRouter);
 app.use('/firmware', firmwareRouter);
 app.use('/preview', displayDataRouter);

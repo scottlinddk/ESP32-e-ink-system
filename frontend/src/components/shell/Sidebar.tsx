@@ -17,6 +17,7 @@ export function Sidebar({ open }: { open: boolean }) {
     { id: 'integrations', icon: 'hub', label: t.nav.integrations },
     { id: 'layout', icon: 'grid_view', label: t.nav.layout },
     { id: 'devices', icon: 'cast', label: t.nav.devices },
+    { id: 'sharing', icon: 'group', label: t.nav.sharing },
     { id: 'firmware', icon: 'download', label: t.nav.firmware },
     { id: 'account', icon: 'person', label: t.nav.account },
   ];
