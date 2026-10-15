@@ -83,7 +83,7 @@ describe('authenticated draft image endpoint', () => {
     expect(getUserByEmail).toHaveBeenCalledWith('owner@example.com');
     expect(getPreferences).toHaveBeenCalledWith('owner');
     expect(getApiKeys).toHaveBeenCalledWith('owner');
-    expect(buildDisplayData).toHaveBeenCalledWith('owner', { ...DEFAULT_PREFS, layout }, {});
+    expect(buildDisplayData).toHaveBeenCalledWith('owner', { ...DEFAULT_PREFS, layout }, {}, layout);
     const saved = await fetch(`${baseUrl}/image/preview`, { headers: { Authorization: 'Bearer test-token' } });
     expect(pixels).toEqual(Buffer.from(await saved.arrayBuffer()));
   });
@@ -103,7 +103,7 @@ describe('authenticated draft image endpoint', () => {
     vi.mocked(getPreferences).mockResolvedValue(scheduled);
     const response = await draft();
     expect(response.status).toBe(200);
-    expect(buildDisplayData).toHaveBeenCalledWith('owner', { ...scheduled, display_schedule: null }, {});
+    expect(buildDisplayData).toHaveBeenCalledWith('owner', { ...scheduled, display_schedule: null }, {}, expect.any(Object));
     expect(upsertPreferences).not.toHaveBeenCalled();
   });
 

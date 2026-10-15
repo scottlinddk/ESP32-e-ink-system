@@ -425,6 +425,19 @@ describe('weather forecast and air quality', () => {
     expect((await buildDisplayData('user-test', { ...prefs, display_schedule: schedule }, credentials)).weatherForecast).toEqual(forecast);
   });
 
+  it('fetches for the layout being drawn when it differs from the saved one (a draft or a chosen page)', async () => {
+    // The saved layout only shows the current reading; the draft adds an hours and a details view.
+    const draft = withWeather({ i: 'weather', options: { view: 'hours' } }, { i: 'weather:2', options: { view: 'details' } }).layout!;
+    const data = await buildDisplayData('user-test', withWeather({ i: 'weather' }), credentials, draft);
+    expect(data.weatherForecast).toEqual(forecast);
+    expect(data.airQuality).toEqual(airQuality);
+    // And the other way round: a draft without them does not spend the extra requests.
+    vi.clearAllMocks();
+    const plain = await buildDisplayData('user-test', withWeather({ i: 'weather', options: { view: 'hours' } }), credentials, withWeather({ i: 'weather' }).layout!);
+    expect(plain.weatherForecast).toBeUndefined();
+    expect(fetchWeatherForecast).not.toHaveBeenCalled();
+  });
+
   it('keeps the current reading when the forecast fails, and reports why without provider text', async () => {
     vi.mocked(fetchWeatherForecast).mockRejectedValue(new WeatherSourceError('rate_limited'));
     const data = await buildDisplayData('user-test', withWeather({ i: 'weather', options: { view: 'daily' } }), credentials);

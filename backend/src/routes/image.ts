@@ -79,7 +79,7 @@ router.post('/preview/draft', requireAuth, async (req: Request, res: Response, n
     const keys = await getApiKeys(dataOwner);
     const apiKeyMap = Object.fromEntries(keys.map((key) => [key.provider, key.api_key]));
     const draftPrefs = prefs.display_schedule ? { ...prefs, display_schedule: null, ...(prefs.active_layout_id ? { active_layout_id: null } : {}) } : prefs;
-    const data = await withReportedBattery(await buildDisplayData(dataOwner, draftPrefs, apiKeyMap), layout, dataOwner, deviceId);
+    const data = await withReportedBattery(await buildDisplayData(dataOwner, draftPrefs, apiKeyMap, layout), layout, dataOwner, deviceId);
     const bmp = renderDisplayData(data, layout, prefs);
     setPreviewHeaders(res, prefs, data, deviceId, 'draft');
     res.setHeader('Content-Type', 'image/bmp');
@@ -116,8 +116,8 @@ async function loadSavedPreview(req: Request): Promise<{ prefs: UserPreferences;
   if (pageId !== undefined && !page) throw createError('Saved page not found. Reload saved settings.', 404);
   const keys = await getApiKeys(dataOwner);
   const apiKeyMap = Object.fromEntries(keys.map((key) => [key.provider, key.api_key]));
-  // Sources do not depend on the layout, so a chosen page only bypasses page selection.
-  const built = await buildDisplayData(dataOwner, page ? { ...prefs, display_schedule: null } : prefs, apiKeyMap);
+  // A chosen page bypasses page selection. Its layout decides which weather extras are fetched.
+  const built = await buildDisplayData(dataOwner, page ? { ...prefs, display_schedule: null } : prefs, apiKeyMap, page?.layout);
   const layout = page ? page.layout : layoutForDisplayData(prefs, built);
   return { prefs, data: await withReportedBattery(built, layout, dataOwner, deviceId), deviceId, page, layout };
 }
