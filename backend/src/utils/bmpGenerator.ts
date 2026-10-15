@@ -22,6 +22,7 @@ import { renderBatteryWidget, compactBatteryWidth, drawCompactBattery } from './
 import { renderAiUsageWidget } from './aiUsageRenderer';
 import { chooseZoom, fitZoom } from './zoom';
 import { BASE_GRID_COLS, BASE_GRID_ROWS } from './layoutGrid';
+import { isDarkAt } from './sunTimes';
 import { ZoomCanvas, logicalBounds, type Bounds, type DrawingCanvas } from './zoomCanvas';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
@@ -579,14 +580,15 @@ const WIDGET_ENABLED_SETTING = {
   'ai-usage': 'show_ai_usage',
 } as const;
 type RenderPreferences = Partial<Pick<UserPreferences,
-  'monta_fields' | 'zaptec_fields' | 'display_profile' | 'display_timezone' | 'display_language' | 'ticker_widgets'
+  'monta_fields' | 'zaptec_fields' | 'display_profile' | 'display_timezone' | 'display_language' | 'ticker_widgets' | 'weather_location'
   | typeof WIDGET_ENABLED_SETTING[keyof typeof WIDGET_ENABLED_SETTING]>>;
 
 function populateCanvas(
   canvas: BmpCanvas,
   data: DisplayData,
   layout?: DisplayLayout | null,
-  preferences?: RenderPreferences
+  preferences?: RenderPreferences,
+  now: Date = new Date()
 ): void {
   const effectiveLayout = layout ?? DEFAULT_LAYOUT;
   const language = displayLanguageOrDefault(preferences?.display_language);
@@ -663,7 +665,8 @@ function populateCanvas(
       }
     });
   }
-  if (effectiveLayout.invert) {
+  // 'sun' inverts only between sunset and sunrise at the weather location, as of this render.
+  if (effectiveLayout.invert === true || (effectiveLayout.invert === 'sun' && isDarkAt(now, preferences?.weather_location))) {
     // Everything, unpainted background included, then the photos back: inverting twice restores them.
     canvas.invertArea({ x: 0, y: 0, width: canvas.width, height: canvas.height });
     for (const photo of photos) canvas.invertArea(photo);
@@ -673,10 +676,11 @@ function populateCanvas(
 export function renderDisplayData(
   data: DisplayData,
   layout?: DisplayLayout | null,
-  preferences?: RenderPreferences
+  preferences?: RenderPreferences,
+  now?: Date
 ): Buffer {
   const canvas = new BmpCanvas(preferences?.display_profile);
-  populateCanvas(canvas, data, layout, preferences);
+  populateCanvas(canvas, data, layout, preferences, now);
   return canvas.toBmp();
 }
 
@@ -685,9 +689,10 @@ export function renderDisplayData(
 export function renderDisplayDataRaw(
   data: DisplayData,
   layout?: DisplayLayout | null,
-  preferences?: RenderPreferences
+  preferences?: RenderPreferences,
+  now?: Date
 ): Buffer {
   const canvas = new BmpCanvas(preferences?.display_profile);
-  populateCanvas(canvas, data, layout, preferences);
+  populateCanvas(canvas, data, layout, preferences, now);
   return canvas.toRawPixels();
 }

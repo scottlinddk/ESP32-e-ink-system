@@ -36,8 +36,16 @@ export function changeGrid(layout: DisplayLayout, scale: GridScale): DisplayLayo
   };
 }
 
-/** Sets or clears the layout's invert flag; false is the default and is not stored. */
-export function updateLayoutInvert(layout: DisplayLayout, invert: boolean): DisplayLayout {
+export type InvertMode = 'off' | 'always' | 'sun';
+
+/** The mode a layout is in; a missing or false flag is off. */
+export function layoutInvertMode(layout: DisplayLayout): InvertMode {
+  return layout.invert === 'sun' ? 'sun' : layout.invert === true ? 'always' : 'off';
+}
+
+/** Sets the layout's invert mode; off is the default and is not stored. */
+export function updateLayoutInvert(layout: DisplayLayout, mode: InvertMode | boolean): DisplayLayout {
   const { invert: _previous, ...rest } = layout;
-  return invert ? { ...rest, invert: true } : rest;
+  if (mode === 'sun') return { ...rest, invert: 'sun' };
+  return mode === true || mode === 'always' ? { ...rest, invert: true } : rest;
 }

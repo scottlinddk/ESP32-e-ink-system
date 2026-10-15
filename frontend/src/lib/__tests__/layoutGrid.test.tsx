@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { GridEditor, layoutFromGrid } from '../../components/layout/GridEditor';
 import { WidgetOptionsPanel } from '../../components/layout/WidgetOptionsPanel';
-import { changeGrid, gridLabel, layoutScale, updateLayoutInvert } from '../layoutGrid';
+import { changeGrid, gridLabel, layoutInvertMode, layoutScale, updateLayoutInvert } from '../layoutGrid';
 import { layoutProblem } from '../layoutPlacement';
 import type { DisplayLayout } from '../../types';
 
@@ -47,6 +47,15 @@ describe('layout grid scale', () => {
     expect(changeGrid({ ...small, widgets: small.widgets.map((w) => w.i === 'weather' ? { ...w, x: 1 } : w) }, 1)).toBeNull();
     expect(changeGrid(base, 1)).toBe(base);
     expect(changeGrid({ ...base, cols: 7 }, 2)).toBeNull();
+  });
+
+  it('sets the sunset-to-sunrise mode and reads each mode back', () => {
+    const sun = updateLayoutInvert(base, 'sun');
+    expect(sun.invert).toBe('sun');
+    expect(layoutInvertMode(sun)).toBe('sun');
+    expect(layoutInvertMode(updateLayoutInvert(sun, 'always'))).toBe('always');
+    expect('invert' in updateLayoutInvert(sun, 'off')).toBe(false);
+    expect(layoutInvertMode(base)).toBe('off');
   });
 
   it('sets and clears the invert flag without leaving false behind', () => {

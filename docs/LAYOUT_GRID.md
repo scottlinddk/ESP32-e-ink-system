@@ -42,3 +42,12 @@ A one-row bar on 20 × 12 is 10 px tall on the 250 × 122 panel, which fits one 
 An uploaded **photo is not inverted**: it is already a picture, and a negative of it would be wrong. It keeps its own colours and stands in the black layout as a light or dark block. The setting is `"invert": true` beside `widgets`; false is the default and is not stored.
 
 Inverting changes the picture sent to the panel only; it does not change the panel's own colour polarity.
+
+### Follow sunset and sunrise
+
+Choose **Inverted from sunset to sunrise** under **Colours** to invert only while the sun is down. The layout stores `"invert": "sun"`; `true` still means always inverted. Each layout and slideshow page chooses for itself.
+
+- **Where**: the weather location saved in the display settings (`lat,lng`, default `55.3,10.4`). It does not need a weather widget or an OpenWeatherMap key: the sun's position is calculated on the server, so it also works in polar day and night, when no sunrise or sunset exists. The screen stays normal all day in polar day and inverted all day in polar night.
+- **When**: sunset and sunrise mean the sun's centre passing -0.833° below the horizon, the usual definition, accurate to about a minute.
+- **How often it changes**: the colours are decided each time the image is drawn, so the panel flips at the first refresh after sunset or sunrise, not at the exact minute. An e-ink panel only updates when a new image is pushed, and a Bluetooth push is manual.
+- **Unreadable location**: the screen keeps its normal colours.
