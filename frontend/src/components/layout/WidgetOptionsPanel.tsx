@@ -3,7 +3,7 @@
 // =========================================================================
 import React from 'react';
 import type { CalendarView, EnergyView, TickerView, TickerWidgetSetting, WeatherView, WidgetLayout, WidgetOptions } from '../../types';
-import { MAX_CALENDAR_DAYS, MAX_WIDGET_ITEMS, MIN_CALENDAR_DAYS, widgetAcceptsZoom, widgetOptionKind } from '../../lib/widgetOptions';
+import { MAX_CALENDAR_DAYS, MAX_NEWS_COLUMNS, MAX_WIDGET_ITEMS, MIN_CALENDAR_DAYS, widgetAcceptsZoom, widgetOptionKind } from '../../lib/widgetOptions';
 import { ZOOMS, zoomLabel } from '../../lib/zoom';
 import { Card } from '../ui/card';
 import { Field } from '../ui/Field';
@@ -142,12 +142,20 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
         })()}
 
         {kind === 'list' && (
-          <Field label={da ? 'Antal overskrifter' : 'Number of headlines'}
-            htmlFor={`${fieldId}-items`}
-            helper={da ? 'Højst så mange som hentes og kan være i widgetten.' : 'At most as many as are fetched and fit in the widget.'}>
-            <Select id={`${fieldId}-items`} value={items} options={countOptions(da ? 'Så mange som muligt' : 'As many as fit')}
-              onChange={(e) => onChange({ items: parseCount(e.target.value) })} />
-          </Field>
+          <>
+            <Field label={da ? 'Antal overskrifter' : 'Number of headlines'}
+              htmlFor={`${fieldId}-items`}
+              helper={da ? 'Højst så mange som hentes og kan være i widgetten.' : 'At most as many as are fetched and fit in the widget.'}>
+              <Select id={`${fieldId}-items`} value={items} options={countOptions(da ? 'Så mange som muligt' : 'As many as fit')}
+                onChange={(e) => onChange({ items: parseCount(e.target.value) })} />
+            </Field>
+            <Field label={da ? 'Antal kolonner' : 'Number of columns'} htmlFor={`${fieldId}-columns`}
+              helper={da ? 'Overskrifterne fordeles ligeligt mellem kolonnerne. Er widgetten for smal, vises færre.' : 'Headlines are split evenly between the columns. A widget too narrow for that many shows fewer.'}>
+              <Select id={`${fieldId}-columns`} value={String(widget.options?.columns ?? 1)}
+                options={Array.from({ length: MAX_NEWS_COLUMNS }, (_, index) => ({ value: String(index + 1), label: String(index + 1) }))}
+                onChange={(e) => onChange({ columns: Number(e.target.value) === 1 ? undefined : Number(e.target.value) })} />
+            </Field>
+          </>
         )}
 
         {kind === 'ticker' && (() => {

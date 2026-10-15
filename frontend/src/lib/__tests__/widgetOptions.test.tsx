@@ -79,6 +79,15 @@ describe('widget options panel', () => {
     expect(panel({ i: 'calendar', x: 0, y: 0, w: 5, h: 2, options: { items: 2 } }, 'da')).toContain('Antal begivenheder');
   });
 
+  it('offers one to four columns for news, one by default', () => {
+    const html = panel(layout.widgets[1]);
+    expect(html).toContain('Number of columns');
+    expect(html).toMatch(/<option value="1" selected="">/);
+    expect(html).toContain('<option value="4">4</option>');
+    expect(panel({ ...layout.widgets[1], options: { columns: 3 } })).toMatch(/<option value="3" selected="">/);
+    expect(panel({ i: 'calendar', x: 0, y: 0, w: 5, h: 2 })).not.toContain('Number of columns');
+  });
+
   it('names the ticker defaults and shows stocks per page only for the list view', () => {
     const condensed = panel({ i: 'ticker:t1', x: 0, y: 0, w: 5, h: 3 }, 'en', ticker);
     expect(condensed).toContain('Widget default (List)');

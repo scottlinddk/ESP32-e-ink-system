@@ -7,6 +7,7 @@ import { queryClient } from './lib/queryClient';
 import './index.css';
 import App from './App';
 import { ProgressBar } from './components/common/LoadingSpinner';
+import { registerServiceWorker } from './lib/registerServiceWorker';
 
 // Lazy-loaded page chunks — each becomes its own JS chunk
 const FlashPage = lazy(() => import('./pages/FlashPage').then((m) => ({ default: m.FlashPage })));
@@ -63,3 +64,5 @@ createRoot(rootElement).render(
     </QueryClientProvider>
   </StrictMode>
 );
+
+registerServiceWorker();

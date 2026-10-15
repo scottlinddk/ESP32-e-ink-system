@@ -36,12 +36,12 @@ describe('widget options validation', () => {
   it('keeps valid options and drops an empty object', () => {
     const parsed = parseDisplayLayout(layout(
       { i: 'energy', x: 0, y: 0, w: 10, h: 3, options: { view: 'rest' } },
-      { i: 'news', x: 0, y: 3, w: 10, h: 1, options: { items: 2 } },
+      { i: 'news', x: 0, y: 3, w: 10, h: 1, options: { items: 2, columns: 2 } },
       { i: 'ticker:abc', x: 0, y: 4, w: 10, h: 1, options: { view: 'condensed', items: 3 } },
       { i: 'status', x: 0, y: 5, w: 10, h: 1, options: {} as never },
     ));
     expect(parsed.widgets.map((widget) => widget.options)).toEqual([
-      { view: 'rest' }, { items: 2 }, { view: 'condensed', items: 3 }, undefined,
+      { view: 'rest' }, { items: 2, columns: 2 }, { view: 'condensed', items: 3 }, undefined,
     ]);
     expect('options' in parsed.widgets[3]).toBe(false);
   });
@@ -52,6 +52,12 @@ describe('widget options validation', () => {
     ['news', { view: 'day' }],
     ['news', { items: 0 }],
     ['news', { items: 11 }],
+    ['news', { columns: 0 }],
+    ['news', { columns: 5 }],
+    ['news', { columns: 1.5 }],
+    ['news:abc', { columns: '2' }],
+    ['calendar', { columns: 2 }],
+    ['energy', { columns: 2 }],
     ['calendar', { items: 2.5 }],
     ['ticker:abc', { view: 'rest' }],
     ['status', { view: 'day' }],
@@ -176,7 +182,9 @@ describe('rendering with layout options', () => {
       { i: 'calendar', x: 0, y: 3, w: 10, h: 3, options: { items: 1 } },
     ));
     const texts = draw.mock.calls.map(([text]) => text);
-    expect(texts).toEqual(['One', 'Two', 'Today, Thu 15 Oct', '09:00', 'A', 'A', '10:00']);
+    // Each headline is a rank and the bold title (drawn twice).
+    expect(texts).toEqual(['1', 'One', 'One', '2', 'Two', 'Two',
+      'Today, Thu 15 Oct', '09:00', 'A', 'A', '10:00']);
   });
 });
 

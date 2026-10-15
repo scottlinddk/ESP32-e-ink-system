@@ -7,6 +7,7 @@ import { DEFAULT_DISPLAY_TIMEZONE } from './displayTimezone';
 import { DEFAULT_DISPLAY_LANGUAGE, displayLanguageOrDefault, formatDecimal, type DisplayLanguage } from './displayLanguage';
 import { displayStrings } from './displayStrings';
 import { newsFeedIdFromWidget } from './newsFeeds';
+import { renderNewsWidget } from './newsRenderer';
 import { calendarIdFromWidget } from './calendarWidgets';
 import { renderCalendarWidget } from './calendarRenderer';
 import { renderWeatherWidget } from './weatherRenderer';
@@ -381,29 +382,6 @@ function renderEnergyWidget(
   }
 }
 
-function renderNewsWidget(
-  canvas: DrawingCanvas,
-  bounds: WidgetBounds,
-  news?: DisplayData['news'],
-  problem?: DisplayData['newsError'],
-  limit?: number,
-  language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
-): void {
-  const { x, y, width, height } = bounds;
-  const t = displayStrings(language).news;
-  if (y > 0) canvas.drawHLine(x, y, width);
-  let textY = y + 2;
-  const maxW = width - 4;
-  if (news && news.length > 0) {
-    for (const item of news.slice(0, limit)) {
-      if (textY + 8 > y + height) break;
-      textY = canvas.drawWrappedText(item.title, x + 2, textY, maxW, 10) + 2;
-    }
-  } else {
-    canvas.drawText(news ? t.none : problem ? t.errors[problem.code] : t.unavailable, x + 2, textY, maxW);
-  }
-}
-
 function renderMontaWidget(
   canvas: DrawingCanvas,
   bounds: WidgetBounds,
@@ -645,7 +623,7 @@ function populateCanvas(
       if (feedId) {
         // A removed feed has no result; it renders as unavailable until the widget is removed.
         const feed = data.newsFeeds?.[feedId];
-        renderNewsWidget(target, bounds, feed?.items, feed?.error, widget.options?.items, language);
+        renderNewsWidget(target, bounds, feed?.items, feed?.error, widget.options?.items, language, widget.options?.columns);
         return;
       }
       if (isWeatherWidget(widget.i)) {
@@ -667,7 +645,7 @@ function populateCanvas(
           }
           break;
         case 'energy':  renderEnergyWidget(target, bounds, data.price, data.priceError, widget.options, language); break;
-        case 'news':    renderNewsWidget(target, bounds, data.news, data.newsError, widget.options?.items, language); break;
+        case 'news':    renderNewsWidget(target, bounds, data.news, data.newsError, widget.options?.items, language, widget.options?.columns); break;
         case 'monta':   renderMontaWidget(target, bounds, data.monta, preferences?.monta_fields ?? undefined, language); break;
         case 'zaptec':  renderZaptecWidget(target, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined, language); break;
         case 'notion':  renderNotionWidget(target, bounds, data.notion, data.notionError, language); break;

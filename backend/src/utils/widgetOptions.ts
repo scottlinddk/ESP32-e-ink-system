@@ -25,6 +25,7 @@ export type CalendarView = typeof CALENDAR_VIEWS[number];
 export const WEATHER_VIEWS = ['summary', 'current', 'hours', 'daily', 'details'] as const;
 export type WeatherView = typeof WEATHER_VIEWS[number];
 export const MAX_WIDGET_ITEMS = 10;
+export const MAX_NEWS_COLUMNS = 4;
 export const MIN_CALENDAR_DAYS = 2;
 export const MAX_CALENDAR_DAYS = 7;
 
@@ -45,7 +46,7 @@ export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
 const ALLOWED_KEYS: Record<WidgetOptionKind, readonly string[]> = {
   energy: ['view'],
   weather: ['view', 'items'],
-  list: ['items'],
+  list: ['items', 'columns'],
   calendar: ['view', 'items', 'days'],
   ticker: ['view', 'items'],
   'ai-usage': ['view'],
@@ -89,6 +90,12 @@ export function parseWidgetOptions(widgetId: string, value: unknown): WidgetOpti
       throw new Error(`Widget item count must be a whole number from 1 to ${MAX_WIDGET_ITEMS}.`);
     }
     options.items = value.items;
+  }
+  if (value.columns !== undefined) {
+    if (typeof value.columns !== 'number' || !Number.isInteger(value.columns) || value.columns < 1 || value.columns > MAX_NEWS_COLUMNS) {
+      throw new Error(`News columns must be a whole number from 1 to ${MAX_NEWS_COLUMNS}.`);
+    }
+    options.columns = value.columns;
   }
   if (value.days !== undefined) {
     if (typeof value.days !== 'number' || !Number.isInteger(value.days) || value.days < MIN_CALENDAR_DAYS || value.days > MAX_CALENDAR_DAYS) {
