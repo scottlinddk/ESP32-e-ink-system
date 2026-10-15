@@ -172,7 +172,7 @@ describe('rendering with layout options', () => {
       { i: 'calendar', x: 0, y: 3, w: 10, h: 3, options: { items: 1 } },
     ));
     const texts = draw.mock.calls.map(([text]) => text);
-    expect(texts).toEqual(['One', 'Two', 'Today, Thu 15 Oct', '09:00 A']);
+    expect(texts).toEqual(['One', 'Two', 'Today, Thu 15 Oct', 'Today, Thu 15 Oct', '09:00 A']);
   });
 });
 

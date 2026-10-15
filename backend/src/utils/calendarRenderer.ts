@@ -2,11 +2,13 @@ import type { CalendarData, CalendarEvent, WidgetOptions } from '../types';
 import type { Bounds, DrawingCanvas } from './zoomCanvas';
 import { wrapBitmapText } from './bitmapText';
 import { CALENDAR_ERROR_LABELS, type CalendarProblem } from './calendarErrors';
-import { dayOfMonth, monthGrid, monthName, monthShort, shiftDay, weekdayName } from './calendarDays';
+import { dayOfMonth, monthGrid, monthName, monthShort, shiftDay, weekdayIndex, weekdayName } from './calendarDays';
 import { calendarView, MAX_CALENDAR_DAYS, MIN_CALENDAR_DAYS } from './widgetOptions';
 
-// The four calendar views, drawn with the 8 x 8 font on a canvas that is already zoomed to
-// the widget. Every view degrades to the list when the widget is too small to draw it.
+// The four calendar views, drawn with the 8 x 8 font on a canvas that is already zoomed to the
+// widget. The look follows e-paper calendar dashboards: event cards with a bar, a bold title and a
+// time range; hour grids with shaded blocks and shaded weekends; a month grid with the events
+// listed in its cells. Every view degrades to the list when the widget is too small for it.
 
 const GLYPH = 8;
 const LINE = 10;
@@ -19,16 +21,43 @@ const MAX_STRIP_LINES = 2;
 const MIN_HOURS = 4;
 const AUTO_DAY_COLUMN = 10 * GLYPH;
 const MAX_DOTS = 3;
+const HEADING_H = GLYPH + 3;
+const CARD_MIN_HEIGHT = 7 * LINE;
+const MIN_LIST_COLUMN = 20 * GLYPH;
+const COLUMN_GAP = GLYPH;
+const CELL_LINE = GLYPH + 1;
+const MIN_CELL_LIST_W = 6 * GLYPH;
 
 export interface CalendarSource { data?: CalendarData; error?: CalendarProblem }
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const chars = (pixels: number) => Math.max(0, Math.floor(pixels / GLYPH));
 const pad2 = (value: number) => String(value).padStart(2, '0');
+const clock = (minute: number) => `${pad2(Math.floor(minute / 60) % 24)}:${pad2(minute % 60)}`;
+
+/** `06:30 - 07:15`, just the start for an event without length, and null for an all-day one. */
+function timeRange(event: CalendarEvent): string | null {
+  if (event.allDay || event.startMinute === null) return null;
+  const end = event.endMinute ?? event.startMinute;
+  return end === event.startMinute && event.endDay === event.day ? clock(event.startMinute) : `${clock(event.startMinute)} - ${clock(end)}`;
+}
 
 /** The first candidate that fits `pixels` wide, else the last one. */
 function fitLabel(candidates: string[], pixels: number): string {
   return candidates.find((label) => label.length * GLYPH <= pixels) ?? candidates[candidates.length - 1];
+}
+
+/** Text on a clean patch, so it stays readable over a shaded area. */
+function plate(canvas: DrawingCanvas, text: string, x: number, y: number, maxWidth: number, black = true): void {
+  const width = Math.min(text.length * GLYPH + 1, maxWidth);
+  if (width > 0) canvas.fillRect(x - 1, y - 1, width + 1, GLYPH + 2, !black);
+  canvas.drawText(text, x, y, maxWidth, 1, black);
+}
+
+/** Heavier text, drawn twice a pixel apart. */
+function bold(canvas: DrawingCanvas, text: string, x: number, y: number, maxWidth: number): void {
+  canvas.drawText(text, x, y, maxWidth);
+  canvas.drawText(text, x + 1, y, maxWidth);
 }
 
 /** A white label on a black bar. */
@@ -36,6 +65,21 @@ function drawBar(canvas: DrawingCanvas, x: number, y: number, width: number, tex
   canvas.fillRect(x, y, width, GLYPH + 1);
   canvas.drawText(text, x + 1, y + 1, width - 2, 1, false);
 }
+
+/** A dot texture: `light` is a quarter of the pixels, `faint` a sixteenth. */
+function shade(canvas: DrawingCanvas, x: number, y: number, width: number, height: number, density: 'light' | 'faint' = 'light'): void {
+  const step = density === 'light' ? 2 : 4;
+  for (let row = y; row < y + height; row++) {
+    if (row % step !== 0) continue;
+    for (let column = x; column < x + width; column++) if (column % step === 0) canvas.setPixel(column, row, true);
+  }
+}
+
+function dotted(canvas: DrawingCanvas, x: number, y: number, length: number, vertical = false): void {
+  for (let offset = 0; offset < length; offset += 2) canvas.setPixel(vertical ? x : x + offset, vertical ? y + offset : y, true);
+}
+
+const isWeekend = (day: string) => weekdayIndex(day) >= 5;
 
 export function renderCalendarWidget(canvas: DrawingCanvas, bounds: Bounds, source: CalendarSource, options?: WidgetOptions): void {
   const { x, y, width } = bounds;
@@ -72,45 +116,68 @@ function groupLabel(day: string, today: string, pixels: number): string {
   return fitLabel([date, short, `${dayOfMonth(day)} ${monthShort(day)}`], pixels);
 }
 
+/** The lines an event takes in a column: a card has its title and time range, a row one line. */
+function eventLines(event: CalendarEvent, columnWidth: number, cards: boolean): { lines: string[]; indent: number; height: number } {
+  if (cards) {
+    const indent = 5;
+    const title = [...wrapBitmapText(event.title, Math.max(1, chars(columnWidth - indent)))].slice(0, 2);
+    const lines = [...title, timeRange(event) ?? 'All day'];
+    return { lines, indent, height: lines.length * LINE + 2 };
+  }
+  const prefix = event.allDay ? '• ' : `${event.timeLabel} `;
+  const title = [...wrapBitmapText(event.title, Math.max(1, chars(columnWidth) - prefix.length))].slice(0, 2);
+  return { lines: title.map((line, index) => index === 0 ? `${prefix}${line}` : line), indent: 0, height: title.length * LINE + 1 };
+}
+
 function drawList(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, items?: number): void {
   const { x, y, width, height } = bounds;
   const bottom = y + height;
   const events = upcoming(data, Math.min(items ?? data.limit, data.limit));
-  let textY = y + 2;
   if (events.length === 0) {
-    canvas.drawText('No upcoming events', x + 2, textY, width - 4);
+    canvas.drawText('No upcoming events', x + 2, y + 2, width - 4);
     return;
   }
   // One or two lines of space is for events alone: a day heading would take half of it.
   if (height < 3 * LINE) {
+    let textY = y + 2;
     for (const event of events) {
       if (textY + GLYPH > bottom) break;
       textY = canvas.drawWrappedText(`${event.dateLabel} ${event.timeLabel}: ${event.title}`, x + 2, textY, width - 4, LINE) + 2;
     }
     return;
   }
-  let currentDay = '';
+
+  // A tall widget shows each event as a card (title, then its time range); a short one as a row.
+  // A wide one flows the days into columns, repeating the heading when a day carries on.
+  const cards = height >= CARD_MIN_HEIGHT;
+  const columns = clamp(Math.floor((width - 4 + COLUMN_GAP) / (MIN_LIST_COLUMN + COLUMN_GAP)), 1, 3);
+  const columnWidth = Math.floor((width - 4 - COLUMN_GAP * (columns - 1)) / columns);
+  let column = 0;
+  let columnX = x + 2;
+  let cursor = y + 2;
+  let heading = '';
   for (const event of events) {
-    // An event that began earlier but is still on belongs under today.
     const day = event.day < data.today ? data.today : event.day;
-    if (day !== currentDay) {
-      // A heading with no room for an event under it is left out.
-      if (textY + (GLYPH + 1) + LINE > bottom + 2) break;
-      drawBar(canvas, x + 1, textY, width - 2, groupLabel(day, data.today, width - 4));
-      textY += LINE + 1;
-      currentDay = day;
+    const card = eventLines(event, columnWidth, cards);
+    let needHeading = day !== heading;
+    // Start a new column when the heading and the event do not both fit in this one.
+    if (cursor + (needHeading ? HEADING_H : 0) + card.height > bottom + 2 && cursor > y + 2) {
+      if (++column >= columns) break;
+      columnX = x + 2 + column * (columnWidth + COLUMN_GAP);
+      cursor = y + 2;
+      needHeading = true;
     }
-    if (textY + GLYPH > bottom) break;
-    const prefix = event.allDay ? '• ' : `${event.timeLabel} `;
-    const lines = [...wrapBitmapText(event.title, Math.max(1, chars(width - 4) - prefix.length))].slice(0, 2);
-    lines.forEach((line, index) => {
-      if (textY + GLYPH > bottom) return;
-      // The first line carries the time; the next one hangs under the title.
-      if (index === 0) canvas.drawText(`${prefix}${line}`, x + 2, textY, width - 4);
-      else canvas.drawText(line, x + 2 + prefix.length * GLYPH, textY, width - 4 - prefix.length * GLYPH);
-      textY += LINE;
+    if (needHeading) {
+      bold(canvas, groupLabel(day, data.today, columnWidth), columnX, cursor, columnWidth);
+      cursor += HEADING_H;
+      heading = day;
+    }
+    if (cursor + GLYPH > bottom) break;
+    if (cards) canvas.fillRect(columnX, cursor, 2, Math.min(card.height - 2, bottom - cursor));
+    card.lines.forEach((line, index) => {
+      if (cursor + index * LINE + GLYPH <= bottom) canvas.drawText(line, columnX + card.indent, cursor + index * LINE, columnWidth - card.indent);
     });
-    textY += 1;
+    cursor += card.height;
   }
 }
 
@@ -145,9 +212,19 @@ function layoutSegments(events: CalendarEvent[], day: string, minMinutes: number
 }
 
 function dayHeading(day: string, single: boolean, pixels: number): string {
-  const full = `${weekdayName(day)} ${dayOfMonth(day)} ${monthShort(day)}`;
-  const short = `${weekdayName(day)} ${dayOfMonth(day)}`;
-  return fitLabel(single ? [full, short, `${dayOfMonth(day)}`] : [short, `${weekdayName(day).slice(0, 2)} ${dayOfMonth(day)}`, `${dayOfMonth(day)}`], pixels);
+  const weekday = weekdayName(day);
+  const date = `${dayOfMonth(day)}/${Number(day.slice(5, 7))}`;
+  return fitLabel(single ? [`${weekday} ${dayOfMonth(day)} ${monthShort(day)}`, `${weekday} ${dayOfMonth(day)}`, `${dayOfMonth(day)}`]
+    : [`${weekday} ${date}`, `${weekday} ${dayOfMonth(day)}`, `${weekday.slice(0, 2)} ${dayOfMonth(day)}`, `${dayOfMonth(day)}`], pixels);
+}
+
+/** What goes in an event block: the time range over the title when there is room, else the least that fits. */
+function blockText(event: CalendarEvent, columns: number, capacity: number): string[] {
+  const range = timeRange(event);
+  if (range && capacity >= 2 && columns >= range.length) return [range, ...[...wrapBitmapText(event.title, columns)].slice(0, capacity - 1)];
+  const timed = `${event.timeLabel} ${event.title}`;
+  const text = !event.allDay && [...wrapBitmapText(timed, columns)].length <= capacity ? timed : event.title;
+  return [...wrapBitmapText(text, columns)].slice(0, capacity);
 }
 
 /** The hour grid for one or more days. Returns false, drawing nothing, when it does not fit. */
@@ -179,13 +256,19 @@ function drawTimeline(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData,
   const gridX = x + GUTTER;
   const yOf = (minute: number) => gridTop + Math.round((minute - windowStart) * hourPx / 60);
 
+  // Weekends are shaded, so a week reads at a glance. A single day is not.
+  if (dayCount > 1) {
+    days.forEach((day, index) => { if (isWeekend(day)) shade(canvas, gridX + index * columnWidth + 1, headingTop + LINE, columnWidth - 1, bottom - headingTop - LINE, 'faint'); });
+  }
   // Hour lines are dotted, so events drawn over them stay readable.
   for (let hour = 0; hour < hours; hour++) {
     const lineY = gridTop + hour * hourPx;
     canvas.drawText(pad2(firstHour + hour), x + 1, lineY + 1, GUTTER - 2);
-    for (let px = gridX; px < x + width; px += 2) canvas.setPixel(px, lineY, true);
+    dotted(canvas, gridX, lineY, x + width - gridX);
   }
   canvas.fillRect(gridX, headingTop, 1, bottom - headingTop);
+  canvas.drawHLine(x, headingTop + LINE - 1, width);
+  if (stripLines) canvas.drawHLine(x, gridTop - 1, width);
 
   const minMinutes = Math.ceil(MIN_BLOCK_PX * 60 / hourPx);
   days.forEach((day, index) => {
@@ -193,12 +276,14 @@ function drawTimeline(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData,
     if (index > 0) canvas.fillRect(left, headingTop, 1, bottom - headingTop);
     const heading = dayHeading(day, dayCount === 1, columnWidth - 3);
     if (day === data.today) drawBar(canvas, left + 1, headingTop, columnWidth - 1, heading);
-    else canvas.drawText(heading, left + 2, headingTop + 1, columnWidth - 3);
+    else bold(canvas, heading, left + 2, headingTop + 1, columnWidth - 3);
 
     const list = allDay[index];
     for (let line = 0; line < Math.min(stripLines, list.length); line++) {
       const more = list.length > stripLines && line === stripLines - 1;
-      drawBar(canvas, left + 1, stripTop + line * LINE, columnWidth - 1, more ? `+${list.length - line} more` : list[line].title);
+      const top = stripTop + line * LINE;
+      canvas.fillRect(left + 1, top + 1, 2, GLYPH);
+      canvas.drawText(more ? `+${list.length - line} more` : list[line].title, left + 5, top + 1, columnWidth - 6);
     }
 
     // Where the day stands now. Drawn first, so an event under it stays readable.
@@ -218,21 +303,15 @@ function drawTimeline(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData,
         const blockW = laneWidth - 1;
         const blockY = yOf(Math.max(segment.start, windowStart));
         const blockH = Math.max(MIN_BLOCK_PX, yOf(Math.min(segment.shownEnd, windowEnd)) - blockY) - 1;
-        // The block hides the hour lines behind it; the bar at its left edge marks it.
+        // The block is a shaded patch with a bar at its left edge; its text sits on clean patches.
         canvas.fillRect(blockX, blockY, blockW, blockH, false);
+        shade(canvas, blockX + 2, blockY, blockW - 2, blockH);
         canvas.fillRect(blockX, blockY, 2, blockH);
-        // The time goes first only when it leaves the title whole: a short block has one line.
-        const columns = Math.max(1, chars(blockW - 4));
+        const textX = blockX + 4;
         const capacity = Math.floor((blockH - GLYPH) / LINE) + 1;
-        const timed = `${segment.event.timeLabel} ${segment.event.title}`;
-        const text = [...wrapBitmapText(timed, columns)].length <= capacity ? timed : segment.event.title;
-        canvas.withClip({ x: blockX + 3, y: blockY, width: blockW - 3, height: blockH }, () => {
-          let lineY = blockY + 1;
-          for (const line of wrapBitmapText(text, columns)) {
-            if (lineY + GLYPH > blockY + blockH + 1) break;
-            canvas.drawText(line, blockX + 4, lineY, blockW - 4);
-            lineY += LINE;
-          }
+        blockText(segment.event, Math.max(1, chars(blockW - 5)), capacity).forEach((line, row) => {
+          const lineY = blockY + 1 + row * LINE;
+          if (lineY + GLYPH <= blockY + blockH + 1) plate(canvas, line, textX, lineY, blockW - 5);
         });
       }
     });
@@ -242,18 +321,18 @@ function drawTimeline(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData,
 
 // ── Month ────────────────────────────────────────────────────────────────────
 
-/** How many events touch each day of the grid. */
-function eventsPerDay(events: CalendarEvent[], first: string, last: string): Map<string, number> {
-  const counts = new Map<string, number>();
+/** The events that touch each day of the grid, in the order they come. */
+function eventsByDay(events: CalendarEvent[], first: string, last: string): Map<string, CalendarEvent[]> {
+  const byDay = new Map<string, CalendarEvent[]>();
   for (const event of events) {
     const from = event.day < first ? first : event.day;
     const to = event.endDay > last ? last : event.endDay;
-    for (let day = from, guard = 0; day <= to && guard < 42; day = shiftDay(day, 1), guard++) counts.set(day, (counts.get(day) ?? 0) + 1);
+    for (let day = from, guard = 0; day <= to && guard < 42; day = shiftDay(day, 1), guard++) byDay.set(day, [...(byDay.get(day) ?? []), event]);
   }
-  return counts;
+  return byDay;
 }
 
-/** The month of today as a grid of weeks, with a dot for each event up to three. Returns false when it does not fit. */
+/** The month of today as a grid of weeks. Returns false when it does not fit. */
 function drawMonth(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData): boolean {
   const { x, y, width, height } = bounds;
   const bottom = y + height;
@@ -261,7 +340,7 @@ function drawMonth(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData): b
   const cellW = Math.floor((width - 2) / 7);
   if (cellW < 2 * GLYPH + 1) return false;
   const top = y + 1;
-  // Title, then weekday letters; each is dropped while the cells would be shorter than a text line.
+  // Title, then weekday names; each is dropped while the cells would be shorter than a text line.
   let headerH = 2 * LINE;
   const cellHeight = () => Math.floor((bottom - top - headerH - 1) / grid.weeks);
   if (cellHeight() < LINE - 1) headerH = LINE;
@@ -270,40 +349,60 @@ function drawMonth(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData): b
   if (cellH < LINE - 1) return false;
 
   const gridX = x + 1 + Math.floor((width - 2 - 7 * cellW) / 2);
-  if (headerH >= 2 * LINE) {
-    canvas.drawText(`${monthName(data.today)} ${data.today.slice(0, 4)}`, gridX, top + 1, width - 2);
-  }
+  const cellsTop = top + headerH;
+  if (headerH >= 2 * LINE) bold(canvas, `${monthName(data.today)} ${data.today.slice(0, 4)}`, gridX, top + 1, width - 2);
   if (headerH >= LINE) {
     const weekdaysY = top + headerH - LINE;
     for (let column = 0; column < 7; column++) {
       const name = weekdayName(shiftDay(grid.start, column));
       const label = cellW >= 3 * GLYPH + 2 ? name : name[0];
-      canvas.drawText(label, gridX + column * cellW + Math.floor((cellW - label.length * GLYPH) / 2), weekdaysY + 1, cellW);
+      bold(canvas, label, gridX + column * cellW + Math.floor((cellW - label.length * GLYPH) / 2), weekdaysY + 1, cellW);
     }
     canvas.drawHLine(gridX, weekdaysY + LINE - 1, 7 * cellW);
   }
 
-  const counts = eventsPerDay(data.events, grid.first, grid.last);
-  const cellsTop = top + headerH;
+  // With room, each cell lists its events and has dotted borders; otherwise it shows dots.
+  const listed = Math.floor((cellH - LINE) / CELL_LINE) >= 2 && cellW >= MIN_CELL_LIST_W;
+  const byDay = eventsByDay(data.events, grid.first, grid.last);
+  if (listed) {
+    for (let row = 1; row < grid.weeks; row++) dotted(canvas, gridX, cellsTop + row * cellH - 1, 7 * cellW);
+    for (let column = 1; column < 7; column++) dotted(canvas, gridX + column * cellW - 1, cellsTop, grid.weeks * cellH, true);
+  }
   for (let row = 0; row < grid.weeks; row++) {
     for (let column = 0; column < 7; column++) {
       const day = shiftDay(grid.start, row * 7 + column);
-      if (day < grid.first || day > grid.last) continue;
+      const inMonth = day >= grid.first && day <= grid.last;
       const cellX = gridX + column * cellW;
       const cellY = cellsTop + row * cellH;
+      if (listed && (isWeekend(day) || !inMonth)) shade(canvas, cellX, cellY, cellW - 1, cellH - 1, 'faint');
+      if (!inMonth && !listed) continue;
       const number = String(dayOfMonth(day));
       const numberW = number.length * GLYPH;
-      if (day === data.today) drawBar(canvas, cellX, cellY, numberW + 2, number);
-      else canvas.drawText(number, cellX + 1, cellY + 1, cellW - 1);
-      const dots = Math.min(counts.get(day) ?? 0, MAX_DOTS);
-      if (!dots) continue;
-      if (cellH >= 2 * LINE - 1) {
-        // Room under the number.
-        for (let dot = 0; dot < dots; dot++) canvas.fillRect(cellX + 1 + dot * 5, cellY + LINE + 2, 3, 3);
+      const numberX = listed ? cellX + cellW - numberW - 3 : cellX + 1;
+      if (day === data.today) drawBar(canvas, numberX - 1, cellY, numberW + 2, number);
+      else plate(canvas, number, numberX, cellY + 1, cellW - 1);
+      if (!inMonth) continue;
+      const list = byDay.get(day) ?? [];
+      if (!list.length) continue;
+      if (listed) {
+        const lines = Math.floor((cellH - LINE) / CELL_LINE);
+        const shown = list.length > lines ? lines - 1 : list.length;
+        for (let index = 0; index < shown; index++) {
+          const lineY = cellY + LINE + index * CELL_LINE;
+          canvas.fillRect(cellX + 2, lineY, 2, GLYPH);
+          plate(canvas, list[index].title, cellX + 6, lineY, cellW - 8);
+        }
+        if (shown < list.length) plate(canvas, `+${list.length - shown} more`, cellX + 6, cellY + LINE + shown * CELL_LINE, cellW - 8);
       } else {
-        // Beside the number, as many as fit.
-        const room = Math.floor((cellW - numberW - 4) / 4);
-        for (let dot = 0; dot < Math.min(dots, room); dot++) canvas.fillRect(cellX + numberW + 4 + dot * 4, cellY + 3, 2, 3);
+        const dots = Math.min(list.length, MAX_DOTS);
+        if (cellH >= 2 * LINE - 1) {
+          // Room under the number.
+          for (let dot = 0; dot < dots; dot++) canvas.fillRect(cellX + 1 + dot * 5, cellY + LINE + 2, 3, 3);
+        } else {
+          // Beside the number, as many as fit.
+          const room = Math.floor((cellW - numberW - 4) / 4);
+          for (let dot = 0; dot < Math.min(dots, room); dot++) canvas.fillRect(cellX + numberW + 4 + dot * 4, cellY + 3, 2, 3);
+        }
       }
     }
   }

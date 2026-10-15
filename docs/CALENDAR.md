@@ -6,10 +6,12 @@ Every calendar widget can be drawn in four views. Choose the view by selecting t
 
 | View | Shows | Options |
 |---|---|---|
-| `list` (default) | Upcoming events grouped under a heading per day (`Today, Thu 15 Oct`, `Tomorrow, …`). All-day events come first, marked `•`; timed events start with their time. A long title wraps to a second line. Events that have ended are hidden. | `items`: most events drawn (1–10, never more than the calendar's own limit). The calendar's **Days ahead** sets how far it looks. |
-| `day` | Today hour by hour. Events are blocks with a bar at their left edge, placed side by side when they overlap; all-day events sit above the hours. A line marks the current time. | None. |
-| `days` | Several days side by side, each with its own heading (today inverted), sharing the hour labels. | `days`: 2–7 columns. Unset fits as many as the width allows, with at least 10 characters per day. |
-| `month` | The month of today as a Monday-first grid: the month and weekday names, the day numbers, today inverted, and a dot for each event on a day (up to three; a multi-day event marks every day it covers). | None. |
+| `list` (default) | Upcoming events under a bold heading per day (`Today, Thu 15 Oct`, `Tomorrow, …`), all-day first. From 70 pixels of height each event is a **card**: a bar, the title (up to two lines) and its time range `06:30 - 07:15` (`All day`). Shorter widgets show one row per event (`06:30 Title`). A wide widget flows the days into up to three columns and repeats a day's heading where it carries on. Events that have ended are hidden. | `items`: most events drawn (1–10, never more than the calendar's own limit). The calendar's **Days ahead** sets how far it looks. |
+| `day` | Today hour by hour. Events are shaded blocks with a bar at the left edge, the time range over the title, side by side when they overlap; all-day events sit above the hours. A line marks the current time. | None. |
+| `days` | Several days side by side (`Thu 15/10`, today inverted), sharing the hour labels, with weekends shaded. | `days`: 2–7 columns. Unset fits as many as the width allows, with at least 10 characters per day. |
+| `month` | The month of today as a Monday-first grid: bold weekday names, the day numbers at the right of each cell, today inverted, weekends and the days around the month shaded. A large cell lists its events (bar and title, `+N more` when they do not fit); a small one shows a dot for each, up to three. | None. |
+
+The look follows e-paper calendar dashboards such as TRMNL's Apple Calendar plugin, within what a 1-bit panel and the 8 × 8 font allow: grey becomes a dot pattern, and text over a pattern sits on a clean patch so it stays readable.
 
 `day` and `days` start an hour before now so what just happened and what comes next are both in view. How many hours show depends on the widget's height: at least 12 pixels an hour, so a tall widget, a larger panel or a lower text size shows more, and the whole day fits at about 300 pixels. Events outside the window are left out of that view; use the list for the rest of the day.
 

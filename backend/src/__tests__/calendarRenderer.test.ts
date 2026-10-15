@@ -18,7 +18,12 @@ function recorder(width = 250, height = 122) {
     withClip(_bounds: Bounds, draw: () => void) { draw(); },
     drawHLine() {},
     fillRect(x, y, w, h, black = true) { fills.push({ x, y, w, h, black }); },
-    drawText(text, x, y, _maxWidth, _scale, black = true) { texts.push({ text, x, y, black }); },
+    drawText(text, x, y, _maxWidth, _scale, black = true) {
+      // Bold text is the same string drawn a pixel apart; it counts once.
+      const last = texts[texts.length - 1];
+      if (last && last.text === text && last.y === y && x === last.x + 1 && last.black === black) return;
+      texts.push({ text, x, y, black });
+    },
     drawWrappedText(text, x, y, _w, lineH = 10) { texts.push({ text, x, y, black: true }); return y + lineH; },
   };
   return { canvas, texts, fills, strings: () => texts.map((entry) => entry.text) };
@@ -31,6 +36,8 @@ function draw(source: CalendarSource, options?: WidgetOptions, size: [number, nu
 }
 const withData = (events: CalendarEvent[], overrides: Partial<CalendarData> = {}): CalendarSource => ({ data: calendarData(events, overrides) });
 const tomorrow = '2026-10-16';
+/** Under 70 pixels tall the list shows one row per event instead of cards. */
+const ROWS: [number, number] = [250, 69];
 
 describe('list view', () => {
   const events = [
@@ -43,33 +50,66 @@ describe('list view', () => {
   ];
 
   it('groups events under a heading per day, all-day first, and hides what has ended', () => {
-    const { strings } = draw(withData(events), { view: 'list' });
-    expect(strings()).toEqual(['Today, Thu 15 Oct', '• Restaffald', '06:00 D-draaber', '18:00 Dinner', 'Tomorrow, Fri 16 Oct', '• Fase 5', '08:00 Konsultation']);
+    const { strings } = draw(withData(events), { view: 'list' }, ROWS);
+    expect(strings()).toEqual(['Today, Thu 15 Oct', '• Restaffald', '06:00 D-draaber', '18:00 Dinner', 'Tomorrow, Fri 16 Oct', '• Fase 5']);
     expect(strings()).not.toContain('05:00 Earlier');
   });
   it('is the default view', () => {
     expect(draw(withData(events)).strings()).toEqual(draw(withData(events), { view: 'list' }).strings());
   });
-  it('draws day headings as white text on a black bar', () => {
-    const { texts, fills } = draw(withData(events), { view: 'list' });
-    expect(texts[0]).toMatchObject({ text: 'Today, Thu 15 Oct', black: false });
-    expect(fills.some((fill) => fill.black && fill.w === 248 && fill.h === 9)).toBe(true);
+  it('draws day headings in bold', () => {
+    const calls: string[] = [];
+    const canvas = { ...recorder().canvas, drawText: (text: string, x: number) => { calls.push(`${text}@${x}`); } } as DrawingCanvas;
+    renderCalendarWidget(canvas, { x: 0, y: 0, width: 250, height: 122 }, withData(events), { view: 'list' });
+    expect(calls.slice(0, 2)).toEqual(['Today, Thu 15 Oct@2', 'Today, Thu 15 Oct@3']);
+  });
+  describe('cards', () => {
+    const tall: [number, number] = [250, 200];
+    it('show the title, then the time range, beside a bar', () => {
+      const { strings, fills } = draw(withData(events), { view: 'list' }, tall);
+      expect(strings()).toEqual(['Today, Thu 15 Oct', 'Restaffald', 'All day', 'D-draaber', '06:00 - 09:00', 'Dinner', '18:00 - 19:00',
+        'Tomorrow, Fri 16 Oct', 'Fase 5', 'All day', 'Konsultation', '08:00 - 08:30']);
+      expect(fills.filter((fill) => fill.black && fill.w === 2).length).toBe(5);
+    });
+    it('give a zero-length event just its start', () => {
+      expect(draw(withData([timedEvent('Ping', 9 * 60, 9 * 60)]), { view: 'list' }, tall).strings()).toContain('09:00');
+    });
+    it('show an event that runs past midnight with the end on its own clock', () => {
+      const night = { ...timedEvent('Night', 22 * 60, 7 * 60), endDay: tomorrow };
+      expect(draw(withData([night]), { view: 'list' }, tall).strings()).toContain('22:00 - 07:00');
+    });
+    it('are used from 70 pixels of height, rows below', () => {
+      expect(draw(withData(events), { view: 'list' }, [250, 70]).strings()).toContain('06:00 - 09:00');
+      expect(draw(withData(events), { view: 'list' }, [250, 69]).strings()).toContain('06:00 D-draaber');
+    });
+    it('flow into columns on a wide widget, repeating the heading of a day that carries on', () => {
+      const many = Array.from({ length: 8 }, (_, n) => timedEvent(`Event ${n}`, 9 * 60 + n * 30, 9 * 60 + n * 30 + 20));
+      const { texts } = draw(withData(many, { limit: 10 }), { view: 'list' }, [520, 100]);
+      const headings = texts.filter((entry) => entry.text === 'Today, Thu 15 Oct');
+      expect(headings).toHaveLength(2);
+      expect(headings[1].x).toBeGreaterThan(headings[0].x + 100);
+      expect(texts.find((entry) => entry.text === 'Event 7')!.x).toBeGreaterThan(headings[1].x - 1);
+    });
+    it('stop when the last column is full', () => {
+      const many = Array.from({ length: 8 }, (_, n) => timedEvent(`Event ${n}`, 9 * 60 + n * 30, 9 * 60 + n * 30 + 20));
+      expect(draw(withData(many, { limit: 10 }), { view: 'list' }, [250, 100]).strings().join('|')).not.toContain('Event 7');
+    });
   });
   it('stops at the chosen number of rows and at the configured limit', () => {
-    expect(draw(withData(events), { view: 'list', items: 1 }).strings()).toEqual(['Today, Thu 15 Oct', '• Restaffald']);
-    expect(draw(withData(events, { limit: 2 }), { view: 'list', items: 5 }).strings()).toEqual(['Today, Thu 15 Oct', '• Restaffald', '06:00 D-draaber']);
+    expect(draw(withData(events), { view: 'list', items: 1 }, ROWS).strings()).toEqual(['Today, Thu 15 Oct', '• Restaffald']);
+    expect(draw(withData(events, { limit: 2 }), { view: 'list', items: 5 }, ROWS).strings()).toEqual(['Today, Thu 15 Oct', '• Restaffald', '06:00 D-draaber']);
   });
   it('shows only the configured number of days', () => {
     const later = [allDayEvent('Next week', '2026-10-21')];
-    expect(draw(withData(later, { days: 7 }), { view: 'list' }).strings()).toEqual(['Wed 21 Oct', '• Next week']);
+    expect(draw(withData(later, { days: 7 }), { view: 'list' }, ROWS).strings()).toEqual(['Wed 21 Oct', '• Next week']);
     expect(draw(withData(later, { days: 3 }), { view: 'list' }).strings()).toEqual(['No upcoming events']);
   });
   it('keeps an event that began earlier under today', () => {
-    const { strings } = draw(withData([allDayEvent('Trip', '2026-10-13', '2026-10-16')]), { view: 'list' });
+    const { strings } = draw(withData([allDayEvent('Trip', '2026-10-13', '2026-10-16')]), { view: 'list' }, ROWS);
     expect(strings()).toEqual(['Today, Thu 15 Oct', '• Trip']);
   });
   it('wraps a long title under the time, at most two lines', () => {
-    const { strings } = draw(withData([timedEvent('A very long appointment title that will not fit on one line of the widget at all', 10 * 60, 11 * 60)]), { view: 'list' });
+    const { strings } = draw(withData([timedEvent('A very long appointment title that will not fit on one line of the widget at all', 10 * 60, 11 * 60)]), { view: 'list' }, ROWS);
     expect(strings()).toHaveLength(3);
     expect(strings()[0]).toBe('Today, Thu 15 Oct');
     expect(strings()[1]).toMatch(/^10:00 /);
@@ -123,7 +163,8 @@ describe('day view', () => {
     const { strings } = draw(withData([events[0], events[1], events[2]]), { view: 'day' });
     expect(strings()).toContain('Thu 15 Oct');
     expect(strings()).toContain('Restaffald');
-    expect(strings()).toContain('06:00 D-draaber');
+    expect(strings()).toContain('06:00 - 09:00');
+    expect(strings()).toContain('D-draaber');
     expect(strings().join('|')).not.toContain('Dinner');
   });
   it('puts overlapping events side by side', () => {
@@ -175,15 +216,15 @@ describe('days view', () => {
     timedEvent('Day three', 6 * 60, 7 * 60, '2026-10-17'),
     allDayEvent('Weekend', '2026-10-17', '2026-10-18'),
   ];
-  const headings = (strings: string[]) => strings.filter((text) => /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+$/.test(text));
+  const headings = (strings: string[]) => strings.filter((text) => /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+(\/\d+)?$/.test(text));
 
   it('fits as many days as the width allows, at least two', () => {
-    expect(headings(draw(withData(events), { view: 'days' }).strings())).toEqual(['Thu 15', 'Fri 16']);
-    expect(headings(draw(withData(events), { view: 'days' }, [400, 300]).strings())).toEqual(['Thu 15', 'Fri 16', 'Sat 17', 'Sun 18']);
+    expect(headings(draw(withData(events), { view: 'days' }).strings())).toEqual(['Thu 15/10', 'Fri 16/10']);
+    expect(headings(draw(withData(events), { view: 'days' }, [400, 300]).strings())).toEqual(['Thu 15/10', 'Fri 16/10', 'Sat 17/10', 'Sun 18/10']);
     expect(headings(draw(withData(events), { view: 'days' }, [640, 300]).strings())).toHaveLength(7);
   });
   it('shows the chosen number of days', () => {
-    expect(headings(draw(withData(events), { view: 'days', days: 3 }, [400, 122]).strings())).toEqual(['Thu 15', 'Fri 16', 'Sat 17']);
+    expect(headings(draw(withData(events), { view: 'days', days: 3 }, [400, 122]).strings())).toEqual(['Thu 15/10', 'Fri 16/10', 'Sat 17/10']);
     expect(headings(draw(withData(events), { view: 'days', days: 7 }, [400, 122]).strings())).toHaveLength(7);
   });
   it('shows an event in the column of its day', () => {
@@ -326,3 +367,49 @@ describe('robustness', () => {
     expect(draw(withData([timedEvent('Far away', 9 * 60, 10 * 60, '2026-11-20')]), { view: 'days', days: 3 }, [400, 122]).strings().join('|')).not.toContain('Far away');
   });
 });
+
+describe('look of the grids', () => {
+  const events = [timedEvent('Planning', 9 * 60, 11 * 60), allDayEvent('Offsite', '2026-10-17')];
+  /** Records pixels too, so shading can be counted. */
+  function pixels(width: number, height: number, options: WidgetOptions) {
+    const set = new Set<string>();
+    const out = recorder(width, height);
+    out.canvas.setPixel = (px, py, black) => { if (black) set.add(`${px},${py}`); };
+    renderCalendarWidget(out.canvas, { x: 0, y: 0, width, height }, withData(events, { nowMinute: 8 * 60 }), options);
+    return { ...out, set };
+  }
+
+  it('shades the weekend columns of the days view and not the weekdays beside them', () => {
+    const days = pixels(400, 200, { view: 'days', days: 4 });
+    const columnWidth = Math.floor((400 - 20 - 1) / 4);
+    const inColumn = (index: number) => [...days.set].filter((key) => { const px = Number(key.split(',')[0]); const py = Number(key.split(',')[1]); const left = 20 + index * columnWidth; return px > left + 1 && px < left + columnWidth - 1 && py > 60 && py % 12 !== 0 && py % 4 === 0 && px % 4 === 0; }).length;
+    expect(inColumn(2)).toBeGreaterThan(50);
+    expect(inColumn(1)).toBeLessThan(10);
+    expect(inColumn(3)).toBeGreaterThan(50);
+  });
+  it('draws a block as a shaded patch with the time range and title on clean plates', () => {
+    const { texts, fills } = pixels(250, 122, { view: 'day' });
+    expect(texts.map((entry) => entry.text)).toContain('09:00 - 11:00');
+    const range = texts.find((entry) => entry.text === '09:00 - 11:00')!;
+    expect(fills.some((fill) => !fill.black && fill.x === range.x - 1 && fill.y === range.y - 1)).toBe(true);
+  });
+  it('lists the events inside the cells of a large month, with an overflow count', () => {
+    const many = Array.from({ length: 6 }, (_, n) => timedEvent(`Item ${n}`, 8 * 60 + n * 60, 8 * 60 + n * 60 + 30));
+    const { strings } = draw(withData(many), { view: 'month' }, [700, 300]);
+    expect(strings()).toContain('Item 0');
+    expect(strings().some((text) => /^\+\d+ more$/.test(text))).toBe(true);
+    expect(strings()).not.toContain('Item 5');
+  });
+  it('lists events in the cells but keeps dots in small ones', () => {
+    expect(draw(withData(events), { view: 'month' }, [700, 300]).strings()).toContain('Planning');
+    expect(draw(withData(events), { view: 'month' }, [250, 122]).strings()).not.toContain('Planning');
+  });
+  it('right-aligns the day numbers of a listed month and numbers the days around it', () => {
+    const { texts } = draw(withData(events), { view: 'month' }, [700, 300]);
+    const one = texts.find((entry) => entry.text === '1' && entry.y > 30)!;
+    const twentyFour = texts.find((entry) => entry.text === '24')!;
+    expect(one.x + 8).toBeGreaterThan(twentyFour.x - 100);
+    expect(texts.filter((entry) => entry.text === '28')).toHaveLength(2);
+  });
+});
+
