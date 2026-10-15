@@ -23,7 +23,7 @@ Use **Display time zone** on the Dashboard to set the status clock and preview t
 
 The JSON preview, BMP preview and Bluetooth payload share one live-data pipeline. Unavailable sources are shown as unavailable, without invented weather or headlines. Widget drawing is clipped to its assigned area so long content cannot overwrite neighboring widgets.
 
-Weather has a **Test weather** action and specific setup/error messages. Save an OpenWeatherMap Current Weather key, enter coordinates with decimal points, and test before saving the display settings. See [weather setup and troubleshooting](docs/WEATHER.md).
+Weather has a **Test weather** action and specific setup/error messages. Save an OpenWeatherMap Current Weather key, enter coordinates with decimal points, and test before saving the display settings. The weather widget has five views (a brief line, the current weather with a large temperature, the next hours, the days ahead, and a list of readings such as humidity, pressure and air quality) with drawn weather icons; place up to four weather widgets to combine them. See [weather views, setup and troubleshooting](docs/WEATHER.md).
 
 The image renderer supports validated monochrome panel sizes and clockwise rotation, defaulting to **250 × 122**. Choose native dimensions on the Dashboard. The bundled firmware accepts row-padded 250 × 122 Bluetooth pushes in manual setup mode. The separate OpenDisplay path retains its byte-aligned width requirement. See [display profiles](docs/DISPLAY_PROFILES.md) and [Bluetooth setup](docs/BLUETOOTH_DELIVERY.md). A profile does not install a new board driver. Larger panels, such as the 400 × 300 Waveshare RLCD, draw text and graphics enlarged: the layout editor sets a **text size** (1–4×) for the whole layout and for each widget, and unset sizes follow the panel automatically. See [widget options](docs/WIDGET_OPTIONS.md#zoom). Choose a finer **grid size** (20 × 12 or 40 × 24) for smaller widgets and a more compact status bar, and **Invert colours** for white text on black. See [layout grid and inverted colours](docs/LAYOUT_GRID.md).
 
@@ -32,7 +32,7 @@ The image renderer supports validated monochrome panel sizes and clockwise rotat
 | Source | Data | Credentials |
 |---|---|---|
 | Elprisen lige nu + Energinet | DK1/DK2 spot prices (Elprisen lige nu) or estimated consumer prices with Energinet tariffs and VAT | None |
-| OpenWeatherMap | Temperature, conditions and wind | API key |
+| OpenWeatherMap | Temperature, conditions, wind, humidity, pressure, sun times, a 5-day forecast and air quality | API key |
 | NewsAPI | Headlines | API key |
 | RSS / Atom | Headlines from a public HTTPS feed | None |
 | Monta | Charger status, active sessions and energy of sessions created today | Client ID and secret |

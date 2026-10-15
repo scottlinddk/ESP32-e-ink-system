@@ -190,7 +190,7 @@ describe('zoom validation', () => {
   });
 
   it.each([['energy', { zoom: 0 }], ['news', { zoom: 5 }], ['weather', { zoom: 2.5 }], ['status', { zoom: '2' }],
-    ['weather', { zoom: 2, items: 3 }], ['custom-image', { zoom: 2 }]])('rejects %s options %j', (id, options) => {
+    ['weather', { zoom: 2, days: 3 }], ['custom-image', { zoom: 2 }]])('rejects %s options %j', (id, options) => {
     expect(() => parseWidgetOptions(id, options)).toThrow();
   });
 

@@ -18,9 +18,9 @@ export interface WidgetLayout {
 }
 
 export interface WidgetOptions {
-  /** energy: 'summary' | 'day' | 'rest'; calendar: 'list' | 'day' | 'days' | 'month'; ticker: 'full' | 'condensed' (overrides the ticker's own view); ai-usage: 'full' | 'condensed'; status: 'full' | 'condensed' (the time alone). */
-  view?: 'summary' | 'day' | 'rest' | 'full' | 'condensed' | 'list' | 'days' | 'month';
-  /** news, calendar list view: most rows drawn; ticker: stocks per page in the condensed view. 1–10. */
+  /** energy: 'summary' | 'day' | 'rest'; weather: 'summary' | 'current' | 'hours' | 'daily' | 'details'; calendar: 'list' | 'day' | 'days' | 'month'; ticker: 'full' | 'condensed' (overrides the ticker's own view); ai-usage: 'full' | 'condensed'; status: 'full' | 'condensed' (the time alone). */
+  view?: 'summary' | 'day' | 'rest' | 'full' | 'condensed' | 'list' | 'days' | 'month' | 'current' | 'hours' | 'daily' | 'details';
+  /** news, calendar list view: most rows drawn; ticker: stocks per page in the condensed view; weather hours and daily: most steps or days drawn. 1–10. */
   items?: number;
   /** calendar days view: how many days are shown side by side, 2–7. Unset fits as many as the width allows. */
   days?: number;
@@ -109,8 +109,49 @@ export interface EnergyPriceHour {
 export interface WeatherData {
   temp: number;
   condition: string;
+  /** m/s, rounded. */
   windSpeed: number;
   icon: string;
+  /** The readings below are left out when the provider does not report them. */
+  feelsLike?: number;
+  /** Percent. */
+  humidity?: number;
+  /** hPa at sea level. */
+  pressure?: number;
+  /** Direction the wind blows from, in degrees. */
+  windDeg?: number;
+  /** m/s, rounded. */
+  windGust?: number;
+  /** Cloud cover in percent. */
+  cloudiness?: number;
+  /** Metres, as reported (the provider caps it at 10 000). */
+  visibility?: number;
+  /** Rain and snow in the last hour, mm. */
+  precipitation?: number;
+  /** Unix seconds (UTC). Absent during polar day or night. */
+  sunrise?: number;
+  sunset?: number;
+}
+
+/** One 3-hour step of the provider's 5-day forecast. */
+export interface WeatherForecastSlot {
+  /** Unix seconds (UTC) at the start of the step. */
+  time: number;
+  temp: number;
+  condition: string;
+  icon: string;
+  /** Probability of precipitation, percent. */
+  pop: number;
+  /** Rain and snow expected in the step, mm. */
+  precipitation: number;
+}
+
+/** European air quality index 1 (good) to 5 (very poor), as the provider reports it. */
+export interface AirQuality {
+  aqi: 1 | 2 | 3 | 4 | 5;
+  /** µg/m³. */
+  pm25?: number;
+  pm10?: number;
 }
 
 export type WeatherErrorCode = 'missing_key' | 'invalid_location' | 'invalid_key' | 'rate_limited'
@@ -245,6 +286,11 @@ export interface DisplayData {
   priceError?: EnergyPriceProblem;
   weather?: WeatherData;
   weatherError?: WeatherProblem;
+  /** Only fetched when the layout shown has a weather widget that draws a forecast. */
+  weatherForecast?: WeatherForecastSlot[];
+  weatherForecastError?: WeatherProblem;
+  /** Only fetched when the layout shown has a weather widget that draws the details. */
+  airQuality?: AirQuality;
   news?: NewsItem[];
   newsError?: NewsProblem;
   /** Headlines per additional feed, keyed by feed ID. */

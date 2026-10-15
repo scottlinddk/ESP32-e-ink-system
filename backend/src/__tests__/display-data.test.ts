@@ -6,7 +6,7 @@ import type { AddressInfo } from 'net';
 import { verifyToken } from '@clerk/backend';
 import { getApiKeys, getPreferences } from '../services/database';
 import { fetchEnergyPrice } from '../services/energinet';
-import { fetchWeather } from '../services/weather';
+import { fetchAirQuality, fetchWeather, fetchWeatherForecast } from '../services/weather';
 import { fetchNews } from '../services/news';
 import { fetchRssNews } from '../services/rss';
 import { fetchCalendar } from '../services/calendar';
@@ -37,7 +37,7 @@ vi.mock('../services/database', () => ({
   logApiUsage: vi.fn(),
 }));
 vi.mock('../services/energinet', () => ({ fetchEnergyPrice: vi.fn() }));
-vi.mock('../services/weather', () => ({ fetchWeather: vi.fn() }));
+vi.mock('../services/weather', () => ({ fetchWeather: vi.fn(), fetchWeatherForecast: vi.fn(), fetchAirQuality: vi.fn() }));
 vi.mock('../services/news', () => ({ fetchNews: vi.fn() }));
 vi.mock('../services/rss', () => ({ fetchRssNews: vi.fn() }));
 vi.mock('../services/calendar', () => ({ fetchCalendar: vi.fn() }));
@@ -371,5 +371,84 @@ describe('JSON, BMP and Bluetooth endpoints', () => {
     expect(response.status).toBe(401);
     expect(getPreferences).not.toHaveBeenCalled();
     for (const source of sources) expect(source).not.toHaveBeenCalled();
+  });
+});
+
+describe('weather forecast and air quality', () => {
+  const forecast = [{ time: 1_790_000_000, temp: 9, condition: 'rain', icon: '10d', pop: 40, precipitation: 0.5 }];
+  const airQuality = { aqi: 2 as const, pm25: 4.2, pm10: 7.4 };
+  const withWeather = (...widgets: Array<{ i: string; options?: { view: 'current' | 'hours' | 'daily' | 'details' | 'summary' } }>): UserPreferences => ({
+    ...prefs, show_monta: false, show_zaptec: false, show_notion: false,
+    layout: { version: 1, cols: 10, rows: 6, widgets: widgets.map((widget, index) => ({ ...widget, x: 0, y: index, w: 10, h: 1 })) },
+  });
+
+  beforeEach(() => {
+    vi.mocked(fetchWeatherForecast).mockResolvedValue(forecast);
+    vi.mocked(fetchAirQuality).mockResolvedValue(airQuality);
+  });
+
+  it('makes a single provider request for the default layout and for views that only need the current reading', async () => {
+    for (const layout of [prefs, withWeather({ i: 'weather' }), withWeather({ i: 'weather', options: { view: 'current' } }), withWeather({ i: 'weather', options: { view: 'summary' } })]) {
+      const data = await buildDisplayData('user-test', layout, credentials);
+      expect(data.weatherForecast).toBeUndefined();
+      expect(data.airQuality).toBeUndefined();
+    }
+    expect(fetchWeather).toHaveBeenCalledTimes(4);
+    expect(fetchWeatherForecast).not.toHaveBeenCalled();
+    expect(fetchAirQuality).not.toHaveBeenCalled();
+  });
+
+  it('fetches the forecast for an hours or daily view, once however many widgets use it', async () => {
+    const data = await buildDisplayData('user-test', withWeather({ i: 'weather', options: { view: 'hours' } }, { i: 'weather:2', options: { view: 'daily' } }), credentials);
+    expect(data.weatherForecast).toEqual(forecast);
+    expect(data.airQuality).toBeUndefined();
+    expect(fetchWeatherForecast).toHaveBeenCalledTimes(1);
+    expect(fetchWeatherForecast).toHaveBeenCalledWith(prefs.weather_location, credentials.openweathermap, expect.any(AbortSignal));
+    expect(fetchAirQuality).not.toHaveBeenCalled();
+  });
+
+  it('fetches air quality only for a details view', async () => {
+    const data = await buildDisplayData('user-test', withWeather({ i: 'weather:3', options: { view: 'details' } }), credentials);
+    expect(data.airQuality).toEqual(airQuality);
+    expect(data.weatherForecast).toBeUndefined();
+    expect(fetchAirQuality).toHaveBeenCalledWith(prefs.weather_location, credentials.openweathermap, expect.any(AbortSignal));
+    expect(fetchWeatherForecast).not.toHaveBeenCalled();
+  });
+
+  it('follows the scheduled page being shown, not the layouts that are not', async () => {
+    const page = (id: string, view: 'hours' | 'summary') => ({ id, name: id, duration_seconds: 60, layout: withWeather({ i: 'weather', options: { view } }).layout! });
+    const schedule = { enabled: true, timezone: 'Europe/Copenhagen', quiet_hours: { enabled: false, start: '22:00', end: '06:00' }, pages: [page('first', 'summary'), page('second', 'hours')] };
+    // 12:00:30 is half a minute into the first page of a two-page, two-minute cycle.
+    vi.setSystemTime(new Date('2026-09-26T12:00:30Z'));
+    expect((await buildDisplayData('user-test', { ...prefs, display_schedule: schedule }, credentials)).weatherForecast).toBeUndefined();
+    vi.setSystemTime(new Date('2026-09-26T12:01:30Z'));
+    expect((await buildDisplayData('user-test', { ...prefs, display_schedule: schedule }, credentials)).weatherForecast).toEqual(forecast);
+  });
+
+  it('keeps the current reading when the forecast fails, and reports why without provider text', async () => {
+    vi.mocked(fetchWeatherForecast).mockRejectedValue(new WeatherSourceError('rate_limited'));
+    const data = await buildDisplayData('user-test', withWeather({ i: 'weather', options: { view: 'daily' } }), credentials);
+    expect(data.weather).toEqual(liveData.weather);
+    expect(data.weatherError).toBeUndefined();
+    expect(data.weatherForecast).toBeUndefined();
+    expect(data.weatherForecastError).toEqual(weatherProblem(new WeatherSourceError('rate_limited')));
+    vi.mocked(fetchWeatherForecast).mockRejectedValue(new Error('SECRET https://api.example/?appid=SECRET'));
+    const failed = await buildDisplayData('user-test', withWeather({ i: 'weather', options: { view: 'daily' } }), credentials);
+    expect(failed.weatherForecastError?.code).toBe('unavailable');
+    expect(JSON.stringify(failed)).not.toContain('SECRET');
+    expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain('SECRET');
+  });
+
+  it('shows the details without air quality when that request fails', async () => {
+    vi.mocked(fetchAirQuality).mockRejectedValue(new WeatherSourceError('invalid_response'));
+    const data = await buildDisplayData('user-test', withWeather({ i: 'weather', options: { view: 'details' } }), credentials);
+    expect(data.weather).toEqual(liveData.weather);
+    expect(data.airQuality).toBeUndefined();
+  });
+
+  it('requests nothing extra when weather is switched off', async () => {
+    await buildDisplayData('user-test', { ...withWeather({ i: 'weather', options: { view: 'hours' } }), show_weather: false }, credentials);
+    expect(fetchWeather).not.toHaveBeenCalled();
+    expect(fetchWeatherForecast).not.toHaveBeenCalled();
   });
 });

@@ -29,6 +29,7 @@ import { deviceDashboardPath } from '../lib/deviceLayouts';
 import { newsFeedIdFromWidget, newsFeedLabel, newsFeedWidgetId } from '../lib/newsFeeds';
 import { tickerIdFromWidget, tickerLabel, tickerWidgetId } from '../lib/tickerWidgets';
 import { calendarIdFromWidget, calendarLabel, calendarWidgetId } from '../lib/calendarWidgets';
+import { WEATHER_WIDGET_IDS, weatherWidgetLabel } from '../lib/weatherWidgets';
 
 const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'week-number', 'battery', 'ai-usage', 'status'] as const;
 
@@ -50,7 +51,7 @@ function LayoutEditorWorkspace() {
 
   const widgetMeta: Record<string, WIDGET_META> = {
     energy:  { id: 'energy',  label: t.layoutWidgetEnergy,  icon: 'bolt' },
-    weather: { id: 'weather', label: t.layoutWidgetWeather, icon: 'cloud' },
+    ...Object.fromEntries(WEATHER_WIDGET_IDS.map((id) => [id, { id, label: weatherWidgetLabel(id, t.layoutWidgetWeather), icon: 'cloud' }])),
     news:    { id: 'news',    label: t.layoutWidgetNews,    icon: 'newspaper' },
     monta:   { id: 'monta',   label: t.srcMonta,            icon: 'electric_car' },
     zaptec:  { id: 'zaptec',  label: t.srcZaptec,           icon: 'electric_car' },
@@ -152,6 +153,7 @@ function LayoutEditorWorkspace() {
   }
   const allWidgetIds = [
     ...ALL_WIDGET_IDS.flatMap((id) => id === 'news' ? [id, ...newsFeeds.map((feed) => newsFeedWidgetId(feed.id))]
+      : id === 'weather' ? [...WEATHER_WIDGET_IDS]
       : id === 'calendar' ? [id, ...calendars.map((calendar) => calendarWidgetId(calendar.id))] : [id]),
     ...tickers.map((ticker) => tickerWidgetId(ticker.id)),
   ];

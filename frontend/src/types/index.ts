@@ -15,11 +15,13 @@ export interface WidgetLayout {
 export type EnergyView = 'summary' | 'day' | 'rest';
 /** `list` is the agenda grouped by day, `day` one day by the hour, `days` several side by side, `month` a month grid. */
 export type CalendarView = 'list' | 'day' | 'days' | 'month';
+/** `summary` is the one-line reading, `current` the big temperature, `hours` the next 3-hour steps, `daily` the days ahead, `details` a list of readings. */
+export type WeatherView = 'summary' | 'current' | 'hours' | 'daily' | 'details';
 
 export interface WidgetOptions {
-  /** energy: EnergyView; calendar: CalendarView; ticker: TickerView, overriding the ticker's own view. */
-  view?: EnergyView | CalendarView | TickerView;
-  /** news, calendar list view: most rows drawn; ticker: stocks per page in the condensed view. 1–10. */
+  /** energy: EnergyView; weather: WeatherView; calendar: CalendarView; ticker: TickerView, overriding the ticker's own view. */
+  view?: EnergyView | WeatherView | CalendarView | TickerView;
+  /** news, calendar list view: most rows drawn; ticker: stocks per page in the condensed view; weather hours and daily: most steps or days. 1–10. */
   items?: number;
   /** calendar days view: how many days are shown side by side, 2–7. Unset fits as many as the width allows. */
   days?: number;
@@ -167,7 +169,28 @@ export interface WeatherData {
   condition: string;
   windSpeed: number;
   icon: string;
+  feelsLike?: number;
+  humidity?: number;
+  pressure?: number;
+  windDeg?: number;
+  windGust?: number;
+  cloudiness?: number;
+  visibility?: number;
+  precipitation?: number;
+  sunrise?: number;
+  sunset?: number;
 }
+
+export interface WeatherForecastSlot {
+  time: number;
+  temp: number;
+  condition: string;
+  icon: string;
+  pop: number;
+  precipitation: number;
+}
+
+export interface AirQuality { aqi: 1 | 2 | 3 | 4 | 5; pm25?: number; pm10?: number }
 
 export type WeatherErrorCode = 'missing_key' | 'invalid_location' | 'invalid_key' | 'rate_limited' | 'unavailable' | 'timeout' | 'invalid_response';
 export interface WeatherError { code: WeatherErrorCode; message: string; }
@@ -189,6 +212,9 @@ export interface DisplayData {
   priceError?: EnergyPriceProblem;
   weather?: WeatherData;
   weatherError?: WeatherError;
+  weatherForecast?: WeatherForecastSlot[];
+  weatherForecastError?: WeatherError;
+  airQuality?: AirQuality;
   news?: NewsItem[];
   calendar?: CalendarData;
   /** Additional calendars keyed by calendar widget ID. */

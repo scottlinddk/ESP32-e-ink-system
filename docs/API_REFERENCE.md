@@ -118,6 +118,8 @@ Coordinates use decimal points and a comma between latitude (-90..90) and longit
 
 When enabled weather fails during preview/device rendering, JSON contains `weatherError: { code, message }` instead of `weather`; the bitmap displays a short diagnosis. Successful readings are cached for one hour per key and normalized location. Testing removes the matching cached reading before contacting the provider.
 
+`weather` also carries `feelsLike`, `humidity`, `pressure`, `windDeg`, `windGust`, `cloudiness`, `visibility`, `precipitation`, `sunrise` and `sunset` when the provider reports them; a reading it leaves out, or reports outside a plausible range, is omitted rather than guessed. `weatherForecast` (3-hour steps, oldest first) and `airQuality` (`aqi` 1–5, `pm25`, `pm10`) appear only when the layout being shown has a weather widget whose view draws them (`hours` or `daily`, and `details`), so the default layout still makes a single provider request. A forecast that fails is reported as `weatherForecastError` and never replaces `weather`. See [weather views](WEATHER.md#views).
+
 ### POST /api/preferences/energy-price/test
 
 Price draft electricity settings without saving them. Both fields are required; `settings` uses the same shape as `energy_price_settings`.
@@ -500,7 +502,7 @@ All errors return JSON with an `error` field:
 | Source | Cache TTL |
 |---|---|
 | Energinet (energy prices) | 15 minutes |
-| OpenWeatherMap (weather) | 1 hour |
+| OpenWeatherMap (weather, forecast and air quality, each cached on its own) | 1 hour |
 | NewsAPI (headlines) | 1 hour |
 
 The cache is in-memory per server instance. Restarts clear the cache.

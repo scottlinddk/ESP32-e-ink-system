@@ -9,6 +9,8 @@ import { displayStrings } from './displayStrings';
 import { newsFeedIdFromWidget } from './newsFeeds';
 import { calendarIdFromWidget } from './calendarWidgets';
 import { renderCalendarWidget } from './calendarRenderer';
+import { renderWeatherWidget } from './weatherRenderer';
+import { isWeatherWidget } from './weatherWidgets';
 import { storedTickerWidgets, tickerIdFromWidget } from './tickerWidgets';
 import { renderTicker, renderTickerUnavailable, type TickerResult } from '../ticker';
 import type { RenderedWidget } from '../ticker/render';
@@ -379,33 +381,6 @@ function renderEnergyWidget(
   }
 }
 
-function renderWeatherWidget(
-  canvas: DrawingCanvas,
-  bounds: WidgetBounds,
-  weather?: DisplayData['weather'],
-  problem?: DisplayData['weatherError'],
-  language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
-): void {
-  const { x, y, width, height } = bounds;
-  const t = displayStrings(language).weather;
-  if (y > 0) canvas.drawHLine(x, y, width);
-  const textY = y + 2;
-  const maxW = width - 4;
-  if (weather) {
-    const { temp, condition, windSpeed } = weather;
-    canvas.drawText(`${t.conditions[condition] ?? condition}  ${Math.round(temp)}C`, x + 2, textY, maxW);
-    if (height >= 20) {
-      canvas.drawText(`${t.wind}: ${formatDecimal(windSpeed, 1, language)} m/s`, x + 2, textY + 11, maxW);
-    }
-  } else {
-    const errorLabel = problem ? t.errors[problem.code] : t.unavailable;
-    canvas.drawText(height < 21 ? errorLabel : t.title, x + 2, textY, maxW);
-    if (height >= 21) {
-      canvas.drawText(errorLabel, x + 2, textY + 11, maxW);
-    }
-  }
-}
-
 function renderNewsWidget(
   canvas: DrawingCanvas,
   bounds: WidgetBounds,
@@ -637,7 +612,8 @@ function populateCanvas(
   const photos: WidgetBounds[] = [];
   for (const widget of effectiveLayout.widgets) {
     const feedId = newsFeedIdFromWidget(widget.i);
-    const setting = feedId ? 'show_news' : WIDGET_ENABLED_SETTING[widget.i as keyof typeof WIDGET_ENABLED_SETTING];
+    const setting = feedId ? 'show_news' : isWeatherWidget(widget.i) ? 'show_weather'
+      : WIDGET_ENABLED_SETTING[widget.i as keyof typeof WIDGET_ENABLED_SETTING];
     if (setting && preferences?.[setting] === false) continue;
     const physical = getWidgetBounds(widget, canvas, effectiveLayout);
     // A custom image is raster data placed by pixel, so zooming it would only coarsen it.
@@ -672,6 +648,13 @@ function populateCanvas(
         renderNewsWidget(target, bounds, feed?.items, feed?.error, widget.options?.items, language);
         return;
       }
+      if (isWeatherWidget(widget.i)) {
+        renderWeatherWidget(target, bounds, {
+          data: data.weather, error: data.weatherError, forecast: data.weatherForecast,
+          forecastError: data.weatherForecastError, airQuality: data.airQuality,
+        }, widget.options, { timeZone: preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE, language });
+        return;
+      }
       switch (widget.i) {
         case 'custom-webhook': renderWebhookWidget(target, bounds, data.customWebhook, language); break;
         case 'custom-text':
@@ -684,7 +667,6 @@ function populateCanvas(
           }
           break;
         case 'energy':  renderEnergyWidget(target, bounds, data.price, data.priceError, widget.options, language); break;
-        case 'weather': renderWeatherWidget(target, bounds, data.weather, data.weatherError, language); break;
         case 'news':    renderNewsWidget(target, bounds, data.news, data.newsError, widget.options?.items, language); break;
         case 'monta':   renderMontaWidget(target, bounds, data.monta, preferences?.monta_fields ?? undefined, language); break;
         case 'zaptec':  renderZaptecWidget(target, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined, language); break;
