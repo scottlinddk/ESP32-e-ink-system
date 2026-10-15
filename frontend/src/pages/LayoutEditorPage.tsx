@@ -13,7 +13,7 @@ import { GridEditor, WIDGET_META } from '../components/layout/GridEditor';
 import { LayoutPreviewPane } from '../components/layout/LayoutPreviewPane';
 import { WidgetOptionsPanel } from '../components/layout/WidgetOptionsPanel';
 import { updateWidgetOptions } from '../lib/widgetOptions';
-import { GRID_SCALES, changeGrid, gridLabel, layoutInvertMode, layoutScale, updateLayoutInvert, type GridScale, type InvertMode } from '../lib/layoutGrid';
+import { GRID_SCALES, changeGrid, gridLabel, layoutInvertMode, layoutScale, updateLayoutInvert, updateLayoutTeletext, type GridScale, type InvertMode } from '../lib/layoutGrid';
 import { ZOOMS, autoZoom, inheritedZoom, updateLayoutZoom, zoomLabel } from '../lib/zoom';
 import { DEFAULT_DISPLAY_PROFILE, type DisplayProfile } from '../lib/displayProfile';
 import { Field } from '../components/ui/Field';
@@ -302,6 +302,17 @@ function LayoutEditorWorkspace() {
                   { value: 'sun', label: app.lang === 'da' ? 'Invertér fra solnedgang til solopgang' : 'Inverted from sunset to sunrise' },
                 ]}
                 onChange={(e) => setLayout((prev) => updateLayoutInvert(prev, e.target.value as InvertMode))} />
+            </Field>
+            <Field label={app.lang === 'da' ? 'Stil' : 'Style'} htmlFor="layout-teletext"
+              helper={app.lang === 'da'
+                ? 'Tekst TV giver hver widget en titellinje med sidetal, og statuslinjen bliver til sidehovedet med dato og tid. Det ligner mest med inverterede farver.'
+                : 'Tekst TV gives every widget a title bar with a page number, and turns the status bar into the page header with the date and time. It looks closest with inverted colours.'}>
+              <Select id="layout-teletext" value={layout.teletext ? 'teletext' : 'normal'}
+                options={[
+                  { value: 'normal', label: 'Normal' },
+                  { value: 'teletext', label: app.lang === 'da' ? 'Tekst TV' : 'Tekst TV (teletext)' },
+                ]}
+                onChange={(e) => setLayout((prev) => updateLayoutTeletext(prev, e.target.value === 'teletext'))} />
             </Field>
           </div>
           <div className="overflow-x-auto">

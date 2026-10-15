@@ -41,6 +41,8 @@ export interface DisplayLayout {
   zoom?: number;
   /** White text on a black background. Photos keep their own colours. `'sun'` inverts only between sunset and sunrise at the weather location. False is not stored. */
   invert?: boolean | 'sun';
+  /** Tekst TV: every widget gets a titled bar with a page number and the status bar becomes the page header. False is not stored. */
+  teletext?: boolean;
   widgets: WidgetLayout[];
 }
 

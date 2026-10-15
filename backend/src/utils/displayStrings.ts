@@ -70,6 +70,11 @@ export interface DisplayStrings {
     range: (start: MonthDay, end: MonthDay) => string;
   };
   webhook: { stale: string; unavailable: string; title: string };
+  /** Tekst TV layouts: the header's name, the word before a page number, and each widget's bar title (uppercase). */
+  teletext: {
+    title: string; page: string;
+    widgets: Record<'energy' | 'weather' | 'news' | 'monta' | 'zaptec' | 'notion' | 'text' | 'webhook' | 'calendar' | 'week' | 'battery' | 'aiUsage' | 'stocks', string>;
+  };
   aiUsage: {
     noSource: string; unavailable: string; session: string; weekly: string;
     resets: string; resetsIn: string; reset: string;
@@ -156,6 +161,13 @@ const en: DisplayStrings = {
       : `${MONTHS.en[start.month]} ${start.day}-${MONTHS.en[end.month]} ${end.day}`,
   },
   webhook: { stale: 'STALE sensors', unavailable: 'No sensor data', title: 'Sensors' },
+  teletext: {
+    title: 'TELETEXT', page: 'P',
+    widgets: {
+      energy: 'POWER', weather: 'WEATHER', news: 'NEWS', monta: 'MONTA', zaptec: 'ZAPTEC', notion: 'NOTION', text: 'NOTE',
+      webhook: 'SENSORS', calendar: 'CALENDAR', week: 'WEEK', battery: 'BATTERY', aiUsage: 'AI USAGE', stocks: 'STOCKS',
+    },
+  },
   aiUsage: {
     noSource: 'AI usage: no source', unavailable: 'AI usage: unavailable', session: 'Session', weekly: 'Weekly',
     resets: 'Resets', resetsIn: 'in', reset: 'reset',
@@ -237,6 +249,13 @@ const da: DisplayStrings = {
       : `${start.day}. ${MONTHS.da[start.month]}-${end.day}. ${MONTHS.da[end.month]}`,
   },
   webhook: { stale: 'FORÆLDEDE sensorer', unavailable: 'Ingen sensordata', title: 'Sensorer' },
+  teletext: {
+    title: 'TEKST TV', page: 'S',
+    widgets: {
+      energy: 'ELPRIS', weather: 'VEJR', news: 'NYHEDER', monta: 'MONTA', zaptec: 'ZAPTEC', notion: 'NOTION', text: 'NOTE',
+      webhook: 'SENSORER', calendar: 'KALENDER', week: 'UGE', battery: 'BATTERI', aiUsage: 'AI-FORBRUG', stocks: 'AKTIER',
+    },
+  },
   aiUsage: {
     noSource: 'AI-forbrug: ingen kilde', unavailable: 'AI-forbrug: ikke tilgængelig', session: 'Session', weekly: 'Ugentlig',
     resets: 'Nulstilles', resetsIn: 'om', reset: 'reset',

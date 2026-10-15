@@ -26,11 +26,14 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
     const sizes = GRID_SCALES.map((scale) => `${BASE_GRID_COLS * scale} × ${BASE_GRID_ROWS * scale}`).join(', ');
     throw new LayoutValidationError(`Layout must use version 1 and a ${sizes} grid.`);
   }
-  if (Object.keys(value).some((key) => !['version', 'cols', 'rows', 'zoom', 'invert', 'widgets'].includes(key))) {
+  if (Object.keys(value).some((key) => !['version', 'cols', 'rows', 'zoom', 'invert', 'teletext', 'widgets'].includes(key))) {
     throw new LayoutValidationError('Layout contains unsupported fields.');
   }
   if (value.invert !== undefined && typeof value.invert !== 'boolean' && value.invert !== 'sun') {
     throw new LayoutValidationError('Layout invert must be true, false or "sun".');
+  }
+  if (value.teletext !== undefined && typeof value.teletext !== 'boolean') {
+    throw new LayoutValidationError('Layout teletext must be true or false.');
   }
   const cols = value.cols as number;
   const rows = value.rows as number;
@@ -73,5 +76,5 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
   }
   // A false flag is the default, so it is not stored.
   const invert = value.invert === true || value.invert === 'sun' ? value.invert : undefined;
-  return { version: 1, cols, rows, ...(value.zoom === undefined ? {} : { zoom: value.zoom }), ...(invert ? { invert } : {}), widgets };
+  return { version: 1, cols, rows, ...(value.zoom === undefined ? {} : { zoom: value.zoom }), ...(invert ? { invert } : {}), ...(value.teletext === true ? { teletext: true } : {}), widgets };
 }

@@ -36,6 +36,12 @@ export function changeGrid(layout: DisplayLayout, scale: GridScale): DisplayLayo
   };
 }
 
+/** Turns Tekst TV on or off; off is the default and is not stored. */
+export function updateLayoutTeletext(layout: DisplayLayout, on: boolean): DisplayLayout {
+  const { teletext: _previous, ...rest } = layout;
+  return on ? { ...rest, teletext: true } : rest;
+}
+
 export type InvertMode = 'off' | 'always' | 'sun';
 
 /** The mode a layout is in; a missing or false flag is off. */
