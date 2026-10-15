@@ -10,8 +10,8 @@ const META_ROW_H = GLYPH * 2 + 1;
 const META_PITCH = META_ROW_H + 3;
 /** Without a source the row is the title alone. */
 const PLAIN_PITCH = 12;
-/** Two columns once each can hold a readable title beside its rank. */
-const MIN_COLUMN_W = 160;
+/** The narrowest column that still holds a rank and a few characters of title. */
+const MIN_COLUMN_W = 64;
 const COLUMN_GAP = 6;
 
 /** The hostname of an article, without a leading "www."; empty when the URL is missing or unusable. */
@@ -39,7 +39,7 @@ function drawBold(canvas: DrawingCanvas, text: string, x: number, y: number, max
 
 /**
  * Numbered headlines, one per row: a bold title cut to one line over the article's source.
- * A wide widget fills a second column, so more headlines show without shrinking the text.
+ * `columns` splits them side by side, as many as the width allows at the least.
  */
 export function renderNewsWidget(
   canvas: DrawingCanvas,
@@ -48,6 +48,7 @@ export function renderNewsWidget(
   problem?: DisplayData['newsError'],
   limit?: number,
   language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
+  columns = 1,
 ): void {
   const { x, y, width, height } = bounds;
   const t = displayStrings(language).news;
@@ -60,14 +61,16 @@ export function renderNewsWidget(
   }
 
   const items = news.slice(0, limit);
-  const columns = inner >= MIN_COLUMN_W * 2 + COLUMN_GAP ? 2 : 1;
-  const columnW = Math.floor((inner - COLUMN_GAP * (columns - 1)) / columns);
+  // A request for more columns than fit is lowered, so a narrow widget never shows slivers.
+  const fits = Math.max(1, Math.floor((inner + COLUMN_GAP) / (MIN_COLUMN_W + COLUMN_GAP)));
+  const columnCount = Math.min(Number.isInteger(columns) && columns >= 1 ? columns : 1, fits);
+  const columnW = Math.floor((inner - COLUMN_GAP * (columnCount - 1)) / columnCount);
   // The rank column is as wide as the largest rank, so titles line up.
   const rankW = String(items.length).length * GLYPH + 3;
   const textChars = Math.floor((columnW - rankW) / GLYPH);
 
   // Headlines are split evenly between the columns, unless a column runs out of room first.
-  const perColumn = Math.ceil(items.length / columns);
+  const perColumn = Math.ceil(items.length / columnCount);
   let column = 0;
   let inColumn = 0;
   let cursor = top;
@@ -76,7 +79,7 @@ export function renderNewsWidget(
     const rowH = source ? META_ROW_H : GLYPH;
     if (inColumn >= perColumn || cursor + rowH > y + height) {
       // Continue in the next column, or stop when the last one is full.
-      if (column + 1 >= columns || top + rowH > y + height) return;
+      if (column + 1 >= columnCount || top + rowH > y + height) return;
       column++;
       inColumn = 0;
       cursor = top;

@@ -22,6 +22,8 @@ export interface WidgetOptions {
   view?: 'summary' | 'day' | 'rest' | 'full' | 'condensed' | 'list' | 'days' | 'month';
   /** news, calendar list view: most rows drawn; ticker: stocks per page in the condensed view. 1–10. */
   items?: number;
+  /** news: how many columns the headlines are split into, 1–4. Unset is 1. A widget too narrow for that many shows fewer. */
+  columns?: number;
   /** calendar days view: how many days are shown side by side, 2–7. Unset fits as many as the width allows. */
   days?: number;
   /** Whole-number enlargement of everything the widget draws, 1–4. Overrides the layout's zoom; unset follows it. */

@@ -6,6 +6,7 @@ import { tickerIdFromWidget } from './tickerWidgets';
 // Mirrors backend/src/utils/widgetOptions.ts. Options belong to one placement in a layout,
 // so the same source can be shown differently on another scheduled page.
 export const MAX_WIDGET_ITEMS = 10;
+export const MAX_NEWS_COLUMNS = 4;
 export const MIN_CALENDAR_DAYS = 2;
 export const MAX_CALENDAR_DAYS = 7;
 export const CALENDAR_VIEWS: readonly CalendarView[] = ['list', 'day', 'days', 'month'];
