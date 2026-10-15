@@ -16,7 +16,7 @@ describe('fitOneLine', () => {
 describe('renderNewsWidget', () => {
   const items = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot'].map((title, i) => ({ title, url: `https://site${i + 1}.example/a` }));
   /** Draws in a widget of the given size on a canvas big enough to hold it. */
-  const draw = (width: number, height: number, list = items, limit?: number, columns?: number, weight?: 'regular' | 'bold') => {
+  const draw = (width: number, height: number, list = items, limit?: number, columns?: number, weight?: 'light' | 'regular' | 'bold') => {
     const canvas = new BmpCanvas({ width: Math.max(width, 64), height: Math.max(height, 64), rotation: 0, colorMode: 'bw' });
     const spy = vi.spyOn(canvas, 'drawText');
     renderNewsWidget(canvas, { x: 0, y: 0, width, height }, list, undefined, limit, undefined, columns, weight);
@@ -29,12 +29,24 @@ describe('renderNewsWidget', () => {
     expect(calls.some((c) => c.text.includes('.example'))).toBe(false);
   });
   it('draws a regular title once and a bold one twice, a pixel apart', () => {
-    const titles = (weight?: 'regular' | 'bold') => draw(250, 122, items, 1, undefined, weight).filter((c) => c.text === 'Alpha');
+    const titles = (weight?: 'light' | 'regular' | 'bold') => draw(250, 122, items, 1, undefined, weight).filter((c) => c.text === 'Alpha');
     expect(titles('regular')).toHaveLength(1);
     const bold = titles('bold');
     expect(bold).toHaveLength(2);
     expect(bold[1].x - bold[0].x).toBe(1);
     expect(titles()).toEqual(bold); // bold is the default
+  });
+  it('draws a light title once, with every other glyph pixel left out', () => {
+    const black = (weight: 'light' | 'regular') => {
+      const canvas = new BmpCanvas({ width: 250, height: 64, rotation: 0, colorMode: 'bw' });
+      renderNewsWidget(canvas, { x: 0, y: 0, width: 250, height: 64 }, items, undefined, 1, undefined, undefined, weight);
+      return canvas.toRawPixels().reduce((sum, byte) => sum + (8 - byte.toString(2).replace(/0/g, '').length), 0);
+    };
+    const regular = black('regular');
+    const light = black('light');
+    expect(light).toBeGreaterThan(0);
+    expect(light).toBeLessThan(regular * 0.75);
+    expect(draw(250, 122, items, 1, undefined, 'light').filter((c) => c.text === 'Alpha')).toHaveLength(1);
   });
   it('stops at the item limit', () => {
     expect(draw(250, 122, items, 2).filter((c) => /^\d$/.test(c.text)).map((c) => c.text)).toEqual(['1', '2']);

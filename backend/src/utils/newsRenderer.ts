@@ -36,10 +36,15 @@ function takeLines(text: string, maxChars: number, limit: number): string[] {
 const linesIn = (room: number) => Math.max(0, Math.floor((room + 1) / LINE_H));
 
 /**
- * The 8x8 font has one weight, so bold is a title drawn twice, one pixel apart. A heavier smear runs
- * the letters together, so there are only these two.
+ * The 8x8 font has one weight with 1 px strokes. Bold is a title drawn twice, one pixel apart; a
+ * heavier smear runs the letters together. Light cannot thin a 1 px stroke, so it drops every other
+ * glyph pixel instead, a dithered paler text that is the least legible of the three.
  */
 function drawTitle(canvas: DrawingCanvas, text: string, x: number, y: number, maxWidth: number, weight: NewsWeight): void {
+  if (weight === 'light') {
+    canvas.drawText(text, x, y, maxWidth, 1, true, true);
+    return;
+  }
   canvas.drawText(text, x, y, maxWidth);
   if (weight === 'bold') canvas.drawText(text, x + 1, y, maxWidth);
 }

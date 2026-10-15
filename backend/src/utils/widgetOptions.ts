@@ -25,7 +25,7 @@ export type CalendarView = typeof CALENDAR_VIEWS[number];
 export const WEATHER_VIEWS = ['summary', 'current', 'hours', 'daily', 'details'] as const;
 export type WeatherView = typeof WEATHER_VIEWS[number];
 /** News headline weight. `bold` is the original look, so it is the default and is not stored. */
-export const NEWS_WEIGHTS = ['regular', 'bold'] as const;
+export const NEWS_WEIGHTS = ['light', 'regular', 'bold'] as const;
 export type NewsWeight = typeof NEWS_WEIGHTS[number];
 export const DEFAULT_NEWS_WEIGHT: NewsWeight = 'bold';
 export const MAX_WIDGET_ITEMS = 10;

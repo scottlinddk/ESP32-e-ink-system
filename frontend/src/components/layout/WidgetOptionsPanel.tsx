@@ -156,14 +156,15 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
                 onChange={(e) => onChange({ columns: Number(e.target.value) === 1 ? undefined : Number(e.target.value) })} />
             </Field>
             <Field label={da ? 'Skrifttykkelse' : 'Font weight'} htmlFor={`${fieldId}-weight`}
-              helper={da ? 'Skærmens skrifttype har kun én vægt. Fed er den tegnet to gange et billedpunkt fra hinanden, så en tykkere version ville smelte bogstaverne sammen.'
-                : 'The display font has a single weight. Bold is it drawn twice, a pixel apart, so a heavier one would run the letters together.'}>
+              helper={da ? 'Skærmens skrifttype har kun én vægt. Fed er den tegnet to gange et billedpunkt fra hinanden. Let tegner kun hvert andet billedpunkt, så teksten bliver prikket og sværere at læse. Tjek den i forhåndsvisningen.'
+                : 'The display font has a single weight. Bold is it drawn twice, a pixel apart. Light draws only every other pixel, so the text is dotted and harder to read. Check it in the preview.'}>
               <Select id={`${fieldId}-weight`} value={widget.options?.weight ?? 'bold'}
                 options={[
+                  { value: 'light', label: da ? 'Let (prikket)' : 'Light (dotted)' },
                   { value: 'regular', label: da ? 'Normal' : 'Regular' },
                   { value: 'bold', label: da ? 'Fed' : 'Bold' },
                 ]}
-                onChange={(e) => onChange({ weight: e.target.value === 'regular' ? 'regular' : undefined })} />
+                onChange={(e) => onChange({ weight: e.target.value === 'light' || e.target.value === 'regular' ? e.target.value : undefined })} />
             </Field>
           </>
         )}

@@ -91,6 +91,7 @@ describe('widget options panel', () => {
   it('offers a font weight for news only, bold by default', () => {
     const html = panel(layout.widgets[1]);
     expect(html).toContain('Font weight');
+    expect(html).toContain('<option value="light">Light (dotted)</option>');
     expect(html).toMatch(/<option value="bold" selected="">Bold<\/option>/);
     expect(panel({ ...layout.widgets[1], options: { weight: 'regular' } })).toMatch(/<option value="regular" selected="">Regular<\/option>/);
     expect(panel({ i: 'calendar', x: 0, y: 0, w: 5, h: 2 })).not.toContain('Font weight');

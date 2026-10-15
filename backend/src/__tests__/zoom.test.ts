@@ -252,6 +252,7 @@ describe('zoom validation', () => {
   it('accepts a news font weight, storing only what differs from the default', () => {
     expect(parseWidgetOptions('news', { weight: 'regular', columns: 2 })).toEqual({ weight: 'regular', columns: 2 });
     expect(parseWidgetOptions('news:feed1', { weight: 'regular' })).toEqual({ weight: 'regular' });
+    expect(parseWidgetOptions('news', { weight: 'light' })).toEqual({ weight: 'light' });
     expect(parseWidgetOptions('news', { weight: 'bold' })).toBeUndefined();
     for (const bad of ['heavy', 'Regular', 1, null]) expect(() => parseWidgetOptions('news', { weight: bad })).toThrow();
     expect(() => parseWidgetOptions('weather', { weight: 'regular' })).toThrow();
