@@ -23,6 +23,7 @@ import { renderAiUsageWidget } from './aiUsageRenderer';
 import { chooseZoom, fitZoom } from './zoom';
 import { BASE_GRID_COLS, BASE_GRID_ROWS } from './layoutGrid';
 import { isDarkAt } from './sunTimes';
+import { drawTeletextTitleBar, renderTeletextHeader, teletextPages, teletextTitle } from './teletext';
 import { ZoomCanvas, logicalBounds, type Bounds, type DrawingCanvas } from './zoomCanvas';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
@@ -596,6 +597,8 @@ function populateCanvas(
   const language = displayLanguageOrDefault(preferences?.display_language);
   // Where a photo was drawn; an inverted layout leaves it as it was.
   const photos: WidgetBounds[] = [];
+  // Tekst TV gives each widget a titled bar with a page number, numbered in reading order.
+  const teletextPageOf = effectiveLayout.teletext ? teletextPages(effectiveLayout) : undefined;
   for (const widget of effectiveLayout.widgets) {
     const feedId = newsFeedIdFromWidget(widget.i);
     const setting = feedId ? 'show_news' : isWeatherWidget(widget.i) ? 'show_weather'
@@ -607,10 +610,14 @@ function populateCanvas(
       : fitZoom(chooseZoom(widget.options?.zoom, effectiveLayout.zoom, canvas), physical.width, physical.height);
     // Widgets draw on a smaller logical canvas that ZoomCanvas enlarges; zoom 1 draws directly.
     const target: DrawingCanvas = zoom === 1 ? canvas : new ZoomCanvas(canvas, zoom);
-    const bounds = zoom === 1 ? physical : logicalBounds(physical, zoom);
+    const placed = zoom === 1 ? physical : logicalBounds(physical, zoom);
     const tickerId = tickerIdFromWidget(widget.i);
     const calendarId = calendarIdFromWidget(widget.i);
     canvas.withClip(physical, () => {
+      // With a title bar the widget draws in what is left below it.
+      const page = teletextPageOf?.get(widget.i);
+      const title = page === undefined ? null : teletextTitle(widget.i, language);
+      const bounds = title && page !== undefined ? drawTeletextTitleBar(target, placed, title, page) : placed;
       if (calendarId) {
         // A removed calendar has no result; it renders as unavailable until the widget is removed.
         const extra = data.calendars?.[calendarId];
@@ -663,7 +670,16 @@ function populateCanvas(
         case 'ai-usage': renderAiUsageWidget(target, bounds, data.aiUsage, {
           view: widget.options?.view === 'condensed' ? 'condensed' : 'full', timeZone: preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE, language,
         }); break;
-        case 'status':  renderStatusWidget(target, bounds, data.nextRefresh, preferences?.display_timezone, data.battery, widget.options, language); break;
+        case 'status':
+          if (effectiveLayout.teletext) {
+            renderTeletextHeader(target, bounds, {
+              now, timeZone: preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE, language,
+              battery: data.battery, condensed: widget.options?.view === 'condensed',
+            });
+          } else {
+            renderStatusWidget(target, bounds, data.nextRefresh, preferences?.display_timezone, data.battery, widget.options, language);
+          }
+          break;
       }
     });
   }

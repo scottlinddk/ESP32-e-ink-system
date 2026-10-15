@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { GridEditor, layoutFromGrid } from '../../components/layout/GridEditor';
 import { WidgetOptionsPanel } from '../../components/layout/WidgetOptionsPanel';
-import { changeGrid, gridLabel, layoutInvertMode, layoutScale, updateLayoutInvert } from '../layoutGrid';
+import { changeGrid, gridLabel, layoutInvertMode, layoutScale, updateLayoutInvert, updateLayoutTeletext } from '../layoutGrid';
 import { layoutProblem } from '../layoutPlacement';
 import type { DisplayLayout } from '../../types';
 
@@ -64,6 +64,16 @@ describe('layout grid scale', () => {
     expect('invert' in updateLayoutInvert(inverted, false)).toBe(false);
     expect(updateLayoutInvert(base, false)).toEqual(base);
   });
+
+  it('sets and clears Tekst TV without leaving false behind, and keeps the colours', () => {
+    const teletext = updateLayoutTeletext(updateLayoutInvert(base, 'sun'), true);
+    expect(teletext.teletext).toBe(true);
+    expect(teletext.invert).toBe('sun');
+    const cleared = updateLayoutTeletext(teletext, false);
+    expect('teletext' in cleared).toBe(false);
+    expect(cleared.invert).toBe('sun');
+    expect(updateLayoutTeletext(base, false)).toEqual(base);
+  });
 });
 
 describe('editing on a finer grid', () => {
@@ -91,6 +101,7 @@ describe('editing on a finer grid', () => {
     expect(moved.cols).toBe(20);
     expect(layoutFromGrid(fine, [{ i: 'status', x: 15, y: 15, w: 30, h: 9 }] as never).widgets[0]).toMatchObject({ x: 0, y: 3, w: 20, h: 9 });
     expect(layoutFromGrid(updateLayoutInvert(fine, true), [] as never).invert).toBe(true);
+    expect(layoutFromGrid(updateLayoutTeletext(fine, true), [] as never).teletext).toBe(true);
   });
 });
 
