@@ -4,9 +4,10 @@ import { DEFAULT_PREFS } from './displayData';
 import { assertDeviceOwner, DeviceNotFound } from './deviceDelivery';
 import { createError } from '../middleware/errorHandler';
 import { parseDisplayTemplate } from '../utils/displayTemplates';
+import { displayLanguageOrDefault, parseDisplayLanguage } from '../utils/displayLanguage';
 
 export const DEVICE_PRESENTATION_KEYS = ['layout', 'display_schedule', 'active_layout_id',
-  'display_profile', 'display_timezone', 'refresh_interval_minutes'] as const;
+  'display_profile', 'display_timezone', 'display_language', 'refresh_interval_minutes'] as const;
 export type DevicePresentation = Required<Pick<UserPreferences, typeof DEVICE_PRESENTATION_KEYS[number]>>;
 interface DeviceDisplayRow extends DevicePresentation {
   device_id: string;
@@ -30,6 +31,8 @@ function presentation(prefs: Pick<UserPreferences, typeof DEVICE_PRESENTATION_KE
     layout: prefs.layout ?? null, display_schedule: prefs.display_schedule ?? null,
     active_layout_id: prefs.active_layout_id ?? null, display_profile: prefs.display_profile ?? null,
     display_timezone: prefs.display_timezone ?? DEFAULT_PREFS.display_timezone!,
+    // A row from before migration 025 has no such column and draws English.
+    display_language: displayLanguageOrDefault(prefs.display_language),
     refresh_interval_minutes: prefs.refresh_interval_minutes,
   };
 }
@@ -39,13 +42,15 @@ export function parseDeviceDisplayUpdates(input: unknown): Partial<DevicePresent
   if (!input || typeof input !== 'object' || Array.isArray(input)
     || Object.keys(input).some((key) => !(DEVICE_PRESENTATION_KEYS as readonly string[]).includes(key))
     || Object.keys(input).length === 0) throw createError('Submit only device presentation settings.', 400);
-  const { active_layout_id, ...settings } = input as Record<string, unknown>;
+  const { active_layout_id, display_language, ...settings } = input as Record<string, unknown>;
   if (active_layout_id !== undefined && active_layout_id !== null
     && (typeof active_layout_id !== 'string' || !/^[A-Za-z0-9_-]{1,48}$/.test(active_layout_id))) {
     throw createError('active_layout_id must be a saved layout ID or null.', 400);
   }
   try {
     return {
+      // Not a template setting: templates are account-wide starting points and omit device-only choices.
+      ...(display_language !== undefined ? { display_language: parseDisplayLanguage(display_language) } : {}),
       ...(Object.keys(settings).length ? parseDisplayTemplate({ format: 'esp32-eink-template', version: 1, settings }).settings : {}),
       ...(active_layout_id !== undefined ? { active_layout_id: active_layout_id as string | null } : {}),
     };
@@ -94,7 +99,9 @@ export async function saveDeviceDisplay(owner: string, deviceId: string, input: 
   }
   const db = getSupabaseClient();
   const revision = (current.row?.revision ?? 0) + 1;
-  const values = { ...(current.inherited ? next : updates), owner_id: owner, revision, updated_at: new Date().toISOString() };
+  const values: Record<string, unknown> = { ...(current.inherited ? next : updates), owner_id: owner, revision, updated_at: new Date().toISOString() };
+  // Written only when chosen, so saving any other setting still works before migration 025.
+  if (updates.display_language === undefined) delete values.display_language;
   // Compare-and-swap protects partial updates and reassignment snapshots. A
   // concurrent first save is a conflict, never an upsert over the other writer.
   const result = current.row
@@ -106,6 +113,9 @@ export async function saveDeviceDisplay(owner: string, deviceId: string, input: 
   }
   // The composite foreign key checks ownership atomically with this write.
   if (result.error?.code === '23503') throw new DeviceNotFound('Device not found');
+  if (result.error && ['PGRST204', '42703'].includes(result.error.code) && /display_language/.test(result.error.message)) {
+    throw createError('Apply database migration 025 before changing the display language.', 503);
+  }
   if (result.error) throw result.error;
   return { preferences: { ...current.preferences, ...presentation(result.data as DeviceDisplayRow) }, inherited: false };
 }

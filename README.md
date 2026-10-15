@@ -11,7 +11,7 @@ A quiet, glanceable home dashboard for everything you want at a glance. Choose t
 
 The [integration setup guide](docs/INTEGRATIONS.md) maps every source to its widget, including calendar subscriptions and Home Assistant sensor updates. Dashboard contains the preview, display settings, notes/images, templates and schedule; integration credentials and source controls are on **Integrations**.
 
-The [device workspace guide](docs/DEVICE_WORKSPACES.md) explains per-device layouts, slideshows, live previews, manual and instant screen refresh, and migrations 018–020. Shared content and legacy defaults are labelled separately from the selected device's settings.
+The [device workspace guide](docs/DEVICE_WORKSPACES.md) explains per-device layouts, slideshows, live previews, manual and instant screen refresh, and migrations 018–020. Each device can also draw its widgets in **English or Danish** (**Display language** in the device's settings, migration 025); see [display language](docs/DEVICE_WORKSPACES.md#display-language). Shared content and legacy defaults are labelled separately from the selected device's settings.
 
 See the [integration and widget audit](docs/INTEGRATION_AUDIT.md) for supported behavior, provider compatibility fixes and validation limits.
 

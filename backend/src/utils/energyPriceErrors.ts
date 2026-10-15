@@ -14,11 +14,6 @@ const MESSAGES: Record<EnergyPriceErrorCode, string> = {
   invalid_response: 'The electricity price sources returned invalid data. Try again later.',
 };
 
-export const ENERGY_PRICE_ERROR_LABELS: Record<EnergyPriceErrorCode, string> = {
-  invalid_settings: 'Energy: check settings', missing_tariff: 'Energy: check tariff',
-  unavailable: 'Energy: unavailable', timeout: 'Energy: timed out', invalid_response: 'Energy: invalid data',
-};
-
 /**
  * Public messages are fixed; only the user's own configured codes and GLN are echoed.
  * Upstream URLs and response bodies never leave the provider boundary.

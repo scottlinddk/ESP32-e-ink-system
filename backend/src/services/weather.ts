@@ -7,7 +7,7 @@ const OWM_BASE_URL = 'https://api.openweathermap.org/data/2.5/weather';
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const cache = new Map<string, CacheEntry<WeatherData>>();
-const CONDITIONS: Record<string, string> = {
+export const CONDITIONS: Record<string, string> = {
   Clear: 'clear', Clouds: 'cloudy', Rain: 'rain', Drizzle: 'drizzle', Thunderstorm: 'storm',
   Snow: 'snow', Mist: 'mist', Fog: 'fog', Haze: 'haze', Dust: 'dust', Smoke: 'smoke',
   Sand: 'sand', Ash: 'ash', Squall: 'squall', Tornado: 'tornado',

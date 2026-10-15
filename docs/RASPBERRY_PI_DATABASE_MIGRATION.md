@@ -223,12 +223,12 @@ inherits its owner's account presentation. A device ownership change deletes its
 saved presentation, including when ownership is later returned. A composite
 device/owner foreign key also rejects delayed writes from a previous owner. The schema
 inspector validates that trigger's exact condition, function body and privileges;
-it also verifies all seven new CHECK constraints and both foreign keys.
+it also verifies all eight device presentation CHECK constraints (025 adds the display language) and both foreign keys.
 
 Exports and backups made before 018 have nine application tables, and those made
 before 024 have ten (no `ai_usage_reports`). Keep the matching older release's
 recovery tools with those backups; restore into that release's isolated schema,
-then apply the later migrations. The current importer and recovery script require
+then apply the later migrations. A source that has not yet received `025_display_language.sql` fails the schema check with a missing `display_language` column: apply 025 to it first. The current importer and recovery script require
 all eleven tables and reject older bundles instead of silently losing device
 settings or AI usage tokens. Production migration and physical Pi verification must be performed in
 the deployment environment; offline tests do not apply SQL there.
