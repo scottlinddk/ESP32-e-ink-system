@@ -59,6 +59,10 @@ Every calendar widget has four views (list grouped by day, one day by the hour, 
 
 Electricity spot prices come from the [Elprisen lige nu API](https://www.elprisenligenu.dk/elpris-api) for the current published interval (15 minutes since the day-ahead market moved to quarter-hours). Tariffs and taxes still come from Energinet's DataHub. Under Energy prices, choose spot or an estimated consumer price, select your household grid tariff and enter your supplier's markup excluding VAT. Consumer estimates include current grid/national tariffs, electricity tax and VAT, but exclude fixed subscriptions. Existing accounts retain spot mode. Apply `017_energy_price_settings.sql` first; see [electricity setup, coverage and sources](docs/ELECTRICITY_PRICES.md). Zero/negative prices and Danish daylight-saving days are supported, independently of your display clock.
 
+## Install as an app (PWA)
+
+The web app is installable. Open it in Chrome, Edge or Safari and choose **Install** (or **Add to Home Screen** on iOS). It then opens in its own window with an app icon. A small service worker (`frontend/public/sw.js`) caches the app shell and hashed build assets so the page opens offline; it never caches `/api/*` or cross-origin requests, so account data, Clerk sessions and live previews always come from the network. It registers in production builds only. Bluetooth pushes and USB flashing keep their existing browser requirements.
+
 ## Install Wi-Fi firmware on a CrowPanel
 
 The public **Flash** page installs complete firmware over USB from desktop Chrome or Edge. Choose the original CrowPanel 2.13-inch **SSD1680** panel or **V1.2 / JD79661** revision before connecting; both use ESP32-S3, so automatic chip detection cannot distinguish them. A Waveshare 2.13-inch HAT V2 on classic ESP32 is also supported.
