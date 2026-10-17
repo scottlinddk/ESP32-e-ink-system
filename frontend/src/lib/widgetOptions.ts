@@ -13,7 +13,7 @@ export const MAX_CALENDAR_DAYS = 7;
 export const CALENDAR_VIEWS: readonly CalendarView[] = ['list', 'day', 'days', 'month'];
 export const WEATHER_VIEWS: readonly WeatherView[] = ['summary', 'current', 'hours', 'daily', 'details'];
 
-export type WidgetOptionKind = 'energy' | 'weather' | 'list' | 'calendar' | 'ticker' | 'ai-usage' | 'status';
+export type WidgetOptionKind = 'energy' | 'weather' | 'list' | 'calendar' | 'ticker' | 'ai-usage' | 'family-meals' | 'status';
 
 /** Which options a widget accepts, or null when it has none. */
 export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
@@ -23,6 +23,7 @@ export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
   if (widgetId === 'news' || newsFeedIdFromWidget(widgetId)) return 'list';
   if (tickerIdFromWidget(widgetId)) return 'ticker';
   if (widgetId === 'ai-usage') return 'ai-usage';
+  if (widgetId === 'family-meals') return 'family-meals';
   if (widgetId === 'status') return 'status';
   return null;
 }

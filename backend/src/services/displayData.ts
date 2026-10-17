@@ -11,6 +11,7 @@ import { calendarProvider, storedCalendarWidgets } from '../utils/calendarWidget
 import { fetchMontaData } from './monta';
 import { fetchZaptecData } from './zaptec';
 import { fetchNotionData, NotionCredentials, NotionSourceError } from './notion';
+import { fetchFamilyMealsWeek, FamilyMealsSourceError, type FamilyMealsCredentials } from './familyMeals';
 import { DisplayData, DisplayLayout, UserPreferences } from '../types/index';
 import { logger } from '../lib/logger';
 import { resolveDisplaySchedule } from './displaySchedule';
@@ -272,6 +273,34 @@ export async function buildDisplayData(
         );
       } catch {
         logger.warn('Notion credentials are not valid JSON — skipping');
+      }
+    }
+  }
+
+  // Family Meals has no on/off switch: saving its API token enables it, and it is only fetched when the
+  // layout shown places the widget. An unconfigured widget says so rather than drawing nothing.
+  const shown = layout === undefined ? resolved.layout : layout;
+  if (shown?.widgets.some((widget) => widget.i === 'family-meals')) {
+    const raw = apiKeyMap['family-meals'];
+    const fail = (code: ConstructorParameters<typeof FamilyMealsSourceError>[0]) => {
+      result.familyMealsError = { code, message: new FamilyMealsSourceError(code).message };
+    };
+    if (!raw) fail('not_configured');
+    else {
+      let creds: FamilyMealsCredentials | undefined;
+      try { creds = JSON.parse(raw) as FamilyMealsCredentials; }
+      catch { logger.warn('Family Meals credentials are not valid JSON — skipping'); fail('invalid_configuration'); }
+      if (creds) {
+        tasks.push(
+          withSourceDeadline((signal) => fetchFamilyMealsWeek(userId, creds, signal))
+            .then((familyMeals) => { result.familyMeals = familyMeals; })
+            .catch((err: unknown) => {
+              const problem = err instanceof FamilyMealsSourceError ? err : new FamilyMealsSourceError(
+                err instanceof Error && ['TimeoutError', 'AbortError'].includes(err.name) ? 'timeout' : 'unavailable');
+              fail(problem.code);
+              logger.warn({ code: problem.code }, 'Family Meals fetch failed');
+            })
+        );
       }
     }
   }

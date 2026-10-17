@@ -6,6 +6,22 @@ import ipaddr from 'ipaddr.js';
 export const MAX_FEED_BYTES = 1024 * 1024;
 const MAX_REDIRECTS = 3;
 
+/** A non-2xx answer. The status lets a caller tell a rejected credential from an outage; the message is unchanged. */
+export class FeedStatusError extends Error {
+  constructor(readonly status: number | undefined) {
+    super(`Feed request failed (${status ?? 'unknown'})`);
+    this.name = 'FeedStatusError';
+  }
+}
+
+export interface FeedRequestOptions {
+  /**
+   * Extra request headers, such as a bearer token. A request that carries credentials never follows
+   * a redirect: a redirect can name another host, and the credential must not travel there.
+   */
+  headers?: Record<string, string>;
+}
+
 export function isPublicAddress(address: string): boolean {
   if (!ipaddr.isValid(address)) return false;
   const parsed = ipaddr.parse(address);
@@ -49,7 +65,7 @@ function abortable<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
 
 interface Download { body?: Buffer; redirect?: string }
 
-async function download(url: URL, signal: AbortSignal): Promise<Download> {
+async function download(url: URL, signal: AbortSignal, extraHeaders?: Record<string, string>): Promise<Download> {
   const host = url.hostname.replace(/^\[|\]$/g, '');
   // Check every answer, then pin one to the actual socket. A second DNS lookup
   // by the HTTP client would permit DNS rebinding between validation and use.
@@ -66,7 +82,7 @@ async function download(url: URL, signal: AbortSignal): Promise<Download> {
   return new Promise((resolve, reject) => {
     const req = request(url, {
       method: 'GET', agent: false, lookup: pinnedLookup, signal,
-      headers: { Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, text/calendar, */*;q=0.1', 'Accept-Encoding': 'identity', 'User-Agent': 'ESP32-e-ink-system/1.0' },
+      headers: { Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, text/calendar, */*;q=0.1', 'Accept-Encoding': 'identity', 'User-Agent': 'ESP32-e-ink-system/1.0', ...extraHeaders },
     }, (res) => {
       const fail = (error: Error) => { reject(error); res.destroy(); req.destroy(); };
       res.on('error', () => fail(new Error('Feed response was interrupted')));
@@ -78,7 +94,7 @@ async function download(url: URL, signal: AbortSignal): Promise<Download> {
         return;
       }
       if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
-        fail(new Error(`Feed request failed (${res.statusCode ?? 'unknown'})`)); return;
+        fail(new FeedStatusError(res.statusCode)); return;
       }
       if (res.headers['content-encoding'] && res.headers['content-encoding'] !== 'identity') {
         fail(new Error('Compressed feed responses are not supported')); return;
@@ -102,7 +118,7 @@ async function download(url: URL, signal: AbortSignal): Promise<Download> {
 }
 
 /** Public HTTPS only, pinned DNS, bounded bytes, redirects and total wall time. */
-export async function fetchPublicFeed(value: string, signal?: AbortSignal): Promise<{ text: string; url: string }> {
+export async function fetchPublicFeed(value: string, signal?: AbortSignal, options?: FeedRequestOptions): Promise<{ text: string; url: string }> {
   const controller = new AbortController();
   const abort = () => controller.abort(new Error('Feed request cancelled'));
   signal?.throwIfAborted();
@@ -111,9 +127,10 @@ export async function fetchPublicFeed(value: string, signal?: AbortSignal): Prom
   try {
     let url = validatePublicHttpsUrl(value);
     for (let redirects = 0; ; redirects++) {
-      const result = await download(url, controller.signal);
+      const result = await download(url, controller.signal, options?.headers);
       controller.signal.throwIfAborted();
       if (result.redirect) {
+        if (options?.headers) throw new Error('Authenticated feed requests do not follow redirects');
         if (redirects >= MAX_REDIRECTS) throw new Error('Too many feed redirects');
         url = validatePublicHttpsUrl(new URL(result.redirect, url).href);
       } else {

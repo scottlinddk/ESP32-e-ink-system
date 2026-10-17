@@ -73,4 +73,15 @@ describe('integration preferences share template validation', () => {
     expect((await credentials('zaptec', { username: ' owner ', password: ' padded ', extra: 'omit' })).status).toBe(200);
     expect(upsertApiKey).toHaveBeenCalledWith('owner', 'zaptec', JSON.stringify({ username: 'owner', password: ' padded ' }));
   });
+  it('stores Family Meals credentials as an origin and token, and rejects unsafe addresses and foreign tokens', async () => {
+    vi.mocked(upsertApiKey).mockResolvedValue({ provider: 'family-meals', created_at: 'now' } as Awaited<ReturnType<typeof upsertApiKey>>);
+    const token = `fm_${'a'.repeat(40)}`;
+    expect((await credentials('family-meals', { baseUrl: 'https://meals.example.com/family?x=1', token: ` ${token} ` })).status).toBe(200);
+    expect(upsertApiKey).toHaveBeenCalledWith('owner', 'family-meals', JSON.stringify({ baseUrl: 'https://meals.example.com', token }));
+    vi.mocked(upsertApiKey).mockClear();
+    for (const input of [{ baseUrl: 'http://meals.example.com', token }, { baseUrl: 'https://127.0.0.1', token }, { baseUrl: 'https://meals.example.com', token: 'ntn_x' }, []]) {
+      expect((await credentials('family-meals', input)).status).toBe(400);
+    }
+    expect(upsertApiKey).not.toHaveBeenCalled();
+  });
 });

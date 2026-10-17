@@ -8,7 +8,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 
 /** Built-in widgets only: feeds, stock lists and extra calendars are tied to the sender's own accounts. */
-const SHAREABLE = new Set(['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'week-number', 'battery', 'ai-usage', 'status']);
+const SHAREABLE = new Set(['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'family-meals', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'week-number', 'battery', 'ai-usage', 'status']);
 
 export function SendCard() {
   const { lang, toast } = useApp();

@@ -53,6 +53,12 @@ export function IntegrationsPage() {
       url: 'https://developers.notion.com/guides/get-started/internal-connections',
     },
     {
+      id: 'family-meals', name: 'Family Meals', widget: t.srcFamilyMeals, setup: '#credentials-family-meals',
+      text: da ? 'Opret en API-nøgle i Family Meals under Bruger & familie → API-adgang, og gem appens adresse og nøglen. Tilføj derefter Madplan i layoutredigeringen: ugens aftensmad, eller kun aftenens ret. Ingen datakilde at aktivere; widgetten er slået til, når nøglen er gemt.'
+        : 'Create an API key in Family Meals under User & family → API access, then save the app’s address and the key. Add Meal plan in the layout editor: the week’s dinners, or tonight’s alone. There is no data source to enable; the widget is on once the key is saved.',
+      url: 'https://github.com/scottlinddk/ESP32-e-ink-system/blob/main/docs/FAMILY_MEALS.md',
+    },
+    {
       id: 'ai-usage', name: 'Claude · ChatGPT/Codex', widget: da ? 'AI-forbrug' : 'AI usage', setup: '#ai-usage',
       text: da ? 'Kvoter (5 timer og 7 dage), dagens tokens med anslået pris, og månedens faktiske API-pris. En lille indsamler på din computer sender summer fra Claude Code og Codex; valgfrie Admin API-nøgler lader serveren hente organisationens forbrug selv. Den seneste rapport gemmes, så widgetten virker, mens computeren er slukket.'
         : 'Quota (5-hour and 7-day), today’s tokens with an estimated cost, and the billed API cost this month. A small collector on your computer sends totals from Claude Code and Codex; optional Admin API keys let the server read organization usage itself. The latest report is kept, so the widget works while your computer is off.',

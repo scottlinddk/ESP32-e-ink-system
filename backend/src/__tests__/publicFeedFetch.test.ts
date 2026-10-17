@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import { lookup } from 'node:dns/promises';
 import { request, RequestOptions } from 'node:https';
 import type { ClientRequest, IncomingMessage } from 'node:http';
-import { fetchPublicFeed, isPublicAddress, MAX_FEED_BYTES, validatePublicHttpsUrl } from '../utils/publicFeedFetch';
+import { FeedStatusError, fetchPublicFeed, isPublicAddress, MAX_FEED_BYTES, validatePublicHttpsUrl } from '../utils/publicFeedFetch';
 
 vi.mock('node:dns/promises', () => ({ lookup: vi.fn() }));
 vi.mock('node:https', () => ({ request: vi.fn() }));
@@ -95,6 +95,27 @@ describe('public feed fetching', () => {
     expect(lookup).toHaveBeenCalledTimes(2);
     replies = Array.from({ length: 4 }, () => ({ status: 302, headers: { location: '/loop' } }));
     await expect(fetchPublicFeed('https://example.org/feed')).rejects.toThrow('Too many');
+  });
+
+  it('sends extra headers, such as a bearer token, and never follows a redirect when it does', async () => {
+    replies.push({ status: 302, headers: { location: 'https://other.example.org/steal' } });
+    await expect(fetchPublicFeed('https://example.org/feed', undefined, { headers: { Authorization: 'Bearer secret' } })).rejects.toThrow('do not follow redirects');
+    const [, options] = vi.mocked(request).mock.calls[0] as unknown as [URL, RequestOptions];
+    expect((options.headers as Record<string, string>).Authorization).toBe('Bearer secret');
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(lookup).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the default headers and sends no credential when none is given', async () => {
+    await fetchPublicFeed('https://example.org/feed');
+    const [, options] = vi.mocked(request).mock.calls[0] as unknown as [URL, RequestOptions];
+    expect((options.headers as Record<string, string>).Authorization).toBeUndefined();
+  });
+
+  it('reports the HTTP status of a failed request', async () => {
+    replies.push({ status: 401 });
+    await expect(fetchPublicFeed('https://example.org/feed')).rejects.toEqual(expect.objectContaining({ name: 'FeedStatusError', status: 401, message: 'Feed request failed (401)' }));
+    expect(new FeedStatusError(undefined).message).toBe('Feed request failed (unknown)');
   });
 
   it.each([

@@ -67,14 +67,14 @@ describe('credential status gating', () => {
       expect(markup).not.toContain(STRINGS.en.keyConfigured);
       expect(markup).toContain(state.error ? 'Could not load status' : 'Loading…');
       expectMutationButtons(markup, true);
-      expect(buttons(markup, 'Retry')).toHaveLength(state.error ? 5 : 0);
+      expect(buttons(markup, 'Retry')).toHaveLength(state.error ? 6 : 0);
     },
   );
 
   it('enables adding credentials only after a successful empty status result', () => {
     const markup = render();
     expect(markup).toContain(STRINGS.en.statusNotConfigured);
-    expect(buttons(markup, STRINGS.en.addKey)).toHaveLength(5);
+    expect(buttons(markup, STRINGS.en.addKey)).toHaveLength(6);
     expectMutationButtons(markup, false);
   });
 
@@ -107,7 +107,7 @@ describe('credential status gating', () => {
     state.pending = false; state.error = true;
     const markup = render();
     expect(markup).toContain('Kunne ikke indlæse status');
-    expect(buttons(markup, 'Prøv igen')).toHaveLength(5);
+    expect(buttons(markup, 'Prøv igen')).toHaveLength(6);
     expect(markup).not.toContain('Could not load status');
     expectMutationButtons(markup, true);
   });

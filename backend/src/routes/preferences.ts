@@ -28,6 +28,7 @@ import { fetchEnergyPrice } from '../services/energinet';
 import { EnergyPriceSourceError, energyPriceProblem } from '../utils/energyPriceErrors';
 import { logger } from '../lib/logger';
 import { normalizeNotionCredentials } from '../utils/notionCredentials';
+import { normalizeFamilyMealsCredentials } from '../utils/familyMealsCredentials';
 
 /**
  * @swagger
@@ -515,7 +516,7 @@ router.delete(
       const userId = await getOrCreateUserFromClerk(clerkUserId);
 
       const { provider } = req.params as { provider: string };
-      const validProviders = ['openweathermap', 'newsapi', 'openai', 'monta', 'zaptec', 'notion'];
+      const validProviders = ['openweathermap', 'newsapi', 'openai', 'monta', 'zaptec', 'notion', 'family-meals'];
       if (!validProviders.includes(provider)) {
         res.status(400).json({ error: `provider must be one of: ${validProviders.join(', ')}` });
         return;
@@ -547,7 +548,7 @@ router.post(
         credentials?: Record<string, string>;
       };
 
-      const validEvProviders = ['monta', 'zaptec', 'notion'];
+      const validEvProviders = ['monta', 'zaptec', 'notion', 'family-meals'];
       if (!provider || !validEvProviders.includes(provider)) {
         res.status(400).json({ error: `provider must be one of: ${validEvProviders.join(', ')}` });
         return;
@@ -562,6 +563,8 @@ router.post(
       try {
         if (provider === 'notion') {
           serialised = JSON.stringify(normalizeNotionCredentials(credentials));
+        } else if (provider === 'family-meals') {
+          serialised = JSON.stringify(normalizeFamilyMealsCredentials(credentials));
         } else {
           const fields = provider === 'monta' ? ['clientId', 'clientSecret'] : ['username', 'password'];
           if (fields.some((field) => typeof credentials[field] !== 'string'
@@ -600,7 +603,7 @@ router.get(
       const userId = await getOrCreateUserFromClerk(clerkUserId);
 
       const { provider } = req.params as { provider: string };
-      const validEvProviders = ['monta', 'zaptec', 'notion'];
+      const validEvProviders = ['monta', 'zaptec', 'notion', 'family-meals'];
       if (!validEvProviders.includes(provider)) {
         res.status(400).json({ error: `provider must be one of: ${validEvProviders.join(', ')}` });
         return;

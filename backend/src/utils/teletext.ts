@@ -33,7 +33,7 @@ const MIN_BAR_WIDTH = 6 * GLYPH;
 const HEADER_MAX_HEIGHT = TITLE_BAR_HEIGHT + 3;
 
 const DIRECT_KINDS: Readonly<Record<string, TeletextKind>> = {
-  energy: 'energy', monta: 'monta', zaptec: 'zaptec', notion: 'notion', battery: 'battery',
+  energy: 'energy', monta: 'monta', zaptec: 'zaptec', notion: 'notion', 'family-meals': 'familyMeals', battery: 'battery',
   'custom-text': 'text', 'custom-webhook': 'webhook', 'week-number': 'week', 'ai-usage': 'aiUsage',
 };
 

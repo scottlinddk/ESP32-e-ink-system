@@ -209,6 +209,18 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
           </Field>
         )}
 
+        {kind === 'family-meals' && (
+          <Field label={da ? 'Visning' : 'View'} htmlFor={`${fieldId}-view`}
+            helper={da ? 'En lav widget viser de kommende dage i stedet for hele ugen.' : 'A short widget shows the days from today instead of the whole week.'}>
+            <Select id={`${fieldId}-view`} value={widget.options?.view === 'condensed' ? 'condensed' : 'full'}
+              options={[
+                { value: 'full', label: da ? 'Ugen: alle ugens aftensmåltider' : 'Week: every dinner of the week' },
+                { value: 'condensed', label: da ? 'I aften: kun dagens ret' : 'Tonight: today’s dinner alone' },
+              ]}
+              onChange={(e) => onChange({ view: e.target.value === 'condensed' ? 'condensed' : undefined })} />
+          </Field>
+        )}
+
         {kind === 'status' && (
           <Field label={da ? 'Visning' : 'View'} htmlFor={`${fieldId}-view`}
             helper={da ? 'Kompakt viser kun klokkeslættet og kan gøres smal. Brug et finere gitter for at gøre linjen lavere.'

@@ -7,6 +7,7 @@ import { useApp } from '../../lib/appContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useApiKeys } from '../../hooks/usePreferences';
 import { notionCredentialsForSave } from '../../lib/notionCredentials';
+import { familyMealsCredentialsForSave } from '../../lib/familyMealsCredentials';
 import { saveApiKey, deleteApiKey, saveEvCredentials, getEvCredentialStatus, deleteEvCredentials } from '../../lib/api';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -347,6 +348,128 @@ function NotionCredentialsSection() {
   );
 }
 
+function FamilyMealsCredentialsSection() {
+  const app = useApp();
+  const t = app.t;
+  const { getToken, user, isSignedIn } = useAuth();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [fields, setFields] = useState<Record<string, string>>({});
+  const [err, setErr] = useState<{ url?: string; token?: string }>({});
+
+  const statusKey = ['ev-credentials', 'family-meals', user?.id];
+  const statusQuery = useQuery({
+    queryKey: statusKey,
+    enabled: isSignedIn && !!user?.id,
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return getEvCredentialStatus(token, 'family-meals');
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return saveEvCredentials(token, 'family-meals', familyMealsCredentialsForSave(fields));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: statusKey });
+      queryClient.invalidateQueries({ queryKey: ['preview'] });
+      setOpen(false);
+      app.toast({ type: 'success', title: t.evCredSaved, msg: t.evCredSavedMsg });
+    },
+    onError: (e: Error) => { setErr({ url: e.message }); },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return deleteEvCredentials(token, 'family-meals');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: statusKey });
+      queryClient.invalidateQueries({ queryKey: ['preview'] });
+      app.toast({ type: 'info', title: t.keyRemoved });
+    },
+  });
+
+  function validate(): boolean {
+    try { familyMealsCredentialsForSave(fields); return true; }
+    catch (error) {
+      setErr(error instanceof Error && error.message === 'token' ? { token: t.fmInvalidToken } : { url: t.fmInvalidUrl });
+      return false;
+    }
+  }
+
+  function openDialog() { if (disabled) return; setFields({}); setErr({}); setOpen(true); }
+
+  const configured = statusQuery.data?.configured ?? false;
+  const known = isSignedIn && !!user?.id && statusQuery.data !== undefined && !statusQuery.isPending && !statusQuery.isError;
+  const disabled = !known || saveMutation.isPending || removeMutation.isPending;
+
+  return (
+    <div id="credentials-family-meals" className="bg-surface rounded-md border border-border px-4 py-3.5 scroll-mt-20">
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="font-medium">{t.fmCredTitle}</div>
+        <Chip variant={!known ? 'default' : configured ? 'success' : 'error'} dot>
+          {!known ? (statusQuery.isError ? (app.lang === 'da' ? 'Kunne ikke indlæse status' : 'Could not load status') : (app.lang === 'da' ? 'Indlæser…' : 'Loading…')) : configured ? t.evCredConfigured : t.evCredNotConfigured}
+        </Chip>
+      </div>
+      {statusQuery.isError && <Button variant="text" size="sm" disabled={!isSignedIn || statusQuery.isFetching} onClick={() => void statusQuery.refetch()}>{app.lang === 'da' ? 'Prøv igen' : 'Retry'}</Button>}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <span className="text-xs text-fg3">{t.fmCredDesc}</span>
+        <div className="flex gap-2">
+          <Button variant="outlined" size="sm" icon="edit" onClick={openDialog} disabled={disabled}>
+            {configured ? t.updateKey : t.addKey}
+          </Button>
+          {configured && (
+            <Button variant="text" size="sm" disabled={disabled} onClick={() => { if (!disabled) removeMutation.mutate(); }} loading={removeMutation.isPending}>
+              {t.evCredRemove}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={t.fmCredTitle}
+        icon="restaurant"
+        footer={
+          <>
+            <Button variant="text" onClick={() => setOpen(false)}>{t.cancel}</Button>
+            <Button onClick={() => { if (!disabled && validate()) saveMutation.mutate(); }} disabled={disabled} loading={saveMutation.isPending}>{t.evCredSave}</Button>
+          </>
+        }
+      >
+        <p className="text-xs text-fg3 mb-4">{t.fmTokenWarning}</p>
+        <Field label={t.fmBaseUrl} htmlFor="family-meals-url" error={err.url}>
+          <Input
+            id="family-meals-url"
+            maxLength={2048}
+            mono
+            value={fields.baseUrl ?? ''}
+            placeholder={t.fmBaseUrlPh}
+            onChange={(e) => { setFields((f) => ({ ...f, baseUrl: e.target.value })); setErr({}); }}
+          />
+        </Field>
+        <Field label={t.fmToken} htmlFor="family-meals-token" error={err.token}>
+          <PasswordInput
+            id="family-meals-token"
+            lang={app.lang}
+            value={fields.token ?? ''}
+            placeholder={t.fmTokenPh}
+            onChange={(e) => { setFields((f) => ({ ...f, token: e.target.value })); setErr({}); }}
+          />
+        </Field>
+      </Dialog>
+    </div>
+  );
+}
+
 export function ApiKeysCard() {
   const app = useApp();
   const t = app.t;
@@ -418,6 +541,7 @@ export function ApiKeysCard() {
         <EvCredentialsSection provider="monta" />
         <EvCredentialsSection provider="zaptec" />
         <NotionCredentialsSection />
+        <FamilyMealsCredentialsSection />
         {SERVICES.map((svc) => {
           const connected = connectedProviders.has(svc.id);
           const maskedKey = data?.find(

@@ -1,6 +1,7 @@
 import type { EnergyPriceErrorCode } from './energyPriceErrors';
 import type { NewsErrorCode } from './newsErrors';
 import type { NotionSourceErrorCode } from '../services/notion';
+import type { FamilyMealsSourceErrorCode } from '../services/familyMeals';
 import type { CalendarErrorCode } from './calendarErrors';
 import type { WeatherErrorCode } from '../types/index';
 import { DEFAULT_DISPLAY_LANGUAGE, type DisplayLanguage } from './displayLanguage';
@@ -57,6 +58,10 @@ export interface DisplayStrings {
     unavailable: string; none: string;
     errors: Partial<Record<NotionSourceErrorCode, string>>;
   };
+  familyMeals: {
+    title: string; tonight: string; leftovers: string; nothingPlanned: string; noPlan: string; unavailable: string;
+    errors: Record<FamilyMealsSourceErrorCode, string>;
+  };
   calendar: {
     none: string; unavailable: string; allDay: string; today: string; tomorrow: string;
     more: (count: number) => string;
@@ -73,7 +78,7 @@ export interface DisplayStrings {
   /** Tekst TV layouts: the header's name, the word before a page number, and each widget's bar title (uppercase). */
   teletext: {
     title: string; page: string;
-    widgets: Record<'energy' | 'weather' | 'news' | 'monta' | 'zaptec' | 'notion' | 'text' | 'webhook' | 'calendar' | 'week' | 'battery' | 'aiUsage' | 'stocks', string>;
+    widgets: Record<'energy' | 'weather' | 'news' | 'monta' | 'zaptec' | 'notion' | 'familyMeals' | 'text' | 'webhook' | 'calendar' | 'week' | 'battery' | 'aiUsage' | 'stocks', string>;
   };
   aiUsage: {
     noSource: string; unavailable: string; session: string; weekly: string;
@@ -147,6 +152,13 @@ const en: DisplayStrings = {
       access_denied: 'Share database', rate_limited: 'Notion API limit', timeout: 'Notion timed out',
     },
   },
+  familyMeals: {
+    title: 'Meals', tonight: 'Tonight', leftovers: 'Leftovers', nothingPlanned: 'No dinner', noPlan: 'No meal plan', unavailable: 'Meals: unavailable',
+    errors: {
+      not_configured: 'Meals: add API key', invalid_configuration: 'Check Meals setup', invalid_token: 'Check Meals key',
+      invalid_response: 'Meals: invalid data', timeout: 'Meals: timed out', unavailable: 'Meals: unavailable',
+    },
+  },
   calendar: {
     none: 'No upcoming events', unavailable: 'Calendar: unavailable', allDay: 'All day', today: 'Today', tomorrow: 'Tomorrow',
     more: (count) => `+${count} more`,
@@ -164,7 +176,7 @@ const en: DisplayStrings = {
   teletext: {
     title: 'TELETEXT', page: 'P',
     widgets: {
-      energy: 'POWER', weather: 'WEATHER', news: 'NEWS', monta: 'MONTA', zaptec: 'ZAPTEC', notion: 'NOTION', text: 'NOTE',
+      energy: 'POWER', weather: 'WEATHER', news: 'NEWS', monta: 'MONTA', zaptec: 'ZAPTEC', notion: 'NOTION', familyMeals: 'MEALS', text: 'NOTE',
       webhook: 'SENSORS', calendar: 'CALENDAR', week: 'WEEK', battery: 'BATTERY', aiUsage: 'AI USAGE', stocks: 'STOCKS',
     },
   },
@@ -235,6 +247,13 @@ const da: DisplayStrings = {
       access_denied: 'Del databasen', rate_limited: 'Notion API-grænse', timeout: 'Notion timeout',
     },
   },
+  familyMeals: {
+    title: 'Madplan', tonight: 'I aften', leftovers: 'Rester', nothingPlanned: 'Ingen middag', noPlan: 'Ingen madplan', unavailable: 'Madplan: ikke tilgængelig',
+    errors: {
+      not_configured: 'Madplan: tilføj nøgle', invalid_configuration: 'Tjek Madplan-opsætning', invalid_token: 'Tjek Madplan-nøgle',
+      invalid_response: 'Madplan: ugyldige data', timeout: 'Madplan: timeout', unavailable: 'Madplan: ikke tilgængelig',
+    },
+  },
   calendar: {
     none: 'Ingen kommende aftaler', unavailable: 'Kalender: ikke tilgængelig', allDay: 'Hele dagen', today: 'I dag', tomorrow: 'I morgen',
     more: (count) => `+${count} mere`,
@@ -252,7 +271,7 @@ const da: DisplayStrings = {
   teletext: {
     title: 'TEKST TV', page: 'S',
     widgets: {
-      energy: 'ELPRIS', weather: 'VEJR', news: 'NYHEDER', monta: 'MONTA', zaptec: 'ZAPTEC', notion: 'NOTION', text: 'NOTE',
+      energy: 'ELPRIS', weather: 'VEJR', news: 'NYHEDER', monta: 'MONTA', zaptec: 'ZAPTEC', notion: 'NOTION', familyMeals: 'MADPLAN', text: 'NOTE',
       webhook: 'SENSORER', calendar: 'KALENDER', week: 'UGE', battery: 'BATTERI', aiUsage: 'AI-FORBRUG', stocks: 'AKTIER',
     },
   },
