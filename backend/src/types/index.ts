@@ -18,7 +18,7 @@ export interface WidgetLayout {
 }
 
 export interface WidgetOptions {
-  /** energy: 'summary' | 'day' | 'rest'; weather: 'summary' | 'current' | 'hours' | 'daily' | 'details'; calendar: 'list' | 'day' | 'days' | 'month'; ticker: 'full' | 'condensed' (overrides the ticker's own view); ai-usage: 'full' | 'condensed'; status: 'full' | 'condensed' (the time alone). */
+  /** energy: 'summary' | 'day' | 'rest'; weather: 'summary' | 'current' | 'hours' | 'daily' | 'details'; calendar: 'list' | 'day' | 'days' | 'month'; ticker: 'full' | 'condensed' (overrides the ticker's own view); ai-usage: 'full' | 'condensed'; family-meals: 'full' (the week) | 'condensed' (tonight); status: 'full' | 'condensed' (the time alone). */
   view?: 'summary' | 'day' | 'rest' | 'full' | 'condensed' | 'list' | 'days' | 'month' | 'current' | 'hours' | 'daily' | 'details';
   /** news, calendar list view: most rows drawn; ticker: stocks per page in the condensed view; weather hours and daily: most steps or days drawn. 1–10. */
   items?: number;
@@ -249,6 +249,30 @@ export interface NotionData {
   databaseName?: string;
 }
 
+/** One evening of the Family Meals weekly overview. `weekday` is 0 for Monday to 6 for Sunday. */
+export interface FamilyMealsDay {
+  date: string;
+  weekday: number;
+  /** `empty` is a day the family left without dinner; `unplanned` a day the week has no plan for. */
+  kind: 'dinner' | 'leftover' | 'empty' | 'unplanned';
+  title: string | null;
+  note: string | null;
+  dinnerTime: string | null;
+  totalTimeMinutes: number | null;
+}
+
+export interface FamilyMealsData {
+  familyName: string | null;
+  weekStartDate: string;
+  isoWeek: number;
+  /** Today in the family's own time zone, as Family Meals sees it. */
+  today: string;
+  /** False when no plan has been generated for the week. */
+  planned: boolean;
+  /** Seven days, Monday first. */
+  days: FamilyMealsDay[];
+}
+
 export interface CalendarEvent {
   title: string;
   start: string; // ISO instant for timed events, YYYY-MM-DD for all-day dates
@@ -306,6 +330,8 @@ export interface DisplayData {
   zaptec?: ZaptecData;
   notion?: NotionData;
   notionError?: { code: string; message: string };
+  familyMeals?: FamilyMealsData;
+  familyMealsError?: { code: string; message: string };
   calendar?: CalendarData;
   /** Additional calendars keyed by calendar widget ID. */
   calendars?: Record<string, CalendarResult>;

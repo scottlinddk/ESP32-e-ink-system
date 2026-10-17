@@ -13,6 +13,8 @@ export const ENERGY_VIEWS = ['summary', 'day', 'rest'] as const;
 export type EnergyView = typeof ENERGY_VIEWS[number];
 export const TICKER_VIEWS = ['full', 'condensed'] as const;
 export const AI_USAGE_VIEWS = TICKER_VIEWS;
+/** `full` is the week's dinners, `condensed` tonight's dinner alone. */
+export const FAMILY_MEALS_VIEWS = TICKER_VIEWS;
 /** `condensed` shows the time alone, for a status bar made small. */
 export const STATUS_VIEWS = TICKER_VIEWS;
 /** `list` is the agenda grouped by day, `day` one day by the hour, `days` several side by side, `month` a month grid. */
@@ -33,7 +35,7 @@ export const MAX_NEWS_COLUMNS = 4;
 export const MIN_CALENDAR_DAYS = 2;
 export const MAX_CALENDAR_DAYS = 7;
 
-export type WidgetOptionKind = 'energy' | 'weather' | 'list' | 'calendar' | 'ticker' | 'ai-usage' | 'status';
+export type WidgetOptionKind = 'energy' | 'weather' | 'list' | 'calendar' | 'ticker' | 'ai-usage' | 'family-meals' | 'status';
 
 /** Which options a widget accepts, or null when it has none. */
 export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
@@ -43,6 +45,7 @@ export function widgetOptionKind(widgetId: string): WidgetOptionKind | null {
   if (widgetId === 'news' || newsFeedIdFromWidget(widgetId)) return 'list';
   if (tickerIdFromWidget(widgetId)) return 'ticker';
   if (widgetId === 'ai-usage') return 'ai-usage';
+  if (widgetId === 'family-meals') return 'family-meals';
   if (widgetId === 'status') return 'status';
   return null;
 }
@@ -54,6 +57,7 @@ const ALLOWED_KEYS: Record<WidgetOptionKind, readonly string[]> = {
   calendar: ['view', 'items', 'days'],
   ticker: ['view', 'items'],
   'ai-usage': ['view'],
+  'family-meals': ['view'],
   status: ['view'],
 };
 
@@ -85,7 +89,7 @@ export function parseWidgetOptions(widgetId: string, value: unknown): WidgetOpti
   }
   if (value.view !== undefined) {
     const views: readonly string[] = kind === 'energy' ? ENERGY_VIEWS : kind === 'weather' ? WEATHER_VIEWS : kind === 'calendar' ? CALENDAR_VIEWS
-      : kind === 'ai-usage' ? AI_USAGE_VIEWS : kind === 'status' ? STATUS_VIEWS : TICKER_VIEWS;
+      : kind === 'ai-usage' ? AI_USAGE_VIEWS : kind === 'family-meals' ? FAMILY_MEALS_VIEWS : kind === 'status' ? STATUS_VIEWS : TICKER_VIEWS;
     if (typeof value.view !== 'string' || !views.includes(value.view)) throw new Error('Widget view is not supported.');
     options.view = value.view as WidgetOptions['view'];
   }

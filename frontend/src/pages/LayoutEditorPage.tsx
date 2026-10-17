@@ -30,7 +30,7 @@ import { tickerIdFromWidget, tickerLabel, tickerWidgetId } from '../lib/tickerWi
 import { calendarIdFromWidget, calendarLabel, calendarWidgetId } from '../lib/calendarWidgets';
 import { WEATHER_WIDGET_IDS, weatherWidgetLabel } from '../lib/weatherWidgets';
 
-const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'week-number', 'battery', 'ai-usage', 'status'] as const;
+const ALL_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'family-meals', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'week-number', 'battery', 'ai-usage', 'status'] as const;
 
 export function LayoutEditorPage() {
   const { user } = useAuth();
@@ -55,6 +55,7 @@ function LayoutEditorWorkspace() {
     monta:   { id: 'monta',   label: t.srcMonta,            icon: 'electric_car' },
     zaptec:  { id: 'zaptec',  label: t.srcZaptec,           icon: 'electric_car' },
     notion:  { id: 'notion',  label: t.srcNotion,           icon: 'auto_stories' },
+    'family-meals': { id: 'family-meals', label: t.srcFamilyMeals, icon: 'restaurant' },
     calendar: { id: 'calendar', label: app.lang === 'da' ? 'Kalender' : 'Calendar', icon: 'calendar_month' },
     'week-number': { id: 'week-number', label: app.lang === 'da' ? 'Ugenummer' : 'Week number', icon: 'date_range' },
     battery: { id: 'battery', label: app.lang === 'da' ? 'Batteri' : 'Battery', icon: 'battery_full' },

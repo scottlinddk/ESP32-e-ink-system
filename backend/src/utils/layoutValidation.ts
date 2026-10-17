@@ -7,7 +7,7 @@ import { parseWidgetOptions } from './widgetOptions';
 import { isZoom, MAX_ZOOM, MIN_ZOOM } from './zoom';
 import { BASE_GRID_COLS, BASE_GRID_ROWS, GRID_SCALES, gridScale } from './layoutGrid';
 
-export const DISPLAY_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'week-number', 'battery', 'ai-usage', 'status'] as const;
+export const DISPLAY_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'family-meals', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'week-number', 'battery', 'ai-usage', 'status'] as const;
 
 export class LayoutValidationError extends Error {
   constructor(message: string) {

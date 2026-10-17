@@ -20,6 +20,7 @@ import { energyView } from './widgetOptions';
 import { renderWeekNumberWidget } from './weekNumber';
 import { renderBatteryWidget, compactBatteryWidth, drawCompactBattery } from './batteryRenderer';
 import { renderAiUsageWidget } from './aiUsageRenderer';
+import { renderFamilyMealsWidget } from './familyMealsRenderer';
 import { chooseZoom, fitZoom } from './zoom';
 import { BASE_GRID_COLS, BASE_GRID_ROWS } from './layoutGrid';
 import { isDarkAt } from './sunTimes';
@@ -665,6 +666,9 @@ function populateCanvas(
         case 'zaptec':  renderZaptecWidget(target, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined, language); break;
         case 'notion':  renderNotionWidget(target, bounds, data.notion, data.notionError, language); break;
         case 'calendar': renderCalendarWidget(target, bounds, { data: data.calendar }, widget.options, language); break;
+        case 'family-meals': renderFamilyMealsWidget(target, bounds, data.familyMeals, data.familyMealsError, {
+          view: widget.options?.view === 'condensed' ? 'condensed' : 'full', language,
+        }); break;
         case 'week-number': renderWeekNumberWidget(target, bounds, new Date(), preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE, language); break;
         case 'battery': renderBatteryWidget(target, bounds, data.battery); break;
         case 'ai-usage': renderAiUsageWidget(target, bounds, data.aiUsage, {
