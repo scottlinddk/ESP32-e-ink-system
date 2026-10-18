@@ -52,6 +52,31 @@ describe('parseFamilyMealsWeek', () => {
   });
 });
 
+describe('optional recipe details', () => {
+  const withDay = (overrides: Record<string, unknown>) => week({ days: Array.from({ length: 7 }, (_, weekday) => day(weekday, weekday === 2 ? overrides : {})) });
+  it('are absent from a day that does not send them, so today\'s answers parse unchanged', () => {
+    const parsed = parseFamilyMealsWeek(week());
+    expect(parsed.days.every((d) => !('ingredients' in d) && !('tags' in d))).toBe(true);
+  });
+  it('keep ingredient lines and tags, cleaned and bounded', () => {
+    const lines = Array.from({ length: 30 }, (_, i) => `ingredient ${i}`);
+    const parsed = parseFamilyMealsWeek(withDay({ ingredients: [' flour\n272 g ', 'x'.repeat(200), ' '], tags: ['vegetarian', 'y'.repeat(60)] }));
+    expect(parsed.days[2]!.ingredients).toEqual(['flour 272 g', 'x'.repeat(80)]);
+    expect(parsed.days[2]!.tags).toEqual(['vegetarian', 'y'.repeat(24)]);
+    expect(parseFamilyMealsWeek(withDay({ ingredients: lines })).days[2]!.ingredients).toHaveLength(30);
+  });
+  it('treat null or only blank lines as absent', () => {
+    expect(parseFamilyMealsWeek(withDay({ ingredients: null, tags: [' ', ''] })).days[2]).not.toHaveProperty('ingredients');
+    expect(parseFamilyMealsWeek(withDay({ tags: [' ', ''] })).days[2]).not.toHaveProperty('tags');
+  });
+  it.each([
+    ['ingredients', 'flour'], ['ingredients', [1]], ['ingredients', Array.from({ length: 31 }, () => 'x')],
+    ['tags', { a: 1 }], ['tags', [null]], ['tags', Array.from({ length: 9 }, () => 'x')],
+  ])('reject %s of %j as invalid data', (field, value) => {
+    expect(() => parseFamilyMealsWeek(withDay({ [field]: value }))).toThrow(FamilyMealsSourceError);
+  });
+});
+
 describe('fetchFamilyMealsWeek', () => {
   it('sends the token only to the saved origin, never following redirects, and returns the week', async () => {
     reply(week());

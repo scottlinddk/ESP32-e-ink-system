@@ -60,6 +60,7 @@ export interface DisplayStrings {
   };
   familyMeals: {
     title: string; tonight: string; leftovers: string; nothingPlanned: string; noPlan: string; unavailable: string;
+    today: string; comingDays: string; dinner: string; ingredients: string; noMoreDays: string; minutes: string;
     errors: Record<FamilyMealsSourceErrorCode, string>;
   };
   calendar: {
@@ -154,6 +155,7 @@ const en: DisplayStrings = {
   },
   familyMeals: {
     title: 'Meals', tonight: 'Tonight', leftovers: 'Leftovers', nothingPlanned: 'No dinner', noPlan: 'No meal plan', unavailable: 'Meals: unavailable',
+    today: 'Today', comingDays: 'Coming days', dinner: 'DINNER', ingredients: 'Ingredients', noMoreDays: 'Nothing more this week', minutes: 'min',
     errors: {
       not_configured: 'Meals: add API key', invalid_configuration: 'Check Meals setup', invalid_token: 'Check Meals key',
       invalid_response: 'Meals: invalid data', timeout: 'Meals: timed out', unavailable: 'Meals: unavailable',
@@ -249,6 +251,7 @@ const da: DisplayStrings = {
   },
   familyMeals: {
     title: 'Madplan', tonight: 'I aften', leftovers: 'Rester', nothingPlanned: 'Ingen middag', noPlan: 'Ingen madplan', unavailable: 'Madplan: ikke tilgængelig',
+    today: 'I dag', comingDays: 'Kommende dage', dinner: 'AFTENSMAD', ingredients: 'Ingredienser', noMoreDays: 'Ikke mere denne uge', minutes: 'min',
     errors: {
       not_configured: 'Madplan: tilføj nøgle', invalid_configuration: 'Tjek Madplan-opsætning', invalid_token: 'Tjek Madplan-nøgle',
       invalid_response: 'Madplan: ugyldige data', timeout: 'Madplan: timeout', unavailable: 'Madplan: ikke tilgængelig',

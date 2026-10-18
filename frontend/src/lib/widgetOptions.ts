@@ -1,4 +1,4 @@
-import type { CalendarView, DisplayLayout, WeatherView, WidgetOptions } from '../types';
+import type { CalendarView, DisplayLayout, FamilyMealsView, WeatherView, WidgetOptions } from '../types';
 import { newsFeedIdFromWidget } from './newsFeeds';
 import { calendarIdFromWidget } from './calendarWidgets';
 import { tickerIdFromWidget } from './tickerWidgets';
@@ -12,6 +12,13 @@ export const MIN_CALENDAR_DAYS = 2;
 export const MAX_CALENDAR_DAYS = 7;
 export const CALENDAR_VIEWS: readonly CalendarView[] = ['list', 'day', 'days', 'month'];
 export const WEATHER_VIEWS: readonly WeatherView[] = ['summary', 'current', 'hours', 'daily', 'details'];
+
+export const FAMILY_MEALS_VIEWS: readonly FamilyMealsView[] = ['full', 'condensed', 'upcoming', 'planner', 'recipe'];
+
+/** The saved view when the meal plan draws it; anything else, including no view, is the week. */
+export function familyMealsView(view: string | undefined): FamilyMealsView {
+  return (FAMILY_MEALS_VIEWS as readonly string[]).includes(view ?? '') ? view as FamilyMealsView : 'full';
+}
 
 export type WidgetOptionKind = 'energy' | 'weather' | 'list' | 'calendar' | 'ticker' | 'ai-usage' | 'family-meals' | 'status';
 

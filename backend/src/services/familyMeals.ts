@@ -26,6 +26,9 @@ const KINDS: readonly FamilyMealsDay['kind'][] = ['dinner', 'leftover', 'empty',
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^\d{2}:\d{2}$/;
 
+const MAX_INGREDIENTS = 30;
+const MAX_TAGS = 8;
+
 function invalid(): never { throw new FamilyMealsSourceError('invalid_response'); }
 
 /** Text is drawn with a bitmap font, so control characters are dropped and the length bounded. */
@@ -33,6 +36,14 @@ function text(value: unknown, limit: number): string | null {
   if (value === null) return null;
   if (typeof value !== 'string') return invalid();
   return value.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, limit) || null;
+}
+
+/** An optional list of short lines: absent is fine, a list of anything but text is not. */
+function lines(value: unknown, count: number, limit: number): string[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.length > count) return invalid();
+  const kept = value.map((line) => (typeof line === 'string' ? text(line, limit) : invalid())).filter((line): line is string => line !== null);
+  return kept.length ? kept : undefined;
 }
 
 function wholeNumber(value: unknown, min: number, max: number): number {
@@ -56,12 +67,15 @@ export function parseFamilyMealsWeek(json: unknown): FamilyMealsData {
     if (typeof day.kind !== 'string' || !KINDS.includes(day.kind as FamilyMealsDay['kind'])) return invalid();
     const weekday = wholeNumber(day.weekday, 0, 6);
     if (weekday !== index) return invalid();
+    const ingredients = lines(day.ingredients, MAX_INGREDIENTS, 80);
+    const tags = lines(day.tags, MAX_TAGS, 24);
     const dinnerTime = text(day.dinnerTime, 5);
     if (dinnerTime !== null && !TIME.test(dinnerTime)) return invalid();
     return {
       date: isoDate(day.date), weekday, kind: day.kind as FamilyMealsDay['kind'],
       title: text(day.title, 120), note: text(day.note, 80), dinnerTime,
       totalTimeMinutes: day.totalTimeMinutes === null ? null : wholeNumber(day.totalTimeMinutes, 0, 24 * 60),
+      ...(ingredients && { ingredients }), ...(tags && { tags }),
     };
   });
   return {

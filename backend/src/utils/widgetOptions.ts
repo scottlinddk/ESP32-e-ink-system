@@ -13,8 +13,9 @@ export const ENERGY_VIEWS = ['summary', 'day', 'rest'] as const;
 export type EnergyView = typeof ENERGY_VIEWS[number];
 export const TICKER_VIEWS = ['full', 'condensed'] as const;
 export const AI_USAGE_VIEWS = TICKER_VIEWS;
-/** `full` is the week's dinners, `condensed` tonight's dinner alone. */
-export const FAMILY_MEALS_VIEWS = TICKER_VIEWS;
+/** `full` is the week's dinners, `condensed` tonight's dinner alone, `upcoming` today beside the coming days, `planner` a card per day and `recipe` tonight's recipe. */
+export const FAMILY_MEALS_VIEWS = ['full', 'condensed', 'upcoming', 'planner', 'recipe'] as const;
+export type FamilyMealsView = typeof FAMILY_MEALS_VIEWS[number];
 /** `condensed` shows the time alone, for a status bar made small. */
 export const STATUS_VIEWS = TICKER_VIEWS;
 /** `list` is the agenda grouped by day, `day` one day by the hour, `days` several side by side, `month` a month grid. */
@@ -127,6 +128,11 @@ export function calendarView(options?: WidgetOptions): CalendarView {
 
 export function weatherView(options?: WidgetOptions): WeatherView {
   return (WEATHER_VIEWS as readonly string[]).includes(options?.view ?? '') ? options!.view as WeatherView : 'summary';
+}
+
+/** The saved view when it is one the meal plan draws; anything else is the week. */
+export function familyMealsView(view?: WidgetOptions['view']): FamilyMealsView {
+  return (FAMILY_MEALS_VIEWS as readonly string[]).includes(view ?? '') ? view as FamilyMealsView : 'full';
 }
 
 export function energyView(options?: WidgetOptions): EnergyView {

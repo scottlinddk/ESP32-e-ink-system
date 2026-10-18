@@ -16,7 +16,7 @@ import { storedTickerWidgets, tickerIdFromWidget } from './tickerWidgets';
 import { renderTicker, renderTickerUnavailable, type TickerResult } from '../ticker';
 import type { RenderedWidget } from '../ticker/render';
 import { renderEnergyChart } from './energyChart';
-import { energyView } from './widgetOptions';
+import { energyView, familyMealsView } from './widgetOptions';
 import { renderWeekNumberWidget } from './weekNumber';
 import { renderBatteryWidget, compactBatteryWidth, drawCompactBattery } from './batteryRenderer';
 import { renderAiUsageWidget } from './aiUsageRenderer';
@@ -667,7 +667,7 @@ function populateCanvas(
         case 'notion':  renderNotionWidget(target, bounds, data.notion, data.notionError, language); break;
         case 'calendar': renderCalendarWidget(target, bounds, { data: data.calendar }, widget.options, language); break;
         case 'family-meals': renderFamilyMealsWidget(target, bounds, data.familyMeals, data.familyMealsError, {
-          view: widget.options?.view === 'condensed' ? 'condensed' : 'full', language,
+          view: familyMealsView(widget.options?.view), language,
         }); break;
         case 'week-number': renderWeekNumberWidget(target, bounds, new Date(), preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE, language); break;
         case 'battery': renderBatteryWidget(target, bounds, data.battery); break;

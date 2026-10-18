@@ -3,7 +3,7 @@
 // =========================================================================
 import React from 'react';
 import type { CalendarView, EnergyView, TickerView, TickerWidgetSetting, WeatherView, WidgetLayout, WidgetOptions } from '../../types';
-import { MAX_CALENDAR_DAYS, MAX_NEWS_COLUMNS, MAX_WIDGET_ITEMS, MIN_CALENDAR_DAYS, widgetAcceptsZoom, widgetOptionKind } from '../../lib/widgetOptions';
+import { familyMealsView, MAX_CALENDAR_DAYS, MAX_NEWS_COLUMNS, MAX_WIDGET_ITEMS, MIN_CALENDAR_DAYS, widgetAcceptsZoom, widgetOptionKind } from '../../lib/widgetOptions';
 import { MAX_ZOOM, MIN_ZOOM, WIDGET_ZOOM_STEP, snapWidgetZoom, zoomLabel } from '../../lib/zoom';
 import { Card } from '../ui/card';
 import { Field } from '../ui/Field';
@@ -211,13 +211,16 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
 
         {kind === 'family-meals' && (
           <Field label={da ? 'Visning' : 'View'} htmlFor={`${fieldId}-view`}
-            helper={da ? 'En lav widget viser de kommende dage i stedet for hele ugen.' : 'A short widget shows the days from today instead of the whole week.'}>
-            <Select id={`${fieldId}-view`} value={widget.options?.view === 'condensed' ? 'condensed' : 'full'}
+            helper={da ? 'En lav widget viser de kommende dage i stedet for hele ugen. Opskriften viser ingredienser, når Family Meals sender dem.' : 'A short widget shows the days from today instead of the whole week. The recipe shows ingredients once Family Meals sends them.'}>
+            <Select id={`${fieldId}-view`} value={familyMealsView(widget.options?.view)}
               options={[
                 { value: 'full', label: da ? 'Ugen: alle ugens aftensmåltider' : 'Week: every dinner of the week' },
                 { value: 'condensed', label: da ? 'I aften: kun dagens ret' : 'Tonight: today’s dinner alone' },
+                { value: 'upcoming', label: da ? 'I dag og kommende dage: dagens ret ved siden af resten af ugen' : 'Today and coming days: tonight beside the rest of the week' },
+                { value: 'planner', label: da ? 'Planlægger: et kort pr. dag' : 'Planner: a card per day' },
+                { value: 'recipe', label: da ? 'Opskrift: dagens ret med tid og tags' : 'Recipe: tonight’s dish with its time and tags' },
               ]}
-              onChange={(e) => onChange({ view: e.target.value === 'condensed' ? 'condensed' : undefined })} />
+              onChange={(e) => onChange({ view: e.target.value === 'full' ? undefined : familyMealsView(e.target.value) })} />
           </Field>
         )}
 
