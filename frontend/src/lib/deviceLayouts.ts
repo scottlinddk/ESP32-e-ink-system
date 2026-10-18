@@ -15,7 +15,8 @@ export function deviceLayoutChange(preferences: UserPreferences, action: LayoutA
   if (action.type === 'select') return { active_layout_id: action.id, display_schedule: { ...schedule, enabled: false } };
   if (action.type === 'remove') {
     const pages = schedule.pages.filter((page) => page.id !== action.id);
-    return { display_schedule: { ...schedule, pages, enabled: schedule.enabled && pages.length > 0 },
+    const timed = schedule.timed_layouts?.filter((rule) => rule.layout_id !== action.id);
+    return { display_schedule: { ...schedule, pages, enabled: schedule.enabled && pages.length > 0, timed_layouts: timed?.length ? timed : undefined },
       ...(preferences.active_layout_id === action.id ? { active_layout_id: pages[0]?.id ?? null } : {}) };
   }
   const name = action.name.trim();

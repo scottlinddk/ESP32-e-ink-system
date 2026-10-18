@@ -14,6 +14,7 @@ import { ScheduleCard } from '../components/dashboard/ScheduleCard';
 import { CustomContentCard } from '../components/dashboard/CustomContentCard';
 import { DeviceLayoutsCard } from '../components/dashboard/DeviceLayoutsCard';
 import { DeviceSlideshowCard } from '../components/dashboard/DeviceSlideshowCard';
+import { DeviceTimedLayoutsCard } from '../components/dashboard/DeviceTimedLayoutsCard';
 import { DisplayProfileCard } from '../components/dashboard/DisplayProfileCard';
 import { DisplayTimezoneCard } from '../components/dashboard/DisplayTimezoneCard';
 import { DisplayLanguageCard } from '../components/dashboard/DisplayLanguageCard';
@@ -133,6 +134,7 @@ function DeviceWorkspace({ device }: { device: Device }) {
     { id: 'overview', icon: 'dashboard', label: da ? 'Overblik' : 'Overview' },
     { id: 'layouts', icon: 'grid_view', label: da ? 'Gemte layouts' : 'Saved layouts' },
     { id: 'slideshow', icon: 'slideshow', label: 'Slideshow' },
+    { id: 'timed', icon: 'schedule', label: da ? 'Tidsstyring' : 'Timed layouts' },
     { id: 'settings', icon: 'tune', label: da ? 'Skærmindstillinger' : 'Display settings' },
   ];
 
@@ -182,6 +184,7 @@ function DeviceWorkspace({ device }: { device: Device }) {
       </div>
       <div id="workspace-layouts" hidden={view !== 'layouts'}><DeviceLayoutsCard deviceId={deviceId} /></div>
       <div id="workspace-slideshow" hidden={view !== 'slideshow'}><DeviceSlideshowCard deviceId={deviceId} /></div>
+      <div id="workspace-timed" hidden={view !== 'timed'}><DeviceTimedLayoutsCard deviceId={deviceId} /></div>
       <div id="workspace-settings" hidden={view !== 'settings'}>
         <div className="dashboard-settings-grid"><DisplayRefreshIntervalCard deviceId={deviceId} /><DisplayTimezoneCard deviceId={deviceId} /><DisplayLanguageCard deviceId={deviceId} /><DisplayProfileCard deviceId={deviceId} /></div>
         <p className="dashboard-scope-note">{da ? 'Indstillingerne gælder kun denne enhed. Første gang du gemmer, kopieres kontoens standardindstillinger til enheden.' : 'Settings apply only to this device. Your first save copies the account defaults to this device.'}</p>

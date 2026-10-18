@@ -39,7 +39,7 @@ function setPreviewHeaders(res: Response, prefs: UserPreferences, data: DisplayD
   res.set({
     'X-Preview-Device-ID': deviceId ?? '',
     'X-Preview-Layout-ID': layoutId,
-    'X-Preview-Mode': draft ? 'draft' : page ? 'page' : data.schedule ? 'slideshow' : 'single',
+    'X-Preview-Mode': draft ? 'draft' : page ? 'page' : data.schedule?.timed ? 'timed' : data.schedule ? 'slideshow' : 'single',
     // HTTP headers cannot contain raw Unicode/newlines. UTF-8 also replaces any
     // unpaired surrogate in a saved name before URI encoding can throw on it.
     'X-Preview-Layout-Name': encodeURIComponent(Buffer.from(name, 'utf8').toString('utf8')),

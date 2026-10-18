@@ -5,7 +5,7 @@ export interface PreviewMetadata {
   layoutId: string | null;
   layoutName: string;
   /** `page` is a slideshow page chosen in the dashboard, not necessarily the one scheduled now. */
-  mode: 'single' | 'slideshow' | 'page' | 'draft';
+  mode: 'single' | 'slideshow' | 'timed' | 'page' | 'draft';
   renderedAt: string;
   quiet: boolean;
   nextTransition: string | null;
@@ -24,12 +24,13 @@ export function readPreviewMetadata(headers: Headers, expectedDeviceId?: string,
   const quiet = headers.get('X-Preview-Quiet');
   const renderedAt = headers.get('X-Preview-Rendered-At');
   const nextTransition = headers.get('X-Preview-Next-Transition');
+  const scheduled = mode === 'slideshow' || mode === 'timed';
   const validTime = (value: string | null) => !!value && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value) && Number.isFinite(Date.parse(value));
   if (layout === null || layout !== '' && !/^[A-Za-z0-9_-]{1,48}$/.test(layout) || encodedName === null
     || !validTime(renderedAt) || nextTransition !== null && !validTime(nextTransition)
     || !['true', 'false'].includes(quiet ?? '')
-    || !(draft ? mode === 'draft' : expectedPageId !== undefined ? mode === 'page' : mode === 'single' || mode === 'slideshow')
-    || mode === 'slideshow' && (!nextTransition || !layout) || mode !== 'slideshow' && (nextTransition !== null || quiet === 'true')) {
+    || !(draft ? mode === 'draft' : expectedPageId !== undefined ? mode === 'page' : mode === 'single' || scheduled)
+    || scheduled && (!nextTransition || !layout) || !scheduled && (nextTransition !== null || quiet === 'true')) {
     throw new Error('Invalid preview metadata.');
   }
   let layoutName: string;

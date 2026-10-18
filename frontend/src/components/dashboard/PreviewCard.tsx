@@ -122,6 +122,7 @@ function DevicePreview({ deviceId, deviceName, hardwareId, expectedDeviceName }:
   // Stepping from the live view starts at the page the schedule shows now.
   const stepFrom = pageId ?? (metadata?.mode === 'slideshow' ? metadata.layoutId : null);
   const modeLabel = metadata?.mode === 'slideshow' ? 'Slideshow'
+    : metadata?.mode === 'timed' ? (da ? 'Tidsstyret layout' : 'Timed layout')
     : metadata?.mode === 'page' ? (da ? 'Valgt slideshow-side' : 'Chosen slideshow page')
     : (da ? 'Fast layout' : 'Single layout');
 
