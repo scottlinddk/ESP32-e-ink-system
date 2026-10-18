@@ -11,6 +11,17 @@ const feed = (...events: string[]) => `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//T
 const parse = (text: string) => parseCalendar(text, options, now);
 
 describe('bounded ICS agenda', () => {
+  it('carries the description on one line, shortened, and leaves it out when empty', async () => {
+    const long = 'x'.repeat(300);
+    const result = await parse(feed(
+      event('DTSTART:20260328T100000Z\nDTEND:20260328T110000Z\nSUMMARY:Run\nDESCRIPTION:Quick jog\\nto start\\, the day', 'one'),
+      event(`DTSTART:20260328T120000Z\nDTEND:20260328T130000Z\nSUMMARY:Long\nDESCRIPTION:${long}`, 'two'),
+      event('DTSTART:20260328T140000Z\nDTEND:20260328T150000Z\nSUMMARY:None', 'three'),
+    ));
+    expect(result.events[0].description).toBe('Quick jog to start, the day');
+    expect(result.events[1].description).toHaveLength(200);
+    expect(result.events[2]).not.toHaveProperty('description');
+  });
   it('converts UTC and floating times to the selected timezone, unfolds and unescapes text', async () => {
     const result = await parse(feed(event('DTSTART:20260328T100000Z\nDTEND:20260328T110000Z\nSUMMARY:Meet\\, Sam and\n  Alex'), event('DTSTART:20260328T140000\nSUMMARY:Floating', 'two')));
     expect(result.events).toHaveLength(2);

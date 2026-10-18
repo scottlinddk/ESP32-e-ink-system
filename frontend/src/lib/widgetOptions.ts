@@ -10,6 +10,8 @@ export const MAX_WIDGET_ITEMS = 10;
 export const MAX_NEWS_COLUMNS = 4;
 export const MIN_CALENDAR_DAYS = 2;
 export const MAX_CALENDAR_DAYS = 7;
+/** Calendar on/off options. Off is not stored. */
+export const CALENDAR_FLAGS = ['descriptions', 'pills', 'clock12', 'footer'] as const;
 export const CALENDAR_VIEWS: readonly CalendarView[] = ['list', 'day', 'days', 'month'];
 export const WEATHER_VIEWS: readonly WeatherView[] = ['summary', 'current', 'hours', 'daily', 'details'];
 

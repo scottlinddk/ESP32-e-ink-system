@@ -31,6 +31,8 @@ function countOptions(autoLabel: string) {
     ...Array.from({ length: MAX_WIDGET_ITEMS }, (_, index) => ({ value: String(index + 1), label: String(index + 1) }))];
 }
 
+const onOff = (da: boolean) => [{ value: 'off', label: da ? 'Fra' : 'Off' }, { value: 'on', label: da ? 'Til' : 'On' }];
+
 const parseCount = (value: string) => (value === AUTO ? undefined : Number(value));
 
 function dayCountOptions(autoLabel: string) {
@@ -107,7 +109,7 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
             list: da ? 'Kommende aftaler, samlet under en overskrift for hver dag.' : 'Upcoming events, grouped under a heading for each day.',
             day: da ? 'Ét døgn time for time, med aftalerne som blokke. Vises fra en time før nu.' : 'One day hour by hour, with the events as blocks. Starts an hour before now.',
             days: da ? 'Flere dage side om side, time for time. Vises fra en time før nu.' : 'Several days side by side, hour by hour. Starts an hour before now.',
-            month: da ? 'Den aktuelle måned som et gitter. En prik pr. aftale på en dag, op til tre.' : 'The current month as a grid. One dot per event on a day, up to three.',
+            month: da ? 'Den aktuelle måned som et gitter. Aftalerne står i felterne med starttid, eller som op til tre prikker i små felter.' : 'The current month as a grid. Events are listed in the cells with their start time, or as up to three dots in small cells.',
           };
           return (
             <>
@@ -123,6 +125,20 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
                   onChange={(e) => onChange({ view: e.target.value === 'list' ? undefined : e.target.value as CalendarView })} />
               </Field>
               {view === 'list' && (
+                <>
+                  <Field label={da ? 'Beskrivelser' : 'Descriptions'} htmlFor={`${fieldId}-descriptions`}
+                    helper={da ? 'Vis aftalens beskrivelse under titlen (højst to linjer). Kræver at widgetten er høj nok til kort.' : 'Show the event description under its title (up to two lines). Needs a widget tall enough for cards.'}>
+                    <Select id={`${fieldId}-descriptions`} value={widget.options?.descriptions ? 'on' : 'off'} options={onOff(da)}
+                      onChange={(e) => onChange({ descriptions: e.target.value === 'on' ? true : undefined })} />
+                  </Field>
+                  <Field label={da ? 'Tid som sort felt' : 'Times as pills'} htmlFor={`${fieldId}-pills`}
+                    helper={da ? 'Tegn tidspunktet hvidt på sort, som en pille.' : 'Draw the time white on black, as a pill.'}>
+                    <Select id={`${fieldId}-pills`} value={widget.options?.pills ? 'on' : 'off'} options={onOff(da)}
+                      onChange={(e) => onChange({ pills: e.target.value === 'on' ? true : undefined })} />
+                  </Field>
+                </>
+              )}
+              {view === 'list' && (
                 <Field label={da ? 'Antal begivenheder' : 'Number of events'} htmlFor={`${fieldId}-items`}
                   helper={da ? 'Højst så mange som hentes og kan være i widgetten.' : 'At most as many as are fetched and fit in the widget.'}>
                   <Select id={`${fieldId}-items`} value={items} options={countOptions(da ? 'Så mange som muligt' : 'As many as fit')}
@@ -137,6 +153,17 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
                     onChange={(e) => onChange({ days: parseCount(e.target.value) })} />
                 </Field>
               )}
+              <Field label={da ? 'Ur' : 'Clock'} htmlFor={`${fieldId}-clock`}
+                helper={da ? 'Skriv tidspunkter som 10:30 AM i stedet for 10:30.' : 'Write times as 10:30 AM instead of 10:30.'}>
+                <Select id={`${fieldId}-clock`} value={widget.options?.clock12 ? '12' : '24'}
+                  options={[{ value: '24', label: da ? '24 timer' : '24-hour' }, { value: '12', label: da ? '12 timer (AM/PM)' : '12-hour (AM/PM)' }]}
+                  onChange={(e) => onChange({ clock12: e.target.value === '12' ? true : undefined })} />
+              </Field>
+              <Field label={da ? 'Bundlinje' : 'Footer'} htmlFor={`${fieldId}-footer`}
+                helper={da ? 'En bjælke nederst med titlen og kalenderens navn. Vises ikke i en lav widget.' : 'A bar at the bottom with the title and the calendar name. Not shown in a short widget.'}>
+                <Select id={`${fieldId}-footer`} value={widget.options?.footer ? 'on' : 'off'} options={onOff(da)}
+                  onChange={(e) => onChange({ footer: e.target.value === 'on' ? true : undefined })} />
+              </Field>
             </>
           );
         })()}

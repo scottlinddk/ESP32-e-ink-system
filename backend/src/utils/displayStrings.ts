@@ -64,6 +64,8 @@ export interface DisplayStrings {
   };
   calendar: {
     none: string; unavailable: string; allDay: string; today: string; tomorrow: string;
+    /** The footer bar's title. */
+    upcoming: string;
     more: (count: number) => string;
     /** Full month names, January first, for the month view's title. */
     months: readonly string[];
@@ -160,7 +162,7 @@ const en: DisplayStrings = {
     },
   },
   calendar: {
-    none: 'No upcoming events', unavailable: 'Calendar: unavailable', allDay: 'All day', today: 'Today', tomorrow: 'Tomorrow',
+    none: 'No upcoming events', unavailable: 'Calendar: unavailable', allDay: 'All day', today: 'Today', tomorrow: 'Tomorrow', upcoming: 'Upcoming Events',
     more: (count) => `+${count} more`,
     months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
     errors: { not_configured: 'Calendar: add URL', unavailable: 'Calendar: unavailable', timeout: 'Calendar: timed out' },
@@ -255,7 +257,7 @@ const da: DisplayStrings = {
     },
   },
   calendar: {
-    none: 'Ingen kommende aftaler', unavailable: 'Kalender: ikke tilgængelig', allDay: 'Hele dagen', today: 'I dag', tomorrow: 'I morgen',
+    none: 'Ingen kommende aftaler', unavailable: 'Kalender: ikke tilgængelig', allDay: 'Hele dagen', today: 'I dag', tomorrow: 'I morgen', upcoming: 'Kommende aftaler',
     more: (count) => `+${count} mere`,
     months: ['januar', 'februar', 'marts', 'april', 'maj', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'december'],
     errors: { not_configured: 'Kalender: tilføj adresse', unavailable: 'Kalender: ikke tilgængelig', timeout: 'Kalender: timeout' },

@@ -19,6 +19,11 @@ function layout(...widgets: WidgetLayout[]): DisplayLayout {
 }
 
 describe('widget options validation', () => {
+  it('keeps the calendar flags that are on and drops those that are off', () => {
+    expect(parseWidgetOptions('calendar', { descriptions: true, pills: true, clock12: true, footer: true })).toEqual({ descriptions: true, pills: true, clock12: true, footer: true });
+    expect(parseWidgetOptions('calendar:work', { view: 'month', footer: false, pills: false })).toEqual({ view: 'month' });
+    expect(parseWidgetOptions('calendar', { footer: false })).toBeUndefined();
+  });
   it('knows which widgets accept options', () => {
     expect(widgetOptionKind('energy')).toBe('energy');
     expect(widgetOptionKind('weather')).toBe('weather');
@@ -59,6 +64,10 @@ describe('widget options validation', () => {
     ['calendar', { columns: 2 }],
     ['energy', { columns: 2 }],
     ['calendar', { items: 2.5 }],
+    ['calendar', { pills: 'yes' }],
+    ['calendar', { footer: 1 }],
+    ['news', { footer: true }],
+    ['energy', { clock12: true }],
     ['ticker:abc', { view: 'rest' }],
     ['status', { view: 'day' }],
     ['energy', { view: 'day', extra: true }],

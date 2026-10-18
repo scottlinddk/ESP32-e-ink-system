@@ -34,6 +34,8 @@ export const MAX_WIDGET_ITEMS = 10;
 export const MAX_NEWS_COLUMNS = 4;
 export const MIN_CALENDAR_DAYS = 2;
 export const MAX_CALENDAR_DAYS = 7;
+/** Calendar on/off options: event descriptions, times in pills, the 12-hour clock and the footer bar. */
+export const CALENDAR_FLAGS = ['descriptions', 'pills', 'clock12', 'footer'] as const;
 
 export type WidgetOptionKind = 'energy' | 'weather' | 'list' | 'calendar' | 'ticker' | 'ai-usage' | 'family-meals' | 'status';
 
@@ -54,7 +56,7 @@ const ALLOWED_KEYS: Record<WidgetOptionKind, readonly string[]> = {
   energy: ['view'],
   weather: ['view', 'items'],
   list: ['items', 'columns', 'weight'],
-  calendar: ['view', 'items', 'days'],
+  calendar: ['view', 'items', 'days', 'descriptions', 'pills', 'clock12', 'footer'],
   ticker: ['view', 'items'],
   'ai-usage': ['view'],
   'family-meals': ['view'],
@@ -117,6 +119,13 @@ export function parseWidgetOptions(widgetId: string, value: unknown): WidgetOpti
       throw new Error(`Calendar days must be a whole number from ${MIN_CALENDAR_DAYS} to ${MAX_CALENDAR_DAYS}.`);
     }
     options.days = value.days;
+  }
+  for (const key of CALENDAR_FLAGS) {
+    const flag = value[key];
+    if (flag === undefined) continue;
+    if (typeof flag !== 'boolean') throw new Error(`Calendar ${key} must be true or false.`);
+    // Off is what an unset flag draws, so it is never stored.
+    if (flag) options[key] = true;
   }
   return Object.keys(options).length ? options : undefined;
 }

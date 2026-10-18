@@ -195,6 +195,26 @@ describe('calendar options panel', () => {
     for (const days of [2, 3, 4, 5, 6, 7]) expect(chosen).toContain(`<option value="${days}"`);
     expect(chosen).not.toContain('<option value="8"');
   });
+  it('offers descriptions and pills for the list view only, and the clock and footer for every view', () => {
+    const list = panel(calendar());
+    for (const text of ['Descriptions', 'Times as pills', 'Clock', 'Footer']) expect(list).toContain(text);
+    const month = panel(calendar({ view: 'month' }));
+    expect(month).not.toContain('Descriptions');
+    expect(month).not.toContain('Times as pills');
+    for (const text of ['Clock', 'Footer']) expect(month).toContain(text);
+  });
+  it('shows the saved flags as chosen, in Danish too', () => {
+    const html = panel(calendar({ pills: true, clock12: true, footer: true }));
+    expect(html).toMatch(/<option value="12" selected/);
+    expect(html).toMatch(/id="[^"]*-pills"[^>]*>\s*<option value="off">Off<\/option><option value="on" selected/);
+    const da = panel(calendar({ footer: true }), 'da');
+    for (const text of ['Beskrivelser', 'Tid som sort felt', '12 timer (AM/PM)', 'Bundlinje']) expect(da).toContain(text);
+  });
+  it('sets a flag and drops it again when it is switched off', () => {
+    const on = updateWidgetOptions({ ...layout, widgets: [calendar()] }, 'calendar', { footer: true });
+    expect(on.widgets[0].options).toEqual({ footer: true });
+    expect(updateWidgetOptions(on, 'calendar', { footer: undefined }).widgets[0]).not.toHaveProperty('options');
+  });
   it('selects the saved view', () => {
     expect(panel(calendar({ view: 'month' }))).toMatch(/<option value="month" selected/);
     expect(panel(calendar({ view: 'days' }))).toMatch(/<option value="days" selected/);
