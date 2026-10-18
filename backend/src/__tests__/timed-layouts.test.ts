@@ -119,17 +119,29 @@ describe('resolving a timed layout', () => {
     expect(resumed).toEqual(untouched);
   });
 
-  it('lets quiet hours hold the slideshow page, then lets a still-open window through', () => {
+  it('overrules quiet hours: a window wakes the display, and quiet hours return afterwards', () => {
     const quiet = { enabled: true, start: '22:00', end: '07:00' };
     const slideshow = (timed: TimedLayout[]) => prefsFor(schedule(timed, { enabled: true, pages: [pages[0], pages[1], pages[3]], quiet_hours: quiet }));
-    // A window opening in the middle of the night does not wake the display.
-    const night = resolveDisplaySchedule(slideshow([rule('r1', 'agenda', '03:00', 3600)]), at('2026-05-01T03:30:00Z'));
-    expect(night.schedule?.quiet).toBe(true);
-    expect(night.schedule?.timed).toBeUndefined();
-    expect(night.schedule?.nextTransitionAt).toBe('2026-05-01T07:00:00.000Z');
-    // One that opens before quiet hours end is still showing when they do.
-    const awake = resolveDisplaySchedule(slideshow([rule('r1', 'agenda', '06:30', 3600)]), at('2026-05-01T07:00:00Z'));
-    expect(awake.schedule).toMatchObject({ pageId: 'agenda', quiet: false, timed: true, nextTransitionAt: '2026-05-01T07:30:00.000Z' });
+    const rules = [rule('r1', 'agenda', '03:00', 3600)];
+    // Before the window the display sleeps, but is told to wake when the window opens.
+    const before = resolveDisplaySchedule(slideshow(rules), at('2026-05-01T02:30:00Z'));
+    expect(before.schedule?.quiet).toBe(true);
+    expect(before.schedule?.nextTransitionAt).toBe('2026-05-01T03:00:00.000Z');
+    expect(before.nextRefresh).toBe(30 * 60_000);
+    // During it the timed layout is shown and the display is not quiet.
+    const during = resolveDisplaySchedule(slideshow(rules), at('2026-05-01T03:30:00Z'));
+    expect(during.schedule).toMatchObject({ pageId: 'agenda', quiet: false, timed: true, nextTransitionAt: '2026-05-01T04:00:00.000Z' });
+    expect(during.layout).toEqual(pages[3].layout);
+    // Afterwards it is quiet again and sleeps until quiet hours end.
+    const after = resolveDisplaySchedule(slideshow(rules), at('2026-05-01T04:00:00Z'));
+    expect(after.schedule).toMatchObject({ quiet: true, nextTransitionAt: '2026-05-01T07:00:00.000Z' });
+  });
+
+  it('keeps a window that opens before quiet hours end showing until its own end', () => {
+    const quiet = { enabled: true, start: '22:00', end: '07:00' };
+    const prefs = prefsFor(schedule([rule('r1', 'agenda', '06:30', 3600)], { enabled: true, pages: [pages[0], pages[1], pages[3]], quiet_hours: quiet }));
+    expect(resolveDisplaySchedule(prefs, at('2026-05-01T06:45:00Z')).schedule).toMatchObject({ pageId: 'agenda', quiet: false, timed: true });
+    expect(resolveDisplaySchedule(prefs, at('2026-05-01T07:00:00Z')).schedule).toMatchObject({ pageId: 'agenda', quiet: false, timed: true, nextTransitionAt: '2026-05-01T07:30:00.000Z' });
   });
 
   it('ignores quiet hours for a single layout', () => {

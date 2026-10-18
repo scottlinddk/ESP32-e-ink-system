@@ -71,8 +71,8 @@ export function DeviceTimedLayoutsCard({ deviceId }: { deviceId: string }) {
     <form onSubmit={(event) => void persist(event)} className="grid gap-3">
       <fieldset disabled={disabled} className="border-0 p-0 m-0 grid gap-3">
         <p className="text-xs text-fg2 m-0">{da
-          ? `Tiderne følger tidszonen ${schedule.timezone}, som du vælger under Slideshow. Et tidsstyret layout gælder både i Fast layout og i Slideshow, og slideshowet fortsætter bagefter. Stille timer går forud, mens slideshowet kører.`
-          : `Times follow the ${schedule.timezone} time zone, which you choose under Slideshow. A timed layout applies in both Single layout and Slideshow, and the slideshow carries on afterwards. Quiet hours take precedence while the slideshow runs.`}</p>
+          ? `Tiderne følger tidszonen ${schedule.timezone}, som du vælger under Slideshow. Et tidsstyret layout gælder både i Fast layout og i Slideshow, og slideshowet fortsætter bagefter. Et tidsstyret layout går forud for alt andet, også stille timer.`
+          : `Times follow the ${schedule.timezone} time zone, which you choose under Slideshow. A timed layout applies in both Single layout and Slideshow, and the slideshow carries on afterwards. A timed layout overrules everything else, quiet hours included.`}</p>
         {!schedule.pages.length && <p className="text-sm m-0">{da ? 'Opret mindst ét layout under Gemte layouts for at tidsstyre det.' : 'Create at least one layout in Saved layouts to schedule it.'}</p>}
         {!rules.length && !!schedule.pages.length && <p className="text-sm m-0">{da ? 'Ingen tidsstyrede layouts endnu.' : 'No timed layouts yet.'}</p>}
         <ol className="list-none p-0 m-0 grid gap-2">

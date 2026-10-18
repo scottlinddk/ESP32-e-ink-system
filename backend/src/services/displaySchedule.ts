@@ -37,7 +37,7 @@ function quietBoundary(timestamp: number, direction: 1 | -1, isQuiet: (timestamp
 
 /**
  * UTC-anchored rotation is deterministic across processes and daylight-saving changes. A timed layout
- * overrides it (and a single layout) while its window is open; rotation then resumes where the cycle is.
+ * overrides it, a single layout and quiet hours while its window is open; rotation then resumes where the cycle is.
  */
 export function resolveDisplaySchedule(prefs: Pick<UserPreferences, 'display_schedule' | 'layout' | 'refresh_interval_minutes'>, now = new Date()): ResolvedDisplaySchedule {
   const fallback = { layout: prefs.layout ?? null, nextRefresh: prefs.refresh_interval_minutes * MINUTE };
@@ -60,7 +60,9 @@ export function resolveDisplaySchedule(prefs: Pick<UserPreferences, 'display_sch
     if (quiet) pageTime = quietBoundary(timestamp, -1, isQuiet, true);
   }
   const timedChange = nextTimedBoundary(timed, schedule.timezone, timestamp);
-  const activeRule = activeTimedLayout(timed, schedule.timezone, pageTime);
+  // A timed layout overrules everything, quiet hours included: its window wakes the display.
+  const activeRule = activeTimedLayout(timed, schedule.timezone, timestamp);
+  if (activeRule) quiet = false;
   let selected: DisplaySchedule['pages'][number] | undefined;
   let pageChange = Infinity;
   if (activeRule) {
@@ -76,7 +78,7 @@ export function resolveDisplaySchedule(prefs: Pick<UserPreferences, 'display_sch
     }
     pageChange = timestamp + selected.duration_seconds * 1000 - offset;
   }
-  const nextTransition = quiet ? quietChange : Math.min(pageChange, quietChange, timedChange);
+  const nextTransition = quiet ? Math.min(quietChange, timedChange) : Math.min(pageChange, quietChange, timedChange);
   const nextRefresh = Math.max(1, quiet ? nextTransition - timestamp : Math.min(fallback.nextRefresh, nextTransition - timestamp));
   // A single layout between timed windows reports no schedule, so it keeps drawing the saved layout.
   if (!selected) return { layout: fallback.layout, nextRefresh };
