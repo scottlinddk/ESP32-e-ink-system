@@ -16,6 +16,13 @@ There is no source switch: the widget is fetched when the layout being drawn pla
 |---|---|
 | `full` (default) | A header with the ISO week, then Monday to Sunday with the dish. Today is white on a black bar. A day left without dinner shows its note, or **No dinner**; leftovers are prefixed **Leftovers:**. |
 | `condensed` | Tonight alone: the weekday's dinner time and the dish, at double size when it fits. |
+| `upcoming` | **Today** on the left: tonight's dish (double size when its longest word fits), then the dinner time and how long it takes. **Coming days** on the right: each later day of the week with its date and dish, a dotted rule between them. A column too narrow to read a dish beside its date puts the date above it. Nothing left of the week says **Nothing more this week**. A widget under 160 px wide shows tonight alone. |
+| `planner` | A bordered card per day, two to a row (one on a narrow widget): the weekday and date, the dinner time at the right edge, and the dish. Today's card is white on black. The week's number is drawn below when there is room. A widget too short for every row shows the days from today, and one under a card high shows tonight alone. |
+| `recipe` | Tonight's dish, with black tags for the dinner time, how long it takes and **Leftovers**. When Family Meals sends ingredients and tags (see below) they appear too: tags after the others, ingredients in a list beside the dish. |
+
+These views draw only what Family Meals plans: **dinner**. The app has no breakfast, lunch or side dishes, so the planner shows one dish per day and the upcoming view has no lunch list. The recipe view has no photo or QR code: both need Family Meals to send more than its compact answer.
+
+`recipe` can show more once Family Meals adds two optional fields to each day of `/api/widget/week`: `ingredients` (up to 30 short lines, each cut at 80 characters) and `tags` (up to 8 words, each cut at 24). The widget accepts an answer without them, so nothing changes until the app sends them, and rejects an answer where they are anything but lists of text.
 
 A widget too short for the whole week drops the header, then shows the days from today onward instead of the days that have passed. When the family has not generated a plan for the week, the widget says **No meal plan**. English and Danish follow the device's display language.
 

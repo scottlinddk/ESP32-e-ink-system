@@ -13,6 +13,8 @@ export interface WidgetLayout {
 }
 
 export type EnergyView = 'summary' | 'day' | 'rest';
+/** `full` is the week, `condensed` tonight alone, `upcoming` today beside the coming days, `planner` a card per day and `recipe` tonight's recipe. */
+export type FamilyMealsView = 'full' | 'condensed' | 'upcoming' | 'planner' | 'recipe';
 /** `list` is the agenda grouped by day, `day` one day by the hour, `days` several side by side, `month` a month grid. */
 export type CalendarView = 'list' | 'day' | 'days' | 'month';
 /** `summary` is the one-line reading, `current` the big temperature, `hours` the next 3-hour steps, `daily` the days ahead, `details` a list of readings. */
@@ -20,7 +22,7 @@ export type WeatherView = 'summary' | 'current' | 'hours' | 'daily' | 'details';
 
 export interface WidgetOptions {
   /** energy: EnergyView; weather: WeatherView; calendar: CalendarView; ticker: TickerView, overriding the ticker's own view. */
-  view?: EnergyView | WeatherView | CalendarView | TickerView;
+  view?: EnergyView | WeatherView | CalendarView | TickerView | FamilyMealsView;
   /** news, calendar list view: most rows drawn; ticker: stocks per page in the condensed view; weather hours and daily: most steps or days. 1–10. */
   items?: number;
   /** news: how many columns the headlines are split into, 1–4. Unset is 1. A widget too narrow for that many shows fewer. */

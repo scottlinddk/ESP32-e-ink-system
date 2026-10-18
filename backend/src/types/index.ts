@@ -18,8 +18,8 @@ export interface WidgetLayout {
 }
 
 export interface WidgetOptions {
-  /** energy: 'summary' | 'day' | 'rest'; weather: 'summary' | 'current' | 'hours' | 'daily' | 'details'; calendar: 'list' | 'day' | 'days' | 'month'; ticker: 'full' | 'condensed' (overrides the ticker's own view); ai-usage: 'full' | 'condensed'; family-meals: 'full' (the week) | 'condensed' (tonight); status: 'full' | 'condensed' (the time alone). */
-  view?: 'summary' | 'day' | 'rest' | 'full' | 'condensed' | 'list' | 'days' | 'month' | 'current' | 'hours' | 'daily' | 'details';
+  /** energy: 'summary' | 'day' | 'rest'; weather: 'summary' | 'current' | 'hours' | 'daily' | 'details'; calendar: 'list' | 'day' | 'days' | 'month'; ticker: 'full' | 'condensed' (overrides the ticker's own view); ai-usage: 'full' | 'condensed'; family-meals: 'full' (the week) | 'condensed' (tonight) | 'upcoming' (today beside the coming days) | 'planner' (a card per day) | 'recipe' (tonight's recipe); status: 'full' | 'condensed' (the time alone). */
+  view?: 'summary' | 'day' | 'rest' | 'full' | 'condensed' | 'list' | 'days' | 'month' | 'current' | 'hours' | 'daily' | 'details' | 'upcoming' | 'planner' | 'recipe';
   /** news, calendar list view: most rows drawn; ticker: stocks per page in the condensed view; weather hours and daily: most steps or days drawn. 1–10. */
   items?: number;
   /** news: how many columns the headlines are split into, 1–4. Unset is 1. A widget too narrow for that many shows fewer. */
@@ -259,6 +259,9 @@ export interface FamilyMealsDay {
   note: string | null;
   dinnerTime: string | null;
   totalTimeMinutes: number | null;
+  /** Ingredient lines and diet tags, for the recipe view. Absent while Family Meals does not send them. */
+  ingredients?: string[];
+  tags?: string[];
 }
 
 export interface FamilyMealsData {

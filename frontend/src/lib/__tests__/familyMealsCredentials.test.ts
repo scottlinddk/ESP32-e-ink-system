@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { familyMealsCredentialsForSave } from '../familyMealsCredentials';
-import { widgetOptionKind } from '../widgetOptions';
+import { familyMealsView, widgetOptionKind } from '../widgetOptions';
 
 const token = `fm_${'a'.repeat(40)}`;
 
@@ -16,5 +16,11 @@ describe('Family Meals credentials form', () => {
   });
   it('gives the widget a view option', () => {
     expect(widgetOptionKind('family-meals')).toBe('family-meals');
+  });
+  it.each(['full', 'condensed', 'upcoming', 'planner', 'recipe'])('keeps the %s view', (view) => {
+    expect(familyMealsView(view)).toBe(view);
+  });
+  it.each([undefined, '', 'week', 'list'])('falls back to the week for %j', (view) => {
+    expect(familyMealsView(view)).toBe('full');
   });
 });
