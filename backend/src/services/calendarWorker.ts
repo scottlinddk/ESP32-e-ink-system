@@ -123,9 +123,12 @@ export function runCalendarWorker(): void {
         : allDay ? end <= today || begin > lastDay : instance.start > finish || (instance.end > instance.start ? instance.end <= start : instance.start < start)) return;
       const summary = typeof instance.summary === 'string' ? instance.summary : instance.summary?.val;
       const title = String(summary || 'Untitled event').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 256);
+      const raw = instance.event.description;
+      const notes = typeof raw === 'string' ? raw : raw?.val;
+      const description = typeof notes === 'string' ? notes.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200) : '';
       const dateLabel = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: allDay ? 'UTC' : timezone }).format(allDay ? new Date(`${begin}T12:00:00Z`) : instance.start);
       const timeLabel = allDay ? 'All day' : new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: timezone }).format(instance.start);
-      events.push({ title, start: begin, end, allDay, dateLabel, timeLabel, day, endDay, startMinute, endMinute, sort: `${day} ${allDay ? '00:00' : timeLabel}` });
+      events.push({ title, start: begin, end, allDay, dateLabel, timeLabel, day, endDay, startMinute, endMinute, ...(description ? { description } : {}), sort: `${day} ${allDay ? '00:00' : timeLabel}` });
     };
     for (const component of Object.values(calendar)) {
       if (component?.type !== 'VEVENT') continue;

@@ -11,6 +11,19 @@ Every calendar widget can be drawn in four views. Choose the view by selecting t
 | `days` | Several days side by side (`Thu 15/10`, today inverted), sharing the hour labels, with weekends shaded. | `days`: 2–7 columns. Unset fits as many as the width allows, with at least 10 characters per day. |
 | `month` | The month of today as a Monday-first grid: bold weekday names, the day numbers at the right of each cell, today inverted, weekends and the days around the month shaded. A large cell lists its events (bar and title, `+N more` when they do not fit), and a multi-day all-day event is one shaded bar across the week instead of a title in every cell; a small cell shows a dot for each event, up to three. | None. |
 
+## Display options
+
+Each calendar placement also has four on/off options under **Edit layout**. They are stored on the placement like the view, and are off until switched on.
+
+| Option | Effect |
+|---|---|
+| `descriptions` | The list's cards draw the event's notes (the ICS `DESCRIPTION`) under its title, up to two lines. The server keeps it on one line and at most 200 characters; an event without notes has none. Short widgets, which draw schedule rows, have no room for it. |
+| `pills` | The list's cards draw the time range white on black, as a pill. The schedule rows already do. |
+| `clock12` | Times are written `10:30 AM - 12:00 PM` instead of `10:30 - 12:00`, in every view. Where space is tight (schedule pills, month cells) they shorten to `10:30a`. |
+| `footer` | A shaded bar at the bottom of every view: a round mark, `Upcoming Events` (`Kommende aftaler`) and the calendar's name at the right. The name is the one given under **Additional calendars**; the original calendar has none, so its bar only shows the title. A widget under about 56 pixels tall draws no footer. |
+
+In the month view a cell that has room for two lines per event also shows each event's start time under its title, and `+N more` shortens to `+N` in a narrow cell.
+
 All words and dates follow the device's [display language](DEVICE_WORKSPACES.md) (English or Danish): day names, `Today`/`I dag`, month names, `All day`/`Hele dagen` and the error messages.
 
 The look follows e-paper calendar dashboards such as TRMNL's Apple Calendar plugin, within what a 1-bit panel and the 8 × 8 font allow: grey becomes a dot pattern, and text over a pattern sits on a clean patch so it stays readable.

@@ -31,6 +31,14 @@ export interface WidgetOptions {
   weight?: 'light' | 'regular' | 'bold';
   /** calendar days view: how many days are shown side by side, 2–7. Unset fits as many as the width allows. */
   days?: number;
+  /** calendar list view: draw each event's description under its title. Unset is off. */
+  descriptions?: boolean;
+  /** calendar list view: draw each event's time in a black pill. Unset is off. */
+  pills?: boolean;
+  /** calendar: write times as `10:30 AM` instead of `10:30`. Unset is the 24-hour clock. */
+  clock12?: boolean;
+  /** calendar: a footer bar with the calendar's name. Unset is off. */
+  footer?: boolean;
   /** Enlargement of the widget, 1–4 in steps of 0.2. Overrides the layout's zoom; unset follows it. */
   zoom?: number;
 }
@@ -158,9 +166,11 @@ export interface UserPreferences {
 export interface CalendarEvent {
   title: string; start: string; end: string; allDay: boolean; dateLabel: string; timeLabel: string;
   day: string; endDay: string; startMinute: number | null; endMinute: number | null;
+  description?: string;
 }
 
 export interface CalendarData {
+  name?: string;
   timezone: string; today: string; nowMinute: number; days: number; limit: number; events: CalendarEvent[];
 }
 

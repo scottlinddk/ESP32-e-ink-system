@@ -36,13 +36,27 @@ export interface CalendarSource { data?: CalendarData; error?: CalendarProblem }
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const chars = (pixels: number) => Math.max(0, Math.floor(pixels / GLYPH));
 const pad2 = (value: number) => String(value).padStart(2, '0');
-const clock = (minute: number) => `${pad2(Math.floor(minute / 60) % 24)}:${pad2(minute % 60)}`;
+
+/** How the options of one widget change what is drawn. */
+interface Style { twelve: boolean; pills: boolean; descriptions: boolean }
+
+/** `06:30`, or `6:30 AM` on the 12-hour clock. */
+function clock(minute: number, twelve = false): string {
+  const hour = Math.floor(minute / 60) % 24;
+  if (!twelve) return `${pad2(hour)}:${pad2(minute % 60)}`;
+  return `${hour % 12 || 12}:${pad2(minute % 60)} ${hour < 12 ? 'AM' : 'PM'}`;
+}
+
+/** The start of an event as short as it gets: `06:30` or `6:30a`. */
+function shortClock(minute: number, twelve: boolean): string {
+  return twelve ? clock(minute, true).replace(/ ([AP])M$/, (_all, letter: string) => letter.toLowerCase()) : clock(minute);
+}
 
 /** `06:30 - 07:15`, just the start for an event without length, and null for an all-day one. */
-function timeRange(event: CalendarEvent): string | null {
+function timeRange(event: CalendarEvent, twelve = false): string | null {
   if (event.allDay || event.startMinute === null) return null;
   const end = event.endMinute ?? event.startMinute;
-  return end === event.startMinute && event.endDay === event.day ? clock(event.startMinute) : `${clock(event.startMinute)} - ${clock(end)}`;
+  return end === event.startMinute && event.endDay === event.day ? clock(event.startMinute, twelve) : `${clock(event.startMinute, twelve)} - ${clock(end, twelve)}`;
 }
 
 /** The first candidate that fits `pixels` wide, else the last one. */
@@ -97,13 +111,21 @@ function wording(language: DisplayLanguage) {
     monthTitle: (day: string) => `${t.calendar.months[monthIndex(day)]} ${day.slice(0, 4)}`,
   };
 }
-type Words = ReturnType<typeof wording>;
+type Words = ReturnType<typeof wording> & { style: Style };
+
+const FOOTER_H = LINE + 6;
+/** A footer under 4 lines of view would leave too little of the view. */
+const MIN_HEIGHT_FOR_FOOTER = FOOTER_H + 4 * LINE;
 
 export function renderCalendarWidget(canvas: DrawingCanvas, bounds: Bounds, source: CalendarSource, options?: WidgetOptions, language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE): void {
   const { x, y, width } = bounds;
   if (y > 0) canvas.drawHLine(x, y, width);
   const { data, error } = source;
-  const words = wording(language);
+  const words: Words = { ...wording(language), style: { twelve: options?.clock12 === true, pills: options?.pills === true, descriptions: options?.descriptions === true } };
+  if (data && options?.footer === true && bounds.height >= MIN_HEIGHT_FOR_FOOTER) {
+    drawFooter(canvas, bounds, data, words);
+    bounds = { ...bounds, height: bounds.height - FOOTER_H };
+  }
   if (!data) {
     canvas.drawWrappedText(error ? words.t.errors[error.code] : words.t.unavailable, x + 2, y + 2, width - 4, LINE);
     return;
@@ -116,6 +138,42 @@ export function renderCalendarWidget(canvas: DrawingCanvas, bounds: Bounds, sour
     if (drawTimeline(canvas, bounds, data, columns, words)) return;
   }
   drawList(canvas, bounds, data, words, options?.items);
+}
+
+// ── Footer ───────────────────────────────────────────────────────────────────
+
+/** A shaded bar with a round mark, the title and the calendar's name at the right. */
+function drawFooter(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, words: Words): void {
+  const { x, y, width, height } = bounds;
+  const top = y + height - FOOTER_H + 2;
+  const barH = FOOTER_H - 3;
+  const left = x + 2;
+  const inner = width - 4;
+  shade(canvas, left, top, inner, barH);
+  // Cut corners.
+  for (const [cx, cy] of [[left, top], [left + inner - 1, top], [left, top + barH - 1], [left + inner - 1, top + barH - 1]]) canvas.setPixel(cx, cy, false);
+  // The mark: a black disc with a white ring and dot, on a clean patch.
+  const disc = barH - 2;
+  const discX = left + 3;
+  const discY = top + 1;
+  canvas.fillRect(discX, discY, disc, disc, false);
+  canvas.fillRect(discX + 1, discY, disc - 2, disc);
+  canvas.fillRect(discX, discY + 1, disc, disc - 2);
+  const mid = Math.floor(disc / 2);
+  canvas.fillRect(discX + mid - 1, discY + mid - 1, 3, 3, false);
+  const textX = discX + disc + 4;
+  const name = data.name ?? '';
+  const nameW = Math.min(name.length * GLYPH, Math.floor(inner / 2));
+  const titleRoom = left + inner - textX - (nameW ? nameW + 8 : 2);
+  const title = fitLabel([words.t.upcoming, words.t.upcoming.split(' ')[0]], titleRoom);
+  const textY = top + Math.floor((barH - GLYPH) / 2);
+  plate(canvas, title, textX, textY, titleRoom);
+  canvas.drawText(title, textX + 1, textY, titleRoom);
+  if (nameW) {
+    const shown = name.slice(0, Math.floor(nameW / GLYPH));
+    plate(canvas, shown, left + inner - shown.length * GLYPH - 4, textY, nameW);
+    canvas.drawText(shown, left + inner - shown.length * GLYPH - 3, textY, nameW);
+  }
 }
 
 // ── List ─────────────────────────────────────────────────────────────────────
@@ -135,12 +193,16 @@ function groupLabel(day: string, today: string, pixels: number, words: Words): s
   return fitLabel([date, short, words.dayMonth(day)], pixels);
 }
 
-/** The lines of an event card: its title (up to two lines) and its time range. */
-function cardLines(event: CalendarEvent, columnWidth: number, words: Words): { lines: string[]; indent: number; height: number } {
+interface Card { lines: string[]; /** The time line, the last of `lines`. */ timeIndex: number; indent: number; height: number }
+
+/** The lines of an event card: its title (up to two lines), its description when asked for (up to two), and its time range. */
+function cardLines(event: CalendarEvent, columnWidth: number, words: Words): Card {
   const indent = 5;
-  const title = [...wrapBitmapText(event.title, Math.max(1, chars(columnWidth - indent)))].slice(0, 2);
-  const lines = [...title, timeRange(event) ?? words.t.allDay];
-  return { lines, indent, height: lines.length * LINE + 2 };
+  const wide = Math.max(1, chars(columnWidth - indent));
+  const title = [...wrapBitmapText(event.title, wide)].slice(0, 2);
+  const description = words.style.descriptions && event.description ? [...wrapBitmapText(event.description, wide)].slice(0, 2) : [];
+  const lines = [...title, ...description, timeRange(event, words.style.twelve) ?? words.t.allDay];
+  return { lines, timeIndex: lines.length - 1, indent, height: lines.length * LINE + 2 };
 }
 
 /** A black pill with white text, its corners cut. */
@@ -151,7 +213,6 @@ function pill(canvas: DrawingCanvas, x: number, y: number, width: number, text: 
 }
 
 const SCHEDULE_ROW = LINE + 2;
-const PILL_W = 5 * GLYPH + 4;
 const MIN_END_PILL_WIDTH = 24 * GLYPH;
 
 /** One row per event: start time in a pill, bold title, end time in a shaded pill at the right. Days are shaded bars. */
@@ -161,6 +222,8 @@ function drawSchedule(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData,
   const left = x + 2;
   const inner = width - 4;
   const withEnd = width >= MIN_END_PILL_WIDTH;
+  // Room for `10:30` or `10:30a`; the pills line up whichever clock is used.
+  const PILL_W = (words.style.twelve ? 6 : 5) * GLYPH + 4;
   let cursor = y + 2;
   let heading = '';
   for (const event of events) {
@@ -174,9 +237,9 @@ function drawSchedule(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData,
       cursor += HEADING_H;
       heading = day;
     }
-    pill(canvas, left, cursor, PILL_W, event.allDay ? '#' : event.timeLabel);
+    pill(canvas, left, cursor, PILL_W, event.allDay || event.startMinute === null ? '#' : shortClock(event.startMinute, words.style.twelve));
     const range = timeRange(event);
-    const end = withEnd && range && range.includes(' - ') ? range.slice(-5) : null;
+    const end = withEnd && event.endMinute !== null && range?.includes(' - ') ? shortClock(event.endMinute, words.style.twelve) : null;
     const titleX = left + PILL_W + 4;
     const titleW = inner - PILL_W - 4 - (end ? PILL_W + 4 : 0);
     bold(canvas, event.title, titleX, cursor + 1, titleW);
@@ -201,7 +264,7 @@ function drawList(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, wor
     let textY = y + 2;
     for (const event of events) {
       if (textY + GLYPH > bottom) break;
-      textY = canvas.drawWrappedText(`${words.dayMonth(event.day)} ${event.allDay || event.startMinute === null ? words.t.allDay : clock(event.startMinute)}: ${event.title}`, x + 2, textY, width - 4, LINE) + 2;
+      textY = canvas.drawWrappedText(`${words.dayMonth(event.day)} ${event.allDay || event.startMinute === null ? words.t.allDay : clock(event.startMinute, words.style.twelve)}: ${event.title}`, x + 2, textY, width - 4, LINE) + 2;
     }
     return;
   }
@@ -237,7 +300,10 @@ function drawList(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, wor
     if (cursor + GLYPH > bottom) break;
     canvas.fillRect(columnX, cursor, 2, Math.min(card.height - 2, bottom - cursor));
     card.lines.forEach((line, index) => {
-      if (cursor + index * LINE + GLYPH <= bottom) canvas.drawText(line, columnX + card.indent, cursor + index * LINE, columnWidth - card.indent);
+      const lineY = cursor + index * LINE;
+      if (lineY + GLYPH > bottom) return;
+      if (words.style.pills && index === card.timeIndex) pill(canvas, columnX + card.indent - 1, lineY, Math.min(line.length * GLYPH + 4, columnWidth - card.indent + 1), line);
+      else canvas.drawText(line, columnX + card.indent, lineY, columnWidth - card.indent);
     });
     cursor += card.height;
   }
@@ -281,10 +347,10 @@ function dayHeading(day: string, single: boolean, pixels: number, words: Words):
 }
 
 /** What goes in an event block: the time range over the title when there is room, else the least that fits. */
-function blockText(event: CalendarEvent, columns: number, capacity: number): string[] {
-  const range = timeRange(event);
+function blockText(event: CalendarEvent, columns: number, capacity: number, twelve: boolean): string[] {
+  const range = timeRange(event, twelve);
   if (range && capacity >= 2 && columns >= range.length) return [range, ...[...wrapBitmapText(event.title, columns)].slice(0, capacity - 1)];
-  const timed = `${event.timeLabel} ${event.title}`;
+  const timed = `${event.startMinute === null ? event.timeLabel : shortClock(event.startMinute, twelve)} ${event.title}`;
   const text = !event.allDay && [...wrapBitmapText(timed, columns)].length <= capacity ? timed : event.title;
   return [...wrapBitmapText(text, columns)].slice(0, capacity);
 }
@@ -371,7 +437,7 @@ function drawTimeline(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData,
         canvas.fillRect(blockX, blockY, 2, blockH);
         const textX = blockX + 4;
         const capacity = Math.floor((blockH - GLYPH) / LINE) + 1;
-        blockText(segment.event, Math.max(1, chars(blockW - 5)), capacity).forEach((line, row) => {
+        blockText(segment.event, Math.max(1, chars(blockW - 5)), capacity, words.style.twelve).forEach((line, row) => {
           const lineY = blockY + 1 + row * LINE;
           if (lineY + GLYPH <= blockY + blockH + 1) plate(canvas, line, textX, lineY, blockW - 5);
         });
@@ -477,14 +543,22 @@ function drawMonth(canvas: DrawingCanvas, bounds: Bounds, data: CalendarData, wo
         const list = all.filter((event) => !spanned.has(event));
         const lines = Math.floor((cellH - LINE) / CELL_LINE) - spanLines;
         if (!list.length || lines < 1) continue;
+        // The start time goes under each title when every event fits with one.
+        const withTime = lines >= 2 * list.length && list.some((event) => event.startMinute !== null);
+        const perEvent = withTime ? 2 : 1;
         const shown = list.length > lines ? Math.max(1, lines - 1) : list.length;
         const top = cellY + LINE + spanLines * CELL_LINE;
         for (let index = 0; index < shown; index++) {
-          const lineY = top + index * CELL_LINE;
-          canvas.fillRect(cellX + 2, lineY, 2, GLYPH);
+          const lineY = top + index * perEvent * CELL_LINE;
+          canvas.fillRect(cellX + 2, lineY, 2, withTime ? 2 * CELL_LINE - 1 : GLYPH);
           plate(canvas, list[index].title, cellX + 6, lineY, cellW - 8);
+          const start = list[index].startMinute;
+          if (withTime && start !== null) plate(canvas, shortClock(start, words.style.twelve), cellX + 6, lineY + CELL_LINE, cellW - 8);
         }
-        if (shown < list.length && lines > 1) plate(canvas, words.t.more(list.length - shown), cellX + 6, top + shown * CELL_LINE, cellW - 8);
+        if (shown < list.length && lines > 1) {
+          const label = fitLabel([words.t.more(list.length - shown), `+${list.length - shown}`], cellW - 8);
+          plate(canvas, label, cellX + 6, top + shown * CELL_LINE, cellW - 8);
+        }
       } else {
         const dots = Math.min(all.length, MAX_DOTS);
         if (cellH >= 2 * LINE - 1) {

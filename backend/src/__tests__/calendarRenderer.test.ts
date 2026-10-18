@@ -465,3 +465,58 @@ describe('display language', () => {
   });
 });
 
+describe('calendar options', () => {
+  const described = { ...timedEvent('Morning Run', 6 * 60 + 30, 7 * 60 + 15), description: 'Quick jog to start the day' };
+  const afternoon = timedEvent('Deep Work', 14 * 60, 16 * 60);
+  const CARDS: [number, number] = [250, 122];
+
+  it('draws descriptions under the title only when asked', () => {
+    expect(draw(withData([described]), { view: 'list' }, CARDS).strings()).not.toContain('Quick jog to start the day');
+    const { strings } = draw(withData([described]), { view: 'list', descriptions: true }, CARDS);
+    expect(strings()).toEqual(['Today, Thu 15 Oct', 'Morning Run', 'Quick jog to start the day', '06:30 - 07:15']);
+  });
+  it('draws the time of a card in a black pill', () => {
+    const plain = draw(withData([described]), { view: 'list' }, CARDS);
+    const pilled = draw(withData([described]), { view: 'list', pills: true }, CARDS);
+    expect(pilled.texts.find((entry) => entry.text === '06:30 - 07:15')).toMatchObject({ black: false });
+    expect(plain.texts.find((entry) => entry.text === '06:30 - 07:15')).toMatchObject({ black: true });
+  });
+  it('writes times on the 12-hour clock', () => {
+    const cards = draw(withData([described, afternoon]), { view: 'list', clock12: true }, CARDS).strings();
+    expect(cards).toContain('6:30 AM - 7:15 AM');
+    expect(cards).toContain('2:00 PM - 4:00 PM');
+    const rows = draw(withData([described, afternoon]), { view: 'list', clock12: true }, ROWS).strings();
+    expect(rows).toContain('6:30a');
+    expect(rows).toContain('7:15a');
+    const blocks = draw(withData([afternoon]), { view: 'day', clock12: true }, [250, 300]).strings();
+    expect(blocks).toContain('2:00 PM - 4:00 PM');
+  });
+  it('keeps the 24-hour clock by default', () => {
+    expect(draw(withData([afternoon]), { view: 'day' }, [250, 300]).strings()).toContain('14:00 - 16:00');
+  });
+  it('shows a start time under each event in a roomy month cell', () => {
+    const month = draw(withData([afternoon]), { view: 'month' }, [400, 300]).strings();
+    expect(month).toContain('Deep Work');
+    expect(month).toContain('14:00');
+    expect(draw(withData([afternoon]), { view: 'month', clock12: true }, [400, 300]).strings()).toContain('2:00p');
+  });
+  it('draws a footer with the title and the calendar name', () => {
+    const named = withData([afternoon], { name: 'Fastmail Personal' });
+    const { strings } = draw(named, { view: 'list', footer: true }, [400, 300]);
+    expect(strings()).toContain('Upcoming Events');
+    expect(strings()).toContain('Fastmail Personal');
+    expect(draw(named, { view: 'list' }, [400, 300]).strings()).not.toContain('Upcoming Events');
+    expect(draw(named, { view: 'list', footer: true }, [400, 300], 'da').strings()).toContain('Kommende aftaler');
+  });
+  it('leaves the footer out of a widget too short for it', () => {
+    expect(draw(withData([afternoon], { name: 'Work' }), { view: 'list', footer: true }, [250, 40]).strings()).not.toContain('Upcoming Events');
+  });
+  it('keeps every view above the footer', () => {
+    for (const view of ['list', 'day', 'days', 'month'] as const) {
+      const { texts, fills } = draw(withData([afternoon], { name: 'Work' }), { view, footer: true }, [400, 300]);
+      const footerTop = 300 - 16;
+      expect(texts.filter((entry) => entry.y >= footerTop && entry.text !== 'Upcoming Events' && entry.text !== 'Work'), view).toEqual([]);
+      void fills;
+    }
+  });
+});

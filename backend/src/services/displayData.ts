@@ -322,7 +322,7 @@ export async function buildDisplayData(
     const url = apiKeyMap[calendarProvider(calendar.id)];
     if (!url) { result.calendars![calendar.id] = { error: calendarProblem('not_configured') }; continue; }
     tasks.push(withSourceDeadline((signal) => fetchCalendar(url, calendarFetchOptions(calendar.timezone, calendar.days, calendar.item_limit), signal))
-      .then((data) => { result.calendars![calendar.id] = { calendar: data }; })
+      .then((data) => { result.calendars![calendar.id] = { calendar: { ...data, name: calendar.name } }; })
       .catch((err: unknown) => {
         const problem = calendarProblemFrom(err);
         result.calendars![calendar.id] = { error: problem };
