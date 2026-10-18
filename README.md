@@ -19,7 +19,7 @@ See the [integration and widget audit](docs/INTEGRATION_AUDIT.md) for supported 
 
 Use **Layout templates** on the Dashboard to export settings, review a JSON import or apply a starter layout. Templates omit credentials and private feed URLs; see the [format and compatibility guide](docs/DISPLAY_TEMPLATES.md).
 
-Use the selected device's **Slideshow** controls to rotate its named layouts, choose their order and duration, and configure local quiet hours. Single-layout mode preserves the saved pages for later use. Server requests select the active page; browser Bluetooth still requires manual pushes. See the [schedule guide](docs/DISPLAY_SCHEDULES.md) for timing rules and required migrations.
+Use the selected device's **Slideshow** controls to rotate its named layouts, choose their order and duration, and configure local quiet hours. Use **Timed layouts** to show a saved layout at a set time every day, such as 07:00, for a duration of seconds, minutes or hours. Single-layout mode preserves the saved pages for later use. Server requests select the active page; browser Bluetooth still requires manual pushes. See the [schedule guide](docs/DISPLAY_SCHEDULES.md) for timing rules, timed layouts and required migrations.
 
 Use **Display time zone** on the Dashboard to set the status clock and preview timestamp, or select **Use browser time zone**. The default is `Europe/Copenhagen`; daylight saving time follows the selected IANA zone. Calendar event times and scheduled quiet hours retain their separately labelled time zones. Apply `016_display_timezone.sql` before deploying this setting.
 

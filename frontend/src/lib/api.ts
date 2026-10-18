@@ -147,6 +147,7 @@ export interface DisplayTemplate {
       enabled: boolean; timezone: string;
       pages: Array<{ id: string; name: string; duration_seconds: number; layout: DisplayLayout }>;
       quiet_hours: { enabled: boolean; start: string; end: string };
+      timed_layouts?: Array<{ id: string; layout_id: string; start: string; duration_seconds: number }>;
     } | null;
   };
 }

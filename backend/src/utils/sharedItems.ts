@@ -145,6 +145,8 @@ export function buildAcceptUpdates(kind: SharedItemKind, payloadValue: unknown, 
   }
 
   const dashboard = payload as DashboardPayload;
+  // Pages get new IDs, so the recipient's timed layouts would point at layouts that are gone.
+  const { timed_layouts: _dropped, ...withoutTimed } = schedule;
   const ids = new Set<string>();
   const pages = dashboard.pages.map((page) => {
     let id = newPageId();
@@ -155,7 +157,7 @@ export function buildAcceptUpdates(kind: SharedItemKind, payloadValue: unknown, 
   // The recipient keeps their own time zone, quiet hours, panel profile and language.
   return {
     ...(dashboard.layout ? { layout: dashboard.layout } : {}),
-    display_schedule: { ...schedule, enabled: dashboard.enabled && pages.length > 0, pages },
+    display_schedule: { ...withoutTimed, enabled: dashboard.enabled && pages.length > 0, pages },
     active_layout_id: null,
   };
 }

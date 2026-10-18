@@ -95,7 +95,7 @@ export function DeviceSlideshowCard({ deviceId }: { deviceId: string }) {
         </ol>
         <p className="text-xs text-fg2 m-0">{da ? '60–86400 sekunder pr. layout. Enheden vælger den gemte side ved næste serverforespørgsel; en sovende enhed kan ikke vækkes herfra. Bluetooth kræver et manuelt tryk.'
           : '60–86400 seconds per layout. The device selects the saved page on its next server request; a sleeping device cannot be woken here. Bluetooth needs a manual push.'}</p>
-        <label className="text-sm">{da ? 'Tidszone for stille timer' : 'Quiet-hours time zone'}<input className={inputClass} required maxLength={64} value={schedule.timezone} placeholder="Europe/Copenhagen"
+        <label className="text-sm">{da ? 'Tidszone for stille timer og tidsstyrede layouts' : 'Time zone for quiet hours and timed layouts'}<input className={inputClass} required maxLength={64} value={schedule.timezone} placeholder="Europe/Copenhagen"
           onChange={(event) => update({ ...schedule, timezone: event.target.value })} /></label>
         <label className="text-sm flex gap-2 items-center"><input type="checkbox" checked={schedule.quiet_hours.enabled}
           onChange={(event) => update({ ...schedule, quiet_hours: { ...schedule.quiet_hours, enabled: event.target.checked } })} />{da ? 'Aktivér stille timer' : 'Enable quiet hours'}</label>

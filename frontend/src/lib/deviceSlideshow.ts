@@ -28,7 +28,7 @@ export function deviceSlideshowChanges(latest: UserPreferences, draft: DisplaySc
   if (!time.test(draft.quiet_hours.start) || !time.test(draft.quiet_hours.end)
     || draft.quiet_hours.enabled && draft.quiet_hours.start === draft.quiet_hours.end) throw new Error('Quiet hours need valid, different start and end times.');
   return { display_schedule: {
-    enabled: draft.enabled, timezone, quiet_hours: { ...draft.quiet_hours },
+    ...current, enabled: draft.enabled, timezone, quiet_hours: { ...draft.quiet_hours },
     pages: draft.pages.map((page) => ({ ...current.pages.find((saved) => saved.id === page.id)!, duration_seconds: page.duration_seconds })),
   } };
 }

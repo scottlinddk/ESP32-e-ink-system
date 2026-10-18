@@ -1,5 +1,6 @@
 import type { DisplayData, DisplayLayout, DisplaySchedule, UserPreferences } from '../types';
 import { parseDisplaySchedule } from '../utils/scheduleValidation';
+import { activeTimedLayout, nextTimedBoundary } from './timedLayouts';
 
 export interface ResolvedDisplaySchedule {
   layout: DisplayLayout | null;
@@ -34,38 +35,55 @@ function quietBoundary(timestamp: number, direction: 1 | -1, isQuiet: (timestamp
   throw new Error('Could not resolve quiet-hour boundary');
 }
 
-/** UTC-anchored rotation is deterministic across processes and daylight-saving changes. */
+/**
+ * UTC-anchored rotation is deterministic across processes and daylight-saving changes. A timed layout
+ * overrides it (and a single layout) while its window is open; rotation then resumes where the cycle is.
+ */
 export function resolveDisplaySchedule(prefs: Pick<UserPreferences, 'display_schedule' | 'layout' | 'refresh_interval_minutes'>, now = new Date()): ResolvedDisplaySchedule {
   const fallback = { layout: prefs.layout ?? null, nextRefresh: prefs.refresh_interval_minutes * MINUTE };
-  if (!prefs.display_schedule?.enabled) return fallback;
+  if (!prefs.display_schedule) return fallback;
   let schedule: DisplaySchedule;
   try { schedule = parseDisplaySchedule(prefs.display_schedule); } catch { return fallback; }
-  if (schedule.pages.length === 0) return fallback;
+  const timed = schedule.timed_layouts ?? [];
+  const rotating = schedule.enabled && schedule.pages.length > 0;
+  if (!rotating && timed.length === 0) return fallback;
   const timestamp = now.getTime();
   if (!Number.isFinite(timestamp)) throw new Error('Invalid schedule time');
   let quiet = false;
   let pageTime = timestamp;
   let quietChange = Infinity;
-  if (schedule.quiet_hours.enabled) {
+  // Quiet hours belong to the slideshow; they never silence a single layout.
+  if (rotating && schedule.quiet_hours.enabled) {
     const isQuiet = quietChecker(schedule);
     quiet = isQuiet(timestamp);
     quietChange = quietBoundary(timestamp, 1, isQuiet, quiet);
     if (quiet) pageTime = quietBoundary(timestamp, -1, isQuiet, true);
   }
-  const cycle = schedule.pages.reduce((total, page) => total + page.duration_seconds * 1000, 0);
-  let offset = ((pageTime % cycle) + cycle) % cycle;
-  let selected = schedule.pages[0];
-  for (const page of schedule.pages) {
-    selected = page;
-    if (offset < page.duration_seconds * 1000) break;
-    offset -= page.duration_seconds * 1000;
+  const timedChange = nextTimedBoundary(timed, schedule.timezone, timestamp);
+  const activeRule = activeTimedLayout(timed, schedule.timezone, pageTime);
+  let selected: DisplaySchedule['pages'][number] | undefined;
+  let pageChange = Infinity;
+  if (activeRule) {
+    selected = schedule.pages.find((page) => page.id === activeRule.layout_id);
+  } else if (rotating) {
+    const cycle = schedule.pages.reduce((total, page) => total + page.duration_seconds * 1000, 0);
+    let offset = ((pageTime % cycle) + cycle) % cycle;
+    selected = schedule.pages[0];
+    for (const page of schedule.pages) {
+      selected = page;
+      if (offset < page.duration_seconds * 1000) break;
+      offset -= page.duration_seconds * 1000;
+    }
+    pageChange = timestamp + selected.duration_seconds * 1000 - offset;
   }
-  const pageChange = timestamp + selected.duration_seconds * 1000 - offset;
-  const nextTransition = quiet ? quietChange : Math.min(pageChange, quietChange);
+  const nextTransition = quiet ? quietChange : Math.min(pageChange, quietChange, timedChange);
+  const nextRefresh = Math.max(1, quiet ? nextTransition - timestamp : Math.min(fallback.nextRefresh, nextTransition - timestamp));
+  // A single layout between timed windows reports no schedule, so it keeps drawing the saved layout.
+  if (!selected) return { layout: fallback.layout, nextRefresh };
   return {
     layout: selected.layout,
-    nextRefresh: Math.max(1, quiet ? nextTransition - timestamp : Math.min(fallback.nextRefresh, nextTransition - timestamp)),
-    schedule: { pageId: selected.id, pageName: selected.name, quiet, nextTransitionAt: new Date(nextTransition).toISOString() },
+    nextRefresh,
+    schedule: { pageId: selected.id, pageName: selected.name, quiet, nextTransitionAt: new Date(nextTransition).toISOString(), ...(activeRule ? { timed: true } : {}) },
   };
 }
 

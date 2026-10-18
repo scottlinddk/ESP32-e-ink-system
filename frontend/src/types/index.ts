@@ -49,11 +49,21 @@ export interface DisplayLayout {
   widgets: WidgetLayout[];
 }
 
+/** Show a saved layout from `start` (HH:MM in the schedule time zone) every day, for `duration_seconds`. */
+export interface TimedLayout {
+  id: string;
+  layout_id: string;
+  start: string;
+  duration_seconds: number;
+}
+
 export interface DisplaySchedule {
   enabled: boolean;
   timezone: string;
   pages: Array<{ id: string; name: string; duration_seconds: number; layout: DisplayLayout }>;
   quiet_hours: { enabled: boolean; start: string; end: string };
+  /** Applies in single-layout mode too, and overrides the slideshow while a rule is active. */
+  timed_layouts?: TimedLayout[];
 }
 
 export const DEFAULT_LAYOUT: DisplayLayout = {
@@ -213,7 +223,7 @@ export interface NewsItem {
 
 export interface DisplayData {
   customWebhook?: CustomWebhookData;
-  schedule?: { pageId: string; pageName: string; quiet: boolean; nextTransitionAt: string };
+  schedule?: { pageId: string; pageName: string; quiet: boolean; nextTransitionAt: string; timed?: boolean };
   customText?: string;
   customImage?: CustomImage;
   price?: EnergyPrice;
