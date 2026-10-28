@@ -3,7 +3,7 @@
 ## Install from the web interface
 
 1. Use desktop Chrome or Edge. Open the app's **Flash** page over HTTPS (or localhost for development).
-2. Select your board. **CrowPanel original / SSD1680** and **CrowPanel V1.2 / JD79661** use different drivers despite both containing ESP32-S3 chips. Check the board's revision label and Elecrow purchase documentation. If unclear, check the vendor's source for that revision before installing.
+2. Select your board. **CrowPanel original / SSD1680** and **CrowPanel V1.2 / JD79661** use different drivers despite both containing ESP32-S3 chips. Check the board's revision label and Elecrow purchase documentation. If unclear, check the vendor's source for that revision before installing. For the **CrowPanel 4.2**, turn the board over: a green circular sticker on the back means the "green sticker" image; no sticker means the SSD1683 image. See the [CrowPanel 4.2 guide](ELECROW_42_SETUP.md).
 3. Connect the display directly using a USB data cable. Close Arduino Serial Monitor, PlatformIO monitor, and other browser tabs using the serial port.
 4. Click **Install firmware**, select the board's USB serial port, and follow the installer. These complete factory images overwrite saved Wi-Fi and device settings even if erase is not selected. Keep the device UUID and token available and repeat setup after flashing.
 5. Wait for installation to finish. Press RESET if the board remains in download mode.
@@ -51,7 +51,7 @@ pio run -e elecrow_213 --target upload
 pio device monitor -e elecrow_213 --baud 115200
 ```
 
-Use `elecrow_213_v12` for V1.2, `esp32dev` for the Waveshare 2.13 HAT or `waveshare_rlcd_42` for the Waveshare ESP32-S3-RLCD-4.2. With multiple ports, append `--upload-port COM4` to upload or `--port COM4` to monitor. On macOS/Linux substitute the actual `/dev/cu.*`, `/dev/ttyUSB*`, or `/dev/ttyACM*` path. If communication is unreliable, add `--upload-port` and lower `upload_speed` to 115200 locally.
+Use `elecrow_213_v12` for V1.2, `elecrow_42` or `elecrow_42_v2` for the CrowPanel 4.2 (see its [guide](ELECROW_42_SETUP.md)), `esp32dev` for the Waveshare 2.13 HAT or `waveshare_rlcd_42` for the Waveshare ESP32-S3-RLCD-4.2. With multiple ports, append `--upload-port COM4` to upload or `--port COM4` to monitor. On macOS/Linux substitute the actual `/dev/cu.*`, `/dev/ttyUSB*`, or `/dev/ttyACM*` path. If communication is unreliable, add `--upload-port` and lower `upload_speed` to 115200 locally.
 
 PlatformIO pins the supported Arduino core and dependencies. It handles build settings and port detection on Windows, macOS, and Linux. The [firmware README](../firmware/README.md) documents optional configuration and release packaging. Arduino IDE is an expert alternative; see the [Arduino notes](ARDUINO_IDE_ELECROW_SETUP.md).
 
@@ -64,6 +64,8 @@ The browser manifest must contain a complete merged image at offset **0**. The m
 | Waveshare / ESP32 | `waveshare-esp32-213-v2_fw-<version>_factory.bin` | `manifest.json` |
 | Original CrowPanel / SSD1680 | `elecrow-crowpanel-213_fw-<version>_factory.bin` | `manifest.json` |
 | CrowPanel V1.2 / JD79661 | `elecrow-crowpanel-213-v12_fw-<version>_factory.bin` | `manifest-elecrow-v12.json` |
+| CrowPanel 4.2 / SSD1683 (no sticker) | `elecrow-crowpanel-42_fw-<version>_factory.bin` | `manifest-elecrow-42.json` |
+| CrowPanel 4.2 (green sticker) | `elecrow-crowpanel-42-v2_fw-<version>_factory.bin` | `manifest-elecrow-42-v2.json` |
 | Waveshare ESP32-S3-RLCD-4.2 / ST7305 | `waveshare-esp32-s3-rlcd-42_fw-<version>_factory.bin` | `manifest-waveshare-rlcd-42.json` |
 
 Releases published before the rename use the legacy names `firmware-factory.bin`, `firmware-elecrow-factory.bin` and `firmware-elecrow-v12-factory.bin`; the backend accepts either spelling per file, so older releases stay installable.

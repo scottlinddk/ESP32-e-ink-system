@@ -8,6 +8,7 @@ export const FIRMWARE_ASSETS = [
   'bootloader.bin', 'partitions.bin', 'bootloader-elecrow.bin', 'partitions-elecrow.bin',
   'bootloader-elecrow-v12.bin', 'partitions-elecrow-v12.bin',
   'firmware-waveshare-rlcd-42-factory.bin',
+  'firmware-elecrow-42-factory.bin', 'firmware-elecrow-42-v2-factory.bin',
 ] as const;
 export type FirmwareAsset = typeof FIRMWARE_ASSETS[number];
 
@@ -39,13 +40,15 @@ const TTL = 5 * 60 * 1000;
 /** How many recent releases the installer offers. */
 export const SELECTABLE_RELEASES = 5;
 
-export type FirmwarePanel = 'original' | 'v12' | 'rlcd42' | 'waveshare213';
+export type FirmwarePanel = 'original' | 'v12' | 'rlcd42' | 'waveshare213' | 'elecrow42' | 'elecrow42v2';
 /** Human-readable hardware each install manifest targets. */
 export const PANEL_BOARD_NAMES: Record<FirmwarePanel, string> = {
   original: 'Elecrow CrowPanel 2.13',
   v12: 'Elecrow CrowPanel 2.13 V1.2',
   rlcd42: 'Waveshare ESP32-S3-RLCD-4.2',
   waveshare213: 'Waveshare ESP32 2.13 V2',
+  elecrow42: 'Elecrow CrowPanel 4.2',
+  elecrow42v2: 'Elecrow CrowPanel 4.2 (green sticker)',
 };
 
 /** The factory image each install choice needs. Boards added later are optional for older releases. */
@@ -54,10 +57,12 @@ export const PANEL_FACTORY_ASSETS: Record<FirmwarePanel, FirmwareAsset[]> = {
   v12: ['firmware-elecrow-v12-factory.bin'],
   rlcd42: ['firmware-waveshare-rlcd-42-factory.bin'],
   waveshare213: ['firmware-factory.bin'],
+  elecrow42: ['firmware-elecrow-42-factory.bin'],
+  elecrow42v2: ['firmware-elecrow-42-v2-factory.bin'],
 };
 
 export function parseFirmwarePanel(value: unknown): FirmwarePanel {
-  return value === 'v12' || value === 'rlcd42' || value === 'waveshare213' ? value : 'original';
+  return value === 'v12' || value === 'rlcd42' || value === 'waveshare213' || value === 'elecrow42' || value === 'elecrow42v2' ? value : 'original';
 }
 
 /** A descriptive firmware name: board, "FW" and version. */
@@ -68,10 +73,10 @@ export function firmwareDisplayName(panel: FirmwarePanel, version: string): stri
 // Keep in sync with Board.slug and asset_name() in firmware/scripts/package_web_firmware.py.
 const ASSET_BOARD_SLUGS: Record<string, string> = {
   '': 'waveshare-esp32-213-v2', '-elecrow': 'elecrow-crowpanel-213', '-elecrow-v12': 'elecrow-crowpanel-213-v12',
-  '-waveshare-rlcd-42': 'waveshare-esp32-s3-rlcd-42',
+  '-waveshare-rlcd-42': 'waveshare-esp32-s3-rlcd-42', '-elecrow-42': 'elecrow-crowpanel-42', '-elecrow-42-v2': 'elecrow-crowpanel-42-v2',
 };
-const LEGACY_ASSET = /^(firmware|bootloader|partitions)(-elecrow(?:-v12)?|-waveshare-rlcd-42)?(-factory)?\.bin$/;
-const DESCRIPTIVE_ASSET = /^(waveshare-esp32-213-v2|elecrow-crowpanel-213(?:-v12)?|waveshare-esp32-s3-rlcd-42)_fw-([a-zA-Z0-9._-]+)_(factory|app|bootloader|partitions)\.bin$/;
+const LEGACY_ASSET = /^(firmware|bootloader|partitions)(-elecrow-42(?:-v2)?|-elecrow(?:-v12)?|-waveshare-rlcd-42)?(-factory)?\.bin$/;
+const DESCRIPTIVE_ASSET = /^(waveshare-esp32-213-v2|elecrow-crowpanel-213(?:-v12)?|elecrow-crowpanel-42(?:-v2)?|waveshare-esp32-s3-rlcd-42)_fw-([a-zA-Z0-9._-]+)_(factory|app|bootloader|partitions)\.bin$/;
 
 /** Release filename naming the board, "fw", the version and the image type. */
 export function describeAssetFilename(name: FirmwareAsset, version: string): string {
@@ -175,6 +180,10 @@ export function buildManifestFromRelease(release: FirmwareRelease, proxyBase?: s
       { chipFamily: 'ESP32', parts: [part('firmware-factory.bin')] },
     ] : panel === 'rlcd42' ? [
       { chipFamily: 'ESP32-S3', parts: [part('firmware-waveshare-rlcd-42-factory.bin')] },
+    ] : panel === 'elecrow42' ? [
+      { chipFamily: 'ESP32-S3', parts: [part('firmware-elecrow-42-factory.bin')] },
+    ] : panel === 'elecrow42v2' ? [
+      { chipFamily: 'ESP32-S3', parts: [part('firmware-elecrow-42-v2-factory.bin')] },
     ] : panel === 'v12' ? [
       { chipFamily: 'ESP32-S3', parts: [part('firmware-elecrow-v12-factory.bin')] },
     ] : [

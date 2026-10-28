@@ -6,6 +6,10 @@
 // Waveshare ESP32-S3-RLCD-4.2: ST7305 reflective LCD, Adafruit GFX canvas for text
 #include <Adafruit_GFX.h>
 #include "st7305_panel.h"
+#elif defined(ELECROW_EPAPER_42)
+// Elecrow CrowPanel ESP32 4.2": own controller driver, Adafruit GFX canvas for text
+#include <Adafruit_GFX.h>
+#include "epd42_panel.h"
 #elif defined(ELECROW_EPAPER_213)
 // Elecrow CrowPanel ESP32 2.13" — uses bundled EPD library
 // Source: firmware/lib/EPD/ (bundled, no extra driver download required)
@@ -83,6 +87,11 @@ public:
 private:
 #if defined(WAVESHARE_RLCD_42)
   St7305Panel panel;
+  GFXcanvas1 canvas{kBoard.width, kBoard.height};
+  bool flushCanvas();
+  void drawCenteredLines(const char* text, int16_t top, const GFXfont* font);
+#elif defined(ELECROW_EPAPER_42)
+  Epd42Panel panel;
   GFXcanvas1 canvas{kBoard.width, kBoard.height};
   bool flushCanvas();
   void drawCenteredLines(const char* text, int16_t top, const GFXfont* font);

@@ -57,7 +57,7 @@ jobs:
         run: python firmware/scripts/prepare_config.py --version "$VERSION"
       - name: Compile all supported boards and panel revisions
         working-directory: firmware
-        run: pio run -e esp32dev -e elecrow_213 -e elecrow_213_v12 -e waveshare_rlcd_42
+        run: pio run -e esp32dev -e elecrow_213 -e elecrow_213_v12 -e elecrow_42 -e elecrow_42_v2 -e waveshare_rlcd_42
       - name: Package and validate complete browser images
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -87,7 +87,7 @@ jobs:
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || needs.build.outputs.version }}
           target_commitish: ${{ github.sha }}
-          name: Elecrow CrowPanel 2.13 + Waveshare FW ${{ needs.build.outputs.version }}
+          name: Elecrow CrowPanel 2.13 / 4.2 + Waveshare FW ${{ needs.build.outputs.version }}
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
           generate_release_notes: ${{ startsWith(github.ref, 'refs/tags/') }}
           fail_on_unmatched_files: true
@@ -95,13 +95,16 @@ jobs:
           body: |
             Flash from the web app's Flash/Firmware page using desktop Chrome or Edge over HTTPS.
             Select the physical board/panel revision before connecting: the original CrowPanel
-            uses SSD1680, and CrowPanel V1.2 uses JD79661. USB chip detection cannot tell them apart.
+            uses SSD1680, and CrowPanel V1.2 uses JD79661. The CrowPanel 4.2 comes in two revisions:
+            choose "green sticker" only if the back of the board has a green circular sticker.
+            USB chip detection cannot tell them apart.
 
             Files are named `<board>_fw-<version>_<image>.bin`. The `*_factory.bin` images
             (`waveshare-esp32-213-v2`, `elecrow-crowpanel-213`, `elecrow-crowpanel-213-v12`,
-            `waveshare-esp32-s3-rlcd-42`) are complete browser/USB installation images at offset 0.
+            `elecrow-crowpanel-42`, `elecrow-crowpanel-42-v2`, `waveshare-esp32-s3-rlcd-42`) are complete browser/USB installation images at offset 0.
             `manifest.json` covers Waveshare 2.13 and original CrowPanel; `manifest-elecrow-v12.json`
-            covers the V1.2 panel; `manifest-waveshare-rlcd-42.json` covers the Waveshare
+            covers the V1.2 panel; `manifest-elecrow-42.json` and `manifest-elecrow-42-v2.json`
+            cover the CrowPanel 4.2 revisions; `manifest-waveshare-rlcd-42.json` covers the Waveshare
             ESP32-S3-RLCD-4.2 (also selectable on the Flash page). The `app`,
             `bootloader` and `partitions` binaries are application-only parts.
             SHA256SUMS records the binaries produced by the build. See docs/FIRMWARE_FLASHING.md.

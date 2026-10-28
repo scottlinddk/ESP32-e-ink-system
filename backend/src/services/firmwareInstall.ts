@@ -6,7 +6,7 @@ import {
   PANEL_FACTORY_ASSETS, parseAssetFilename, releaseDate, type FirmwareAsset, type FirmwarePanel,
 } from './githubRelease';
 
-export const FACTORY_FILES: FirmwareAsset[] = ['firmware-factory.bin', 'firmware-elecrow-factory.bin', 'firmware-elecrow-v12-factory.bin', 'firmware-waveshare-rlcd-42-factory.bin'];
+export const FACTORY_FILES: FirmwareAsset[] = ['firmware-factory.bin', 'firmware-elecrow-factory.bin', 'firmware-elecrow-v12-factory.bin', 'firmware-waveshare-rlcd-42-factory.bin', 'firmware-elecrow-42-factory.bin', 'firmware-elecrow-42-v2-factory.bin'];
 
 /**
  * Explicit opt-in for locally packaged artifacts; never guess a build directory.
@@ -50,7 +50,7 @@ export async function getInstallManifest(panel: FirmwarePanel = 'original', tag?
     const release = await fetchLatestFirmwareRelease(tag, panel);
     return release ? buildManifestFromRelease(release, process.env.BACKEND_PUBLIC_BASE_URL?.trim(), panel) : null;
   }
-  const filename = { original: 'manifest.json', v12: 'manifest-elecrow-v12.json', rlcd42: 'manifest-waveshare-rlcd-42.json', waveshare213: 'manifest.json' }[panel];
+  const filename = { original: 'manifest.json', v12: 'manifest-elecrow-v12.json', rlcd42: 'manifest-waveshare-rlcd-42.json', waveshare213: 'manifest.json', elecrow42: 'manifest-elecrow-42.json', elecrow42v2: 'manifest-elecrow-42-v2.json' }[panel];
   const manifest = JSON.parse(await readFile(path.resolve(directory, filename), 'utf8'));
   const chips: Partial<Record<FirmwareAsset, string>> = { 'firmware-factory.bin': 'ESP32' };
   const expected: Array<[string, FirmwareAsset]> = PANEL_FACTORY_ASSETS[panel].map(asset => [chips[asset] ?? 'ESP32-S3', asset]);

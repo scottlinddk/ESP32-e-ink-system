@@ -154,4 +154,34 @@ describe('factory release selection', () => {
     expect(buildManifestFromRelease(selected!, undefined, 'waveshare213').builds[0].chipFamily).toBe('ESP32');
     expect(parseAssetFilename(rlcd)).toEqual({ asset: 'firmware-waveshare-rlcd-42-factory.bin', version: 'dev-new' });
   });
+  it('offers each Elecrow CrowPanel 4.2 revision only from releases that contain its own image', async () => {
+    const sticker = 'elecrow-crowpanel-42-v2_fw-dev-new_factory.bin';
+    const original = 'elecrow-crowpanel-42_fw-dev-new_factory.bin';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify([
+      { ...release('dev-new', [...names, original, sticker]), published_at: '2026-10-20T00:00:00Z' },
+      { ...release('dev-mid', [...names, 'elecrow-crowpanel-42_fw-dev-mid_factory.bin']), published_at: '2026-10-12T00:00:00Z' },
+      { ...release('dev-old'), published_at: '2026-10-05T00:00:00Z' },
+    ]))));
+    const { fetchFirmwareReleases, fetchLatestFirmwareRelease, buildManifestFromRelease, parseAssetFilename, describeAssetFilename, parseFirmwarePanel } = await import('../services/githubRelease');
+    expect((await fetchFirmwareReleases(5, 'elecrow42')).map(value => value.tag)).toEqual(['dev-new', 'dev-mid']);
+    expect((await fetchFirmwareReleases(5, 'elecrow42v2')).map(value => value.tag)).toEqual(['dev-new']);
+    const selected = await fetchLatestFirmwareRelease(undefined, 'elecrow42v2');
+    expect(buildManifestFromRelease(selected!, undefined, 'elecrow42v2')).toMatchObject({
+      name: 'Elecrow CrowPanel 4.2 (green sticker) FW dev-new',
+      builds: [{ chipFamily: 'ESP32-S3', parts: [{ path: `releases/dev-new/${sticker}`, offset: 0 }] }],
+    });
+    expect(buildManifestFromRelease(selected!, undefined, 'elecrow42').builds).toEqual([
+      { chipFamily: 'ESP32-S3', parts: [{ path: `releases/dev-new/${original}`, offset: 0 }] },
+    ]);
+    // The longer 4.2 suffixes must not be swallowed by the 2.13 "-elecrow" pattern, nor the reverse.
+    expect(parseAssetFilename(original)).toEqual({ asset: 'firmware-elecrow-42-factory.bin', version: 'dev-new' });
+    expect(parseAssetFilename(sticker)).toEqual({ asset: 'firmware-elecrow-42-v2-factory.bin', version: 'dev-new' });
+    expect(parseAssetFilename('elecrow-crowpanel-213-v12_fw-dev-new_factory.bin')).toEqual({ asset: 'firmware-elecrow-v12-factory.bin', version: 'dev-new' });
+    expect(describeAssetFilename('firmware-elecrow-42-v2-factory.bin', 'dev-new')).toBe(sticker);
+    expect(describeAssetFilename('firmware-elecrow-factory.bin', 'dev-new')).toBe('elecrow-crowpanel-213_fw-dev-new_factory.bin');
+    expect(parseAssetFilename('elecrow-crowpanel-42_fw-dev-new_app.bin')).toBeNull();
+    expect(parseFirmwarePanel('elecrow42')).toBe('elecrow42');
+    expect(parseFirmwarePanel('elecrow42v2')).toBe('elecrow42v2');
+    expect(parseFirmwarePanel('nonsense')).toBe('original');
+  });
 });

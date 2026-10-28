@@ -114,10 +114,17 @@ class PackagingTests(unittest.TestCase):
             default = json.loads((output / "manifest.json").read_text())
             v12 = json.loads((output / "manifest-elecrow-v12.json").read_text())
             rlcd = json.loads((output / "manifest-waveshare-rlcd-42.json").read_text())
+            crowpanel42 = json.loads((output / "manifest-elecrow-42.json").read_text())
+            crowpanel42_v2 = json.loads((output / "manifest-elecrow-42-v2.json").read_text())
             self.assertEqual([entry["chipFamily"] for entry in default["builds"]], ["ESP32", "ESP32-S3"])
             self.assertEqual(v12["builds"], [{"chipFamily": "ESP32-S3", "parts": [{"path": "elecrow-crowpanel-213-v12_fw-2.0.0_abc_factory.bin", "offset": 0}]}])
             self.assertEqual(rlcd["builds"], [{"chipFamily": "ESP32-S3", "parts": [{"path": "waveshare-esp32-s3-rlcd-42_fw-2.0.0_abc_factory.bin", "offset": 0}]}])
             self.assertEqual(rlcd["name"], "Waveshare ESP32-S3-RLCD-4.2 FW 2.0.0+abc")
+            # The two 4.2" revisions share a USB chip, so each needs its own single-image manifest.
+            self.assertEqual(crowpanel42["builds"], [{"chipFamily": "ESP32-S3", "parts": [{"path": "elecrow-crowpanel-42_fw-2.0.0_abc_factory.bin", "offset": 0}]}])
+            self.assertEqual(crowpanel42_v2["builds"], [{"chipFamily": "ESP32-S3", "parts": [{"path": "elecrow-crowpanel-42-v2_fw-2.0.0_abc_factory.bin", "offset": 0}]}])
+            self.assertEqual(crowpanel42["name"], "Elecrow CrowPanel 4.2 FW 2.0.0+abc")
+            self.assertEqual(crowpanel42_v2["name"], "Elecrow CrowPanel 4.2 (green sticker) FW 2.0.0+abc")
             self.assertEqual(default["version"], "2.0.0+abc")
             self.assertEqual(default["name"], "Elecrow CrowPanel 2.13 FW 2.0.0+abc")
             self.assertEqual(v12["name"], "Elecrow CrowPanel 2.13 V1.2 FW 2.0.0+abc")
@@ -127,7 +134,7 @@ class PackagingTests(unittest.TestCase):
             self.assertEqual(sorted(path.name for path in output.glob("*.bin")), sorted(
                 f"{slug}_fw-2.0.0_abc_{image}.bin"
                 for slug in ("waveshare-esp32-213-v2", "elecrow-crowpanel-213", "elecrow-crowpanel-213-v12",
-                             "waveshare-esp32-s3-rlcd-42")
+                             "elecrow-crowpanel-42", "elecrow-crowpanel-42-v2", "waveshare-esp32-s3-rlcd-42")
                 for image in ("factory", "app", "bootloader", "partitions")))
             self.assertIn("elecrow-crowpanel-213_fw-2.0.0_abc_factory.bin", (output / "SHA256SUMS").read_text())
 

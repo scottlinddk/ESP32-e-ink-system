@@ -2,8 +2,9 @@
 #include "config.h"
 #include "bitmap.h"
 
-// The Waveshare RLCD board has its own implementation in display_rlcd.cpp.
-#ifndef WAVESHARE_RLCD_42
+// The Waveshare RLCD and Elecrow 4.2" boards have their own implementations in
+// display_rlcd.cpp and display_epd42.cpp.
+#if !defined(WAVESHARE_RLCD_42) && !defined(ELECROW_EPAPER_42)
 
 #if DEBUG_ENABLED
 #define LOG_D(fmt, ...) Serial.printf("[Display] " fmt "\n", ##__VA_ARGS__)
@@ -372,4 +373,4 @@ void DisplayManager::layoutStatusBar(const DisplayData& data) {
 }
 
 #endif // ELECROW_EPAPER_213
-#endif // !WAVESHARE_RLCD_42
+#endif // !WAVESHARE_RLCD_42 && !ELECROW_EPAPER_42

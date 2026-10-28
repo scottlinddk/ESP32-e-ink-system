@@ -7,6 +7,8 @@ for argument in "$@"; do
   case "$argument" in
     --elecrow) PIO_ENV="elecrow_213" ;;
     --elecrow-v12) PIO_ENV="elecrow_213_v12" ;;
+    --elecrow-42) PIO_ENV="elecrow_42" ;;
+    --elecrow-42-v2) PIO_ENV="elecrow_42_v2" ;;
     -h|--help) ;;
     *) echo "Unknown argument: $argument" >&2; exit 2 ;;
   esac

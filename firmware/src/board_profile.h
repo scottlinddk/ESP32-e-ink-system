@@ -30,6 +30,11 @@ struct BoardProfile {
 #if defined(WAVESHARE_RLCD_42)
 // Landscape 400 x 300 is the vendor's normal orientation; KEY (GPIO18) is setup.
 constexpr BoardProfile kBoard = {"waveshare-esp32-s3-rlcd-42", "Waveshare ESP32-S3-RLCD-4.2 (ST7305)", 400, 300, 18, false};
+#elif defined(ELECROW_EPAPER_42) && defined(ELECROW_PANEL_42_V2)
+// Board with the green circular sticker on the back: updated display driver. HOME (GPIO2) is setup.
+constexpr BoardProfile kBoard = {"elecrow-crowpanel-42-v2", "Elecrow CrowPanel 4.2\" (green sticker)", 400, 300, 2, false};
+#elif defined(ELECROW_EPAPER_42)
+constexpr BoardProfile kBoard = {"elecrow-crowpanel-42", "Elecrow CrowPanel 4.2\" (SSD1683)", 400, 300, 2, false};
 #elif defined(ELECROW_EPAPER_213) && defined(ELECROW_PANEL_JD79661)
 constexpr BoardProfile kBoard = {"elecrow-crowpanel-213-v12", "Elecrow CrowPanel 2.13\" V1.2 (JD79661)", 250, 122, 2, false};
 #elif defined(ELECROW_EPAPER_213)

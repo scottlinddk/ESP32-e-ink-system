@@ -1,4 +1,4 @@
-export type ElecrowPanel = 'original' | 'v12' | 'rlcd42' | 'waveshare213';
+export type ElecrowPanel = 'original' | 'v12' | 'rlcd42' | 'waveshare213' | 'elecrow42' | 'elecrow42v2';
 export interface FlashManifest {
   name: string;
   version?: string;

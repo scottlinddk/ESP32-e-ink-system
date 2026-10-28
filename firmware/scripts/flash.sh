@@ -11,6 +11,8 @@ while [[ $# -gt 0 ]]; do
     build|upload|monitor|flash|clean|help) COMMAND="$1"; shift ;;
     --elecrow) PIO_ENV="elecrow_213"; shift ;;
     --elecrow-v12) PIO_ENV="elecrow_213_v12"; shift ;;
+    --elecrow-42) PIO_ENV="elecrow_42"; shift ;;
+    --elecrow-42-v2) PIO_ENV="elecrow_42_v2"; shift ;;
     --rlcd) PIO_ENV="waveshare_rlcd_42"; shift ;;
     --port)
       [[ $# -gt 1 && -n "$2" ]] || { echo "--port requires a serial port" >&2; exit 2; }
@@ -22,10 +24,12 @@ done
 
 if [[ "$COMMAND" == "help" ]]; then
   cat <<'HELP'
-Usage: flash.sh [build|upload|monitor|flash|clean] [--elecrow|--elecrow-v12|--rlcd] [--port PORT]
+Usage: flash.sh [build|upload|monitor|flash|clean] [--elecrow|--elecrow-v12|--elecrow-42|--elecrow-42-v2|--rlcd] [--port PORT]
 
 Boards: default = Waveshare HAT / ESP32; --elecrow = original CrowPanel SSD1680;
-        --elecrow-v12 = CrowPanel V1.2 JD79661; --rlcd = Waveshare ESP32-S3-RLCD-4.2.
+        --elecrow-v12 = CrowPanel V1.2 JD79661; --rlcd = Waveshare ESP32-S3-RLCD-4.2;
+        --elecrow-42 = CrowPanel 4.2" (SSD1683, no sticker on the back);
+        --elecrow-42-v2 = CrowPanel 4.2" with the green circular sticker on the back.
 
 PlatformIO selects the port automatically unless --port is given (for example COM4).
 No config file is required for a stock build. Optional hardware/API defaults go in

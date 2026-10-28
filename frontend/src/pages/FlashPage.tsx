@@ -55,7 +55,7 @@ export function FlashPage() {
   return (
     <main className="max-w-[760px] mx-auto px-6 py-10 text-fg1">
       <h1 className="text-h2 mb-3">Install ESP32 E-Ink firmware</h1>
-      <p className="mb-6 text-fg2">Flash your Elecrow CrowPanel 2.13-inch e-paper display or Waveshare ESP32-S3-RLCD-4.2 through USB, then connect it to Wi-Fi for automatic dashboard updates.</p>
+      <p className="mb-6 text-fg2">Flash your Elecrow CrowPanel 2.13-inch or 4.2-inch e-paper display or Waveshare ESP32-S3-RLCD-4.2 through USB, then connect it to Wi-Fi for automatic dashboard updates.</p>
 
       {!secure ? <p role="alert" className="mb-5 text-error">Open this page over HTTPS or on localhost. Browsers block USB flashing on ordinary HTTP addresses, including a Raspberry Pi LAN address.</p>
         : !supported && <p role="alert" className="mb-5 text-error">Use Chrome or Edge on a desktop computer. This browser does not provide Web Serial.</p>}
@@ -68,9 +68,12 @@ export function FlashPage() {
           <option value="">Check your board label and select a revision…</option>
           <option value="original">CrowPanel 2.13 original — SSD1680</option>
           <option value="v12">CrowPanel 2.13 V1.2 — JD79661</option>
+          <option value="elecrow42">CrowPanel 4.2 — no sticker on the back (SSD1683)</option>
+          <option value="elecrow42v2">CrowPanel 4.2 — green circular sticker on the back</option>
           <option value="waveshare213">Waveshare ESP32 2.13″ V2 e-paper (classic ESP32)</option>
           <option value="rlcd42">Waveshare ESP32-S3-RLCD-4.2 — 4.2″ reflective LCD (ST7305)</option>
         </select>
+        {(panel === 'elecrow42' || panel === 'elecrow42v2') && <p className="mt-3 text-sm text-fg2">The CrowPanel 4.2 exists in two hardware revisions with different display controllers. Turn the board over: choose the green-sticker option only if it has a green circular sticker on the back. The wrong choice leaves the screen blank or garbled and is fixed by flashing the other image.</p>}
         <p className="mt-3 text-sm text-fg2">All ESP32-S3 boards here report the same USB chip, so USB detection cannot tell them apart. Pick the board you actually own before installing.</p>
         {releases.length > 1 && <>
           <label htmlFor="release" className="block font-medium mt-5 mb-2">Firmware version</label>

@@ -169,7 +169,7 @@ void pollDisplay() {
       return display.showBitmap(bmp, static_cast<size_t>(frame.length));
     });
     if (success) {
-#if defined(ELECROW_EPAPER_213)
+#if defined(ELECROW_EPAPER_213) || defined(ELECROW_EPAPER_42)
       Serial.println("[Main] Display controller refresh cycle completed; visible image not verified");
 #elif defined(WAVESHARE_RLCD_42)
       Serial.println("[Main] Frame written to the RLCD controller");

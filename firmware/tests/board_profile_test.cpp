@@ -5,8 +5,8 @@
 
 // Compiled once per PlatformIO board define by run_host_tests.py.
 int main() {
-#if defined(WAVESHARE_RLCD_42)
-  static_assert(kBoard.width == 400 && kBoard.height == 300, "4.2-inch RLCD geometry");
+#if defined(WAVESHARE_RLCD_42) || defined(ELECROW_EPAPER_42)
+  static_assert(kBoard.width == 400 && kBoard.height == 300, "4.2-inch geometry");
   static_assert(kBoard.rowBytes() == 50 && kBoard.bmpStride() == 52 && kBoard.bmpBytes() == 15662,
                 "backend BMP size for 400x300");
 #else
@@ -20,6 +20,12 @@ int main() {
 #if defined(WAVESHARE_RLCD_42)
   assert(!strcmp(kBoard.id, "waveshare-esp32-s3-rlcd-42"));
   assert(kBoard.setupButton == 18);
+#elif defined(ELECROW_EPAPER_42) && defined(ELECROW_PANEL_42_V2)
+  assert(!strcmp(kBoard.id, "elecrow-crowpanel-42-v2"));
+  assert(kBoard.setupButton == 2);
+#elif defined(ELECROW_EPAPER_42)
+  assert(!strcmp(kBoard.id, "elecrow-crowpanel-42"));
+  assert(kBoard.setupButton == 2);
 #elif defined(ELECROW_PANEL_JD79661)
   assert(!strcmp(kBoard.id, "elecrow-crowpanel-213-v12"));
 #elif defined(ELECROW_EPAPER_213)
