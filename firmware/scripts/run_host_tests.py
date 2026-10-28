@@ -21,6 +21,8 @@ def main():
               "-I" + str(firmware / "src"), "-I" + str(firmware / "tests/stubs"),
               "-I" + str(firmware / "lib/EPD")]
     driver = [firmware / "lib/EPD/EPD.cpp", firmware / "lib/EPD/GUI_Paint.cpp"]
+    epd42 = [firmware / "src/epd42_bus.cpp", firmware / "src/epd42_panel.cpp",
+             firmware / "src/epd42_controller_ssd1683.cpp", firmware / "src/epd42_controller_v2.cpp"]
     cases = [
         ("bitmap", "bitmap_test.cpp", [], []),
         ("ble-frame", "ble_frame_test.cpp", [], []),
@@ -30,11 +32,16 @@ def main():
         ("board-elecrow-213", "board_profile_test.cpp", [], ["-DELECROW_EPAPER_213"]),
         ("board-elecrow-213-v12", "board_profile_test.cpp", [], ["-DELECROW_EPAPER_213", "-DELECROW_PANEL_JD79661"]),
         ("board-waveshare-rlcd-42", "board_profile_test.cpp", [], ["-DWAVESHARE_RLCD_42"]),
+        ("board-elecrow-42", "board_profile_test.cpp", [], ["-DELECROW_EPAPER_42"]),
+        ("board-elecrow-42-v2", "board_profile_test.cpp", [], ["-DELECROW_EPAPER_42", "-DELECROW_PANEL_42_V2"]),
         ("st7305-frame", "st7305_frame_test.cpp", [], []),
+        ("epd42-frame", "epd42_frame_test.cpp", [], []),
         ("wifi-manager", "wifi_manager_test.cpp", [firmware / "src/wifi_manager.cpp"],
          ["-I" + str(firmware / "tests/wifi_stubs")]),
         ("ssd1680", "epd_test.cpp", driver, []),
         ("jd79661", "epd_test.cpp", driver, ["-DELECROW_PANEL_JD79661"]),
+        ("epd42-ssd1683", "epd42_controller_test.cpp", epd42, ["-DELECROW_EPAPER_42"]),
+        ("epd42-v2", "epd42_controller_test.cpp", epd42, ["-DELECROW_EPAPER_42", "-DELECROW_PANEL_42_V2"]),
     ]
     with tempfile.TemporaryDirectory(prefix="eink-host-tests-") as tmp:
         for name, test, sources, flags in cases:

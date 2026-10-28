@@ -1,6 +1,6 @@
-# Firmware: Elecrow CrowPanel, Waveshare 2.13-inch and Waveshare RLCD 4.2-inch
+# Firmware: Elecrow CrowPanel 2.13-inch and 4.2-inch, Waveshare 2.13-inch and Waveshare RLCD 4.2-inch
 
-Use the web app's **Flash** page to install this firmware over USB. It downloads a complete factory image and chooses the ESP32 chip family automatically. **Choose the display revision yourself:** original CrowPanel uses SSD1680; CrowPanel V1.2 uses JD79661. Both are ESP32-S3 devices, so USB detection cannot identify the panel controller.
+Use the web app's **Flash** page to install this firmware over USB. It downloads a complete factory image and chooses the ESP32 chip family automatically. **Choose the display revision yourself:** original CrowPanel uses SSD1680; CrowPanel V1.2 uses JD79661; the CrowPanel 4.2-inch comes in two revisions, told apart by a green circular sticker on the back. Both are ESP32-S3 devices, so USB detection cannot identify the panel controller.
 
 See the [browser installation and recovery guide](../docs/FIRMWARE_FLASHING.md).
 
@@ -9,9 +9,11 @@ See the [browser installation and recovery guide](../docs/FIRMWARE_FLASHING.md).
 | Waveshare 2.13-inch HAT V2 on ESP32-WROOM-32 | `esp32dev` | `waveshare-esp32-213-v2_fw-<version>_factory.bin` |
 | Original Elecrow CrowPanel 2.13-inch, SSD1680 | `elecrow_213` | `elecrow-crowpanel-213_fw-<version>_factory.bin` |
 | Elecrow CrowPanel 2.13-inch V1.2, JD79661 | `elecrow_213_v12` | `elecrow-crowpanel-213-v12_fw-<version>_factory.bin` |
+| Elecrow CrowPanel 4.2-inch, SSD1683 400 × 300 (no sticker on the back) | `elecrow_42` | `elecrow-crowpanel-42_fw-<version>_factory.bin` |
+| Elecrow CrowPanel 4.2-inch 400 × 300 (green circular sticker on the back) | `elecrow_42_v2` | `elecrow-crowpanel-42-v2_fw-<version>_factory.bin` |
 | Waveshare ESP32-S3-RLCD-4.2, ST7305 400 × 300 | `waveshare_rlcd_42` | `waveshare-esp32-s3-rlcd-42_fw-<version>_factory.bin` |
 
-The bundled Elecrow driver is in `lib/EPD`; no vendor library download is required. This firmware pulls the current monochrome BMP from the app's device feed over Wi-Fi. It also accepts manual Bluetooth pushes as `EInk-XXXXXX` during first-boot setup or when holding MENU while resetting (Waveshare: press BOOT within 3 seconds after releasing reset). It also stays on whenever the device is awake between polls (Instant updates on USB power); deep sleep turns it off. Keep the browser online and use a 250 × 122 profile; see [Bluetooth delivery](../docs/BLUETOOTH_DELIVERY.md).
+The bundled Elecrow 2.13-inch driver is in `lib/EPD`; no vendor library download is required. The CrowPanel 4.2-inch has its own driver in `src/epd42_*` and is documented in the [CrowPanel 4.2 guide](../docs/ELECROW_42_SETUP.md). This firmware pulls the current monochrome BMP from the app's device feed over Wi-Fi. It also accepts manual Bluetooth pushes as `EInk-XXXXXX` during first-boot setup or when holding MENU while resetting (Waveshare: press BOOT within 3 seconds after releasing reset). It also stays on whenever the device is awake between polls (Instant updates on USB power); deep sleep turns it off. Keep the browser online and use a 250 × 122 profile; see [Bluetooth delivery](../docs/BLUETOOTH_DELIVERY.md).
 
 Each environment selects one board profile in `src/board_profile.h`: release slug, native panel size and setup button. The frame buffer, device-feed header checks and Bluetooth receiver all derive their sizes from it. The server sends frames in native orientation, so every content rotation (0°, 90°, 180°, 270°) is accepted. The profile ID must match the slug in `scripts/package_web_firmware.py`; the packaging tests enforce this.
 
@@ -102,14 +104,14 @@ Not yet verified on hardware: the visible image after deep sleep, low-power mode
 
 ```sh
 python firmware/scripts/prepare_config.py --version 1.2.0
-pio run --project-dir firmware -e esp32dev -e elecrow_213 -e elecrow_213_v12 -e waveshare_rlcd_42
+pio run --project-dir firmware -e esp32dev -e elecrow_213 -e elecrow_213_v12 -e elecrow_42 -e elecrow_42_v2 -e waveshare_rlcd_42
 python firmware/scripts/package_web_firmware.py --version 1.2.0 --output-dir build/firmware-release
 python -m unittest discover -s firmware/scripts -p 'test_*.py' -v
 ```
 
 `PRODUCTION_API_URL` or `prepare_config.py --api-url` optionally overrides the setup page's default backend URL. An empty secret preserves the example default. The package script uses PlatformIO's esptool to patch flash headers and merge bootloader, partition table, boot_app0, and app. It validates chip family, app partition capacity, flash capacity, merged offsets, and flash header, and writes SHA256SUMS. The original app files are retained for diagnostics and future OTA tooling; this firmware does not implement automatic OTA updates.
 
-`manifest.json` contains Waveshare and original CrowPanel. `manifest-elecrow-v12.json` contains only CrowPanel V1.2. Factory images are written at **0x0**; app-only binaries must never be substituted in a factory manifest.
+`manifest.json` contains Waveshare and original CrowPanel. `manifest-elecrow-v12.json` contains only CrowPanel V1.2. `manifest-elecrow-42.json` and `manifest-elecrow-42-v2.json` each contain one CrowPanel 4.2 revision. Factory images are written at **0x0**; app-only binaries must never be substituted in a factory manifest.
 
 For a local web-flash test before publishing, set the backend environment variable `FIRMWARE_RELEASE_DIR` to the absolute path of `build/firmware-release` and restart the backend. The backend verifies factory-image checksums and serves those assets with hash-pinned URLs. Unset this variable to return to published GitHub releases. Use the local frontend's `/flash` page on localhost; a page accessed through an ordinary LAN HTTP address cannot use Web Serial.
 

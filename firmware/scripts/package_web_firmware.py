@@ -35,6 +35,8 @@ BOARDS = (
     Board("esp32dev", "", "esp32", "ESP32", 0, 0x1000, "4MB", "40m", 0x20, "waveshare-esp32-213-v2"),
     Board("elecrow_213", "-elecrow", "esp32s3", "ESP32-S3", 9, 0, "8MB", "80m", 0x3F, "elecrow-crowpanel-213"),
     Board("elecrow_213_v12", "-elecrow-v12", "esp32s3", "ESP32-S3", 9, 0, "8MB", "80m", 0x3F, "elecrow-crowpanel-213-v12"),
+    Board("elecrow_42", "-elecrow-42", "esp32s3", "ESP32-S3", 9, 0, "8MB", "80m", 0x3F, "elecrow-crowpanel-42"),
+    Board("elecrow_42_v2", "-elecrow-42-v2", "esp32s3", "ESP32-S3", 9, 0, "8MB", "80m", 0x3F, "elecrow-crowpanel-42-v2"),
     # 16 MB flash: header size nibble 4, 80 MHz frequency nibble F.
     Board("waveshare_rlcd_42", "-waveshare-rlcd-42", "esp32s3", "ESP32-S3", 9, 0, "16MB", "80m", 0x4F, "waveshare-esp32-s3-rlcd-42"),
 )
@@ -44,6 +46,8 @@ BOARDS = (
 MANIFESTS = (
     ("manifest.json", "Elecrow CrowPanel 2.13", ("esp32dev", "elecrow_213")),
     ("manifest-elecrow-v12.json", "Elecrow CrowPanel 2.13 V1.2", ("elecrow_213_v12",)),
+    ("manifest-elecrow-42.json", "Elecrow CrowPanel 4.2", ("elecrow_42",)),
+    ("manifest-elecrow-42-v2.json", "Elecrow CrowPanel 4.2 (green sticker)", ("elecrow_42_v2",)),
     ("manifest-waveshare-rlcd-42.json", "Waveshare ESP32-S3-RLCD-4.2", ("waveshare_rlcd_42",)),
 )
 

@@ -16,6 +16,8 @@
 // PlatformIO selects the board automatically via -e esp32dev or -e elecrow_213.
 //
 // #define ELECROW_EPAPER_213   // Elecrow CrowPanel 2.13" (ESP32-S3)
+// #define ELECROW_EPAPER_42    // Elecrow CrowPanel 4.2" (ESP32-S3); add ELECROW_PANEL_42_V2
+//                              // for the board with a green circular sticker on the back
 // #define WAVESHARE_RLCD_42    // Waveshare ESP32-S3-RLCD-4.2 (ST7305 reflective LCD)
 //                              // Leave commented for Waveshare 2.13" HAT (ESP32-WROOM-32)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,6 +39,8 @@
 //   pio run -e esp32dev     → Waveshare 2.13" HAT on ESP32-WROOM-32
 //   pio run -e elecrow_213  → Elecrow CrowPanel 2.13" on ESP32-S3
 //   pio run -e waveshare_rlcd_42 → Waveshare ESP32-S3-RLCD-4.2
+//   pio run -e elecrow_42     → Elecrow CrowPanel 4.2" (SSD1683)
+//   pio run -e elecrow_42_v2  → Elecrow CrowPanel 4.2" with the green sticker
 
 #if defined(WAVESHARE_RLCD_42)
 // Waveshare ESP32-S3-RLCD-4.2 (ESP32-S3-WROOM-1-N16R8, ST7305 400 x 300 RLCD)
@@ -53,6 +57,20 @@
 #define BATTERY_VOLTAGE_DIVIDER_RATIO 3.0f
 // Drop the panel to its low-power scan rate while idle or in deep sleep.
 #define RLCD_LOW_POWER_IDLE 1
+#elif defined(ELECROW_EPAPER_42)
+// Elecrow CrowPanel ESP32 4.2" E-Paper (ESP32-S3-WROOM-1-N8R8), 400 x 300.
+// The display pins live in epd42_bus.h (SCK 12, MOSI 11, RES 47, DC 46, CS 45,
+// BUSY 48, panel power GPIO7) and are not configurable here. Listed for reference.
+#define PIN_CS   45
+#define PIN_DC   46
+#define PIN_RST  47
+#define PIN_BUSY 48   // Busy indicator (active high)
+#define PIN_MOSI 11
+#define PIN_CLK  12
+#define PIN_MISO -1
+#define PIN_POWER 7
+#define PIN_SETUP_BUTTON 2 // HOME key (active low), hold during reset to reopen setup
+#define PIN_BATTERY_ADC -1 // No verified battery ADC on this board
 #elif defined(ELECROW_EPAPER_213)
 // Elecrow CrowPanel ESP32 2.13" E-Paper (ESP32-S3)
 // Pins match the Elecrow schematic and manufacturer examples.

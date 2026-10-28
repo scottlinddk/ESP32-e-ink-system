@@ -13,7 +13,7 @@ describe('local factory installation', () => {
   let directory: string;
   let server: Server;
   let base: string;
-  const names = ['firmware-factory.bin', 'firmware-elecrow-factory.bin', 'firmware-elecrow-v12-factory.bin'];
+  const names = ['firmware-factory.bin', 'firmware-elecrow-factory.bin', 'firmware-elecrow-v12-factory.bin', 'firmware-elecrow-42-v2-factory.bin'];
 
   beforeAll(async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), 'eink-factory-'));
@@ -28,7 +28,8 @@ describe('local factory installation', () => {
     await writeFile(path.join(directory, 'SHA256SUMS'), sums.join('\n'));
     const builds = names.map((name, index) => ({ chipFamily: index === 0 ? 'ESP32' : 'ESP32-S3', parts: [{ path: name, offset: 0 }] }));
     await writeFile(path.join(directory, 'manifest.json'), JSON.stringify({ name: 'Test', version: 'test-build', release_date: '2026-10-04T12:00:00Z', builds: builds.slice(0, 2) }));
-    await writeFile(path.join(directory, 'manifest-elecrow-v12.json'), JSON.stringify({ name: 'Test', version: 'test-build', release_date: 'tomorrow', builds: builds.slice(2) }));
+    await writeFile(path.join(directory, 'manifest-elecrow-v12.json'), JSON.stringify({ name: 'Test', version: 'test-build', release_date: 'tomorrow', builds: builds.slice(2, 3) }));
+    await writeFile(path.join(directory, 'manifest-elecrow-42-v2.json'), JSON.stringify({ name: 'Test', version: 'test-build', builds: builds.slice(3) }));
     const app = express();
     app.use('/api/firmware', firmwareAssets);
     await new Promise<void>(resolve => { server = app.listen(0, '127.0.0.1', resolve); });
@@ -54,6 +55,20 @@ describe('local factory installation', () => {
       expect(binary.headers.get('content-type')).toContain('application/octet-stream');
       expect(Buffer.from(await binary.arrayBuffer())).toEqual(await readFile(path.join(directory, panel === 'v12' ? names[2] : names[1])));
     }
+  });
+
+  it('serves the CrowPanel 4.2 green-sticker image from its own manifest and never the 2.13 image', async () => {
+    vi.stubEnv('FIRMWARE_RELEASE_DIR', directory);
+    const manifest = await getInstallManifest('elecrow42v2');
+    expect(manifest?.name).toBe('Elecrow CrowPanel 4.2 (green sticker) FW test-build');
+    expect(manifest?.builds).toHaveLength(1);
+    const part = manifest!.builds[0].parts[0];
+    expect(part.path).toContain(names[3]);
+    const binary = await fetch(new URL(`local/${part.path.split('/')[1]}/${names[3]}`, base));
+    expect(binary.status).toBe(200);
+    expect(Buffer.from(await binary.arrayBuffer())).toEqual(await readFile(path.join(directory, names[3])));
+    // The plain 4.2 revision has no manifest here: it must not fall back to another board's image.
+    await expect(getInstallManifest('elecrow42')).rejects.toThrow();
   });
 
   it('rejects stale hashes and undeclared filenames', async () => {
