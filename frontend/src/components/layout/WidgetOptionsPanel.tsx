@@ -2,13 +2,16 @@
 // WidgetOptionsPanel.tsx — display options for the widget selected in the layout editor
 // =========================================================================
 import React from 'react';
-import type { CalendarView, EnergyView, TickerView, TickerWidgetSetting, WeatherView, WidgetLayout, WidgetOptions } from '../../types';
+import type { CalendarView, EnergyView, LayoutOutline, TickerView, TickerWidgetSetting, WeatherView, WidgetLayout, WidgetOptions, WidgetOutline } from '../../types';
 import { familyMealsView, MAX_CALENDAR_DAYS, MAX_NEWS_COLUMNS, MAX_WIDGET_ITEMS, MIN_CALENDAR_DAYS, widgetAcceptsZoom, widgetOptionKind } from '../../lib/widgetOptions';
 import { MAX_ZOOM, MIN_ZOOM, WIDGET_ZOOM_STEP, snapWidgetZoom, zoomLabel } from '../../lib/zoom';
 import { Card } from '../ui/card';
 import { Field } from '../ui/Field';
 import { Select } from '../ui/select';
 import { Button } from '../ui/button';
+import { Icon } from '../ui/Logo';
+import { cn } from '@/lib/utils';
+import { ALIGN_ICONS, DEFAULT_ALIGN, LAYOUT_OUTLINES, WIDGET_ALIGNMENTS, alignLabel, outlineLabel } from '../../lib/widgetFrame';
 
 interface WidgetOptionsPanelProps {
   widget: WidgetLayout;
@@ -18,6 +21,8 @@ interface WidgetOptionsPanelProps {
   ticker?: TickerWidgetSetting;
   /** Zoom the widget is drawn at when it has none of its own: the layout's, else the panel's automatic one. */
   inheritedZoom?: number;
+  /** The layout's outline, which the widget follows unless it chooses its own. */
+  layoutOutline?: LayoutOutline;
   onChange: (change: WidgetOptions) => void;
   onClose: () => void;
 }
@@ -40,7 +45,7 @@ function dayCountOptions(autoLabel: string) {
     ...Array.from({ length: MAX_CALENDAR_DAYS - MIN_CALENDAR_DAYS + 1 }, (_, index) => ({ value: String(index + MIN_CALENDAR_DAYS), label: String(index + MIN_CALENDAR_DAYS) }))];
 }
 
-export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom, onChange, onClose }: WidgetOptionsPanelProps) {
+export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom, layoutOutline, onChange, onClose }: WidgetOptionsPanelProps) {
   const da = lang === 'da';
   const kind = widgetOptionKind(widget.i);
   const fieldId = `widget-options-${widget.i.replace(/[^a-z0-9]/gi, '-')}`;
@@ -285,11 +290,48 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
           );
         })()}
 
-        {!kind && !widgetAcceptsZoom(widget.i) && (
-          <p className="text-sm text-fg2 m-0">
-            {da ? 'Denne widget har ingen visningsindstillinger. Flyt eller tilpas størrelsen i gitteret.' : 'This widget has no display options. Move or resize it in the grid.'}
-          </p>
-        )}
+        {(() => {
+          const align = widget.options?.align ?? DEFAULT_ALIGN;
+          return (
+            <Field label={da ? 'Placering af indhold' : 'Content position'}
+              helper={da ? 'Hvor indholdet står i widgettens felt. Indhold, der allerede fylder feltet, flyttes ikke.'
+                : 'Where the content sits in the widget\'s area. Content that already fills the area does not move.'}>
+              <div role="group" aria-label={da ? 'Placering af indhold' : 'Content position'}
+                className="grid grid-cols-3 gap-1 w-fit p-1 rounded-md border border-divider bg-black/[0.03]">
+                {WIDGET_ALIGNMENTS.map((value) => {
+                  const selected = value === align;
+                  return (
+                    <button key={value} type="button" aria-pressed={selected} aria-label={alignLabel(value, lang)} title={alignLabel(value, lang)}
+                      className={cn('w-9 h-9 rounded flex items-center justify-center cursor-pointer border transition-[background,color] duration-[150ms] [&_.material-symbols-outlined]:text-[18px]',
+                        selected ? 'bg-accent text-fg-on border-accent' : 'bg-transparent text-fg2 border-transparent hover:bg-black/[0.06]')}
+                      onClick={() => onChange({ align: value === DEFAULT_ALIGN ? undefined : value })}>
+                      <Icon name={ALIGN_ICONS[value]} />
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="text-xs text-fg3">{alignLabel(align, lang)}</span>
+            </Field>
+          );
+        })()}
+
+        {(() => {
+          const FOLLOW = 'follow';
+          const followLabel = `${da ? 'Som layoutet' : 'Follow layout'} (${outlineLabel(layoutOutline ?? 'none', lang).toLowerCase()})`;
+          return (
+            <Field label={da ? 'Kant' : 'Outline'} htmlFor={`${fieldId}-outline`}
+              helper={da ? 'En streg om widgetten med lidt luft til naboerne, så widgets ikke flyder sammen. Er widgetten for lille, udelades kanten.'
+                : 'A line around the widget with a small gap to its neighbours, so widgets do not run together. A widget too small for it is drawn without.'}>
+              <Select id={`${fieldId}-outline`} value={widget.options?.outline ?? FOLLOW}
+                options={[
+                  { value: FOLLOW, label: followLabel },
+                  { value: 'none', label: outlineLabel('none', lang) },
+                  ...LAYOUT_OUTLINES.map((outline) => ({ value: outline, label: outlineLabel(outline, lang) })),
+                ]}
+                onChange={(e) => onChange({ outline: e.target.value === FOLLOW ? undefined : e.target.value as WidgetOutline })} />
+            </Field>
+          );
+        })()}
 
         <p className="text-xs text-fg3 m-0">
           {da ? 'Gælder kun denne placering. Gem layoutet for at beholde ændringen.' : 'Applies to this placement only. Save the layout to keep the change.'}

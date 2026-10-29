@@ -20,6 +20,12 @@ export type CalendarView = 'list' | 'day' | 'days' | 'month';
 /** `summary` is the one-line reading, `current` the big temperature, `hours` the next 3-hour steps, `daily` the days ahead, `details` a list of readings. */
 export type WeatherView = 'summary' | 'current' | 'hours' | 'daily' | 'details';
 
+/** Where a widget's content sits in its area, as `vertical-horizontal`. */
+export type WidgetAlign = 'top-left' | 'top-center' | 'top-right' | 'middle-left' | 'middle-center' | 'middle-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+/** The outline drawn around a widget. Mirrors backend/src/utils/widgetFrame.ts. */
+export type WidgetOutline = 'none' | 'thin' | 'thick' | 'rounded' | 'dashed';
+export type LayoutOutline = Exclude<WidgetOutline, 'none'>;
+
 export interface WidgetOptions {
   /** energy: EnergyView; weather: WeatherView; calendar: CalendarView; ticker: TickerView, overriding the ticker's own view. */
   view?: EnergyView | WeatherView | CalendarView | TickerView | FamilyMealsView;
@@ -41,6 +47,10 @@ export interface WidgetOptions {
   footer?: boolean;
   /** Enlargement of the widget, 1–4 in steps of 0.2. Overrides the layout's zoom; unset follows it. */
   zoom?: number;
+  /** Where the content sits in the widget's area. Unset is 'top-left', where every widget draws on its own. */
+  align?: WidgetAlign;
+  /** Outline around the widget. Overrides the layout's; 'none' is stored only to opt out of it. Unset follows the layout. */
+  outline?: WidgetOutline;
 }
 
 export interface DisplayLayout {
@@ -54,6 +64,8 @@ export interface DisplayLayout {
   invert?: boolean | 'sun';
   /** Tekst TV: every widget gets a titled bar with a page number and the status bar becomes the page header. */
   teletext?: boolean;
+  /** Default outline for every widget. Unset draws none. */
+  outline?: LayoutOutline;
   widgets: WidgetLayout[];
 }
 

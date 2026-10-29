@@ -13,6 +13,8 @@ Select a widget in **Edit layout** (tap or click it, or focus it and press Enter
 | `ai-usage` | `view` | `full` (default, quota windows plus token breakdown) or `condensed` (quota windows only). A widget too short for the chosen view drops detail, down to one line per provider. See [AI usage](AI_USAGE.md). |
 | `status` | `view` | `full` (default, refresh interval and time) or `condensed` (the time alone, so the bar can be narrow). See [A smaller status bar](LAYOUT_GRID.md#a-smaller-status-bar). |
 | every widget except `custom-image` | `zoom` | 1–4 in steps of 0.2 (a slider in the editor). Enlarges the widget's text and graphics. See [Zoom](#zoom). |
+| every widget | `align` | Where the content sits in the widget's area: `top-left` (default), `top-center`, `top-right`, `middle-left`, `middle-center`, `middle-right`, `bottom-left`, `bottom-center` or `bottom-right`. See [Content position](#content-position). |
+| every widget | `outline` | `none`, `thin`, `thick`, `rounded` or `dashed`. Unset follows the layout's `outline`. See [Outlines](#outlines). |
 
 Options are stored on the layout widget:
 
@@ -20,7 +22,7 @@ Options are stored on the layout widget:
 { "i": "energy", "x": 0, "y": 0, "w": 10, "h": 3, "options": { "view": "rest" } }
 ```
 
-The backend validates them with the layout (`backend/src/utils/widgetOptions.ts`, mirrored in `frontend/src/lib/widgetOptions.ts`). Unknown fields, values outside the ranges above and options on widgets without any are rejected; an empty `options` object is dropped. Layouts without options render exactly as before. Templates export and import options as part of the layout.
+The backend validates them with the layout (`backend/src/utils/widgetOptions.ts`, mirrored in `frontend/src/lib/widgetOptions.ts`). Unknown fields and values outside the ranges above are rejected; an empty `options` object and the default `align` are dropped. Layouts without options render exactly as before. Templates export and import options as part of the layout.
 
 ## Zoom
 
@@ -41,3 +43,38 @@ Zoom is chosen at three levels, the most specific first:
 A fine zoom such as 1.4× has no matching bitmap font, so the 8 × 8 glyphs are resampled: each glyph pixel becomes a block whose edges are rounded to the nearest panel pixel. Strokes and gaps are therefore 1 or 2 px wide, and letter spacing varies by a pixel. Whole values (1×, 2×, 3×, 4×) are the sharpest; try the in-between ones on your panel and in the live preview before relying on them. The layout's own zoom stays whole.
 
 Choose **1×** for a layout to keep the pre-zoom look on a larger panel. A zoom too large for a widget (less than one text line, or about four characters, would remain) is lowered until it fits, so a one-row widget never shows half a line. `custom-image` is never zoomed: it is placed by pixel and already scales to its area. The layout editor labels the automatic choice from the saved display profile; a device that declares its own panel size follows that size on the server.
+
+## Content position
+
+Every widget draws from its top-left corner. **Content position** (a 3 × 3 picker under the grid) moves what it drew to another corner, an edge or the centre of its area, for example a clock in the bottom-right corner of a large widget or a short note centred in its box.
+
+```json
+{ "i": "custom-text", "x": 6, "y": 0, "w": 4, "h": 2, "options": { "align": "bottom-right" } }
+```
+
+The widget is drawn as usual on a scratch canvas, its black pixels are measured, and that box is moved:
+
+- Left and top keep the widget's own position, so `top-left` (the default, not stored) draws exactly as before.
+- Right and bottom leave the same 2 px margin the widget keeps on the left, times its zoom.
+- Centre centres the drawn box in the area.
+
+Content that already fills the area, such as a chart, a month grid or headlines in columns, has nowhere to go and stays where it is. Many widgets draw a full-width rule along their top edge to separate them from the widget above. That rule stays in place and only what is under it moves. With Tekst TV the title bar stays at the top and the content below it moves. A custom image with `contain` fit is placed at its fitted size; a `cover` image fills its area anyway.
+
+## Outlines
+
+An outline draws a line around a widget so neighbouring widgets do not run together. It is set for the whole layout (**Outlines** above the grid, `outline` beside `widgets`) and each widget can choose another one or `none` in its options, which overrides the layout's:
+
+```json
+{ "version": 1, "cols": 10, "rows": 6, "outline": "rounded", "widgets": [
+  { "i": "energy", "x": 0, "y": 0, "w": 6, "h": 2 },
+  { "i": "status", "x": 0, "y": 5, "w": 10, "h": 1, "options": { "outline": "none" } } ] }
+```
+
+| Outline | Look |
+|---|---|
+| `thin` | A 1 px box. |
+| `thick` | A 2 px box. |
+| `rounded` | A 1 px box with the corners cut by a diagonal step. |
+| `dashed` | A broken 1 px line, spread so every side starts and ends on a dash. |
+
+The line sits 1 px inside the widget's cell, so two outlined neighbours have a white gap between them instead of merging into one thick line, and the widget draws 1 px inside the line. On a 250 × 122 panel a thin outline takes 3 px on each side. Sizes are multiplied by the layout's whole zoom (the layout's text size, or the panel's automatic one), so every outline on a larger panel grows the same way. Inside an outline the widget's own top rule is dropped, since the outline already separates it. A widget too small to keep a line of text inside the outline (on a 20 × 12 or 40 × 24 grid, a one-row widget) is drawn without it. With **Invert colours** the outline turns white like everything else.

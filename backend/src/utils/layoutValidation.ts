@@ -5,6 +5,7 @@ import { calendarIdFromWidget, MAX_CALENDAR_WIDGETS } from './calendarWidgets';
 import { EXTRA_WEATHER_WIDGETS, WEATHER_WIDGET_IDS } from './weatherWidgets';
 import { parseWidgetOptions } from './widgetOptions';
 import { isZoom, MAX_ZOOM, MIN_ZOOM } from './zoom';
+import { isWidgetOutline, WIDGET_OUTLINES, type LayoutOutline } from './widgetFrame';
 import { BASE_GRID_COLS, BASE_GRID_ROWS, GRID_SCALES, gridScale } from './layoutGrid';
 
 export const DISPLAY_WIDGET_IDS = ['energy', 'weather', 'news', 'monta', 'zaptec', 'notion', 'family-meals', 'custom-text', 'custom-image', 'custom-webhook', 'calendar', 'week-number', 'battery', 'ai-usage', 'status'] as const;
@@ -26,7 +27,7 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
     const sizes = GRID_SCALES.map((scale) => `${BASE_GRID_COLS * scale} × ${BASE_GRID_ROWS * scale}`).join(', ');
     throw new LayoutValidationError(`Layout must use version 1 and a ${sizes} grid.`);
   }
-  if (Object.keys(value).some((key) => !['version', 'cols', 'rows', 'zoom', 'invert', 'teletext', 'widgets'].includes(key))) {
+  if (Object.keys(value).some((key) => !['version', 'cols', 'rows', 'zoom', 'invert', 'teletext', 'outline', 'widgets'].includes(key))) {
     throw new LayoutValidationError('Layout contains unsupported fields.');
   }
   if (value.invert !== undefined && typeof value.invert !== 'boolean' && value.invert !== 'sun') {
@@ -34,6 +35,9 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
   }
   if (value.teletext !== undefined && typeof value.teletext !== 'boolean') {
     throw new LayoutValidationError('Layout teletext must be true or false.');
+  }
+  if (value.outline !== undefined && !isWidgetOutline(value.outline)) {
+    throw new LayoutValidationError(`Layout outline must be one of ${WIDGET_OUTLINES.join(', ')}.`);
   }
   const cols = value.cols as number;
   const rows = value.rows as number;
@@ -76,5 +80,7 @@ export function parseDisplayLayout(value: unknown): DisplayLayout {
   }
   // A false flag is the default, so it is not stored.
   const invert = value.invert === true || value.invert === 'sun' ? value.invert : undefined;
-  return { version: 1, cols, rows, ...(value.zoom === undefined ? {} : { zoom: value.zoom }), ...(invert ? { invert } : {}), ...(value.teletext === true ? { teletext: true } : {}), widgets };
+  return { version: 1, cols, rows, ...(value.zoom === undefined ? {} : { zoom: value.zoom }), ...(invert ? { invert } : {}), ...(value.teletext === true ? { teletext: true } : {}),
+    // No outline is the default, so 'none' is not stored.
+    ...(value.outline === undefined || value.outline === 'none' ? {} : { outline: value.outline as LayoutOutline }), widgets };
 }
