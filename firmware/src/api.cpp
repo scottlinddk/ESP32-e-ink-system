@@ -11,12 +11,35 @@ ApiClient::ApiClient() {
   client.setHandshakeTimeout(15);
 }
 
-bool ApiClient::begin(HTTPClient& http, const char* baseUrl, const char* deviceId,
-                      const char* token, const char* endpoint) {
-  if (!feed::validBaseUrl(baseUrl) || !feed::validDeviceId(deviceId) || !feed::validToken(token)) return false;
+// "https://host", "https://host/" and "https://host/api/" all become "https://host/api".
+String ApiClient::apiBase(const char* baseUrl) {
   String base(baseUrl);
   while (base.endsWith("/")) base.remove(base.length() - 1);
   if (!base.endsWith("/api")) base += "/api";
+  return base;
+}
+
+bool ApiClient::fetchServerTime(const char* baseUrl, uint32_t* epoch) {
+  if (!feed::validBaseUrl(baseUrl) || !epoch) return false;
+  HTTPClient http;
+  http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
+  http.setTimeout(API_REQUEST_TIMEOUT_MS);
+  http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+  http.useHTTP10(true);
+  if (!http.begin(client, apiBase(baseUrl) + "/health")) return false;
+  const char* headers[] = {"Date", "Age"};
+  http.collectHeaders(headers, sizeof(headers) / sizeof(headers[0]));
+  const int status = http.GET();
+  // Any HTTP response carries the server's Date; a TLS or socket failure is negative.
+  const bool ok = status > 0 && feed::serverEpoch(http.header("Date").c_str(), http.header("Age").c_str(), epoch);
+  http.end();
+  return ok;
+}
+
+bool ApiClient::begin(HTTPClient& http, const char* baseUrl, const char* deviceId,
+                      const char* token, const char* endpoint) {
+  if (!feed::validBaseUrl(baseUrl) || !feed::validDeviceId(deviceId) || !feed::validToken(token)) return false;
+  const String base = apiBase(baseUrl);
   http.setConnectTimeout(API_REQUEST_TIMEOUT_MS);
   http.setTimeout(API_REQUEST_TIMEOUT_MS);
   http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);

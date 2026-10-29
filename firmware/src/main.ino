@@ -9,6 +9,7 @@
 #include "board_profile.h"
 #include "battery.h"
 #include <time.h>
+#include <sys/time.h>
 #ifdef WAVESHARE_RLCD_42
 #include <driver/rtc_io.h>
 #endif
@@ -143,14 +144,26 @@ void pollDisplay() {
     openSetup(300, wifiManager.getConnectionError());
     return;
   }
-  // Certificate time validation requires a real clock. Retained RTC time is used
-  // after sleep; on a cold boot synchronise before sending any device credential.
+  // A real clock is required before any device credential is sent. Retained RTC
+  // time is used after sleep; on a cold boot try NTP, then the backend's Date header.
   Serial.println("[Main] Synchronizing clock for HTTPS");
   configTime(0, 0, "pool.ntp.org", "time.google.com");
   const uint32_t syncStart = millis();
-  while (time(nullptr) < 1735689600 && millis() - syncStart < 20000) delay(100);
-  if (time(nullptr) < 1735689600) {
-    Serial.println("[Main] Time sync failed; check internet/NTP access");
+  while (time(nullptr) < feed::kMinValidEpoch && millis() - syncStart < NTP_SYNC_TIMEOUT_MS) delay(100);
+  if (time(nullptr) < feed::kMinValidEpoch) {
+    // Networks that block UDP 123 never answer NTP. The Arduino core's mbedTLS
+    // does not check certificate dates (CONFIG_MBEDTLS_HAVE_TIME_DATE is off),
+    // so this request still verifies the server chain on an unset clock.
+    Serial.println("[Main] NTP did not answer; reading the server's HTTPS Date header");
+    uint32_t serverTime = 0;
+    if (apiClient.fetchServerTime(credentials.apiUrl, &serverTime)) {
+      const timeval now = {static_cast<time_t>(serverTime), 0};
+      settimeofday(&now, nullptr);
+      Serial.printf("[Main] Clock set from server Date header: %lu\n", static_cast<unsigned long>(serverTime));
+    }
+  }
+  if (time(nullptr) < feed::kMinValidEpoch) {
+    Serial.println("[Main] Time sync failed; NTP and the server Date header were both unavailable");
     if (!feed::validHash(appliedFrame.hash)) display.showError("Time sync failed", "Check internet / NTP");
     finishPoll();
     return;
