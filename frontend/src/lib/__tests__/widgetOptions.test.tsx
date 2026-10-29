@@ -104,9 +104,11 @@ describe('widget options panel', () => {
     expect(panel({ i: 'ticker:t1', x: 0, y: 0, w: 5, h: 3, options: { view: 'full' } }, 'en', ticker)).not.toContain('Stocks per page');
   });
 
-  it('says when a widget has nothing to set', () => {
-    expect(panel({ i: 'custom-image', x: 0, y: 0, w: 5, h: 2 })).toContain('no display options');
-    expect(panel({ i: 'custom-image', x: 0, y: 0, w: 5, h: 2 })).not.toContain('Text size');
+  it('offers an image its position and outline, but no text size', () => {
+    const html = panel({ i: 'custom-image', x: 0, y: 0, w: 5, h: 2 });
+    expect(html).toContain('Content position');
+    expect(html).toContain('Outline');
+    expect(html).not.toContain('Text size');
   });
 
   it('offers a text size to every widget that draws text, naming what it follows', () => {

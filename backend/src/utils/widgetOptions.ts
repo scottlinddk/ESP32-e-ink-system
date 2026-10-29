@@ -4,6 +4,7 @@ import { calendarIdFromWidget } from './calendarWidgets';
 import { isWeatherWidget } from './weatherWidgets';
 import { tickerIdFromWidget } from './tickerWidgets';
 import { isWidgetZoom, MAX_ZOOM, MIN_ZOOM } from './zoom';
+import { DEFAULT_ALIGN, isWidgetAlign, isWidgetOutline, WIDGET_ALIGNMENTS, WIDGET_OUTLINES } from './widgetFrame';
 
 // Per-placement display options, stored on a layout widget. They change how a widget is
 // drawn, never what is fetched, so a scheduled page can show the same source differently.
@@ -69,6 +70,9 @@ export function acceptsZoom(widgetId: string): boolean {
   return widgetId !== 'custom-image';
 }
 
+/** Every widget can be positioned in its area and outlined. */
+const FRAME_KEYS = ['align', 'outline'] as const;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -80,12 +84,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function parseWidgetOptions(widgetId: string, value: unknown): WidgetOptions | undefined {
   if (value === undefined || (isRecord(value) && Object.keys(value).length === 0)) return undefined;
   const kind = widgetOptionKind(widgetId);
-  if (!isRecord(value) || (!kind && !acceptsZoom(widgetId))) throw new Error('This widget has no display options.');
-  const allowed = [...(kind ? ALLOWED_KEYS[kind] : []), ...(acceptsZoom(widgetId) ? ['zoom'] : [])];
+  if (!isRecord(value)) throw new Error('Widget options must be an object.');
+  const allowed = [...(kind ? ALLOWED_KEYS[kind] : []), ...(acceptsZoom(widgetId) ? ['zoom'] : []), ...FRAME_KEYS];
   if (Object.keys(value).some((key) => !allowed.includes(key))) {
     throw new Error('Widget options contain unsupported fields.');
   }
   const options: WidgetOptions = {};
+  if (value.align !== undefined) {
+    if (!isWidgetAlign(value.align)) throw new Error(`Widget alignment must be one of ${WIDGET_ALIGNMENTS.join(', ')}.`);
+    // Top left is where a widget draws on its own, so it is never stored.
+    if (value.align !== DEFAULT_ALIGN) options.align = value.align;
+  }
+  if (value.outline !== undefined) {
+    if (!isWidgetOutline(value.outline)) throw new Error(`Widget outline must be one of ${WIDGET_OUTLINES.join(', ')}.`);
+    // 'none' is kept: it opts this widget out of the layout's outline.
+    options.outline = value.outline;
+  }
   if (value.zoom !== undefined) {
     if (!isWidgetZoom(value.zoom)) throw new Error(`Widget zoom must be a multiple of 0.2 from ${MIN_ZOOM} to ${MAX_ZOOM}.`);
     options.zoom = value.zoom;

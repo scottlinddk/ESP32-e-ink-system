@@ -26,6 +26,7 @@ import { BASE_GRID_COLS, BASE_GRID_ROWS } from './layoutGrid';
 import { isDarkAt } from './sunTimes';
 import { drawTeletextTitleBar, renderTeletextHeader, teletextPages, teletextTitle } from './teletext';
 import { ZoomCanvas, logicalBounds, type Bounds, type DrawingCanvas } from './zoomCanvas';
+import { alignArea, alignOffset, chooseOutline, DEFAULT_ALIGN, drawOutline, outlineBoxes, type WidgetAlign } from './widgetFrame';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -173,6 +174,13 @@ export class BmpCanvas implements DrawingCanvas {
     } else {
       this.pixels[byteIdx] |= bitMask;
     }
+  }
+
+  /** Whether a pixel is black. Pixels outside the canvas read as white. */
+  isBlack(x: number, y: number): boolean {
+    if (x < 0 || y < 0 || x >= this.width || y >= this.height || !Number.isInteger(x) || !Number.isInteger(y)) return false;
+    const { byteIdx, bitMask } = this.locate(x, y);
+    return (this.pixels[byteIdx] & bitMask) === 0;
   }
 
   /** Swaps black and white inside `bounds`, ignoring the clip. Row padding bits are never touched. */
@@ -575,6 +583,61 @@ function renderTickerWidget(
   drawRenderedWidget(canvas, bounds, rendered);
 }
 
+// ── Content placement ────────────────────────────────────────────────────────
+
+/** An outline is left out when the widget inside it could not hold a line of text and a few characters. */
+const MIN_FRAMED_WIDTH = 32;
+const MIN_FRAMED_HEIGHT = 10;
+
+/** Where a custom image goes: its fitted size, placed by the alignment. A cover image fills the area anyway. */
+function placeCustomImage(bounds: WidgetBounds, image: NonNullable<DisplayData['customImage']>, align: WidgetAlign): WidgetBounds {
+  if (align === DEFAULT_ALIGN || image.fit === 'cover' || image.width < 1 || image.height < 1) return bounds;
+  const scale = Math.min(bounds.width / image.width, bounds.height / image.height);
+  return alignArea(bounds, Math.round(image.width * scale), Math.round(image.height * scale), align);
+}
+
+/**
+ * Copies what a widget drew on `scratch` inside `box` to `canvas`, moved by its alignment.
+ * Many widgets start with a full-width rule along their top edge to separate them from the
+ * widget above. That rule stays where it is (or is dropped inside an outline, which already
+ * separates the widget) and the rest is measured by its black pixels and moved.
+ */
+function placeContent(canvas: BmpCanvas, scratch: BmpCanvas, box: WidgetBounds, placement: {
+  align: WidgetAlign; pad: number; separatorRows: number; dropSeparator: boolean;
+}): void {
+  const right = box.x + box.width;
+  const bottom = box.y + box.height;
+  const fullRow = (y: number) => {
+    for (let x = box.x; x < right; x++) if (!scratch.isBlack(x, y)) return false;
+    return true;
+  };
+  let contentTop = box.y;
+  for (let y = box.y; y < Math.min(bottom, box.y + placement.separatorRows); y++) {
+    if (fullRow(y)) contentTop = y + 1;
+  }
+  if (!placement.dropSeparator) {
+    for (let y = box.y; y < contentTop; y++) for (let x = box.x; x < right; x++) {
+      if (scratch.isBlack(x, y)) canvas.setPixel(x, y, true);
+    }
+  }
+  let left = right, top = bottom, inkRight = box.x, inkBottom = contentTop;
+  for (let y = contentTop; y < bottom; y++) {
+    for (let x = box.x; x < right; x++) {
+      if (!scratch.isBlack(x, y)) continue;
+      if (x < left) left = x;
+      if (x >= inkRight) inkRight = x + 1;
+      if (y < top) top = y;
+      inkBottom = y + 1;
+    }
+  }
+  if (left >= inkRight) return;
+  const area = { x: box.x, y: contentTop, width: box.width, height: bottom - contentTop };
+  const { dx, dy } = alignOffset(area, { x: left, y: top, width: inkRight - left, height: inkBottom - top }, placement.align, placement.pad);
+  for (let y = top; y < inkBottom; y++) {
+    for (let x = left; x < inkRight; x++) if (scratch.isBlack(x, y)) canvas.setPixel(x + dx, y + dy, true);
+  }
+}
+
 // ── Main render entry point ───────────────────────────────────────────────────
 
 const WIDGET_ENABLED_SETTING = {
@@ -606,19 +669,22 @@ function populateCanvas(
       : WIDGET_ENABLED_SETTING[widget.i as keyof typeof WIDGET_ENABLED_SETTING];
     if (setting && preferences?.[setting] === false) continue;
     const physical = getWidgetBounds(widget, canvas, effectiveLayout);
+    // An outline is drawn in physical pixels, scaled by the layout's whole zoom so every outline on a panel matches.
+    const outline = chooseOutline(widget.options?.outline, effectiveLayout.outline);
+    const frameScale = Math.floor(chooseZoom(undefined, effectiveLayout.zoom, canvas));
+    const boxes = outline === 'none' ? null : outlineBoxes(physical, outline, frameScale);
+    // An outline that would leave no room for a line of text is left out.
+    const framed = boxes && boxes.inner.width >= MIN_FRAMED_WIDTH && boxes.inner.height >= MIN_FRAMED_HEIGHT ? boxes : null;
+    const area = framed ? framed.inner : physical;
+    const align = widget.options?.align ?? DEFAULT_ALIGN;
     // A custom image is raster data placed by pixel, so zooming it would only coarsen it.
     const zoom = widget.i === 'custom-image' ? 1
-      : fitZoom(chooseZoom(widget.options?.zoom, effectiveLayout.zoom, canvas), physical.width, physical.height);
-    // Widgets draw on a smaller logical canvas that ZoomCanvas enlarges; zoom 1 draws directly.
-    const target: DrawingCanvas = zoom === 1 ? canvas : new ZoomCanvas(canvas, zoom);
-    const placed = zoom === 1 ? physical : logicalBounds(physical, zoom);
+      : fitZoom(chooseZoom(widget.options?.zoom, effectiveLayout.zoom, canvas), area.width, area.height);
+    const placed = zoom === 1 ? area : logicalBounds(area, zoom);
     const tickerId = tickerIdFromWidget(widget.i);
     const calendarId = calendarIdFromWidget(widget.i);
-    canvas.withClip(physical, () => {
-      // With a title bar the widget draws in what is left below it.
-      const page = teletextPageOf?.get(widget.i);
-      const title = page === undefined ? null : teletextTitle(widget.i, language);
-      const bounds = title && page !== undefined ? drawTeletextTitleBar(target, placed, title, page) : placed;
+    // Widgets draw on a smaller logical canvas that ZoomCanvas enlarges; zoom 1 draws directly.
+    const drawContent = (target: DrawingCanvas, bounds: WidgetBounds): void => {
       if (calendarId) {
         // A removed calendar has no result; it renders as unavailable until the widget is removed.
         const extra = data.calendars?.[calendarId];
@@ -654,12 +720,6 @@ function populateCanvas(
         case 'custom-text':
           if (data.customText) target.drawWrappedText(data.customText, bounds.x + 2, bounds.y + 2, bounds.width - 4);
           break;
-        case 'custom-image':
-          if (data.customImage) {
-            drawCustomImage(canvas, bounds, data.customImage, { x: 0, y: 0, width: canvas.width, height: canvas.height });
-            photos.push(physical);
-          }
-          break;
         case 'energy':  renderEnergyWidget(target, bounds, data.price, data.priceError, widget.options, language); break;
         case 'news':    renderNewsWidget(target, bounds, data.news, data.newsError, widget.options?.items, language, widget.options?.columns, widget.options?.weight); break;
         case 'monta':   renderMontaWidget(target, bounds, data.monta, preferences?.monta_fields ?? undefined, language); break;
@@ -685,6 +745,37 @@ function populateCanvas(
           }
           break;
       }
+    };
+    canvas.withClip(physical, () => {
+      if (framed && outline !== 'none') drawOutline(canvas, framed.frame, outline, frameScale);
+      canvas.withClip(area, () => {
+        const direct: DrawingCanvas = zoom === 1 ? canvas : new ZoomCanvas(canvas, zoom);
+        // With a title bar the widget draws in what is left below it.
+        const page = teletextPageOf?.get(widget.i);
+        const title = page === undefined ? null : teletextTitle(widget.i, language);
+        const bounds = title && page !== undefined ? drawTeletextTitleBar(direct, placed, title, page) : placed;
+        if (widget.i === 'custom-image') {
+          if (data.customImage) {
+            const photo = placeCustomImage(bounds, data.customImage, align);
+            drawCustomImage(canvas, photo, data.customImage, { x: 0, y: 0, width: canvas.width, height: canvas.height });
+            photos.push(framed || align !== DEFAULT_ALIGN ? photo : physical);
+          }
+          return;
+        }
+        // Drawn as before unless the content moves or sits inside an outline.
+        if (align === DEFAULT_ALIGN && !framed) {
+          drawContent(direct, bounds);
+          return;
+        }
+        // Below the title bar, in physical pixels.
+        const top = Math.round(bounds.y * zoom);
+        const box = { x: area.x, y: top, width: area.width, height: area.y + area.height - top };
+        const scratch = new BmpCanvas(canvas.profile);
+        scratch.withClip(box, () => drawContent(zoom === 1 ? scratch : new ZoomCanvas(scratch, zoom), bounds));
+        placeContent(canvas, scratch, box, {
+          align, pad: Math.max(1, Math.round(2 * zoom)), separatorRows: Math.ceil(zoom) + 1, dropSeparator: Boolean(framed),
+        });
+      });
     });
   }
   // 'sun' inverts only between sunset and sunrise at the weather location, as of this render.

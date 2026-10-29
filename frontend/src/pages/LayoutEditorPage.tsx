@@ -15,6 +15,7 @@ import { WidgetOptionsPanel } from '../components/layout/WidgetOptionsPanel';
 import { updateWidgetOptions } from '../lib/widgetOptions';
 import { GRID_SCALES, changeGrid, gridLabel, layoutInvertMode, layoutScale, updateLayoutInvert, updateLayoutTeletext, type GridScale, type InvertMode } from '../lib/layoutGrid';
 import { ZOOMS, autoZoom, inheritedZoom, updateLayoutZoom, zoomLabel } from '../lib/zoom';
+import { LAYOUT_OUTLINES, outlineLabel, updateLayoutOutline } from '../lib/widgetFrame';
 import { DEFAULT_DISPLAY_PROFILE, type DisplayProfile } from '../lib/displayProfile';
 import { Field } from '../components/ui/Field';
 import { Select } from '../components/ui/select';
@@ -315,6 +316,17 @@ function LayoutEditorWorkspace() {
                 ]}
                 onChange={(e) => setLayout((prev) => updateLayoutTeletext(prev, e.target.value === 'teletext'))} />
             </Field>
+            <Field label={app.lang === 'da' ? 'Kanter' : 'Outlines'} htmlFor="layout-outline"
+              helper={app.lang === 'da'
+                ? 'En streg om hver widget, så de ikke flyder sammen. Hver widget kan vælge sin egen kant eller ingen.'
+                : 'A line around every widget, so they do not run together. Each widget can choose its own outline or none.'}>
+              <Select id="layout-outline" value={layout.outline ?? 'none'}
+                options={[
+                  { value: 'none', label: outlineLabel('none', app.lang) },
+                  ...LAYOUT_OUTLINES.map((outline) => ({ value: outline, label: outlineLabel(outline, app.lang) })),
+                ]}
+                onChange={(e) => setLayout((prev) => updateLayoutOutline(prev, e.target.value as typeof LAYOUT_OUTLINES[number] | 'none'))} />
+            </Field>
           </div>
           <div className="overflow-x-auto">
             <GridEditor
@@ -335,6 +347,7 @@ function LayoutEditorWorkspace() {
                 lang={app.lang}
                 ticker={selectedTickerId ? tickers.find((ticker) => ticker.id === selectedTickerId) : undefined}
                 inheritedZoom={inheritedZoom(layout, displayProfile)}
+                layoutOutline={layout.outline}
                 onChange={handleWidgetOptions}
                 onClose={() => setSelectedId(null)}
               />
@@ -348,7 +361,7 @@ function LayoutEditorWorkspace() {
               <Icon name="drag_indicator" /> Drag the handle to move · drag the bottom-right corner to resize
             </p>
             <p className="flex items-center gap-1 text-xs text-fg3 m-0">
-              <Icon name="tune" /> {app.lang === 'da' ? 'Tryk på en widget for at vælge visning, tekststørrelse og antal' : 'Tap a widget to choose its view, text size and how many items it shows'}
+              <Icon name="tune" /> {app.lang === 'da' ? 'Tryk på en widget for at vælge visning, tekststørrelse, placering af indhold, kant og antal' : 'Tap a widget to choose its view, text size, content position, outline and how many items it shows'}
             </p>
             <p className="flex items-center gap-1 text-xs text-fg3 m-0">
               <Icon name="open_in_full" /> {app.lang === 'da'

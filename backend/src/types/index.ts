@@ -6,6 +6,7 @@ import type { TickerResult } from '../ticker';
 import type { CalendarProblem } from '../utils/calendarErrors';
 import type { AiUsageData } from '../aiUsage/types';
 import type { DisplayLanguage } from '../utils/displayLanguage';
+import type { LayoutOutline, WidgetAlign, WidgetOutline } from '../utils/widgetFrame';
 export interface WidgetLayout {
   i: string;       // 'energy' | 'weather' | 'news' | 'status'
   x: number;       // 0 to cols - 1
@@ -38,6 +39,10 @@ export interface WidgetOptions {
   footer?: boolean;
   /** Enlargement of everything the widget draws, 1–4 in steps of 0.2. Overrides the layout's zoom; unset follows it. */
   zoom?: number;
+  /** Where the content sits in the widget's area, e.g. 'top-right' or 'middle-center'. Unset is 'top-left', where every widget draws on its own. */
+  align?: WidgetAlign;
+  /** Outline around the widget. Overrides the layout's outline, so 'none' is stored only to opt out of it. Unset follows the layout. */
+  outline?: WidgetOutline;
 }
 
 export interface DisplayLayout {
@@ -51,6 +56,8 @@ export interface DisplayLayout {
   invert?: boolean | 'sun';
   /** Tekst TV: every widget gets a titled bar with a page number and the status bar becomes the page header. False is not stored. */
   teletext?: boolean;
+  /** Default outline for every widget. Unset draws none. */
+  outline?: LayoutOutline;
   widgets: WidgetLayout[];
 }
 
