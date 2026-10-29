@@ -20,10 +20,14 @@ using epd42::kPinPower;
 using epd42::kPinReset;
 using epd42::kPinSck;
 
+// The simulated panel drives BUSY with the controller's datasheet polarity,
+// independent of the driver constant, so a wrong driver polarity fails here.
 #ifdef ELECROW_PANEL_42_V2
 constexpr uint8_t FRAME_COMMAND = 0x13;
+constexpr int PANEL_BUSY = LOW;   // UC8176-family BUSY_N
 #else
 constexpr uint8_t FRAME_COMMAND = 0x24;
+constexpr int PANEL_BUSY = HIGH;  // SSD1683 BUSY
 #endif
 
 struct Command { uint8_t address; std::vector<uint8_t> bytes; };
@@ -106,10 +110,10 @@ void testWritePin(int pin, int value) {
 
 int testReadPin(int pin) {
   if (pin != kPinBusy) return testPins[pin];
-  if (!activated || response == Response::NeverAssert) return !epd42::kBusyActive;
+  if (!activated || response == Response::NeverAssert) return !PANEL_BUSY;
   const uint32_t elapsed = millis() - activatedAt;
-  if (response == Response::NeverRelease || elapsed < activeDuration) return epd42::kBusyActive;
-  return !epd42::kBusyActive;
+  if (response == Response::NeverRelease || elapsed < activeDuration) return PANEL_BUSY;
+  return !PANEL_BUSY;
 }
 
 int main() {
@@ -123,6 +127,9 @@ int main() {
   fresh();
   assert(panel.begin());
   assert(testPins[kPinPower] == HIGH && pinModes[kPinPower] == OUTPUT);
+  assert(testPins[epd42::kPinPowerAux] == HIGH && pinModes[epd42::kPinPowerAux] == OUTPUT);
+  // Controller BUSY polarity: SSD1683 HIGH = busy; the green-sticker UC8176-family BUSY_N LOW = busy.
+  static_assert(epd42::kBusyActive == PANEL_BUSY, "driver BUSY polarity must match the controller");
   assert(pinModes[kPinBusy] == INPUT && testPins[kPinCs] == HIGH);
   assert(!activated);
 #ifdef ELECROW_PANEL_42_V2

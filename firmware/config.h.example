@@ -64,11 +64,12 @@
 #define PIN_CS   45
 #define PIN_DC   46
 #define PIN_RST  47
-#define PIN_BUSY 48   // Busy indicator (active high)
+#define PIN_BUSY 48   // Busy indicator: active high (SSD1683), active low (green sticker)
 #define PIN_MOSI 11
 #define PIN_CLK  12
 #define PIN_MISO -1
 #define PIN_POWER 7
+#define PIN_POWER_AUX 41 // Green sticker "power control"; indicator LED on the original board
 #define PIN_SETUP_BUTTON 2 // HOME key (active low), hold during reset to reopen setup
 #define PIN_BATTERY_ADC -1 // No verified battery ADC on this board
 #elif defined(ELECROW_EPAPER_213)

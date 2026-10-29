@@ -43,11 +43,12 @@ From the vendor readme and examples. The display pins are fixed in `src/epd42_bu
 | CS | 45 |
 | DC | 46 |
 | RESET | 47 |
-| BUSY | 48 (HIGH = busy) |
+| BUSY | 48 (no sticker: HIGH = busy; green sticker: LOW = busy) |
 | Panel power enable | 7 (HIGH = on) |
+| Power control / indicator LED | 41 (driven HIGH while awake) |
 | HOME key (setup, active low) | 2 |
 
-The vendor key example also defines EXIT = 1, PRV = 6, NEXT = 4 and OK = 5, and GPIO41 drives a power indicator LED. The firmware does not use these yet. GPIO45 and GPIO46 are ESP32-S3 strapping pins; the vendor board uses them for CS and DC, so this firmware does too.
+The vendor key example also defines EXIT = 1, PRV = 6, NEXT = 4 and OK = 5. The firmware does not use these yet. Every green-sticker vendor example drives GPIO41 HIGH before touching the display ("power control"); on the original board it is the power indicator LED. The firmware drives it HIGH on both revisions. GPIO45 and GPIO46 are ESP32-S3 strapping pins; the vendor board uses them for CS and DC, so this firmware does too.
 
 ## What was verified
 
@@ -64,7 +65,7 @@ Host tests prove the firmware sends the vendor's bytes in the vendor's order. Th
 Things to check on the first real unit:
 
 - **Polarity of the picture.** Both drivers write 1 = white, as the vendor examples do. If black and white are swapped, tell us which revision.
-- **BUSY.** The vendor code polls until BUSY reads LOW, so the firmware treats HIGH as busy. If the log shows `BUSY did not assert` or `BUSY did not release` on every refresh, build with `-D EPD42_BUSY_ACTIVE=0`.
+- **BUSY.** The polarity follows the controller, not the vendor sample code. The SSD1683 (no sticker) holds BUSY HIGH while busy. The green-sticker board uses a UC8176-family controller whose `BUSY_N` is LOW while busy, the same as the 2.13-inch V1.2 JD79661 and the Waveshare 4.2-inch UC8176 driver bundled with the vendor examples. The green-sticker sample code waits "until LOW", copied from the SSD1683 driver; with this controller that wait returns at once, so the samples never relied on it. If the log still shows `BUSY did not assert` or `BUSY did not release` on every refresh, build with `-D EPD42_BUSY_ACTIVE=0` or `=1` to override.
 - **Serial logs.** The 2.13-inch CrowPanel reaches the PC through a CH340 UART bridge, so this environment copies its `ARDUINO_USB_CDC_ON_BOOT=0`. The 4.2-inch lists a UART0 header; if the USB-C port is native USB instead, no logs appear. Set `ARDUINO_USB_CDC_ON_BOOT=1` in that case.
 
 ## Behaviour and limits
@@ -81,7 +82,7 @@ Things to check on the first real unit:
 |---|---|
 | Screen stays blank or shows noise after flashing | Wrong revision. Flash the other image. |
 | Log: `BUSY did not assert` | Wrong revision, no panel power (GPIO7), or inverted BUSY. See above. |
-| Log: `BUSY did not release` after 15 s | Wrong revision or inverted BUSY. |
+| Log: `BUSY did not release` after 15 s | Wrong revision or inverted BUSY. Firmware from before the green-sticker BUSY fix shows this at every boot on a green-sticker board, then never draws; reinstall the current release. |
 | Setup hotspot never appears | Check the serial settings above, then read the log. |
 
 References: [vendor repository](https://github.com/Elecrow-RD/CrowPanel-ESP32-4.2-E-paper-HMI-Display-with-400-300), [firmware flashing and recovery](FIRMWARE_FLASHING.md).
