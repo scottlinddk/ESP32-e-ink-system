@@ -119,6 +119,8 @@
 // Connection Timeouts
 #define WIFI_CONNECT_TIMEOUT_SEC 20
 #define API_REQUEST_TIMEOUT_MS 15000
+// NTP wait on a cold boot before falling back to the server's HTTPS Date header
+#define NTP_SYNC_TIMEOUT_MS 10000
 
 // Fallback Data (cached display on backend failure)
 #define USE_FALLBACK_DATA 1

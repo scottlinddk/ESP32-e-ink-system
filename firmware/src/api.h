@@ -23,11 +23,16 @@ public:
   FrameResult fetchFrame(const char* baseUrl, const char* deviceId, const char* token,
                          const char* appliedHash, uint8_t* buffer, size_t capacity);
   RefreshCheck checkRefreshRequest(const char* baseUrl, const char* deviceId, const char* token);
+  // Clock fallback when NTP is blocked: the Date (+ Age) header of the
+  // unauthenticated /api/health route, over the same CA-verified TLS client.
+  // No device credential is sent. True and *epoch set only for a sane date.
+  bool fetchServerTime(const char* baseUrl, uint32_t* epoch);
   bool heartbeat(const char* baseUrl, const char* deviceId, const char* token,
                  const char* appliedHash, int rssi, const char* refreshRequestId = nullptr,
                  int batteryPercent = -1);
 private:
   WiFiClientSecure client;
+  static String apiBase(const char* baseUrl);
   bool begin(HTTPClient& http, const char* baseUrl, const char* deviceId,
              const char* token, const char* endpoint);
 };

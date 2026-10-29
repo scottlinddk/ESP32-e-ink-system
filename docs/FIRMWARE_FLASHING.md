@@ -34,7 +34,7 @@ For a CrowPanel, hold **BOOT**, press and release **RESET**, release BOOT, and r
 | Serial monitor is silent | Press RESET and use 115200 baud; CrowPanel uses the external UART bridge, with USB CDC On Boot disabled. |
 | No setup hotspot | Check serial output; previously saved settings may already be in use. Use the firmware's setup reset button or reinstall with erase. |
 | Wi-Fi cannot connect | Reconnect to setup Wi-Fi and read the failure banner. Use 2.4 GHz Wi-Fi and check the password with Show Wi-Fi password. Authentication rejection can also indicate incompatible access point security settings; inspect the serial reason before changing the network. |
-| TLS/time error | Permit NTP (UDP 123); verify the API hostname and certificate chain. |
+| `Time sync failed` | NTP (UDP 123) did not answer and the HTTPS `Date` fallback from `/api/health` also failed. Check internet access, the API hostname and its certificate chain. |
 | HTTP 401/403/404 | Verify backend URL, device UUID, and device token, and ensure the device still exists. |
 
 Get USB drivers from the manufacturers: [WCH](https://www.wch-ic.com/downloads/CH341SER_EXE.html) or [Silicon Labs](https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers). Install a driver only if the OS does not already expose a working serial port.
@@ -78,7 +78,7 @@ For local validation before publishing, package the builds and set backend `FIRM
 
 ## TLS certificate maintenance
 
-The device verifies HTTPS and synchronizes its clock through NTP before connecting. The compiled CA bundle in `firmware/src/tls_roots.h` contains Let's Encrypt ISRG Root X1/X2 and Google Trust Services R1–R4, covering the intended hosted endpoints. A backend using a different trust root requires adding that root and rebuilding; do not disable certificate verification.
+The device verifies the server certificate chain and sets its clock before sending a device credential: NTP first (10 s on a cold boot), then the `Date` header of the unauthenticated `/api/health` response. The Arduino core's mbedTLS is built without `CONFIG_MBEDTLS_HAVE_TIME_DATE`, so certificate validity dates are not checked; the chain and hostname are. This is also why the `Date` fallback works on an unset clock. The compiled CA bundle in `firmware/src/tls_roots.h` contains Let's Encrypt ISRG Root X1/X2 and Google Trust Services R1–R4, covering the intended hosted endpoints. A backend using a different trust root requires adding that root and rebuilding; do not disable certificate verification.
 
 Authoritative certificate downloads: [ISRG Root X1](https://letsencrypt.org/certs/isrgrootx1.pem), [ISRG Root X2](https://letsencrypt.org/certs/isrg-root-x2.pem), [GTS R1](https://pki.goog/repo/certs/gtsr1.pem), [GTS R2](https://pki.goog/repo/certs/gtsr2.pem), [GTS R3](https://pki.goog/repo/certs/gtsr3.pem), [GTS R4](https://pki.goog/repo/certs/gtsr4.pem). Review expiry and chain changes when maintaining firmware releases.
 
