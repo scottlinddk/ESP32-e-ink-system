@@ -116,7 +116,7 @@ services:
     logging: *logging
 
   gateway:
-    image: ${NGINX_IMAGE:-nginx:1.30.5-alpine}
+    image: ${NGINX_IMAGE:-nginx:1.31.8-alpine}
     platform: linux/arm64
     restart: unless-stopped
     depends_on:
