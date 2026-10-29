@@ -29,6 +29,8 @@ bool busyFailure(const char* stage, const char* reason, uint32_t elapsed) {
 }  // namespace
 
 void busBegin() {
+  pinMode(kPinPowerAux, OUTPUT);
+  digitalWrite(kPinPowerAux, HIGH);
   pinMode(kPinPower, OUTPUT);
   digitalWrite(kPinPower, HIGH);
   delay(100);
