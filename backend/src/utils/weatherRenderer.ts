@@ -5,6 +5,7 @@ import { DEFAULT_DISPLAY_LANGUAGE, formatDecimal, type DisplayLanguage } from '.
 import { displayStrings } from './displayStrings';
 import { drawWeatherIcon, iconFamily } from './weatherIcons';
 import { weatherView } from './widgetOptions';
+import { widgetLabel, WIDGET_LINE, WIDGET_PAD } from './widgetStyle';
 
 // The weather widget's views, drawn with the 8 x 8 font on a canvas already zoomed to the widget.
 // `summary` is the original two-line reading. The others follow e-paper weather dashboards: a large
@@ -13,10 +14,10 @@ import { weatherView } from './widgetOptions';
 // and a missing reading is left out rather than drawn as a placeholder.
 
 const GLYPH = 8;
-const LINE = 10;
+const LINE = WIDGET_LINE;
 /** A row set off by a dotted rule: the glyph with two pixels of air above and below. */
 const SEPARATED_ROW = 12;
-const PAD = 2;
+const PAD = WIDGET_PAD;
 const STEP_SECONDS = 3 * 3600;
 const MIN_ICON = 12;
 const MAX_ICON = 48;
@@ -167,15 +168,17 @@ function drawSummary(canvas: DrawingCanvas, bounds: Bounds, source: WeatherSourc
   const maxW = width - 4;
   if (source.data) {
     const { temp, condition, windSpeed } = source.data;
-    canvas.drawText(`${t.conditions[condition] ?? condition}  ${Math.round(temp)}C`, x + 2, textY, maxW);
+    const temperature = `${Math.round(temp)}C`;
+    canvas.drawText(widgetLabel([`${t.conditions[condition] ?? condition}  ${temperature}`, temperature], maxW), x + PAD, textY, maxW);
     if (height >= 20) {
-      canvas.drawText(`${t.wind}: ${formatDecimal(windSpeed, 1, language)} m/s`, x + 2, textY + 11, maxW);
+      const wind = `${formatDecimal(windSpeed, 1, language)} m/s`;
+      canvas.drawText(widgetLabel([`${t.wind}: ${wind}`, wind], maxW), x + PAD, textY + LINE, maxW);
     }
   } else {
     const errorLabel = problemLabel(t, source.error);
     canvas.drawText(height < 21 ? errorLabel : t.title, x + 2, textY, maxW);
     if (height >= 21) {
-      canvas.drawText(errorLabel, x + 2, textY + 11, maxW);
+      canvas.drawText(errorLabel, x + PAD, textY + LINE, maxW);
     }
   }
 }

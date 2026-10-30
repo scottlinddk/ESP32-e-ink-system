@@ -180,7 +180,7 @@ describe('widget text per language', () => {
 
   it('keeps English the default, with or without an explicit language', () => {
     const data: Partial<DisplayData> = { price: { now: 25, average: 50, trend: 'down' } };
-    expect(drawn(data, ['energy'], {}, 3)).toEqual(['Spot: 0.25 DKK/kWh v', 'Excl tax/fees', 'Avg: 0.50 DKK/kWh']);
+    expect(drawn(data, ['energy'], {}, 3)).toEqual(['Spot  DKK/kWh', '0.25 v', 'Excl tax/fees', 'Avg: 0.50 DKK/kWh']);
     expect(drawn(data, ['energy'], { display_language: 'en' }, 3)).toEqual(drawn(data, ['energy'], {}, 3));
     expect(drawn(data, ['energy'], { display_language: undefined }, 3)).toEqual(drawn(data, ['energy'], {}, 3));
   });
@@ -193,10 +193,10 @@ describe('widget text per language', () => {
   it('translates the energy summary and uses a decimal comma', () => {
     const data: Partial<DisplayData> = { price: { now: 125, average: 50, trend: 'up' } };
     expect(drawn(data, ['energy'], { display_language: 'da' }, 3))
-      .toEqual(['Spot: 1,25 kr/kWh ^', 'Ekskl. afgifter og gebyrer', 'Gns: 0,50 kr/kWh']);
+      .toEqual(['Spot  kr/kWh', '1,25 ^', 'Ekskl. afgifter og gebyrer', 'Gns: 0,50 kr/kWh']);
     const consumer: Partial<DisplayData> = { price: { now: 125, average: 50, trend: 'up', basis: 'consumer' } };
-    expect(drawn(consumer, ['energy'], { display_language: 'da' }, 3)[0]).toBe('Est: 1,25 kr/kWh ^');
-    expect(drawn(consumer, ['energy'], { display_language: 'da' }, 3)[1]).toBe('Inkl. moms, uden faste gebyrer');
+    expect(drawn(consumer, ['energy'], { display_language: 'da' }, 3)[0]).toBe('Est  kr/kWh');
+    expect(drawn(consumer, ['energy'], { display_language: 'da' }, 3)[2]).toBe('Inkl. moms, uden faste gebyrer');
   });
 
   it('translates the energy errors and the missing tariff codes', () => {

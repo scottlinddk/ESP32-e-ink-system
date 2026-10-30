@@ -16,6 +16,18 @@ without dropping their remainder. Drawing remains clipped to each widget.
 Ordinary spaces and tabs between words collapse to one space during wrapping;
 non-breaking spaces remain inside a word.
 
+Widgets share a two-pixel inset and a ten-pixel text rhythm in logical pixels,
+scaled by the widget's text size. Labels that do not fit end in `…`; wrapped
+notes mark continuation on their last complete line. A row that cannot fit a
+whole glyph vertically is omitted. Weather and sensor summaries shorten labels
+before readings and units, and narrow status bars fall back to the clock.
+Monta, Zaptec, Notion and sensors use matching inset headings and dividers; the
+divider is omitted in short, two-line widgets. Taller energy summaries enlarge
+the price, while narrow summaries stack the price, unit and tax basis as space
+allows. Very short battery widgets show the percentage alone.
+
+![Representative widget output at three sizes, enlarged 2×](images/widget-layouts.png)
+
 Each unsupported code point draws one visible `?`. This font does not provide
 full Unicode coverage, emoji, right-to-left layout, ligatures or script shaping.
 Accented letters have compacted bodies to fit the same eight-pixel cell. The

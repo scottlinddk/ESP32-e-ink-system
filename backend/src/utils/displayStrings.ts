@@ -27,7 +27,7 @@ export interface DisplayStrings {
   };
   energy: {
     estimate: string; spot: string; unit: string; inclVat: string; exclTax: string;
-    average: string; missing: string; unavailable: string;
+    average: string; missing: string; unavailable: string; inclVatShort: string; exclTaxShort: string;
     errors: Record<EnergyPriceErrorCode, string>;
   };
   weather: {
@@ -52,6 +52,7 @@ export interface DisplayStrings {
   chargers: {
     unavailable: (name: string) => string;
     status: (available: number, charging: number) => string;
+    compactStatus: (charging: number) => string;
     createdToday: string;
   };
   notion: {
@@ -104,7 +105,7 @@ const en: DisplayStrings = {
   },
   energy: {
     estimate: 'Est', spot: 'Spot', unit: 'DKK/kWh', inclVat: 'Incl VAT; no fixed fees', exclTax: 'Excl tax/fees',
-    average: 'Avg', missing: 'Missing', unavailable: 'Energy: unavailable',
+    average: 'Avg', missing: 'Missing', unavailable: 'Energy: unavailable', inclVatShort: 'Incl VAT', exclTaxShort: 'Excl tax',
     errors: {
       invalid_settings: 'Energy: check settings', missing_tariff: 'Energy: check tariff',
       unavailable: 'Energy: unavailable', timeout: 'Energy: timed out', invalid_response: 'Energy: invalid data',
@@ -145,6 +146,7 @@ const en: DisplayStrings = {
   chargers: {
     unavailable: (name) => `${name}: unavailable`,
     status: (available, charging) => `${available} avail  ${charging} charging`,
+    compactStatus: (charging) => `${charging} chg`,
     createdToday: 'Created today',
   },
   notion: {
@@ -200,7 +202,7 @@ const da: DisplayStrings = {
   },
   energy: {
     estimate: 'Est', spot: 'Spot', unit: 'kr/kWh', inclVat: 'Inkl. moms, uden faste gebyrer', exclTax: 'Ekskl. afgifter og gebyrer',
-    average: 'Gns', missing: 'Mangler', unavailable: 'Elpris: ikke tilgængelig',
+    average: 'Gns', missing: 'Mangler', unavailable: 'Elpris: ikke tilgængelig', inclVatShort: 'Inkl moms', exclTaxShort: 'Uden afgift',
     errors: {
       invalid_settings: 'Elpris: tjek indstillinger', missing_tariff: 'Elpris: tjek tarif',
       unavailable: 'Elpris: ikke tilgængelig', timeout: 'Elpris: timeout', invalid_response: 'Elpris: ugyldige data',
@@ -241,6 +243,7 @@ const da: DisplayStrings = {
   chargers: {
     unavailable: (name) => `${name}: ikke tilgængelig`,
     status: (available, charging) => `${available} ledige  ${charging} lader`,
+    compactStatus: (charging) => `${charging} lader`,
     createdToday: 'Sessioner i dag',
   },
   notion: {

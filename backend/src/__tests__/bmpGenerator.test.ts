@@ -41,7 +41,7 @@ describe('electricity price basis rendering', () => {
     const first = renderDisplayDataRaw({ nextRefresh: 1000, price: { now: 123, average: 150, trend: 'down', basis: 'consumer' } }, energy);
     const second = renderDisplayDataRaw({ nextRefresh: 1000, price: { now: 124, average: 150, trend: 'down', basis: 'consumer' } }, energy);
     expect(first).not.toEqual(second);
-    expect(draw.mock.calls.map(([text]) => text)).toContain('Incl VAT; no fixed fees');
+    expect(draw.mock.calls.map(([text]) => text)).toContain('Incl VAT');
     renderDisplayDataRaw({ nextRefresh: 1000, price: { now: 123, average: 150, trend: 'down' } }, energy);
     expect(draw.mock.calls.map(([text]) => text)).toContain('Excl tax/fees');
   });
@@ -49,10 +49,10 @@ describe('electricity price basis rendering', () => {
     const draw = vi.spyOn(BmpCanvas.prototype, 'drawText');
     const energy: DisplayLayout = { version: 1, cols: 10, rows: 6, widgets: [{ i: 'energy', x: 0, y: 0, w: 5, h: 2 }] };
     renderDisplayDataRaw({ nextRefresh: 1000, priceError: { code: 'missing_tariff', message: 'x', missingCodes: ['CD', 'CD R'] } }, energy);
-    expect(draw.mock.calls.map(([text]) => text)).toEqual(expect.arrayContaining(['Energy: check tariff', 'Missing: CD, CD R']));
+    expect(draw.mock.calls.map(([text]) => text)).toEqual(expect.arrayContaining(['Energy: check', 'tariff', 'CD, CD R']));
     draw.mockClear();
     renderDisplayDataRaw({ nextRefresh: 1000 }, energy);
-    expect(draw.mock.calls.map(([text]) => text)).toContain('Energy: unavailable');
+    expect(draw.mock.calls.map(([text]) => text)).toEqual(['Energy:', 'unavailable']);
   });
 });
 

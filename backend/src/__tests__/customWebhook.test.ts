@@ -86,7 +86,8 @@ describe('sensor widget rendering', () => {
     const raw = renderDisplayDataRaw({ customWebhook, nextRefresh: 300000 }, layout);
     const expected = new BmpCanvas();
     expected.drawText('STALE sensors', 2, 2);
-    expected.drawText('Kitchen: 21.5 °C', 2, 12);
+    expected.drawHLine(2, 12, 246);
+    expected.drawText('Kitchen: 21.5 °C', 2, 16);
     expect(raw).toEqual(expected.toRawPixels());
     expect(renderDisplayData({ customWebhook, nextRefresh: 300000 }, layout).subarray(62)).toEqual(raw);
     expect(raw).not.toEqual(renderDisplayDataRaw({ customWebhook: { ...customWebhook, state: 'fresh' }, nextRefresh: 300000 }, layout));
@@ -102,7 +103,9 @@ describe('sensor widget rendering', () => {
   it('bounds rows to the widget height', () => {
     const drawn: string[] = [];
     const data: CustomWebhookData = { ...webhookDisplayData(record, 60, now), rows: Array(12).fill(rows[0]) };
-    renderWebhookWidget({ drawText(text) { drawn.push(text); } }, { x: 0, y: 0, width: 100, height: 20 }, data);
-    expect(drawn).toEqual(['Sensors', 'Kitchen: 21.5 °C']);
+    const canvas = new BmpCanvas();
+    canvas.drawText = (text) => { drawn.push(text); };
+    renderWebhookWidget(canvas, { x: 0, y: 0, width: 100, height: 20 }, data);
+    expect(drawn).toEqual(['Sensors', 'Ki…: 21.5 °C']);
   });
 });

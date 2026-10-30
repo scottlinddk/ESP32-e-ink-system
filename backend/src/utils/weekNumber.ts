@@ -4,6 +4,7 @@
 
 import { DEFAULT_DISPLAY_LANGUAGE, type DisplayLanguage } from './displayLanguage';
 import { displayStrings } from './displayStrings';
+import { WIDGET_PAD } from './widgetStyle';
 
 export interface WeekCanvas {
   drawHLine(x: number, y: number, w: number): void;
@@ -31,7 +32,7 @@ export interface IsoWeekInfo {
 
 const DAY_MS = 86_400_000;
 const GLYPH = 8;
-const PAD = 3;
+const PAD = WIDGET_PAD;
 
 /** The local calendar date in `timeZone`, as a UTC midnight, so date arithmetic ignores DST. */
 function localDate(now: Date, timeZone: string): Date {

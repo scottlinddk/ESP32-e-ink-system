@@ -91,9 +91,9 @@ describe('dailyForecast', () => {
 });
 
 describe('summary view', () => {
-  it('draws the original two lines, unchanged, with no icon', () => {
+  it('uses the shared two-line rhythm with no icon', () => {
     const canvas = render({ x: 0, y: 0, width: 250, height: 40 }, 'summary');
-    expect(canvas.texts.map(({ text, x, y }) => [text, x, y])).toEqual([['clear  18C', 2, 2], ['Wind: 5.0 m/s', 2, 13]]);
+    expect(canvas.texts.map(({ text, x, y }) => [text, x, y])).toEqual([['clear  18C', 2, 2], ['Wind: 5.0 m/s', 2, 12]]);
     expect(canvas.pixels).toEqual([]);
   });
 
