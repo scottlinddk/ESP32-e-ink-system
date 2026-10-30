@@ -55,6 +55,66 @@ export interface FrameCanvas {
   fillRect(x: number, y: number, w: number, h: number, black?: boolean): void;
 }
 
+export interface WidgetFrame {
+  cell: Bounds;
+  frame: Bounds;
+  outline: LayoutOutline;
+  scale: number;
+}
+
+/**
+ * Keep the chosen style on exposed edges, but replace both inset edges of touching
+ * frames with one physical pixel. Work from the visible frames only, so hidden or
+ * too-small widgets cannot leave phantom dividers. Draw after content and before inversion.
+ */
+export function drawWidgetOutlines(canvas: FrameCanvas, frames: WidgetFrame[]): void {
+  const hidden = frames.map(() => [] as Bounds[]);
+  const dividers: Bounds[] = [];
+  for (let i = 0; i < frames.length; i++) for (let j = i + 1; j < frames.length; j++) {
+    const a = frames[i], b = frames[j];
+    for (const vertical of [true, false]) {
+      const start = vertical ? 'x' : 'y';
+      const size = vertical ? 'width' : 'height';
+      const cross = vertical ? 'y' : 'x';
+      const span = vertical ? 'height' : 'width';
+      const [lo, hi, li, hiIndex]: [WidgetFrame, WidgetFrame, number, number] =
+        a.cell[start] < b.cell[start] ? [a, b, i, j] : [b, a, j, i];
+      const boundary = hi.cell[start];
+      if (lo.cell[start] + lo.cell[size] !== boundary) continue;
+      const from = Math.max(lo.cell[cross], hi.cell[cross]);
+      const to = Math.min(lo.cell[cross] + lo.cell[span], hi.cell[cross] + hi.cell[span]);
+      if (from >= to) continue;
+      const rect = (at: number, width: number): Bounds => vertical
+        ? { x: at, y: from, width, height: to - from }
+        : { x: from, y: at, width: to - from, height: width };
+      const loEdge = lo.frame[start] + lo.frame[size] - LINE[lo.outline] * lo.scale;
+      const hiEdge = hi.frame[start] + LINE[hi.outline] * hi.scale;
+      hidden[li].push(rect(loEdge, boundary - loEdge));
+      hidden[hiIndex].push(rect(boundary, hiEdge - boundary));
+      dividers.push(rect(boundary, 1));
+    }
+  }
+  frames.forEach(({ frame, outline, scale }, i) => {
+    if (!hidden[i].length) { drawOutline(canvas, frame, outline, scale); return; }
+    drawOutline({
+      fillRect(x, y, width, height) {
+        for (let py = y; py < y + height; py++) {
+          let run = x;
+          for (let px = x; px <= x + width; px++) {
+            const skip = px === x + width || hidden[i].some(r =>
+              px >= r.x && px < r.x + r.width && py >= r.y && py < r.y + r.height);
+            if (skip) {
+              if (px > run) canvas.fillRect(run, py, px - run, 1);
+              run = px + 1;
+            }
+          }
+        }
+      },
+    }, frame, outline, scale);
+  });
+  for (const r of dividers) canvas.fillRect(r.x, r.y, r.width, r.height);
+}
+
 /** Draws the outline inside `frame`, in physical pixels. */
 export function drawOutline(canvas: FrameCanvas, frame: Bounds, outline: LayoutOutline, scale: number): void {
   const { x, y, width, height } = frame;
@@ -126,3 +186,4 @@ export function alignArea(box: Bounds, width: number, height: number, align: Wid
     : position === 'center' || position === 'middle' ? Math.floor(room / 2) : room);
   return { x: box.x + along(horizontal, free.x), y: box.y + along(vertical, free.y), width: Math.min(width, box.width), height: Math.min(height, box.height) };
 }
+

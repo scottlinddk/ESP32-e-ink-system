@@ -26,7 +26,7 @@ import { BASE_GRID_COLS, BASE_GRID_ROWS } from './layoutGrid';
 import { isDarkAt } from './sunTimes';
 import { drawTeletextTitleBar, renderTeletextHeader, teletextPages, teletextTitle } from './teletext';
 import { ZoomCanvas, logicalBounds, type Bounds, type DrawingCanvas } from './zoomCanvas';
-import { alignArea, alignOffset, chooseOutline, DEFAULT_ALIGN, drawOutline, outlineBoxes, type WidgetAlign } from './widgetFrame';
+import { alignArea, alignOffset, chooseOutline, DEFAULT_ALIGN, drawWidgetOutlines, outlineBoxes, type WidgetAlign, type WidgetFrame } from './widgetFrame';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -661,6 +661,7 @@ function populateCanvas(
   const language = displayLanguageOrDefault(preferences?.display_language);
   // Where a photo was drawn; an inverted layout leaves it as it was.
   const photos: WidgetBounds[] = [];
+  const frames: WidgetFrame[] = [];
   // Tekst TV gives each widget a titled bar with a page number, numbered in reading order.
   const teletextPageOf = effectiveLayout.teletext ? teletextPages(effectiveLayout) : undefined;
   for (const widget of effectiveLayout.widgets) {
@@ -747,7 +748,7 @@ function populateCanvas(
       }
     };
     canvas.withClip(physical, () => {
-      if (framed && outline !== 'none') drawOutline(canvas, framed.frame, outline, frameScale);
+      if (framed && outline !== 'none') frames.push({ cell: physical, frame: framed.frame, outline, scale: frameScale });
       canvas.withClip(area, () => {
         const direct: DrawingCanvas = zoom === 1 ? canvas : new ZoomCanvas(canvas, zoom);
         // With a title bar the widget draws in what is left below it.
@@ -778,6 +779,7 @@ function populateCanvas(
       });
     });
   }
+  drawWidgetOutlines(canvas, frames);
   // 'sun' inverts only between sunset and sunrise at the weather location, as of this render.
   if (effectiveLayout.invert === true || (effectiveLayout.invert === 'sun' && isDarkAt(now, preferences?.weather_location))) {
     // Everything, unpainted background included, then the photos back: inverting twice restores them.
@@ -809,3 +811,4 @@ export function renderDisplayDataRaw(
   populateCanvas(canvas, data, layout, preferences, now);
   return canvas.toRawPixels();
 }
+
