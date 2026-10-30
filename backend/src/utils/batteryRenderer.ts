@@ -2,6 +2,8 @@
 // with a terminal nub, filled left to right. A device that has not reported a reading
 // shows "--%" and an empty cell with "?", never a made-up level.
 
+import { WIDGET_PAD } from './widgetStyle';
+
 export interface BatteryCanvas {
   drawHLine(x: number, y: number, w: number): void;
   fillRect(x: number, y: number, w: number, h: number, black?: boolean): void;
@@ -14,7 +16,7 @@ export interface BatteryBounds { x: number; y: number; width: number; height: nu
 export interface BatteryData { percent: number }
 
 const GLYPH = 8;
-const PAD = 3;
+const PAD = WIDGET_PAD;
 const GAP = 4;
 const MAX_TEXT_SCALE = 3;
 const MIN_CELL_WIDTH = 16;
@@ -77,10 +79,16 @@ export function renderBatteryWidget(canvas: BatteryCanvas, bounds: BatteryBounds
   const height = bounds.y > 0 ? bounds.height - 1 : bounds.height;
   const innerW = width - 2 * PAD;
   const innerH = height - 2 * PAD;
-  if (innerW < MIN_CELL_WIDTH || innerH < MIN_CELL_HEIGHT) return;
-
   const percent = batteryPercent(battery);
   const label = percent === null ? '--%' : `${percent}%`;
+  // Fine grids can leave just one text line. Keep the percentage instead of a blank card.
+  if (innerH < MIN_CELL_HEIGHT) {
+    if (height >= GLYPH && width >= label.length * GLYPH) {
+      canvas.drawText(label, x + Math.floor((width - label.length * GLYPH) / 2), y + Math.floor((height - GLYPH) / 2), label.length * GLYPH);
+    }
+    return;
+  }
+  if (innerW < MIN_CELL_WIDTH) return;
   const scale = pickScale(label, innerW, innerH);
 
   // Too narrow for text and a cell side by side: the cell alone, which still reads at a glance.

@@ -22,6 +22,7 @@ import { renderBatteryWidget, compactBatteryWidth, drawCompactBattery } from './
 import { renderAiUsageWidget } from './aiUsageRenderer';
 import { renderFamilyMealsWidget } from './familyMealsRenderer';
 import { chooseZoom, fitZoom } from './zoom';
+import { drawWidgetRows, widgetLabel, WidgetCanvas, WIDGET_PAD, WIDGET_LINE } from './widgetStyle';
 import { BASE_GRID_COLS, BASE_GRID_ROWS } from './layoutGrid';
 import { isDarkAt } from './sunTimes';
 import { drawTeletextTitleBar, renderTeletextHeader, teletextPages, teletextTitle } from './teletext';
@@ -377,24 +378,44 @@ function renderEnergyWidget(
       { ...price, hours: price.hours }, view, Date.now(), language);
     return;
   }
-  const textY = y + 2;
-  const maxW = width - 4;
+  const textY = y + WIDGET_PAD;
+  const maxW = width - 2 * WIDGET_PAD;
   if (price) {
     const { now, average, trend } = price;
+    const value = formatDecimal(now / 100, 2, language);
     const arrow = trendArrow(trend);
     const consumer = price.basis === 'consumer';
-    canvas.drawText(`${consumer ? t.estimate : t.spot}: ${formatDecimal(now / 100, 2, language)} ${t.unit} ${arrow}`, x + 2, textY, maxW);
-    if (height >= 20) {
-      canvas.drawText(consumer ? t.inclVat : t.exclTax, x + 2, textY + 11, maxW);
-    }
-    if (height >= 31) {
-      canvas.drawText(`${t.average}: ${formatDecimal(average / 100, 2, language)} ${t.unit}`, x + 2, textY + 22, maxW);
+    const label = consumer ? t.estimate : t.spot;
+    const basis = consumer ? t.inclVat : t.exclTax;
+    // A tall summary uses the same heading / primary reading / detail hierarchy as other cards.
+    if (height >= 44 && maxW >= 80) {
+      canvas.drawText(widgetLabel([`${label}  ${t.unit}`, t.unit], maxW), x + WIDGET_PAD, textY, maxW);
+      canvas.drawHLine(x + WIDGET_PAD, textY + WIDGET_LINE, maxW);
+      const scale = maxW >= (value.length + 2) * 16 ? 2 : 1;
+      canvas.drawText(`${value} ${arrow}`, x + WIDGET_PAD, textY + 14, maxW, scale);
+      const detailY = textY + 14 + 8 * scale + 3;
+      if (detailY + 8 <= y + height) canvas.drawText(basis, x + WIDGET_PAD, detailY, maxW);
+      if (detailY + WIDGET_LINE + 8 <= y + height) {
+        canvas.drawText(`${t.average}: ${formatDecimal(average / 100, 2, language)} ${t.unit}`, x + WIDGET_PAD, detailY + WIDGET_LINE, maxW);
+      }
+    } else {
+      const reading = widgetLabel([
+        `${label}: ${value} ${t.unit} ${arrow}`, `${label}: ${value} ${t.unit}`,
+        `${label} ${value}`, `${value} ${t.unit}`, value,
+      ], maxW);
+      canvas.drawText(reading, x + WIDGET_PAD, textY, maxW);
+      // A very narrow card puts the unit on its own line before any secondary detail.
+      const detail = reading.includes(t.unit) ? basis : t.unit;
+      if (height >= 20) canvas.drawText(detail, x + WIDGET_PAD, textY + WIDGET_LINE, maxW);
+      if (height >= 30) canvas.drawText(reading.includes(t.unit)
+        ? `${t.average}: ${formatDecimal(average / 100, 2, language)}`
+        : widgetLabel([basis, consumer ? t.inclVatShort : t.exclTaxShort], maxW), x + WIDGET_PAD, textY + 2 * WIDGET_LINE, maxW);
     }
   } else {
-    canvas.drawText(problem ? t.errors[problem.code] : t.unavailable, x + 2, textY, maxW);
-    // Name the codes to look up on the bill, e.g. after mixing two grid areas.
-    if (height >= 20 && problem?.missingCodes?.length) {
-      canvas.drawText(`${t.missing}: ${problem.missingCodes.join(', ')}`, x + 2, textY + 11, maxW);
+    const bottom = canvas.drawWrappedText(problem ? t.errors[problem.code] : t.unavailable, x + WIDGET_PAD, textY, maxW);
+    if (problem?.missingCodes?.length && bottom + 8 <= y + height) {
+      const codes = problem.missingCodes.join(', ');
+      canvas.drawText(widgetLabel([`${t.missing}: ${codes}`, codes], maxW), x + WIDGET_PAD, bottom, maxW);
     }
   }
 }
@@ -406,43 +427,22 @@ function renderMontaWidget(
   fields: string[] = ['charger_status', 'active_session'],
   language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
 ): void {
-  const { x, y, width, height } = bounds;
+  const { x, y, width } = bounds;
   const t = displayStrings(language).chargers;
   if (y > 0) canvas.drawHLine(x, y, width);
-  const maxW = width - 4;
-  let textY = y + 2;
-
-  if (!data) {
-    canvas.drawText(t.unavailable('Monta'), x + 2, textY, maxW);
-    return;
-  }
-
-  canvas.drawText('Monta', x + 2, textY, maxW);
-  textY += 10;
-
+  const rows: string[] = [];
+  if (!data) { drawWidgetRows(canvas, bounds, t.unavailable('Monta'), rows); return; }
   if (fields.includes('charger_status') && data.chargePoints.length > 0) {
-    const available = data.chargePoints.filter((cp) => cp.state === 'available').length;
-    const charging = data.chargePoints.filter((cp) => cp.state === 'charging').length;
-    canvas.drawText(t.status(available, charging), x + 2, textY, maxW);
-    textY += 10;
+    const available = data.chargePoints.filter(cp => cp.state === 'available').length;
+    const charging = data.chargePoints.filter(cp => cp.state === 'charging').length;
+    rows.push(widgetLabel([t.status(available, charging), t.compactStatus(charging)], width - 4));
   }
-
-  if (fields.includes('active_session')) {
-    if (data.activeSessions.length > 0) {
-      const s = data.activeSessions[0];
-      canvas.drawText(
-        `${s.energyDeliveredKwh === null ? '?' : formatDecimal(s.energyDeliveredKwh, 1, language)}kWh  ${s.durationMin ?? '?'}min`,
-        x + 2,
-        textY,
-        maxW
-      );
-      textY += 10;
-    }
+  if (fields.includes('active_session') && data.activeSessions.length > 0) {
+    const session = data.activeSessions[0];
+    rows.push(`${session.energyDeliveredKwh === null ? '?' : formatDecimal(session.energyDeliveredKwh, 1, language)}kWh  ${session.durationMin ?? '?'}min`);
   }
-
-  if (fields.includes('today_stats') && data.todayKwh !== null && textY < y + height - 8) {
-    canvas.drawWrappedText(`${t.createdToday}: ${formatDecimal(data.todayKwh, 1, language)} kWh`, x + 2, textY, maxW);
-  }
+  if (fields.includes('today_stats') && data.todayKwh !== null) rows.push(`${t.createdToday}: ${formatDecimal(data.todayKwh, 1, language)} kWh`);
+  drawWidgetRows(canvas, bounds, 'Monta', rows);
 }
 
 function renderZaptecWidget(
@@ -452,39 +452,22 @@ function renderZaptecWidget(
   fields: string[] = ['charger_status', 'active_session', 'installation_info'],
   language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
 ): void {
-  const { x, y, width, height } = bounds;
+  const { x, y, width } = bounds;
   const t = displayStrings(language).chargers;
   if (y > 0) canvas.drawHLine(x, y, width);
-  const maxW = width - 4;
-  let textY = y + 2;
-
-  if (!data) {
-    canvas.drawText(t.unavailable('Zaptec'), x + 2, textY, maxW);
-    return;
-  }
-
-  const title = fields.includes('installation_info') && data.installationName
-    ? `Zaptec - ${data.installationName}`
-    : 'Zaptec';
-  canvas.drawText(title, x + 2, textY, maxW);
-  textY += 10;
-
+  const rows: string[] = [];
+  if (!data) { drawWidgetRows(canvas, bounds, t.unavailable('Zaptec'), rows); return; }
+  const title = fields.includes('installation_info') && data.installationName ? `Zaptec - ${data.installationName}` : 'Zaptec';
   if (fields.includes('charger_status') && data.chargers.length > 0) {
-    const available = data.chargers.filter((c) => c.operatingMode === 1).length;
-    const charging = data.chargers.filter((c) => c.operatingMode === 3).length;
-    canvas.drawText(t.status(available, charging), x + 2, textY, maxW);
-    textY += 10;
+    const available = data.chargers.filter(c => c.operatingMode === 1).length;
+    const charging = data.chargers.filter(c => c.operatingMode === 3).length;
+    rows.push(widgetLabel([t.status(available, charging), t.compactStatus(charging)], width - 4));
   }
-
-  if (fields.includes('active_session') && data.activeSession && textY < y + height - 8) {
-    const s = data.activeSession;
-    canvas.drawText(
-      `${s.energyDeliveredKwh === null ? '?' : formatDecimal(s.energyDeliveredKwh, 1, language)}kWh  ${s.chargerName}`,
-      x + 2,
-      textY,
-      maxW
-    );
+  if (fields.includes('active_session') && data.activeSession) {
+    const session = data.activeSession;
+    rows.push(`${session.energyDeliveredKwh === null ? '?' : formatDecimal(session.energyDeliveredKwh, 1, language)}kWh  ${session.chargerName}`);
   }
+  drawWidgetRows(canvas, bounds, title, rows);
 }
 
 function renderNotionWidget(
@@ -494,38 +477,17 @@ function renderNotionWidget(
   problem?: DisplayData['notionError'],
   language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE,
 ): void {
-  const { x, y, width, height } = bounds;
+  const { x, y, width } = bounds;
   const t = displayStrings(language).notion;
   if (y > 0) canvas.drawHLine(x, y, width);
-  const maxW = width - 4;
-  let textY = y + 2;
-
   if (!data) {
     const labels: Record<string, string | undefined> = t.errors;
-    canvas.drawWrappedText(labels[problem?.code ?? ''] ?? t.unavailable, x + 2, textY, maxW);
+    canvas.drawWrappedText(labels[problem?.code ?? ''] ?? t.unavailable, x + WIDGET_PAD, y + WIDGET_PAD, width - 2 * WIDGET_PAD);
     return;
   }
-
-  const title = data.databaseName ?? 'Notion';
-  canvas.drawText(title, x + 2, textY, maxW);
-  textY += 10;
-
-  if (textY < y + height - 8) {
-    canvas.drawHLine(x, textY, width);
-    textY += 3;
-  }
-
-  if (data.rows.length === 0) {
-    canvas.drawText(t.none, x + 2, textY, maxW);
-    return;
-  }
-
-  for (const row of data.rows) {
-    if (textY + 9 > y + height) break;
-    const line = row.subtitle ? `${row.title}  ${row.subtitle}` : row.title;
-    canvas.drawText(line, x + 2, textY, maxW);
-    textY += 10;
-  }
+  drawWidgetRows(canvas, bounds, data.databaseName ?? 'Notion', data.rows.length
+    ? data.rows.map(row => row.subtitle ? `${row.title}  ${row.subtitle}` : row.title)
+    : [t.none]);
 }
 
 function renderStatusWidget(
@@ -546,7 +508,10 @@ function renderStatusWidget(
   }).format(now);
   const refreshMin = Math.round(nextRefresh / 60000);
   // The condensed view is the time alone, so the bar stays readable at a few columns wide.
-  const text = options?.view === 'condensed' ? timeStr : `${displayStrings(language).status.refresh}: ${refreshMin}min  ${timeStr}`;
+  const text = options?.view === 'condensed' ? timeStr : widgetLabel([
+    `${displayStrings(language).status.refresh}: ${refreshMin}min  ${timeStr}`,
+    `${refreshMin}min  ${timeStr}`, timeStr,
+  ], width - 4);
   canvas.drawText(text, x + 2, statusY, width - 4);
   // Right-aligned, and only when it fits beside the text without truncating it.
   const batteryW = compactBatteryWidth(battery);
@@ -685,7 +650,8 @@ function populateCanvas(
     const tickerId = tickerIdFromWidget(widget.i);
     const calendarId = calendarIdFromWidget(widget.i);
     // Widgets draw on a smaller logical canvas that ZoomCanvas enlarges; zoom 1 draws directly.
-    const drawContent = (target: DrawingCanvas, bounds: WidgetBounds): void => {
+    const drawContent = (surface: DrawingCanvas, bounds: WidgetBounds): void => {
+      const target = new WidgetCanvas(surface, bounds);
       if (calendarId) {
         // A removed calendar has no result; it renders as unavailable until the widget is removed.
         const extra = data.calendars?.[calendarId];
@@ -719,6 +685,7 @@ function populateCanvas(
       switch (widget.i) {
         case 'custom-webhook': renderWebhookWidget(target, bounds, data.customWebhook, language); break;
         case 'custom-text':
+          if (bounds.y > 0) target.drawHLine(bounds.x, bounds.y, bounds.width);
           if (data.customText) target.drawWrappedText(data.customText, bounds.x + 2, bounds.y + 2, bounds.width - 4);
           break;
         case 'energy':  renderEnergyWidget(target, bounds, data.price, data.priceError, widget.options, language); break;

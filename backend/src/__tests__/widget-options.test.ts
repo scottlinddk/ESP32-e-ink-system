@@ -172,14 +172,14 @@ describe('rendering with layout options', () => {
     expect(draw.mock.calls.map(([text]) => text)).toContain('Spot 07: 3.14 DKK/kWh');
     draw.mockClear();
     renderDisplayDataRaw({ nextRefresh: 1000, price }, layout({ i: 'energy', x: 0, y: 0, w: 10, h: 5 }));
-    expect(draw.mock.calls[0][0]).toBe('Spot: 3.14 DKK/kWh ^');
+    expect(draw.mock.calls.slice(0, 2).map(([text]) => text)).toEqual(['Spot  DKK/kWh', '3.14 ^']);
   });
 
   it('falls back to the summary when hourly prices are missing', () => {
     const draw = vi.spyOn(BmpCanvas.prototype, 'drawText');
     const { hours: _omitted, ...withoutHours } = price;
     renderDisplayDataRaw({ nextRefresh: 1000, price: withoutHours }, layout({ i: 'energy', x: 0, y: 0, w: 10, h: 5, options: { view: 'rest' } }));
-    expect(draw.mock.calls[0][0]).toBe('Spot: 3.14 DKK/kWh ^');
+    expect(draw.mock.calls.slice(0, 2).map(([text]) => text)).toEqual(['Spot  DKK/kWh', '3.14 ^']);
   });
 
   it('caps news and calendar rows at the chosen count', () => {

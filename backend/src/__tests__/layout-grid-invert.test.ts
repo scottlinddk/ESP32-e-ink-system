@@ -149,6 +149,6 @@ describe('compact status', () => {
     expect(draw.mock.calls.map(([text]) => text)).toEqual(['12:00']);
     draw.mockClear();
     renderDisplayDataRaw(data, layout(10, 6, widgets()), { display_timezone: 'UTC' });
-    expect(draw.mock.calls[0][0]).toBe('Refresh: 5min  12:00');
+    expect(draw.mock.calls[0][0]).toBe('12:00');
   });
 });
