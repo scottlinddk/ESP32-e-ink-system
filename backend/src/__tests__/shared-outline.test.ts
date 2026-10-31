@@ -29,7 +29,7 @@ describe('shared widget outlines', () => {
     });
   }
 
-  it('handles partial neighbours and mixed styles without changing exposed edges', () => {
+  it('handles partial neighbours and mixed styles without drawing exposed edges', () => {
     const left = frame(0, 0, 60, 120, 'thick', 2);
     const right = frame(60, 0, 60, 60, 'rounded', 1);
     const ink = render([left, right]);
@@ -39,10 +39,27 @@ describe('shared widget outlines', () => {
     assert.equal(ink(60, 90), false);
   });
 
-  it('does not join separated widgets', () => {
+  it('draws just one divider midway between separated widgets', () => {
     const ink = render([frame(0, 0, 60, 60, 'thin', 1), frame(65, 0, 60, 60, 'thin', 1)]);
-    assert.equal(ink(58, 30), true);
-    assert.equal(ink(66, 30), true);
-    for (let x = 59; x < 66; x++) assert.equal(ink(x, 30), false);
+    assert.equal(ink(58, 30), false);
+    assert.equal(ink(66, 30), false);
+    for (let x = 59; x < 66; x++) assert.equal(ink(x, 30), x === 62);
   });
+});
+
+it('draws no outer box for an isolated widget', () => {
+  const ink = render([frame(0, 0, 60, 60, 'thin', 3)]);
+  for (let y = 0; y < 60; y++) for (let x = 0; x < 60; x++) assert.equal(ink(x, y), false);
+});
+
+it('does not draw dividers through intermediate widgets', () => {
+  const ink = render([frame(0, 0, 60, 60, 'thin', 1), frame(80, 0, 60, 60, 'thin', 1), frame(160, 0, 60, 60, 'thin', 1)]);
+  for (let x = 60; x < 160; x++) assert.equal(ink(x, 30), x === 70 || x === 150);
+});
+
+it('respects widgets opting out and still separates an outlined neighbour', () => {
+  const a = frame(0, 0, 60, 60, 'thin', 1);
+  const b = { ...frame(60, 0, 60, 60, 'thin', 1), outline: 'none' as const };
+  assert.equal(render([a, b])(60, 30), true);
+  assert.equal(render([{ ...a, outline: 'none' }, b])(60, 30), false);
 });

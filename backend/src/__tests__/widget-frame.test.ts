@@ -127,49 +127,31 @@ describe('rendering alignment', () => {
   });
 });
 
-describe('rendering outlines', () => {
-  it('draws a closed thin box inside a 1 px gap', () => {
+describe('rendering outline dividers', () => {
+  it('does not draw an outer box around an isolated widget', () => {
     const raw = renderDisplayDataRaw(data, layout([note({ outline: 'thin' })]));
-    for (let x = 1; x < 249; x++) {
-      expect(isBlack(raw, x, 1)).toBe(true);
-      expect(isBlack(raw, x, 58)).toBe(true);
-      expect(isBlack(raw, x, 0)).toBe(false);
-    }
-    for (let y = 1; y < 59; y++) expect(isBlack(raw, 1, y) && isBlack(raw, 248, y)).toBe(true);
-    // The text moves in with the outline instead of touching it.
-    expect(ink(raw, 3, 247, 3, 57)!.left).toBe(5);
-  });
-
-  it('applies the layout outline to every widget unless one opts out', () => {
-    const raw = renderDisplayDataRaw(data, layout([note(undefined, { w: 5 }), note({ outline: 'none' }, { i: 'status', x: 5, w: 5 })], { outline: 'thick' }));
-    expect(isBlack(raw, 1, 30) && isBlack(raw, 2, 30)).toBe(true);
-    expect(isBlack(raw, 126, 30)).toBe(false);
-  });
-
-  it('leaves the corners of a rounded box open', () => {
-    const raw = renderDisplayDataRaw(data, layout([note({ outline: 'rounded' })]));
-    expect(isBlack(raw, 1, 1)).toBe(false);
-    expect(isBlack(raw, 2, 2)).toBe(true);
-    expect(isBlack(raw, 10, 1)).toBe(true);
-  });
-
-  it('breaks a dashed box into dashes but closes its corners', () => {
-    const raw = renderDisplayDataRaw(data, layout([note({ outline: 'dashed' })]));
-    const top = Array.from({ length: 248 }, (_, i) => isBlack(raw, i + 1, 1));
-    expect(top.filter(Boolean).length).toBeGreaterThan(100);
-    expect(top.filter((on) => !on).length).toBeGreaterThan(60);
-    expect(isBlack(raw, 1, 1) && isBlack(raw, 248, 1) && isBlack(raw, 1, 58) && isBlack(raw, 248, 58)).toBe(true);
-  });
-
-  it('drops the separator rule inside an outline, so there is one line, not two', () => {
-    const raw = renderDisplayDataRaw({ nextRefresh: 300_000 }, layout([{ i: 'status', x: 0, y: 3, w: 10, h: 3, options: { outline: 'thin' } }]));
-    expect(isBlack(raw, 100, 61)).toBe(true); // the outline
-    expect(isBlack(raw, 100, 62)).toBe(false);
-    expect(isBlack(raw, 100, 63)).toBe(false); // where the status rule would be
-  });
-
-  it('leaves the outline out of a widget too small to hold it and a line of text', () => {
-    const raw = renderDisplayDataRaw(data, { version: 1, cols: 20, rows: 12, widgets: [note({ outline: 'thin' }, { w: 20, h: 1 })] });
     expect(isBlack(raw, 100, 1)).toBe(false);
+    expect(isBlack(raw, 1, 30)).toBe(false);
+    expect(isBlack(raw, 248, 30)).toBe(false);
+  });
+
+  it('draws a single divider above a short status bar without its native rule', () => {
+    const raw = renderDisplayDataRaw({ nextRefresh: 300_000 }, {
+      version: 1, cols: 20, rows: 12, outline: 'thin', widgets: [
+        { i: 'custom-text', x: 0, y: 0, w: 20, h: 10 },
+        { i: 'status', x: 0, y: 10, w: 20, h: 2 },
+      ],
+    });
+    for (let y = 94; y < 104; y++) expect(isBlack(raw, 100, y)).toBe(y === 100);
+  });
+
+  it('replaces parallel edges across grid gaps with one divider', () => {
+    const raw = renderDisplayDataRaw({ nextRefresh: 300_000 }, layout([
+      note(undefined, { w: 4 }),
+      { i: 'weather', x: 5, y: 0, w: 5, h: 3 },
+      { i: 'status', x: 0, y: 4, w: 10, h: 2 },
+    ], { outline: 'thin' }));
+    for (let x = 98; x < 127; x++) expect(isBlack(raw, x, 40)).toBe(x === 112);
+    for (let y = 58; y < 82; y++) expect(isBlack(raw, 200, y)).toBe(y === 70);
   });
 });

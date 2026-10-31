@@ -627,6 +627,8 @@ function populateCanvas(
   // Where a photo was drawn; an inverted layout leaves it as it was.
   const photos: WidgetBounds[] = [];
   const frames: WidgetFrame[] = [];
+  const dividersEnabled = effectiveLayout.widgets.some(widget =>
+    chooseOutline(widget.options?.outline, effectiveLayout.outline) !== 'none');
   // Tekst TV gives each widget a titled bar with a page number, numbered in reading order.
   const teletextPageOf = effectiveLayout.teletext ? teletextPages(effectiveLayout) : undefined;
   for (const widget of effectiveLayout.widgets) {
@@ -715,7 +717,7 @@ function populateCanvas(
       }
     };
     canvas.withClip(physical, () => {
-      if (framed && outline !== 'none') frames.push({ cell: physical, frame: framed.frame, outline, scale: frameScale });
+      frames.push({ cell: physical, frame: framed?.frame ?? physical, outline, scale: frameScale });
       canvas.withClip(area, () => {
         const direct: DrawingCanvas = zoom === 1 ? canvas : new ZoomCanvas(canvas, zoom);
         // With a title bar the widget draws in what is left below it.
@@ -731,7 +733,7 @@ function populateCanvas(
           return;
         }
         // Drawn as before unless the content moves or sits inside an outline.
-        if (align === DEFAULT_ALIGN && !framed) {
+        if (align === DEFAULT_ALIGN && !framed && !dividersEnabled) {
           drawContent(direct, bounds);
           return;
         }
@@ -741,7 +743,7 @@ function populateCanvas(
         const scratch = new BmpCanvas(canvas.profile);
         scratch.withClip(box, () => drawContent(zoom === 1 ? scratch : new ZoomCanvas(scratch, zoom), bounds));
         placeContent(canvas, scratch, box, {
-          align, pad: Math.max(1, Math.round(2 * zoom)), separatorRows: Math.ceil(zoom) + 1, dropSeparator: Boolean(framed),
+          align, pad: Math.max(1, Math.round(2 * zoom)), separatorRows: Math.ceil(zoom) + 1, dropSeparator: dividersEnabled,
         });
       });
     });
@@ -778,4 +780,3 @@ export function renderDisplayDataRaw(
   populateCanvas(canvas, data, layout, preferences, now);
   return canvas.toRawPixels();
 }
-
