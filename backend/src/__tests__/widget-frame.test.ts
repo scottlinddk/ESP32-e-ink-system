@@ -155,3 +155,18 @@ describe('rendering outline dividers', () => {
     for (let y = 58; y < 82; y++) expect(isBlack(raw, 200, y)).toBe(y === 70);
   });
 });
+
+describe('fractional zoom dividers', () => {
+  it.each([1.2, 1.4, 1.6, 1.8, 2.2, 2.4, 2.6, 2.8, 3.2])(
+    'draws only the screen divider at zoom %s', (zoom) => {
+      // Empty text widgets isolate boundary ink from text. Their inset logical
+      // widths round down at fractional zoom, so the native rule is not full-width.
+      const raw = renderDisplayDataRaw({ nextRefresh: 300_000 }, layout([
+        note(undefined),
+        { i: 'custom-text', x: 0, y: 3, w: 10, h: 3 },
+      ], { outline: 'thin', zoom }));
+      for (let y = 0; y < 120; y++) for (let x = 0; x < 250; x++) {
+        expect(isBlack(raw, x, y)).toBe(y === 60);
+      }
+    });
+});

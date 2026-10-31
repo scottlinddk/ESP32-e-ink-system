@@ -653,7 +653,7 @@ function populateCanvas(
     const calendarId = calendarIdFromWidget(widget.i);
     // Widgets draw on a smaller logical canvas that ZoomCanvas enlarges; zoom 1 draws directly.
     const drawContent = (surface: DrawingCanvas, bounds: WidgetBounds): void => {
-      const target = new WidgetCanvas(surface, bounds);
+      const target = new WidgetCanvas(surface, bounds, dividersEnabled);
       if (calendarId) {
         // A removed calendar has no result; it renders as unavailable until the widget is removed.
         const extra = data.calendars?.[calendarId];

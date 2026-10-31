@@ -55,14 +55,19 @@ export class WidgetCanvas implements DrawingCanvas {
   readonly width: number;
   readonly height: number;
 
-  constructor(private readonly target: DrawingCanvas, private readonly bounds: Bounds) {
+  constructor(private readonly target: DrawingCanvas, private readonly bounds: Bounds, private readonly suppressTopRule = false) {
     this.width = target.width;
     this.height = target.height;
   }
 
   setPixel(x: number, y: number, black: boolean): void { this.target.setPixel(x, y, black); }
   fillRect(x: number, y: number, w: number, h: number, black = true): void { this.target.fillRect(x, y, w, h, black); }
-  drawHLine(x: number, y: number, w: number): void { this.target.drawHLine(x, y, w); }
+  drawHLine(x: number, y: number, w: number): void {
+    // Remove boundary rules before zoom rounds logical pixels to physical pixels.
+    // Raster-row detection misses rules shortened by fractional zoom rounding.
+    if (this.suppressTopRule && y === this.bounds.y) return;
+    this.target.drawHLine(x, y, w);
+  }
   withClip(bounds: Bounds, draw: () => void): void { this.target.withClip(bounds, draw); }
 
   drawText(text: string, x: number, y: number, maxWidth = this.width, scale?: number, black?: boolean, light?: boolean): void {
