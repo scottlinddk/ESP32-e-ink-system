@@ -8,6 +8,12 @@
 // the same scope. Serializing a transformed function with toString() loses them.
 // No calendar input is ever evaluated as code.
 function runCalendarWorker() {
+  /**
+   * Rejects the feed with a fixed reason. Only these codes ever leave the worker: parser
+   * messages can hold private feed text, so they are never passed on.
+   * @param {string} code @returns {never}
+   */
+  const reject = (code) => { throw Object.assign(new Error(code), { reason: code }); };
   const { parentPort, workerData } = require('node:worker_threads');
   const ical = require('node-ical');
   const path = require('node:path');
@@ -17,7 +23,8 @@ function runCalendarWorker() {
   const { text, timezone, days, limit, now, range, maxEvents } = workerData;
   try {
     const lines = text.replace(/^\uFEFF/, '').replace(/\r?\n[ \t]/g, '').trim().split(/\r?\n/);
-    if (lines.length > 20_000 || lines[0] !== 'BEGIN:VCALENDAR' || lines[lines.length - 1] !== 'END:VCALENDAR') throw new Error();
+    if (lines.length > 20_000) reject('too_many_lines');
+    if (lines[0] !== 'BEGIN:VCALENDAR' || lines[lines.length - 1] !== 'END:VCALENDAR') reject('not_an_ics_feed');
     /** @type {string[]} */
     const stack = [];
     let eventCount = 0;
@@ -26,17 +33,17 @@ function runCalendarWorker() {
     /** @type {Set<string>} */
     let eventFields = new Set();
     const normalized = lines.map((line) => {
-      if (!line || !line.includes(':')) throw new Error();
+      if (!line || !line.includes(':')) reject('malformed_line');
       if (line.startsWith('BEGIN:')) {
         const component = line.slice(6);
-        if (component === 'VCALENDAR' && ++calendarCount > 1) throw new Error();
-        if (stack.length >= 20 || component === 'VCALENDAR' && stack.length) throw new Error();
+        if (component === 'VCALENDAR' && ++calendarCount > 1) reject('nested_calendar');
+        if (stack.length >= 20 || component === 'VCALENDAR' && stack.length) reject('nested_calendar');
         stack.push(component);
-        if (component === 'VEVENT') { eventFields = new Set(); if (++eventCount > 500) throw new Error(); }
+        if (component === 'VEVENT') { eventFields = new Set(); if (++eventCount > 500) reject('too_many_events'); }
       } else if (line.startsWith('END:')) {
         const component = line.slice(4);
-        if (stack.pop() !== component) throw new Error();
-        if (component === 'VEVENT' && (!eventFields.has('UID') || !eventFields.has('DTSTART') && !eventFields.has('RECURRENCE-ID'))) throw new Error();
+        if (stack.pop() !== component) reject('unbalanced_components');
+        if (component === 'VEVENT' && (!eventFields.has('UID') || !eventFields.has('DTSTART') && !eventFields.has('RECURRENCE-ID'))) reject('event_missing_uid_or_start');
       }
       if (line === 'VERSION:2.0' && stack.length === 1) version = true;
       if (stack[stack.length - 1] !== 'VEVENT') return line;
@@ -47,31 +54,31 @@ function runCalendarWorker() {
       eventFields.add(name);
       // These recurrence extensions are not supported by the agenda engine.
       // Reject instead of silently displaying an incorrect schedule.
-      if (name === 'RDATE' || name === 'EXRULE' || /;RANGE=/i.test(property)) throw new Error();
-      if (name === 'RRULE' && !/(?:^|;)FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(?:;|$)/.test(value)) throw new Error();
+      if (name === 'RDATE' || name === 'EXRULE' || /;RANGE=/i.test(property)) reject('unsupported_recurrence');
+      if (name === 'RRULE' && !/(?:^|;)FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(?:;|$)/.test(value)) reject('unsupported_recurrence');
       if (!['DTSTART', 'DTEND', 'EXDATE', 'RECURRENCE-ID'].includes(name)) return line;
       const tz = /;TZID=(?:"([^"]+)"|([^;]+))/.exec(property);
       if (tz) {
         const name = tz[1] ?? tz[2];
         // Reuse node-ical's known Outlook mappings, never its host-zone fallback for Custom zones.
         const zone = windowsZones[name]?.iana?.[0] ?? name;
-        new Intl.DateTimeFormat('en', { timeZone: zone });
+        try { new Intl.DateTimeFormat('en', { timeZone: zone }); } catch { reject('unknown_timezone'); }
         property = property.replace(tz[0], `;TZID=${zone}`);
       }
       for (const date of value.split(',')) {
         const match = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/.exec(date);
-        if (!match) throw new Error();
+        if (!match) reject('invalid_date');
         const [, y, m, d, h, min, sec] = match;
         const parsed = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
         if (parsed.getUTCFullYear() !== Number(y) || parsed.getUTCMonth() !== Number(m) - 1 || parsed.getUTCDate() !== Number(d)
-            || Number(h ?? 0) > 23 || Number(min ?? 0) > 59 || Number(sec ?? 0) > 59) throw new Error();
+            || Number(h ?? 0) > 23 || Number(min ?? 0) > 59 || Number(sec ?? 0) > 59) reject('invalid_date');
       }
       // Interpret floating wall-clock times in the user's chosen timezone,
       // independent of the server process timezone. DATE values stay dates.
       if (!tz && /T\d{6}(?:,|$)/.test(value)) return `${property};TZID=${timezone}:${value}`;
       return `${property}:${value}`;
     });
-    if (stack.length || !version) throw new Error();
+    if (stack.length || !version) reject('missing_version_or_unclosed');
     const calendar = ical.sync.parseICS(normalized.join('\r\n'));
     const start = new Date(now);
     const finish = new Date(now + days * 86_400_000);
@@ -111,9 +118,9 @@ function runCalendarWorker() {
     let expanded = 0;
     /** @param {EventInstance} instance */
     const add = (instance) => {
-      if (++expanded > 5000) throw new Error();
+      if (++expanded > 5000) reject('too_many_occurrences');
       if (instance.event.status === 'CANCELLED') return;
-      if (!Number.isFinite(instance.start.getTime()) || !Number.isFinite(instance.end.getTime()) || instance.end < instance.start) throw new Error();
+      if (!Number.isFinite(instance.start.getTime()) || !Number.isFinite(instance.end.getTime()) || instance.end < instance.start) reject('invalid_date');
       const allDay = instance.isFullDay;
       const begin = allDay ? dateKey(instance.start) : instance.start.toISOString();
       const end = allDay ? dateKey(instance.end) : instance.end.toISOString();
@@ -150,7 +157,7 @@ function runCalendarWorker() {
       if (component?.type !== 'VEVENT') continue;
       const event = /** @type {VEvent} */ (component);
       if (event.status === 'CANCELLED' || event.method === 'CANCEL') continue;
-      if (!event.start || !Number.isFinite(event.start.getTime())) throw new Error();
+      if (!event.start || !Number.isFinite(event.start.getTime())) reject('invalid_date');
       // Expand the master without overrides, then handle each override directly.
       // This also finds occurrences moved into the window from a distant date.
       for (const instance of ical.expandRecurringEvent({ ...event, recurrences: undefined }, expansion)) {
@@ -169,9 +176,10 @@ function runCalendarWorker() {
     /** @type {CalendarData} */
     const result = { ...empty, events: events.slice(0, maxEvents ?? limit).map(({ sort: _sort, ...event }) => event) };
     parentPort?.postMessage({ result });
-  } catch {
-    // Parser exceptions can include feed content. Never pass them to logs/API.
-    parentPort?.postMessage({ error: 'Calendar feed is invalid or exceeds supported limits' });
+  } catch (error) {
+    // Parser exceptions can include feed content. Only a reason set by `reject` is passed on.
+    const reason = error && typeof error === 'object' && 'reason' in error && typeof error.reason === 'string' ? error.reason : 'parse_error';
+    parentPort?.postMessage({ error: 'Calendar feed is invalid or exceeds supported limits', reason });
   }
 }
 

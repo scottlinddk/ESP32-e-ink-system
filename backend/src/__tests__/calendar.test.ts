@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchCalendar, parseCalendar } from '../services/calendar';
-import { fetchPublicFeed } from '../utils/publicFeedFetch';
+import { CalendarUnavailableError, fetchCalendar, parseCalendar } from '../services/calendar';
+import { FeedStatusError, fetchPublicFeed } from '../utils/publicFeedFetch';
 
 vi.mock('../utils/publicFeedFetch', async (original) => ({ ...await original<typeof import('../utils/publicFeedFetch')>(), fetchPublicFeed: vi.fn() }));
 
@@ -122,6 +122,35 @@ describe('bounded ICS agenda', () => {
     vi.mocked(fetchPublicFeed).mockRejectedValue(new Error('https://secret.example/token-123'));
     await expect(fetchCalendar('https://secret.example/token-123', options, signal)).rejects.toThrow('Calendar unavailable');
     expect(fetchPublicFeed).toHaveBeenCalledWith('https://secret.example/token-123', signal);
+  });
+});
+
+describe('why a calendar is unavailable', () => {
+  const reasonOf = async (text: string) => {
+    vi.mocked(fetchPublicFeed).mockResolvedValue({ text, url: 'https://secret.example/token-123' });
+    const error = await fetchCalendar('https://secret.example/token-123', options).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(CalendarUnavailableError);
+    return (error as CalendarUnavailableError).reason;
+  };
+  const start = 'DTSTART:20260328T100000Z\nDTEND:20260328T110000Z\nSUMMARY:x';
+  it.each([
+    ['too_many_events', feed(...Array.from({ length: 501 }, (_, i) => event(start, `u${i}`)))],
+    ['unsupported_recurrence', feed(event(`${start}\nRDATE:20260401T100000Z`))],
+    ['unknown_timezone', feed(event('DTSTART;TZID=Customized Time Zone:20260328T100000\nSUMMARY:x'))],
+    ['event_missing_uid_or_start', feed('BEGIN:VEVENT\nDTSTART:20260328T100000Z\nEND:VEVENT')],
+    ['malformed_line', feed(event(start, 'a'), '', event(start, 'b'))],
+    ['not_an_ics_feed', '<html>Sign in</html>'],
+  ])('reports %s', async (reason, text) => {
+    expect(await reasonOf(text)).toBe(reason);
+  });
+  it('reports the HTTP status and never the feed URL', async () => {
+    vi.mocked(fetchPublicFeed).mockRejectedValue(new FeedStatusError(404));
+    const error = await fetchCalendar('https://secret.example/token-123', options).catch((e: unknown) => e) as CalendarUnavailableError;
+    expect(error.reason).toBe('http_404');
+    vi.mocked(fetchPublicFeed).mockRejectedValue(new Error('getaddrinfo ENOTFOUND secret.example'));
+    const dns = await fetchCalendar('https://secret.example/token-123', options).catch((e: unknown) => e) as CalendarUnavailableError;
+    expect(dns.reason).toBe('unknown');
+    expect(`${dns.message} ${dns.reason}`).not.toContain('secret');
   });
 });
 
