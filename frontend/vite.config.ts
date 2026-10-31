@@ -23,13 +23,16 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     sourcemap: process.env.VITE_SOURCEMAP === 'true',
-    rollupOptions: {
+    rolldownOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-clerk': ['@clerk/clerk-react'],
-          'vendor-query': ['@tanstack/react-query'],
-          'vendor-grid': ['react-grid-layout'],
+        codeSplitting: {
+          includeDependenciesRecursively: true,
+          groups: [
+            { name: 'vendor-react', test: /node_modules[\\/](react|react-dom|react-router-dom)[\\/]/ },
+            { name: 'vendor-clerk', test: /node_modules[\\/]@clerk[\\/]clerk-react[\\/]/ },
+            { name: 'vendor-query', test: /node_modules[\\/]@tanstack[\\/]react-query[\\/]/ },
+            { name: 'vendor-grid', test: /node_modules[\\/]react-grid-layout[\\/]/ },
+          ],
         },
       },
     },
