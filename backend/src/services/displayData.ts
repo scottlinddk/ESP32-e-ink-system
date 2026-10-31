@@ -94,6 +94,12 @@ function calendarFetchOptions(timezone: string, days: number, limit: number) {
   return { timezone, days, limit, range: calendarFetchRange(localDay(new Date(), timezone), days), maxEvents: MAX_CALENDAR_EVENTS };
 }
 
+/** The fixed reason a calendar failed, or `unknown` for anything that did not come from fetchCalendar. */
+const calendarReasonOf = (err: unknown): string => {
+  const reason = (err as { reason?: unknown } | null)?.reason;
+  return typeof reason === 'string' ? reason : 'unknown';
+};
+
 export async function buildDisplayData(
   userId: string,
   prefs: UserPreferences,
@@ -310,7 +316,12 @@ export async function buildDisplayData(
     const days = prefs.calendar_days ?? 7;
     tasks.push(withSourceDeadline((signal) => fetchCalendar(apiKeyMap.calendar, calendarFetchOptions(timezone, days, prefs.calendar_item_limit ?? 5), signal))
       .then((calendar) => { result.calendar = calendar; })
-      .catch(() => { logger.warn('Calendar source unavailable'); }));
+      .catch((err: unknown) => {
+        result.calendarError = calendarProblemFrom(err);
+        logger.warn({ reason: calendarReasonOf(err) }, 'Calendar source unavailable');
+      }));
+  } else if (prefs.show_calendar) {
+    result.calendarError = calendarProblem('not_configured');
   }
 
   // Additional calendars have no on/off switch: a configured calendar is loaded and only drawn
@@ -326,7 +337,7 @@ export async function buildDisplayData(
       .catch((err: unknown) => {
         const problem = calendarProblemFrom(err);
         result.calendars![calendar.id] = { error: problem };
-        logger.warn({ code: problem.code, calendarId: calendar.id }, 'Calendar widget source unavailable');
+        logger.warn({ code: problem.code, reason: calendarReasonOf(err), calendarId: calendar.id }, 'Calendar widget source unavailable');
       }));
   }
 

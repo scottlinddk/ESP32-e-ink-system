@@ -4,6 +4,7 @@ import type { Bounds, DrawingCanvas } from '../utils/zoomCanvas';
 import { renderCalendarWidget, type CalendarSource } from '../utils/calendarRenderer';
 import { renderDisplayDataRaw } from '../utils/bmpGenerator';
 import type { DisplayLanguage } from '../utils/displayLanguage';
+import { displayStrings } from '../utils/displayStrings';
 import { allDayEvent, calendarData, timedEvent } from './calendarFixtures';
 
 interface Text { text: string; x: number; y: number; black: boolean }
@@ -135,6 +136,25 @@ describe('list view', () => {
     expect(draw({}).strings()).toEqual(['Calendar: unavailable']);
     expect(draw({ error: { code: 'not_configured', message: '' } }).strings()).toEqual(['Calendar: add URL']);
     expect(draw({ error: { code: 'timeout', message: '' } }).strings()).toEqual(['Calendar: timed out']);
+  });
+  it('writes what was wrong with the feed under the heading', () => {
+    const problem = (reason: string) => draw({ error: { code: 'unavailable', message: '', reason } }).strings().join(' | ');
+    expect(problem('too_many_events')).toMatch(/^Calendar: unavailable \| Over 500/);
+    expect(problem('http_404')).toContain('Server answered 404');
+    expect(problem('ENOTFOUND')).toContain('Host not found');
+    // A code without words is still shown, so nothing is hidden.
+    expect(problem('brand_new_code')).toContain('brand_new_code');
+  });
+  it('keeps every reason to one line of a 250 px widget', () => {
+    for (const language of ['en', 'da'] as const) {
+      const { reasons, http } = displayStrings(language).calendar;
+      for (const [code, text] of Object.entries({ ...reasons, http: http('404') })) expect(text.length, `${language} ${code}`).toBeLessThanOrEqual(30);
+    }
+  });
+  it('writes the reason in Danish', () => {
+    const lines = draw({ error: { code: 'unavailable', message: '', reason: 'unknown_timezone' } }, undefined, undefined, 'da').strings();
+    expect(lines[0]).toBe('Kalender: ikke tilgængelig');
+    expect(lines.join(' ')).toContain('Ukendt tidszone');
   });
 });
 

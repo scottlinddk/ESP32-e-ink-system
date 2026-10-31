@@ -697,7 +697,7 @@ function populateCanvas(
         case 'monta':   renderMontaWidget(target, bounds, data.monta, preferences?.monta_fields ?? undefined, language); break;
         case 'zaptec':  renderZaptecWidget(target, bounds, data.zaptec, preferences?.zaptec_fields ?? undefined, language); break;
         case 'notion':  renderNotionWidget(target, bounds, data.notion, data.notionError, language); break;
-        case 'calendar': renderCalendarWidget(target, bounds, { data: data.calendar }, widget.options, language); break;
+        case 'calendar': renderCalendarWidget(target, bounds, { data: data.calendar, error: data.calendarError }, widget.options, language); break;
         case 'family-meals': renderFamilyMealsWidget(target, bounds, data.familyMeals, data.familyMealsError, {
           view: familyMealsView(widget.options?.view), language,
         }); break;

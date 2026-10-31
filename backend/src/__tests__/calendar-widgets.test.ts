@@ -121,6 +121,25 @@ describe('display data for additional calendars', () => {
     expect(JSON.stringify(data)).not.toContain('SECRET');
     expect(JSON.stringify(data)).not.toContain('calendar.example.org');
   });
+  it('keeps the reason a calendar failed, for the main calendar and the extra ones, and never the URL', async () => {
+    const failure = Object.assign(new Error('SECRET https://calendar.example.org/main'), { reason: 'too_many_events' });
+    vi.mocked(fetchCalendar).mockRejectedValue(failure);
+    const keys = { calendar: 'https://calendar.example.org/main', 'calendar:work': 'https://calendar.example.org/work' };
+    const data = await buildDisplayData('user', { ...prefs, show_calendar: true, calendar_widgets: [work] }, keys);
+    expect(data.calendarError).toEqual({ code: 'unavailable', message: expect.any(String), reason: 'too_many_events' });
+    expect(data.calendars?.work.error).toMatchObject({ code: 'unavailable', reason: 'too_many_events' });
+    expect(JSON.stringify(data)).not.toContain('SECRET');
+    expect(JSON.stringify(data)).not.toContain('calendar.example.org');
+    // A reason that is not a plain code is dropped, not drawn.
+    vi.mocked(fetchCalendar).mockRejectedValue(Object.assign(new Error('x'), { reason: 'https://calendar.example.org/main?token=1' }));
+    expect((await buildDisplayData('user', { ...prefs, show_calendar: true, calendar_widgets: [] }, keys)).calendarError).not.toHaveProperty('reason');
+  });
+  it('tells the main calendar to add a URL when it is switched on without one', async () => {
+    const data = await buildDisplayData('user', { ...prefs, show_calendar: true, calendar_widgets: [] }, {});
+    expect(fetchCalendar).not.toHaveBeenCalled();
+    expect(data.calendarError?.code).toBe('not_configured');
+    expect((await buildDisplayData('user', { ...prefs, show_calendar: false, calendar_widgets: [] }, {})).calendarError).toBeUndefined();
+  });
   it('marks a calendar without a saved URL instead of fetching it', async () => {
     const data = await buildDisplayData('user', { ...prefs, calendar_widgets: [work] }, {});
     expect(fetchCalendar).not.toHaveBeenCalled();
