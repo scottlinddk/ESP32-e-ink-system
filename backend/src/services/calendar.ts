@@ -1,6 +1,5 @@
 import { Worker } from 'node:worker_threads';
 import { fetchPublicFeed, MAX_FEED_BYTES } from '../utils/publicFeedFetch';
-import { runCalendarWorker } from './calendarWorker';
 import type { CalendarData } from '../types';
 import { validateCalendarOptions, type CalendarOptions } from '../utils/calendarOptions';
 
@@ -12,8 +11,8 @@ export async function parseCalendar(text: string, options: CalendarOptions, now 
   if (typeof text !== 'string' || Buffer.byteLength(text) > MAX_FEED_BYTES || !Number.isFinite(now.getTime())) throw new Error('Invalid calendar feed');
   if (signal?.aborted) throw new Error('Calendar request cancelled');
   return new Promise((resolve, reject) => {
-    const worker = new Worker(`(${runCalendarWorker.toString()})()`, {
-      eval: true, workerData: { text, ...options, now: now.getTime(), icalPath: require.resolve('node-ical') },
+    const worker = new Worker(require.resolve('./calendarWorker.cjs'), {
+      workerData: { text, ...options, now: now.getTime() },
       resourceLimits: { maxOldGenerationSizeMb: 64, stackSizeMb: 4 }, stdout: true, stderr: true,
     });
     // Suppress dependency diagnostics: a malformed feed may contain private text.

@@ -5,9 +5,9 @@
   "main": "dist/src/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
+    "build": "tsc && tsc -p tsconfig.worker.json",
     "start": "node dist/src/index.js",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.worker.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "gen:types": "bash scripts/gen-types.sh"
@@ -38,6 +38,7 @@
     "@types/node-cron": "^3.0.11",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
+    "esbuild": "^0.21.5",
     "supabase": "^2.105.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
