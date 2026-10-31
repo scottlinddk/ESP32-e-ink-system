@@ -33,7 +33,7 @@
     "ipaddr.js": "^2.5.0"
   },
   "devDependencies": {
-    "@types/node": "^20.14.2",
+    "@types/node": "^26.0.0",
     "concurrently": "^9.1.2",
     "typescript": "^5.8.0"
   }
