@@ -9,6 +9,11 @@
     "backend": {
       "root": "backend",
       "entrypoint": "api/index.ts",
+      "functions": {
+        "api/index.ts": {
+          "includeFiles": "{src/services/calendarWorker.cjs,../node_modules/node-ical/windowsZones.json}"
+        }
+      },
       "bindings": [
         {
           "type": "service",
