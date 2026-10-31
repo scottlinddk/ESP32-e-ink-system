@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { build } from 'esbuild';
-import { copyFile, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { copyFile, cp, mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { Worker } from 'node:worker_threads';
 
 describe('deployed calendar parser', () => {
   let directory: string;
@@ -38,4 +40,41 @@ describe('deployed calendar parser', () => {
     const result = await parseCalendar(text, { timezone: 'Europe/Copenhagen', days: 7, limit: 5 }, new Date('2026-03-27T12:00:00Z'));
     expect(result.events[0]).toMatchObject({ title: 'Planning', start: '2026-03-28T08:00:00.000Z', timeLabel: '09:00' });
   });
+});
+
+it('starts the deployed worker using only explicitly included assets', async () => {
+  // Outside the checkout: missing worker dependencies cannot resolve from its node_modules.
+  const directory = await mkdtemp(join(tmpdir(), 'calendar-deployment-'));
+  let worker: Worker | undefined;
+  try {
+    const backend = resolve(__dirname, '../..');
+    const config = JSON.parse(await readFile(resolve(backend, '../vercel.json'), 'utf8'));
+    const includes: string = config.services.backend.functions['api/index.ts'].includeFiles;
+    for (const asset of includes.slice(1, -1).split(',')) {
+      const relative = asset.replace(/\/\*\*$/, '');
+      const source = resolve(backend, relative);
+      // Mirror backend-relative assets and workspace-level node_modules in the function.
+      const destination = resolve(directory, 'backend', relative);
+      await mkdir(resolve(destination, '..'), { recursive: true });
+      await cp(source, destination, { recursive: true });
+    }
+    worker = new Worker(join(directory, 'backend/src/services/calendarWorker.cjs'), {
+      workerData: {
+        text: 'BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:outlook\nDTSTART;TZID="Romance Standard Time":20260328T090000\nRRULE:FREQ=DAILY;COUNT=2\nSUMMARY:Planning\nEND:VEVENT\nEND:VCALENDAR',
+        timezone: 'Europe/Copenhagen', days: 7, limit: 5, now: Date.parse('2026-03-27T12:00:00Z'),
+      },
+    });
+    const message = await new Promise<any>((resolve, reject) => {
+      worker!.once('message', resolve);
+      worker!.once('error', reject);
+      worker!.once('exit', (code) => reject(new Error(`Worker exited before replying (${code})`)));
+    });
+    expect(message.error).toBeUndefined();
+    expect(message.result.events.map((event: { start: string }) => event.start)).toEqual([
+      '2026-03-28T08:00:00.000Z', '2026-03-29T07:00:00.000Z',
+    ]);
+  } finally {
+    await worker?.terminate();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
