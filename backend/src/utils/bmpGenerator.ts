@@ -665,7 +665,7 @@ function populateCanvas(
         // Layout options override the ticker's own view and page size for this placement only.
         const setting = stored && {
           ...stored,
-          ...(widget.options?.view === 'full' || widget.options?.view === 'condensed' ? { view: widget.options.view } : {}),
+          ...(widget.options?.view === 'full' || widget.options?.view === 'condensed' || widget.options?.view === 'cards' ? { view: widget.options.view } : {}),
           ...(widget.options?.items ? { per_page: widget.options.items } : {}),
         };
         renderTickerWidget(target, bounds, setting, data.tickers?.[tickerId], preferences?.display_timezone ?? DEFAULT_DISPLAY_TIMEZONE);

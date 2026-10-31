@@ -37,7 +37,7 @@ export function TickerWidgetsFields({ tickers, onChange }: { tickers: TickerWidg
           </Field>
           <Field label={da ? 'Visning' : 'View'} htmlFor={`${key}-view`}>
             <Select id={`${key}-view`} value={ticker.view}
-              options={[{ value: 'full', label: da ? 'Fuld (én aktie)' : 'Full (one stock)' }, { value: 'condensed', label: da ? 'Kompakt (liste)' : 'Condensed (list)' }]}
+              options={[{ value: 'full', label: da ? 'Fuld (én aktie)' : 'Full (one stock)' }, { value: 'condensed', label: da ? 'Kompakt (liste)' : 'Condensed (list)' }, { value: 'cards', label: da ? 'Kort (to aktier)' : 'Cards (two stocks)' }]}
               onChange={(e) => update(ticker.id, { view: e.target.value as TickerView })} />
           </Field>
           <Button variant="text" icon="delete" onClick={() => onChange(tickers.filter((item) => item.id !== ticker.id))}

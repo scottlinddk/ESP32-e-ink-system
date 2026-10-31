@@ -51,6 +51,12 @@ describe('widget options validation', () => {
     expect('options' in parsed.widgets[3]).toBe(false);
   });
 
+  it('allows card view only for stock widgets', () => {
+    expect(parseWidgetOptions('ticker:abc', { view: 'cards' })).toEqual({ view: 'cards' });
+    expect(() => parseWidgetOptions('ai-usage', { view: 'cards' })).toThrow();
+    expect(() => parseWidgetOptions('status', { view: 'cards' })).toThrow();
+  });
+
   it.each([
     ['energy', { view: 'condensed' }],
     ['energy', { items: 3 }],

@@ -114,7 +114,7 @@ export interface CalendarWidgetSetting {
   item_limit: number;
 }
 
-export type TickerView = 'full' | 'condensed';
+export type TickerView = 'full' | 'condensed' | 'cards';
 
 /** A stock ticker widget. The layout widget ID is `ticker:<id>`. Mirrors backend/src/utils/tickerWidgets.ts. */
 export interface TickerWidgetSetting {

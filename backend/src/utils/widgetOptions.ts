@@ -12,13 +12,13 @@ import { DEFAULT_ALIGN, isWidgetAlign, isWidgetOutline, WIDGET_ALIGNMENTS, WIDGE
 
 export const ENERGY_VIEWS = ['summary', 'day', 'rest'] as const;
 export type EnergyView = typeof ENERGY_VIEWS[number];
-export const TICKER_VIEWS = ['full', 'condensed'] as const;
-export const AI_USAGE_VIEWS = TICKER_VIEWS;
+export const TICKER_VIEWS = ['full', 'condensed', 'cards'] as const;
+export const AI_USAGE_VIEWS = ['full', 'condensed'] as const;
 /** `full` is the week's dinners, `condensed` tonight's dinner alone, `upcoming` today beside the coming days, `planner` a card per day and `recipe` tonight's recipe. */
 export const FAMILY_MEALS_VIEWS = ['full', 'condensed', 'upcoming', 'planner', 'recipe'] as const;
 export type FamilyMealsView = typeof FAMILY_MEALS_VIEWS[number];
 /** `condensed` shows the time alone, for a status bar made small. */
-export const STATUS_VIEWS = TICKER_VIEWS;
+export const STATUS_VIEWS = AI_USAGE_VIEWS;
 /** `list` is the agenda grouped by day, `day` one day by the hour, `days` several side by side, `month` a month grid. */
 export const CALENDAR_VIEWS = ['list', 'day', 'days', 'month'] as const;
 export type CalendarView = typeof CALENDAR_VIEWS[number];

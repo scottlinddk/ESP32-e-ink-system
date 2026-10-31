@@ -19,7 +19,7 @@ export const configSchema = z.object({
     .min(1)
     .max(MAX_SYMBOLS)
     .transform((list) => [...new Set(list)]),
-  view: z.enum(['full', 'condensed']).default('full'),
+  view: z.enum(['full', 'condensed', 'cards']).default('full'),
   /** Condensed only. Omit to fit as many rows as the region allows. */
   perPage: z.number().int().min(1).max(8).optional(),
   /** How long a page stays before the next one is due. */
