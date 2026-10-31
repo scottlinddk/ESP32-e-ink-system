@@ -1,4 +1,4 @@
-export type TickerView = 'full' | 'condensed';
+export type TickerView = 'full' | 'condensed' | 'cards';
 export type Direction = 'up' | 'down' | 'flat';
 export type MarketState = 'OPEN' | 'CLOSED' | 'PRE' | 'POST';
 /** `MIXED` is only produced when a page shows symbols in different states. */

@@ -109,7 +109,7 @@ describe('ticker widget: fetch', () => {
 });
 
 describe('ticker widget: render', () => {
-  it.each([['full'], ['condensed']] as const)('draws the %s view inside every common panel size', async (view) => {
+  it.each([['full'], ['condensed'], ['cards']] as const)('draws the %s view inside every common panel size', async (view) => {
     const widget = createTickerWidget(stocks);
     const symbols = ['NOVO-B.CO', 'NVDA', 'AAPL', 'DSV.CO', 'VWS.CO', 'SPOT'];
     for (const region of [small, { widthPx: 250, heightPx: 61 }, { widthPx: 125, heightPx: 122 }, { widthPx: 400, heightPx: 300 }, { widthPx: 800, heightPx: 480 }, { widthPx: 96, heightPx: 40 }]) {
@@ -119,6 +119,28 @@ describe('ticker widget: render', () => {
       expectInside(rendered);
       expectNoTextOverlap(rendered, `${view} ${region.widthPx}x${region.heightPx}`);
     }
+  });
+
+  it('draws two named cards with charts and direction on a wide region, and pages on a narrow one', async () => {
+    const widget = createTickerWidget(provider({
+      AAPL: quote('AAPL', 5.23, { name: 'Apple', price: 242.84, series: [230, 236, 232, 242, 240, 245] }),
+      TSLA: quote('TSLA', -2.39, { name: 'Tesla', price: 389.22, series: [400, 395, 398, 390, 392, 389] }),
+    }));
+    const wide = { widthPx: 400, heightPx: 180 };
+    const result = await widget.fetch(config({ symbols: ['AAPL', 'TSLA'], view: 'cards', locale: 'en' }), wide);
+    if (!result.ok) throw new Error('expected data');
+    expect(result.data.rows).toHaveLength(2);
+    expect(result.data.pageCount).toBe(1);
+    const rendered = widget.render(result.data, wide, typography);
+    expect(texts(rendered)).toEqual(expect.arrayContaining(['Apple', 'Tesla', 'AAPL', 'TSLA', '$242.84', '$389.22', '+5.23%', '-2.39%']));
+    expect(rendered.elements.filter((e) => e.kind === 'rect').length).toBeGreaterThan(100);
+    expectInside(rendered);
+    expectNoTextOverlap(rendered, 'wide cards');
+
+    const narrow = await widget.fetch(config({ symbols: ['AAPL', 'TSLA'], view: 'cards', locale: 'en' }), { widthPx: 125, heightPx: 122 });
+    if (!narrow.ok) throw new Error('expected data');
+    expect(narrow.data.rows).toHaveLength(1);
+    expect(narrow.data.pageCount).toBe(2);
   });
 
   it('shows direction with a shape and a sign, in Danish format', async () => {

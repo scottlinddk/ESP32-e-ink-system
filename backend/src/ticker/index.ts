@@ -7,6 +7,7 @@ import { pickPage } from './rotation';
 import type { SearchRegion, TickerRow, TickerWidgetData } from './types';
 import { renderCondensed } from './views/condensed';
 import { renderFull } from './views/full';
+import { cardsPerPage, renderCards } from './views/cards';
 import { condensedLayout } from './views/layout';
 
 // Mirrors packages/widgets/src/widgets/ticker. The backend is deployed on its own
@@ -63,8 +64,8 @@ export function renderTicker(
   timeZone: string,
   nowMs: number = Date.now()
 ): RenderedWidget {
-  const fitting = widget.view === 'full' ? 1 : condensedLayout(region).rows;
-  const perPage = widget.view === 'full' ? 1 : Math.min(widget.per_page ?? fitting, fitting);
+  const fitting = widget.view === 'full' ? 1 : widget.view === 'cards' ? cardsPerPage(region) : condensedLayout(region).rows;
+  const perPage = widget.view === 'condensed' ? Math.min(widget.per_page ?? fitting, fitting) : fitting;
   const page = pickPage(snapshot.rows, perPage, widget.dwell_minutes, nowMs);
   const data: TickerWidgetData = {
     view: widget.view,
@@ -77,7 +78,7 @@ export function renderTicker(
     marketStatus: aggregateStatus(page.items.flatMap((row) => (row.quote ? [row.quote.marketState] : []))),
     fetchedAt: snapshot.fetchedAt,
   };
-  return widget.view === 'condensed' ? renderCondensed(data, region) : renderFull(data, region);
+  return widget.view === 'condensed' ? renderCondensed(data, region) : widget.view === 'cards' ? renderCards(data, region) : renderFull(data, region);
 }
 
 export function renderTickerUnavailable(region: PixelRegion, message?: string): RenderedWidget {

@@ -19,8 +19,8 @@ export interface WidgetLayout {
 }
 
 export interface WidgetOptions {
-  /** energy: 'summary' | 'day' | 'rest'; weather: 'summary' | 'current' | 'hours' | 'daily' | 'details'; calendar: 'list' | 'day' | 'days' | 'month'; ticker: 'full' | 'condensed' (overrides the ticker's own view); ai-usage: 'full' | 'condensed'; family-meals: 'full' (the week) | 'condensed' (tonight) | 'upcoming' (today beside the coming days) | 'planner' (a card per day) | 'recipe' (tonight's recipe); status: 'full' | 'condensed' (the time alone). */
-  view?: 'summary' | 'day' | 'rest' | 'full' | 'condensed' | 'list' | 'days' | 'month' | 'current' | 'hours' | 'daily' | 'details' | 'upcoming' | 'planner' | 'recipe';
+  /** energy: 'summary' | 'day' | 'rest'; weather: 'summary' | 'current' | 'hours' | 'daily' | 'details'; calendar: 'list' | 'day' | 'days' | 'month'; ticker: 'full' | 'condensed' | 'cards' (overrides the ticker's own view); ai-usage: 'full' | 'condensed'; family-meals: 'full' (the week) | 'condensed' (tonight) | 'upcoming' (today beside the coming days) | 'planner' (a card per day) | 'recipe' (tonight's recipe); status: 'full' | 'condensed' (the time alone). */
+  view?: 'summary' | 'day' | 'rest' | 'full' | 'condensed' | 'cards' | 'list' | 'days' | 'month' | 'current' | 'hours' | 'daily' | 'details' | 'upcoming' | 'planner' | 'recipe';
   /** news, calendar list view: most rows drawn; ticker: stocks per page in the condensed view; weather hours and daily: most steps or days drawn. 1–10. */
   items?: number;
   /** news: how many columns the headlines are split into, 1–4. Unset is 1. A widget too narrow for that many shows fewer. */
@@ -205,7 +205,7 @@ export interface TickerWidgetSetting {
   id: string;            // 1–16 lowercase letters/digits; layout widget ID is `ticker:<id>`
   name: string;          // layout editor label and condensed header, may be empty
   symbols: string[];     // Yahoo symbols, e.g. NOVO-B.CO (Nasdaq Copenhagen)
-  view: 'full' | 'condensed';
+  view: 'full' | 'condensed' | 'cards';
   per_page: number | null; // condensed only; null fits as many rows as the widget allows
   dwell_minutes: number;   // how long a page stays before the next is due
   locale: 'da' | 'en';

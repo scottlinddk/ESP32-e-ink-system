@@ -60,6 +60,9 @@ describe('ticker widget list validation', () => {
     const { per_page: _omit, ...withoutPerPage } = us;
     expect(parseTickerWidgets([withoutPerPage])[0].per_page).toBeNull();
   });
+  it('accepts the card view in saved settings', () => {
+    expect(parseTickerWidgets([{ ...us, view: 'cards' }])[0].view).toBe('cards');
+  });
   it.each([
     ['not a list', {}],
     ['too many widgets', Array.from({ length: MAX_TICKER_WIDGETS + 1 }, (_, n) => ({ ...us, id: `t${n}` }))],
@@ -155,7 +158,7 @@ describe('ticker layout in small widgets', () => {
   const quotes = provider({ 'NOVO-B.CO': quote('NOVO-B.CO', -1.24), 'DSV.CO': quote('DSV.CO', 2.1), 'VWS.CO': quote('VWS.CO', 0), NVDA: quote('NVDA', 0.36) });
   it.each([[125, 122], [250, 122], [250, 61], [125, 60], [250, 20], [100, 40], [400, 300], [800, 480]])('keeps %i x %i free of overlapping text', async (widthPx, heightPx) => {
     const tickers = await loadTickerSnapshots([dk, us], quotes);
-    for (const widget of [dk, us, { ...dk, view: 'full' as const }, { ...us, locale: 'da' as const }]) {
+    for (const widget of [dk, us, { ...dk, view: 'full' as const }, { ...dk, view: 'cards' as const }, { ...us, locale: 'da' as const }]) {
       const result = tickers[widget.id];
       if (!('snapshot' in result)) throw new Error('expected a snapshot');
       expectNoTextOverlap(renderTicker(widget, result.snapshot, { widthPx, heightPx }, 'Europe/Copenhagen'), `${widget.view} ${widthPx}x${heightPx}`);
@@ -196,6 +199,14 @@ describe('rendering ticker widgets', () => {
     expect(condensed).not.toEqual(blank);
     expect(full).not.toEqual(condensed);
     expect(inkInside(full, { x: 0, y: 0, w: 250, h: 122 }).inside).toBeGreaterThan(400);
+  });
+  it('draws the card view through the bitmap renderer, including a placement override', async () => {
+    const tickers = await snapshots();
+    const layout = grid({ i: 'ticker:dk', x: 0, y: 0, w: 10, h: 6, options: { view: 'cards' } });
+    const asCards = renderDisplayDataRaw({ nextRefresh: 1000, tickers }, layout, prefs);
+    const asDefault = renderDisplayDataRaw({ nextRefresh: 1000, tickers }, grid({ i: 'ticker:dk', x: 0, y: 0, w: 10, h: 6 }), prefs);
+    expect(asCards).not.toEqual(asDefault);
+    expect(inkInside(asCards, { x: 0, y: 0, w: 250, h: 122 }).inside).toBeGreaterThan(200);
   });
   it('shows up and down moves differently', async () => {
     const draw = async (change: number) => renderDisplayDataRaw({

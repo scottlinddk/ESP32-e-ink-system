@@ -102,6 +102,9 @@ describe('widget options panel', () => {
     expect(condensed).toContain('Widget default (List)');
     expect(condensed).toContain('Widget default (4)');
     expect(panel({ i: 'ticker:t1', x: 0, y: 0, w: 5, h: 3, options: { view: 'full' } }, 'en', ticker)).not.toContain('Stocks per page');
+    const cards = panel({ i: 'ticker:t1', x: 0, y: 0, w: 5, h: 3, options: { view: 'cards' } }, 'en', ticker);
+    expect(cards).toMatch(/<option value="cards" selected/);
+    expect(cards).not.toContain('Stocks per page');
   });
 
   it('offers an image its position and outline, but no text size', () => {

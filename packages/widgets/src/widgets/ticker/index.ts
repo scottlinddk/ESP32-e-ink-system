@@ -7,6 +7,7 @@ import { pickPage } from './rotation';
 import type { TickerRow, TickerWidgetData } from './types';
 import { renderCondensed } from './views/condensed';
 import { renderFull } from './views/full';
+import { cardsPerPage, renderCards } from './views/cards';
 import { condensedLayout } from './views/layout';
 
 export { configSchema } from './config';
@@ -25,8 +26,8 @@ export function createTickerWidget(provider: QuoteProvider): Widget<TickerWidget
     configSchema,
 
     async fetch(config: TickerWidgetConfig, region: PixelRegion): Promise<WidgetResult<TickerWidgetData>> {
-      const fitting = config.view === 'full' ? 1 : condensedLayout(region).rows;
-      const perPage = config.view === 'full' ? 1 : Math.min(config.perPage ?? fitting, fitting);
+      const fitting = config.view === 'full' ? 1 : config.view === 'cards' ? cardsPerPage(region) : condensedLayout(region).rows;
+      const perPage = config.view === 'condensed' ? Math.min(config.perPage ?? fitting, fitting) : fitting;
       const fetchedAt = Date.now();
       const page = pickPage(config.symbols, perPage, config.dwellMinutes, fetchedAt);
 
@@ -64,7 +65,7 @@ export function createTickerWidget(provider: QuoteProvider): Widget<TickerWidget
     // Layout is derived from the region only (not `typography`) so that `fetch`
     // and `render` agree on how many rows a page holds.
     render(data: TickerWidgetData, region: PixelRegion, _typography: TypographyScale): RenderedWidget {
-      return data.view === 'condensed' ? renderCondensed(data, region) : renderFull(data, region);
+      return data.view === 'condensed' ? renderCondensed(data, region) : data.view === 'cards' ? renderCards(data, region) : renderFull(data, region);
     },
   };
 }

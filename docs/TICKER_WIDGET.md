@@ -15,7 +15,7 @@ as one or more widgets on the display.
 4. Choose the view, save, then place the widget in **Edit layout**. Each ticker
    is its own layout widget (`ticker:<id>`), so several can share one screen.
 
-At most 6 ticker widgets, each with 1 to 10 stocks. A ticker widget needs at
+At most 6 ticker widgets, each with 1 to 10 stocks. The condensed view needs at
 least 3 grid rows of height to show a header and footer; smaller areas show rows only.
 
 ## Views
@@ -23,6 +23,7 @@ least 3 grid rows of height to show a header and footer; smaller areas show rows
 | View | Shows |
 |---|---|
 | `full` | One stock: symbol, price, direction arrow with absolute and percent change, intraday sparkline with a dotted previous-close line, market status and time. |
+| `cards` | One or two outlined stock cards: company name, symbol, intraday chart, price, and signed percent change. Two cards fit side by side in regions at least 240 px wide and 80 px high; smaller regions show one. The monochrome panel cannot show the reference's colour, glow, or logos. |
 | `condensed` | A list: header with market status, per row symbol and price, then arrow, change and percent. Footer with the time and page (`Side 1/2`). |
 
 A placement can override the view and the stocks per page for one layout or scheduled page: select the widget in **Edit layout**. This is stored on the layout widget as `options: {"view":"condensed","items":3}`; without it the ticker's own settings apply.
@@ -32,7 +33,7 @@ A placement can override the view and the stocks per page for one layout or sche
 | Field | Default | Notes |
 |---|---|---|
 | `symbols` | required | 1 to 10 Yahoo symbols. Danish stocks use `.CO`, e.g. `NOVO-B.CO`, `DSV.CO`. Upper-cased and de-duplicated. |
-| `view` | `full` | `full` or `condensed`. |
+| `view` | `full` | `full`, `cards` or `condensed`. |
 | `perPage` | auto | Condensed only. Clamped to what the region can draw. |
 | `dwellMinutes` | 15 | Page stays for this long. Prefer 5 or more to limit e-ink refreshes. |
 | `title` | `Stock ticker` | Condensed header. |

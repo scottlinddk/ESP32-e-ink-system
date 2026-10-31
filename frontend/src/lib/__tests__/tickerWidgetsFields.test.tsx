@@ -30,15 +30,17 @@ describe('stock ticker settings', () => {
     expect(html).toContain('Danish stocks only (Nasdaq Copenhagen)');
     expect(html).toMatch(/id="ticker-dk-search-dk"[^>]*checked/);
   });
-  it('lets the user choose between the full and condensed views', () => {
+  it('lets the user choose the card view alongside the existing views', () => {
     const html = render([base]);
     expect(html).toContain('Full (one stock)');
     expect(html).toContain('Condensed (list)');
+    expect(html).toContain('Cards (two stocks)');
     expect(html).toMatch(/<option value="condensed" selected/);
   });
   it('shows stocks per page for the condensed view only', () => {
     expect(render([base])).toContain('Stocks per page');
     expect(render([{ ...base, view: 'full' }])).not.toContain('Stocks per page');
+    expect(render([{ ...base, view: 'cards' }])).not.toContain('Stocks per page');
   });
   it('explains page cycling only when there is more than one stock, and keeps a custom duration selectable', () => {
     expect(render([base])).toContain('only changes when the display receives a new image');

@@ -49,8 +49,8 @@ export function parseTickerWidgets(value: unknown): TickerWidgetSetting[] {
       || symbols.some((s) => typeof s !== 'string' || !SYMBOL.test(s.trim()))) {
       throw new TickerWidgetValidationError(`Each stock widget needs 1–${MAX_TICKER_SYMBOLS} valid ticker symbols.`);
     }
-    if (view !== 'full' && view !== 'condensed') {
-      throw new TickerWidgetValidationError('Stock widget view must be "full" or "condensed".');
+    if (view !== 'full' && view !== 'condensed' && view !== 'cards') {
+      throw new TickerWidgetValidationError('Stock widget view must be "full", "condensed" or "cards".');
     }
     if (perPage !== undefined && perPage !== null && (typeof perPage !== 'number' || !Number.isInteger(perPage) || perPage < 1 || perPage > 8)) {
       throw new TickerWidgetValidationError('Stocks per page must be 1–8.');

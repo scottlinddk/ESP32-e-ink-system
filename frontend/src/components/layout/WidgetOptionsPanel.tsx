@@ -203,7 +203,7 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
 
         {kind === 'ticker' && (() => {
           const ownView = ticker?.view ?? 'full';
-          const viewName = (view: TickerView) => view === 'full' ? (da ? 'Én aktie' : 'Single stock') : (da ? 'Liste' : 'List');
+          const viewName = (view: TickerView) => view === 'full' ? (da ? 'Én aktie' : 'Single stock') : view === 'cards' ? (da ? 'Kort' : 'Cards') : (da ? 'Liste' : 'List');
           const view = widget.options?.view as TickerView | undefined;
           const effective = view ?? ownView;
           return (
@@ -214,6 +214,7 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
                     { value: AUTO, label: `${da ? 'Som widgetten' : 'Widget default'} (${viewName(ownView)})` },
                     { value: 'full', label: viewName('full') },
                     { value: 'condensed', label: viewName('condensed') },
+                    { value: 'cards', label: viewName('cards') },
                   ]}
                   onChange={(e) => onChange({ view: e.target.value === AUTO ? undefined : e.target.value as TickerView })} />
               </Field>
