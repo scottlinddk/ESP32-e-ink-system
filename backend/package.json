@@ -42,7 +42,7 @@
     "supabase": "^2.105.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.4.5",
+    "typescript": "^7.0.0",
     "vitest": "^1.6.0"
   }
 }
