@@ -102,7 +102,8 @@ describe('battery widget', () => {
 
 describe('battery in the status bar', () => {
   afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
-  const status = (w: number): DisplayLayout => ({ version: 1, cols: 10, rows: 6, widgets: [{ i: 'status', x: 0, y: 5, w, h: 1 }] });
+  // Pinned to top left, where the bar draws on its own, so these tests compare drawing and not placement.
+  const status = (w: number): DisplayLayout => ({ version: 1, cols: 10, rows: 6, widgets: [{ i: 'status', x: 0, y: 5, w, h: 1, options: { align: 'top-left' } }] });
   const render = (battery: DisplayData['battery'], w: number) => {
     vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-12T10:00:00Z'));
     const draw = vi.spyOn(BmpCanvas.prototype, 'drawText');

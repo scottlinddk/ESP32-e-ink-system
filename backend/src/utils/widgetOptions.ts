@@ -4,7 +4,7 @@ import { calendarIdFromWidget } from './calendarWidgets';
 import { isWeatherWidget } from './weatherWidgets';
 import { tickerIdFromWidget } from './tickerWidgets';
 import { isWidgetZoom, MAX_ZOOM, MIN_ZOOM } from './zoom';
-import { DEFAULT_ALIGN, isWidgetAlign, isWidgetOutline, WIDGET_ALIGNMENTS, WIDGET_OUTLINES } from './widgetFrame';
+import { defaultAlignFor, isWidgetAlign, isWidgetOutline, WIDGET_ALIGNMENTS, WIDGET_OUTLINES } from './widgetFrame';
 
 // Per-placement display options, stored on a layout widget. They change how a widget is
 // drawn, never what is fetched, so a scheduled page can show the same source differently.
@@ -92,8 +92,9 @@ export function parseWidgetOptions(widgetId: string, value: unknown): WidgetOpti
   const options: WidgetOptions = {};
   if (value.align !== undefined) {
     if (!isWidgetAlign(value.align)) throw new Error(`Widget alignment must be one of ${WIDGET_ALIGNMENTS.join(', ')}.`);
-    // Top left is where a widget draws on its own, so it is never stored.
-    if (value.align !== DEFAULT_ALIGN) options.align = value.align;
+    // A widget's default position is what an unset alignment draws, so it is never stored.
+    // For the status widget that is bottom right, which makes an explicit top left worth keeping.
+    if (value.align !== defaultAlignFor(widgetId)) options.align = value.align;
   }
   if (value.outline !== undefined) {
     if (!isWidgetOutline(value.outline)) throw new Error(`Widget outline must be one of ${WIDGET_OUTLINES.join(', ')}.`);

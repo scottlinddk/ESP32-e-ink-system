@@ -30,7 +30,9 @@ describe('alignment and outline validation', () => {
     expect(parseWidgetOptions('custom-text', { align: 'bottom-right', outline: 'rounded' })).toEqual({ align: 'bottom-right', outline: 'rounded' });
     expect(parseWidgetOptions('custom-image', { align: 'middle-center' })).toEqual({ align: 'middle-center' });
     expect(parseWidgetOptions('energy', { view: 'day', align: 'top-left' })).toEqual({ view: 'day' });
-    expect(parseWidgetOptions('status', { align: 'top-left' })).toBeUndefined();
+    // The status widget defaults to bottom right, so that is what is dropped and top left is kept.
+    expect(parseWidgetOptions('status', { align: 'bottom-right' })).toBeUndefined();
+    expect(parseWidgetOptions('status', { align: 'top-left' })).toEqual({ align: 'top-left' });
     // 'none' is kept so a widget can opt out of the layout's outline.
     expect(parseWidgetOptions('weather', { outline: 'none' })).toEqual({ outline: 'none' });
   });
@@ -124,6 +126,16 @@ describe('rendering alignment', () => {
     for (let x = 0; x < 250; x++) expect(isBlack(raw, x, 60)).toBe(true);
     const text = ink(raw, 0, 250, 61, 122)!;
     expect(text.bottom).toBeGreaterThan(110);
+  });
+
+  it('puts the status widget content at the bottom right unless told otherwise', () => {
+    const status = (options?: WidgetOptions) => renderDisplayDataRaw({ nextRefresh: 300_000 },
+      layout([{ i: 'status', x: 0, y: 3, w: 10, h: 3, ...(options ? { options } : {}) }]));
+    const byDefault = ink(status(), 0, 250, 61, 122)!;
+    expect(byDefault.bottom).toBeGreaterThan(110);
+    expect(status()).toEqual(status({ align: 'bottom-right' }));
+    // An explicit top left is a real choice, so the text goes back to the top of the area.
+    expect(ink(status({ align: 'top-left' }), 0, 250, 61, 122)!.top).toBeLessThan(70);
   });
 });
 
