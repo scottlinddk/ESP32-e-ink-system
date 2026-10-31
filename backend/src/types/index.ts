@@ -365,6 +365,8 @@ export interface DisplayData {
   familyMeals?: FamilyMealsData;
   familyMealsError?: { code: string; message: string };
   calendar?: CalendarData;
+  /** Why the main calendar has no events: not set up, or the fixed reason its feed failed. */
+  calendarError?: CalendarProblem;
   /** Additional calendars keyed by calendar widget ID. */
   calendars?: Record<string, CalendarResult>;
   aiUsage?: AiUsageData;

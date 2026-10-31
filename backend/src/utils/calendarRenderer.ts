@@ -117,6 +117,12 @@ const FOOTER_H = LINE + 6;
 /** A footer under 4 lines of view would leave too little of the view. */
 const MIN_HEIGHT_FOR_FOOTER = FOOTER_H + 4 * LINE;
 
+/** The words for a reason code: a listed one, `http_404` as the status, or any other code as it is. */
+function problemReason(t: Words['t'], reason: string): string {
+  const http = /^http_(\d{3}|unknown)$/.exec(reason);
+  return t.reasons[reason] ?? (http ? t.http(http[1]) : t.other(reason));
+}
+
 export function renderCalendarWidget(canvas: DrawingCanvas, bounds: Bounds, source: CalendarSource, options?: WidgetOptions, language: DisplayLanguage = DEFAULT_DISPLAY_LANGUAGE): void {
   const { x, y, width } = bounds;
   if (y > 0) canvas.drawHLine(x, y, width);
@@ -127,7 +133,10 @@ export function renderCalendarWidget(canvas: DrawingCanvas, bounds: Bounds, sour
     bounds = { ...bounds, height: bounds.height - FOOTER_H };
   }
   if (!data) {
-    canvas.drawWrappedText(error ? words.t.errors[error.code] : words.t.unavailable, x + 2, y + 2, width - 4, LINE);
+    const below = canvas.drawWrappedText(error ? words.t.errors[error.code] : words.t.unavailable, x + 2, y + 2, width - 4, LINE);
+    // What was wrong, so a rejected feed can be fixed without reading the server log.
+    const why = error?.reason ? problemReason(words.t, error.reason) : null;
+    if (why) canvas.drawWrappedText(why, x + 2, below + 2, width - 4, LINE);
     return;
   }
   const view = calendarView(options);

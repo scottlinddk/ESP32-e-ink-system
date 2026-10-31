@@ -72,6 +72,10 @@ export interface DisplayStrings {
     /** Full month names, January first, for the month view's title. */
     months: readonly string[];
     errors: Record<CalendarErrorCode, string>;
+    /** What was wrong with the feed, by reason code (services/calendar.ts). `http` takes the status; `other` names an unlisted code. */
+    reasons: Record<string, string>;
+    http: (status: string) => string;
+    other: (reason: string) => string;
   };
   status: { refresh: string };
   week: {
@@ -170,6 +174,18 @@ const en: DisplayStrings = {
     more: (count) => `+${count} more`,
     months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
     errors: { not_configured: 'Calendar: add URL', unavailable: 'Calendar: unavailable', timeout: 'Calendar: timed out' },
+    reasons: {
+      too_many_events: 'Over 500 events in feed', too_many_lines: 'Feed over 20,000 lines', too_many_occurrences: 'Too many repeats',
+      feed_too_large: 'Feed over 1 MiB', not_an_ics_feed: 'Link is not an ICS feed', malformed_line: 'Blank/broken line in feed',
+      nested_calendar: 'Several calendars in feed', unbalanced_components: 'Feed cut off or broken',
+      event_missing_uid_or_start: 'Event lacks UID or start', unsupported_recurrence: 'Unsupported repeat (RDATE)',
+      unknown_timezone: 'Unknown time zone', invalid_date: 'Invalid date in feed', missing_version_or_unclosed: 'Feed lacks VERSION:2.0',
+      parse_error: 'Could not read feed', not_utf8: 'Feed is not UTF-8', timeout: 'No answer in time', unreachable: 'Could not reach server',
+      private_address: 'Private address in link', bad_redirect: 'Bad or too many redirects', compressed: 'Feed is compressed',
+      invalid_url: 'Link must be public HTTPS', ENOTFOUND: 'Host not found', ECONNREFUSED: 'Connection refused', ECONNRESET: 'Connection reset',
+    },
+    http: (status) => `Server answered ${status}`,
+    other: (reason) => `Reason: ${reason}`,
   },
   status: { refresh: 'Refresh' },
   week: {
@@ -267,6 +283,18 @@ const da: DisplayStrings = {
     more: (count) => `+${count} mere`,
     months: ['januar', 'februar', 'marts', 'april', 'maj', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'december'],
     errors: { not_configured: 'Kalender: tilføj adresse', unavailable: 'Kalender: ikke tilgængelig', timeout: 'Kalender: timeout' },
+    reasons: {
+      too_many_events: 'Over 500 aftaler i feed', too_many_lines: 'Feed over 20.000 linjer', too_many_occurrences: 'For mange gentagelser',
+      feed_too_large: 'Feed over 1 MiB', not_an_ics_feed: 'Linket er ikke et ICS-feed', malformed_line: 'Tom/defekt linje i feed',
+      nested_calendar: 'Flere kalendere i feed', unbalanced_components: 'Feed afkortet eller defekt',
+      event_missing_uid_or_start: 'Aftale mangler UID/start', unsupported_recurrence: 'Gentagelse ej understøttet',
+      unknown_timezone: 'Ukendt tidszone', invalid_date: 'Ugyldig dato i feed', missing_version_or_unclosed: 'Feed mangler VERSION:2.0',
+      parse_error: 'Kunne ikke læse feed', not_utf8: 'Feed er ikke UTF-8', timeout: 'Intet svar i tide', unreachable: 'Kan ikke nå serveren',
+      private_address: 'Privat adresse i link', bad_redirect: 'Ugyldig omdirigering', compressed: 'Feed er komprimeret',
+      invalid_url: 'Linket skal være HTTPS', ENOTFOUND: 'Værten findes ikke', ECONNREFUSED: 'Forbindelse afvist', ECONNRESET: 'Forbindelse afbrudt',
+    },
+    http: (status) => `Serveren svarede ${status}`,
+    other: (reason) => `Årsag: ${reason}`,
   },
   status: { refresh: 'Opdatering' },
   week: {

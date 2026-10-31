@@ -14,17 +14,22 @@ export class CalendarUnavailableError extends Error {
   }
 }
 
-/** Fixed messages written by this code base; anything else (DNS, TLS, parser text) may name the host or the feed. */
-const SAFE_MESSAGE = /^(?:Feed |Too many feed|Unable to retrieve feed|Compressed feed|Authenticated feed|Calendar (?:parsing|request)|Invalid calendar)/;
+/** Fixed messages written by this code base, as codes. Anything else (DNS, TLS, parser text) may name the host or the feed. */
+const KNOWN_MESSAGES: ReadonlyArray<readonly [RegExp, string]> = [
+  [/1 MiB limit/, 'feed_too_large'], [/resolve only to public/, 'private_address'], [/timed out/, 'timeout'],
+  [/Too many feed redirects|redirect has no destination/, 'bad_redirect'], [/Compressed feed/, 'compressed'],
+  [/^Feed URL must/, 'invalid_url'], [/interrupted|Unable to retrieve feed/, 'unreachable'], [/Calendar parsing failed/, 'parse_error'],
+];
 
 function reasonOf(error: unknown): string {
   if (error instanceof FeedStatusError) return `http_${error.status ?? 'unknown'}`;
   if (!(error instanceof Error)) return 'unknown';
+  if (['TimeoutError', 'AbortError'].includes(error.name)) return 'timeout';
   const { reason, code } = error as Error & { reason?: unknown; code?: unknown };
   if (typeof reason === 'string') return reason;
   if (typeof code === 'string' && /^[A-Z_]+$/.test(code)) return code;
   if (error instanceof TypeError && /utf-?8/i.test(error.message)) return 'not_utf8';
-  return SAFE_MESSAGE.test(error.message) ? error.message : 'unknown';
+  return KNOWN_MESSAGES.find(([pattern]) => pattern.test(error.message))?.[1] ?? 'unknown';
 }
 
 export { validateCalendarOptions, MAX_CALENDAR_EVENTS, type CalendarOptions } from '../utils/calendarOptions';

@@ -316,7 +316,12 @@ export async function buildDisplayData(
     const days = prefs.calendar_days ?? 7;
     tasks.push(withSourceDeadline((signal) => fetchCalendar(apiKeyMap.calendar, calendarFetchOptions(timezone, days, prefs.calendar_item_limit ?? 5), signal))
       .then((calendar) => { result.calendar = calendar; })
-      .catch((err: unknown) => { logger.warn({ reason: calendarReasonOf(err) }, 'Calendar source unavailable'); }));
+      .catch((err: unknown) => {
+        result.calendarError = calendarProblemFrom(err);
+        logger.warn({ reason: calendarReasonOf(err) }, 'Calendar source unavailable');
+      }));
+  } else if (prefs.show_calendar) {
+    result.calendarError = calendarProblem('not_configured');
   }
 
   // Additional calendars have no on/off switch: a configured calendar is loaded and only drawn
