@@ -14,7 +14,7 @@ x-logging: &logging
 
 services:
   postgres:
-    image: ${POSTGRES_IMAGE:-postgres:17.11-bookworm}
+    image: ${POSTGRES_IMAGE:-postgres:18.6-bookworm}
     platform: linux/arm64
     restart: unless-stopped
     environment:
