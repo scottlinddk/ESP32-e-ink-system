@@ -41,7 +41,7 @@ jobs:
           cache: npm
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.15"
       - name: Install test dependencies
         run: |
           npm ci

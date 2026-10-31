@@ -1,4 +1,4 @@
-FROM python:3.13-slim-bookworm
+FROM python:3.15-slim-bookworm
 WORKDIR /tools
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
