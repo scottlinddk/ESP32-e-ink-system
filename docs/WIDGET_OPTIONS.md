@@ -13,7 +13,7 @@ Select a widget in **Edit layout** (tap or click it, or focus it and press Enter
 | `ai-usage` | `view` | `full` (default, quota windows plus token breakdown) or `condensed` (quota windows only). A widget too short for the chosen view drops detail, down to one line per provider. See [AI usage](AI_USAGE.md). |
 | `status` | `view` | `full` (default, refresh interval and time) or `condensed` (the time alone, so the bar can be narrow). See [A smaller status bar](LAYOUT_GRID.md#a-smaller-status-bar). |
 | every widget except `custom-image` | `zoom` | 1–4 in steps of 0.2 (a slider in the editor). Enlarges the widget's text and graphics. See [Zoom](#zoom). |
-| every widget | `align` | Where the content sits in the widget's area: `top-left` (default), `top-center`, `top-right`, `middle-left`, `middle-center`, `middle-right`, `bottom-left`, `bottom-center` or `bottom-right`. See [Content position](#content-position). |
+| every widget | `align` | Where the content sits in the widget's area: `top-left` (default), `top-center`, `top-right`, `middle-left`, `middle-center`, `middle-right`, `bottom-left`, `bottom-center` or `bottom-right`. `top-left` is the default, except for `status`, which defaults to `bottom-right` (outside Tekst TV). See [Content position](#content-position). |
 | every widget | `outline` | `none`, `thin`, `thick`, `rounded` or `dashed`. Unset follows the layout's `outline`. See [Outlines](#outlines). |
 
 Options are stored on the layout widget:

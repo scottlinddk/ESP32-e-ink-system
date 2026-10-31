@@ -27,7 +27,7 @@ import { BASE_GRID_COLS, BASE_GRID_ROWS } from './layoutGrid';
 import { isDarkAt } from './sunTimes';
 import { drawTeletextTitleBar, renderTeletextHeader, teletextPages, teletextTitle } from './teletext';
 import { ZoomCanvas, logicalBounds, type Bounds, type DrawingCanvas } from './zoomCanvas';
-import { alignArea, alignOffset, chooseOutline, DEFAULT_ALIGN, drawWidgetOutlines, outlineBoxes, type WidgetAlign, type WidgetFrame } from './widgetFrame';
+import { alignArea, alignOffset, chooseOutline, DEFAULT_ALIGN, defaultAlignFor, drawWidgetOutlines, outlineBoxes, type WidgetAlign, type WidgetFrame } from './widgetFrame';
 
 // Public domain 8x8 bitmap font (CP437 subset, chars 32–127)
 // Each entry = 8 bytes, one byte per row, LSB = leftmost glyph pixel.
@@ -644,7 +644,9 @@ function populateCanvas(
     // An outline that would leave no room for a line of text is left out.
     const framed = boxes && boxes.inner.width >= MIN_FRAMED_WIDTH && boxes.inner.height >= MIN_FRAMED_HEIGHT ? boxes : null;
     const area = framed ? framed.inner : physical;
-    const align = widget.options?.align ?? DEFAULT_ALIGN;
+    // The teletext header is a full-width title bar, so it keeps its place instead of the widget's default.
+    const align = widget.options?.align
+      ?? (widget.i === 'status' && effectiveLayout.teletext ? DEFAULT_ALIGN : defaultAlignFor(widget.i));
     // A custom image is raster data placed by pixel, so zooming it would only coarsen it.
     const zoom = widget.i === 'custom-image' ? 1
       : fitZoom(chooseZoom(widget.options?.zoom, effectiveLayout.zoom, canvas), area.width, area.height);

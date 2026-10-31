@@ -11,7 +11,7 @@ import { Select } from '../ui/select';
 import { Button } from '../ui/button';
 import { Icon } from '../ui/Logo';
 import { cn } from '@/lib/utils';
-import { ALIGN_ICONS, DEFAULT_ALIGN, LAYOUT_OUTLINES, WIDGET_ALIGNMENTS, alignLabel, outlineLabel } from '../../lib/widgetFrame';
+import { ALIGN_ICONS, defaultAlignFor, LAYOUT_OUTLINES, WIDGET_ALIGNMENTS, alignLabel, outlineLabel } from '../../lib/widgetFrame';
 
 interface WidgetOptionsPanelProps {
   widget: WidgetLayout;
@@ -292,7 +292,8 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
         })()}
 
         {(() => {
-          const align = widget.options?.align ?? DEFAULT_ALIGN;
+          const defaultAlign = defaultAlignFor(widget.i);
+          const align = widget.options?.align ?? defaultAlign;
           return (
             <Field label={da ? 'Placering af indhold' : 'Content position'}
               helper={da ? 'Hvor indholdet står i widgettens felt. Indhold, der allerede fylder feltet, flyttes ikke.'
@@ -305,7 +306,7 @@ export function WidgetOptionsPanel({ widget, label, lang, ticker, inheritedZoom,
                     <button key={value} type="button" aria-pressed={selected} aria-label={alignLabel(value, lang)} title={alignLabel(value, lang)}
                       className={cn('w-9 h-9 rounded flex items-center justify-center cursor-pointer border transition-[background,color] duration-[150ms] [&_.material-symbols-outlined]:text-[18px]',
                         selected ? 'bg-accent text-fg-on border-accent' : 'bg-transparent text-fg2 border-transparent hover:bg-black/[0.06]')}
-                      onClick={() => onChange({ align: value === DEFAULT_ALIGN ? undefined : value })}>
+                      onClick={() => onChange({ align: value === defaultAlign ? undefined : value })}>
                       <Icon name={ALIGN_ICONS[value]} />
                     </button>
                   );

@@ -10,6 +10,8 @@ export const WIDGET_ALIGNMENTS: readonly WidgetAlign[] = [
   'bottom-left', 'bottom-center', 'bottom-right',
 ];
 export const DEFAULT_ALIGN: WidgetAlign = 'top-left';
+/** Mirrors the backend: the status widget sits bottom right unless it is given another position. */
+export const defaultAlignFor = (widgetId: string): WidgetAlign => (widgetId === 'status' ? 'bottom-right' : DEFAULT_ALIGN);
 export const LAYOUT_OUTLINES: readonly LayoutOutline[] = ['thin', 'thick', 'rounded', 'dashed'];
 
 const ALIGN_LABELS: Record<WidgetAlign, { en: string; da: string }> = {

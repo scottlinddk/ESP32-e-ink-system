@@ -13,6 +13,14 @@ export const WIDGET_ALIGNMENTS = [
 export type WidgetAlign = typeof WIDGET_ALIGNMENTS[number];
 export const DEFAULT_ALIGN: WidgetAlign = 'top-left';
 
+/** Widgets that sit in the bottom right corner of their area unless the layout says otherwise. */
+const BOTTOM_RIGHT_BY_DEFAULT: readonly string[] = ['status'];
+
+/** The position a widget takes when it has no alignment of its own. Only that position is left unstored. */
+export function defaultAlignFor(widgetId: string): WidgetAlign {
+  return BOTTOM_RIGHT_BY_DEFAULT.includes(widgetId) ? 'bottom-right' : DEFAULT_ALIGN;
+}
+
 /**
  * `thin` is a 1 px box, `thick` a 2 px one, `rounded` a 1 px box with cut corners and `dashed`
  * a broken 1 px line. `none` is the default; a widget stores it only to opt out of the layout's outline.
