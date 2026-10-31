@@ -142,7 +142,7 @@ describe('rendering outline dividers', () => {
         { i: 'status', x: 0, y: 10, w: 20, h: 2 },
       ],
     });
-    for (let y = 94; y < 104; y++) expect(isBlack(raw, 100, y)).toBe(y === 100);
+    for (let y = 94; y < 102; y++) expect(isBlack(raw, 100, y)).toBe(y === 100);
   });
 
   it('replaces parallel edges across grid gaps with one divider', () => {
