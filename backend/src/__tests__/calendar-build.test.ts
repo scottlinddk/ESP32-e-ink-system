@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { build } from 'esbuild';
 import { copyFile, cp, mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Worker } from 'node:worker_threads';
 
@@ -73,6 +73,32 @@ it('starts the deployed worker using only explicitly included assets', async () 
     expect(message.result.events.map((event: { start: string }) => event.start)).toEqual([
       '2026-03-28T08:00:00.000Z', '2026-03-29T07:00:00.000Z',
     ]);
+  } finally {
+    await worker?.terminate();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+it('starts a worker placed where node_modules cannot be resolved, using the dependencies the parent resolved', async () => {
+  // A bundler may put the worker file anywhere; it must not need to find node-ical itself.
+  const directory = await mkdtemp(join(tmpdir(), 'calendar-relocated-'));
+  let worker: Worker | undefined;
+  try {
+    const file = join(directory, 'calendarWorker.cjs');
+    await copyFile(resolve(__dirname, '../services/calendarWorker.cjs'), file);
+    worker = new Worker(file, {
+      workerData: {
+        text: 'BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:outlook\nDTSTART;TZID="Romance Standard Time":20260328T090000\nSUMMARY:Planning\nEND:VEVENT\nEND:VCALENDAR',
+        timezone: 'Europe/Copenhagen', days: 7, limit: 5, now: Date.parse('2026-03-27T12:00:00Z'),
+        modules: { ical: require.resolve('node-ical'), windowsZones: join(dirname(require.resolve('node-ical/package.json')), 'windowsZones.json') },
+      },
+    });
+    const message = await new Promise<any>((resolve, reject) => {
+      worker!.once('message', resolve);
+      worker!.once('error', reject);
+    });
+    expect(message.error).toBeUndefined();
+    expect(message.result.events[0]).toMatchObject({ title: 'Planning', start: '2026-03-28T08:00:00.000Z' });
   } finally {
     await worker?.terminate();
     await rm(directory, { recursive: true, force: true });

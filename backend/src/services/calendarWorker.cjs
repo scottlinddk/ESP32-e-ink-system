@@ -15,10 +15,14 @@ function runCalendarWorker() {
    */
   const reject = (code) => { throw Object.assign(new Error(code), { reason: code }); };
   const { parentPort, workerData } = require('node:worker_threads');
-  const ical = require('node-ical');
   const path = require('node:path');
+  // The parent resolves these from its own location, which the deployment is known to contain.
+  // Resolving by package name from this file depends on where a bundler placed it.
+  /** @type {{ ical?: string; windowsZones?: string }} */
+  const modules = workerData.modules ?? {};
+  const ical = require(modules.ical ?? 'node-ical');
   /** @type {Record<string, { iana: string[] }>} */
-  const windowsZones = require(path.join(path.dirname(require.resolve('node-ical/package.json')), 'windowsZones.json'));
+  const windowsZones = require(modules.windowsZones ?? path.join(path.dirname(require.resolve('node-ical/package.json')), 'windowsZones.json'));
   /** @type {import('../utils/calendarOptions').CalendarOptions & { text: string; now: number }} */
   const { text, timezone, days, limit, now, range, maxEvents } = workerData;
   try {

@@ -68,7 +68,10 @@ unsupported `RDATE`, an unknown time zone) is left out and the rest are shown;
 the server logs how many it left out, by reason code only. Old, long-lived Google
 calendars often contain one such event. The calendar is reported unavailable only
 when the feed itself is broken or every event in it is unusable. `worker_failed`
-means the server's parser crashed, which is a server problem, not a feed problem.
+means the server's parser crashed or could not load, which is a server problem, not a
+feed problem; the log line `Calendar parser worker failed` names the Node error code
+(for example `MODULE_NOT_FOUND`). The server resolves the parser's dependencies itself
+and hands their paths to the worker, so the worker works wherever a bundler places it.
 
 One fetch per calendar holds what every view needs: the month grid of the current month and at least the next 7 days (or the calendar's **Days ahead**, if more), up to 300 events. Events are expanded from recurrences in the same bounded worker as before (two seconds, 64 MiB, 500 event components, 5,000 expanded instances) and each carries its local day, last day and start and end minutes, so the views place it without time zone arithmetic. An event that ends exactly at midnight belongs to the day before; an event that runs past midnight is drawn on both days.
 
