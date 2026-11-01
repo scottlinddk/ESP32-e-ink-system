@@ -84,7 +84,7 @@ services:
     logging: *logging
 
   postgrest:
-    image: ${POSTGREST_IMAGE:-postgrest/postgrest:v14.18}
+    image: ${POSTGREST_IMAGE:-postgrest/postgrest:v16.5}
     platform: linux/arm64
     restart: unless-stopped
     depends_on:
