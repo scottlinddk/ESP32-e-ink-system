@@ -3,5 +3,8 @@
   "compilerOptions": {
     "allowJs": true
   },
-  "include": ["src/services/calendarWorker.cjs"]
+  "include": [
+    "src/services/calendarWorker.cjs",
+    "src/services/calendarWorker.build.d.ts"
+  ]
 }

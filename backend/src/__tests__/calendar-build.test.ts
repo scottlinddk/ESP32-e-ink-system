@@ -23,7 +23,7 @@ describe('deployed calendar parser', () => {
     await build({
       entryPoints: [join(services, 'calendar.ts')], outfile,
       bundle: true, platform: 'node', format: 'cjs', target: 'node22',
-      packages: 'external', external: ['./calendarWorker.cjs'], keepNames: true,
+      packages: 'external', external: ['./calendarWorker.bundle.cjs'], keepNames: true,
     });
     ({ parseCalendar } = require(outfile));
   });
@@ -50,6 +50,7 @@ it('starts the deployed worker using only explicitly included assets', async () 
     const backend = resolve(__dirname, '../..');
     const config = JSON.parse(await readFile(resolve(backend, '../vercel.json'), 'utf8'));
     const includes: string = config.services.backend.functions['api/index.ts'].includeFiles;
+    expect(includes).toBe('{src/services/calendarWorker.bundle.cjs}');
     for (const asset of includes.slice(1, -1).split(',')) {
       const relative = asset.replace(/\/\*\*$/, '');
       const source = resolve(backend, relative);
@@ -58,7 +59,7 @@ it('starts the deployed worker using only explicitly included assets', async () 
       await mkdir(resolve(destination, '..'), { recursive: true });
       await cp(source, destination, { recursive: true });
     }
-    worker = new Worker(join(directory, 'backend/src/services/calendarWorker.cjs'), {
+    worker = new Worker(join(directory, 'backend/src/services/calendarWorker.bundle.cjs'), {
       workerData: {
         text: 'BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:outlook\nDTSTART;TZID="Romance Standard Time":20260328T090000\nRRULE:FREQ=DAILY;COUNT=2\nSUMMARY:Planning\nEND:VEVENT\nEND:VCALENDAR',
         timezone: 'Europe/Copenhagen', days: 7, limit: 5, now: Date.parse('2026-03-27T12:00:00Z'),
@@ -79,28 +80,13 @@ it('starts the deployed worker using only explicitly included assets', async () 
   }
 });
 
-it('starts a worker placed where node_modules cannot be resolved, using the dependencies the parent resolved', async () => {
-  // A bundler may put the worker file anywhere; it must not need to find node-ical itself.
-  const directory = await mkdtemp(join(tmpdir(), 'calendar-relocated-'));
-  let worker: Worker | undefined;
-  try {
-    const file = join(directory, 'calendarWorker.cjs');
-    await copyFile(resolve(__dirname, '../services/calendarWorker.cjs'), file);
-    worker = new Worker(file, {
-      workerData: {
-        text: 'BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:outlook\nDTSTART;TZID="Romance Standard Time":20260328T090000\nSUMMARY:Planning\nEND:VEVENT\nEND:VCALENDAR',
-        timezone: 'Europe/Copenhagen', days: 7, limit: 5, now: Date.parse('2026-03-27T12:00:00Z'),
-        modules: { ical: require.resolve('node-ical'), windowsZones: join(dirname(require.resolve('node-ical/package.json')), 'windowsZones.json') },
-      },
-    });
-    const message = await new Promise<any>((resolve, reject) => {
-      worker!.once('message', resolve);
-      worker!.once('error', reject);
-    });
-    expect(message.error).toBeUndefined();
-    expect(message.result.events[0]).toMatchObject({ title: 'Planning', start: '2026-03-28T08:00:00.000Z' });
-  } finally {
-    await worker?.terminate();
-    await rm(directory, { recursive: true, force: true });
-  }
+it('keeps the committed worker bundle in step with calendarWorker.cjs and node-ical', async () => {
+  // @ts-expect-error: plain ESM build script without type declarations
+  const { buildCalendarWorker, bundlePath } = await import('../../scripts/build-calendar-worker.mjs');
+  const committed = await readFile(bundlePath, 'utf8');
+  // Stale: run `npm run build:calendar-worker -w backend` and commit the result.
+  expect(committed === await buildCalendarWorker()).toBe(true);
+  // Only Node built-ins are loaded at run time.
+  const modules = [...committed.matchAll(/require\("([^"]+)"\)/g)].map((match) => match[1]);
+  expect(modules.filter((name) => !name.startsWith('node:'))).toEqual([]);
 });

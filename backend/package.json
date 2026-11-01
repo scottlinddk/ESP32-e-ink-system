@@ -5,7 +5,8 @@
   "main": "dist/src/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc && tsc -p tsconfig.worker.json",
+    "build": "tsc && tsc -p tsconfig.worker.json && node -e \"require('node:fs').copyFileSync('src/services/calendarWorker.bundle.cjs', 'dist/src/services/calendarWorker.bundle.cjs')\"",
+    "build:calendar-worker": "node scripts/build-calendar-worker.mjs",
     "start": "node dist/src/index.js",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.worker.json --noEmit",
     "test": "vitest run",
