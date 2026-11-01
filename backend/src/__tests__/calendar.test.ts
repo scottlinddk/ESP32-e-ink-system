@@ -128,6 +128,37 @@ describe('bounded ICS agenda', () => {
   });
 });
 
+describe('one broken event in an otherwise valid feed', () => {
+  const good = event('DTSTART:20260328T100000Z\nDTEND:20260328T110000Z\nSUMMARY:Good', 'good');
+  const titles = async (text: string) => (await parse(text)).events.map((e) => e.title);
+  // Long-lived Google feeds can hold one such legacy event; it must not blank the calendar.
+  it.each([
+    ['a garbled UNTIL', 'DTSTART:20230101T154000Z\nRRULE:FREQ=WEEKLY;UNTIL=230108T154000'],
+    ['an invalid BYDAY', 'DTSTART:20230101T154000Z\nRRULE:FREQ=WEEKLY;BYDAY=XX'],
+    ['INTERVAL=0', 'DTSTART:20230101T154000Z\nRRULE:FREQ=WEEKLY;INTERVAL=0'],
+    ['an end before its start', 'DTSTART:20260328T150000Z\nDTEND:20260328T140000Z'],
+    ['an unsupported RDATE', 'DTSTART:20260328T150000Z\nRDATE:20260330T100000Z'],
+    ['an unknown timezone', 'DTSTART;TZID=Customized Time Zone:20260328T100000'],
+    ['an invalid date', 'DTSTART:20260230T100000Z'],
+  ])('leaves out an event with %s and keeps the rest', async (_name, lines) => {
+    expect(await titles(feed(event(`${lines}\nSUMMARY:Bad`, 'bad'), good))).toEqual(['Good']);
+    expect(await titles(feed(good, event(`${lines}\nSUMMARY:Bad`, 'bad')))).toEqual(['Good']);
+  });
+  it('keeps a valid recurring event with its overrides when another event breaks the parser', async () => {
+    const master = event('DTSTART:20260327T100000Z\nDTEND:20260327T110000Z\nRRULE:FREQ=DAILY;COUNT=3\nSUMMARY:Daily', 'daily');
+    const moved = event('RECURRENCE-ID:20260328T100000Z\nDTSTART:20260328T150000Z\nDTEND:20260328T160000Z\nSUMMARY:Moved', 'daily');
+    const broken = event('DTSTART:20230101T154000Z\nRRULE:FREQ=WEEKLY;UNTIL=230108T154000\nSUMMARY:Bad', 'bad');
+    const clean = await parse(feed(master, moved));
+    expect(clean.events.map((e) => e.title)).toEqual(['Moved', 'Daily']);
+    expect((await parse(feed(master, broken, moved))).events).toEqual(clean.events);
+  });
+  it('still reports why when every event is broken', async () => {
+    vi.mocked(fetchPublicFeed).mockResolvedValue({ text: feed(event('DTSTART:20230101T154000Z\nRRULE:FREQ=WEEKLY;BYDAY=XX', 'bad')), url: 'https://x.example/a' });
+    const error = await fetchCalendar('https://x.example/a', options).catch((e: unknown) => e) as CalendarUnavailableError;
+    expect(error.reason).toBe('parse_error');
+  });
+});
+
 describe('why a calendar is unavailable', () => {
   const reasonOf = async (text: string) => {
     vi.mocked(fetchPublicFeed).mockResolvedValue({ text, url: 'https://secret.example/token-123' });

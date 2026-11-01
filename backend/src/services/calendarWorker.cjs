@@ -15,10 +15,14 @@ function runCalendarWorker() {
    */
   const reject = (code) => { throw Object.assign(new Error(code), { reason: code }); };
   const { parentPort, workerData } = require('node:worker_threads');
-  const ical = require('node-ical');
   const path = require('node:path');
+  // The parent resolves these from its own location, which the deployment is known to contain.
+  // Resolving by package name from this file depends on where a bundler placed it.
+  /** @type {{ ical?: string; windowsZones?: string }} */
+  const modules = workerData.modules ?? {};
+  const ical = require(modules.ical ?? 'node-ical');
   /** @type {Record<string, { iana: string[] }>} */
-  const windowsZones = require(path.join(path.dirname(require.resolve('node-ical/package.json')), 'windowsZones.json'));
+  const windowsZones = require(modules.windowsZones ?? path.join(path.dirname(require.resolve('node-ical/package.json')), 'windowsZones.json'));
   /** @type {import('../utils/calendarOptions').CalendarOptions & { text: string; now: number }} */
   const { text, timezone, days, limit, now, range, maxEvents } = workerData;
   try {
@@ -32,28 +36,40 @@ function runCalendarWorker() {
     let version = false;
     /** @type {Set<string>} */
     let eventFields = new Set();
-    const normalized = lines.map((line) => {
-      if (!line || !line.includes(':')) reject('malformed_line');
-      if (line.startsWith('BEGIN:')) {
-        const component = line.slice(6);
-        if (component === 'VCALENDAR' && ++calendarCount > 1) reject('nested_calendar');
-        if (stack.length >= 20 || component === 'VCALENDAR' && stack.length) reject('nested_calendar');
-        stack.push(component);
-        if (component === 'VEVENT') { eventFields = new Set(); if (++eventCount > 500) reject('too_many_events'); }
-      } else if (line.startsWith('END:')) {
-        const component = line.slice(4);
-        if (stack.pop() !== component) reject('unbalanced_components');
-        if (component === 'VEVENT' && (!eventFields.has('UID') || !eventFields.has('DTSTART') && !eventFields.has('RECURRENCE-ID'))) reject('event_missing_uid_or_start');
-      }
-      if (line === 'VERSION:2.0' && stack.length === 1) version = true;
-      if (stack[stack.length - 1] !== 'VEVENT') return line;
+    // One broken event (a garbled UNTIL, an end before its start, an unsupported rule) must not
+    // blank the whole calendar: long-lived feeds such as Google's often hold one. Such an event is
+    // left out and counted by reason. Structural problems with the feed itself stay fatal.
+    /** @type {Record<string, number>} */
+    const skipped = {};
+    /** @type {string | undefined} */
+    let firstSkip;
+    /** @param {string} code */
+    const recordSkip = (code) => { skipped[code] = (skipped[code] ?? 0) + 1; firstSkip ??= code; };
+    /** @param {unknown} error */
+    const reasonOf = (error) => error && typeof error === 'object' && 'reason' in error && typeof error.reason === 'string' ? error.reason : 'parse_error';
+    /** Lines outside any VEVENT (calendar properties, VTIMEZONE), and each kept VEVENT by UID. */
+    /** @type {string[]} */
+    const header = [];
+    /** @type {Map<string, string[][]>} */
+    const eventsByUid = new Map();
+    /** @type {string[]} */
+    const normalized = [];
+    /** @type {string[]} */
+    let current = [];
+    /** @type {string | undefined} */
+    let currentSkip;
+    let uid = '';
+    let keptEvents = 0;
+    /** @param {string} line @returns {string} */
+    const normalizeEventLine = (line) => {
       const colon = line.indexOf(':');
       let property = line.slice(0, colon);
       const name = property.split(';')[0];
       const value = line.slice(colon + 1);
       eventFields.add(name);
+      if (name === 'UID') uid = value;
       // These recurrence extensions are not supported by the agenda engine.
-      // Reject instead of silently displaying an incorrect schedule.
+      // Leave the event out instead of silently displaying an incorrect schedule.
       if (name === 'RDATE' || name === 'EXRULE' || /;RANGE=/i.test(property)) reject('unsupported_recurrence');
       if (name === 'RRULE' && !/(?:^|;)FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(?:;|$)/.test(value)) reject('unsupported_recurrence');
       if (!['DTSTART', 'DTEND', 'EXDATE', 'RECURRENCE-ID'].includes(name)) return line;
@@ -77,9 +93,70 @@ function runCalendarWorker() {
       // independent of the server process timezone. DATE values stay dates.
       if (!tz && /T\d{6}(?:,|$)/.test(value)) return `${property};TZID=${timezone}:${value}`;
       return `${property}:${value}`;
-    });
+    };
+    for (const line of lines) {
+      if (!line || !line.includes(':')) reject('malformed_line');
+      const inEvent = stack.includes('VEVENT');
+      if (line.startsWith('BEGIN:')) {
+        const component = line.slice(6);
+        if (component === 'VCALENDAR' && ++calendarCount > 1) reject('nested_calendar');
+        if (stack.length >= 20 || component === 'VCALENDAR' && stack.length) reject('nested_calendar');
+        stack.push(component);
+        if (component === 'VEVENT') {
+          if (inEvent) reject('nested_calendar');
+          eventFields = new Set(); current = []; currentSkip = undefined; uid = '';
+          if (++eventCount > 500) reject('too_many_events');
+        }
+      } else if (line.startsWith('END:')) {
+        const component = line.slice(4);
+        if (stack.pop() !== component) reject('unbalanced_components');
+        if (component === 'VEVENT') {
+          current.push(line);
+          if (!currentSkip && (!eventFields.has('UID') || !eventFields.has('DTSTART') && !eventFields.has('RECURRENCE-ID'))) currentSkip = 'event_missing_uid_or_start';
+          if (currentSkip) recordSkip(currentSkip);
+          else {
+            keptEvents++;
+            normalized.push(...current);
+            eventsByUid.set(uid, [...(eventsByUid.get(uid) ?? []), current]);
+          }
+          continue;
+        }
+      }
+      if (line === 'VERSION:2.0' && stack.length === 1) version = true;
+      if (!stack.includes('VEVENT')) { normalized.push(line); header.push(line); continue; }
+      if (currentSkip) continue;
+      try {
+        current.push(stack[stack.length - 1] === 'VEVENT' ? normalizeEventLine(line) : line);
+      } catch (error) {
+        currentSkip = reasonOf(error);
+      }
+    }
     if (stack.length || !version) reject('missing_version_or_unclosed');
-    const calendar = ical.sync.parseICS(normalized.join('\r\n'));
+    // Every event was unusable: report why, rather than showing an empty calendar.
+    if (eventCount && !keptEvents) reject(firstSkip ?? 'parse_error');
+    /** @param {string[]} body */
+    const parseLines = (body) => ical.sync.parseICS(body.join('\r\n'));
+    /** @type {Record<string, any>} */
+    let calendar;
+    try {
+      calendar = parseLines(normalized);
+    } catch {
+      // node-ical rejects a whole feed for one bad recurrence rule. Parse each UID (a master with
+      // its overrides) on its own, with the shared calendar header, and leave out the ones that fail.
+      calendar = parseLines(header);
+      const end = header[header.length - 1];
+      const head = header.slice(0, -1);
+      let parsedAny = false;
+      for (const group of eventsByUid.values()) {
+        try {
+          Object.assign(calendar, parseLines([...head, ...group.flat(), end]));
+          parsedAny = true;
+        } catch {
+          recordSkip('parse_error');
+        }
+      }
+      if (!parsedAny) reject(firstSkip ?? 'parse_error');
+    }
     const start = new Date(now);
     const finish = new Date(now + days * 86_400_000);
     // Local calendar day and minute of an instant in the chosen timezone.
@@ -116,6 +193,8 @@ function runCalendarWorker() {
     /** @type {Array<CalendarEvent & { sort: string }>} */
     const events = [];
     let expanded = 0;
+    /** @type {Array<CalendarEvent & { sort: string }>} */
+    let pending = events;
     /** @param {EventInstance} instance */
     const add = (instance) => {
       if (++expanded > 5000) reject('too_many_occurrences');
@@ -151,31 +230,44 @@ function runCalendarWorker() {
       const description = typeof notes === 'string' ? notes.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200) : '';
       const dateLabel = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: allDay ? 'UTC' : timezone }).format(allDay ? new Date(`${begin}T12:00:00Z`) : instance.start);
       const timeLabel = allDay ? 'All day' : new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: timezone }).format(instance.start);
-      events.push({ title, start: begin, end, allDay, dateLabel, timeLabel, day, endDay, startMinute, endMinute, ...(description ? { description } : {}), sort: `${day} ${allDay ? '00:00' : timeLabel}` });
+      pending.push({ title, start: begin, end, allDay, dateLabel, timeLabel, day, endDay, startMinute, endMinute, ...(description ? { description } : {}), sort: `${day} ${allDay ? '00:00' : timeLabel}` });
     };
+    let expandedEvents = 0;
     for (const component of Object.values(calendar)) {
       if (component?.type !== 'VEVENT') continue;
       const event = /** @type {VEvent} */ (component);
       if (event.status === 'CANCELLED' || event.method === 'CANCEL') continue;
-      if (!event.start || !Number.isFinite(event.start.getTime())) reject('invalid_date');
-      // Expand the master without overrides, then handle each override directly.
-      // This also finds occurrences moved into the window from a distant date.
-      for (const instance of ical.expandRecurringEvent({ ...event, recurrences: undefined }, expansion)) {
-        const key = instance.isFullDay ? dateKey(instance.start) : instance.start.toISOString();
-        if (!event.recurrences?.[key]) add(instance);
+      // An event's occurrences are kept only when the whole event expands cleanly.
+      pending = [];
+      try {
+        if (!event.start || !Number.isFinite(event.start.getTime())) reject('invalid_date');
+        // Expand the master without overrides, then handle each override directly.
+        // This also finds occurrences moved into the window from a distant date.
+        for (const instance of ical.expandRecurringEvent({ ...event, recurrences: undefined }, expansion)) {
+          const key = instance.isFullDay ? dateKey(instance.start) : instance.start.toISOString();
+          if (!event.recurrences?.[key]) add(instance);
+        }
+        for (const override of new Set(Object.values(event.recurrences ?? {}))) {
+          if (override.status === 'CANCELLED') continue;
+          const detached = /** @type {VEvent} */ ({ ...override, rrule: undefined });
+          // A moved occurrence without DTEND inherits the master's duration.
+          if (!detached.end && event.end) detached.end = new Date(detached.start.getTime() + event.end.getTime() - event.start.getTime());
+          for (const instance of ical.expandRecurringEvent(detached, expansion)) add(instance);
+        }
+      } catch (error) {
+        // The occurrence budget covers the whole feed, so exceeding it stays fatal.
+        if (reasonOf(error) === 'too_many_occurrences') throw error;
+        recordSkip(reasonOf(error));
+        continue;
       }
-      for (const override of new Set(Object.values(event.recurrences ?? {}))) {
-        if (override.status === 'CANCELLED') continue;
-        const detached = /** @type {VEvent} */ ({ ...override, rrule: undefined });
-        // A moved occurrence without DTEND inherits the master's duration.
-        if (!detached.end && event.end) detached.end = new Date(detached.start.getTime() + event.end.getTime() - event.start.getTime());
-        for (const instance of ical.expandRecurringEvent(detached, expansion)) add(instance);
-      }
+      expandedEvents++;
+      events.push(...pending);
     }
+    if (!expandedEvents && firstSkip) reject(firstSkip);
     events.sort((a, b) => a.sort.localeCompare(b.sort) || a.start.localeCompare(b.start));
     /** @type {CalendarData} */
     const result = { ...empty, events: events.slice(0, maxEvents ?? limit).map(({ sort: _sort, ...event }) => event) };
-    parentPort?.postMessage({ result });
+    parentPort?.postMessage({ result, skipped });
   } catch (error) {
     // Parser exceptions can include feed content. Only a reason set by `reject` is passed on.
     const reason = error && typeof error === 'object' && 'reason' in error && typeof error.reason === 'string' ? error.reason : 'parse_error';
