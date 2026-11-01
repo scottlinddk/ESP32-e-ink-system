@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { CalendarUnavailableError, fetchCalendar, parseCalendar } from '../services/calendar';
 import { FeedStatusError, fetchPublicFeed } from '../utils/publicFeedFetch';
 
+// Parser/error mapping tests bypass the download cache; its behavior has separate coverage.
+vi.mock('../services/calendarFeed', () => ({ fetchCalendarFeed: async (url: string, signal?: AbortSignal) => (await fetchPublicFeed(url, signal)).text }));
+
 vi.mock('../utils/publicFeedFetch', async (original) => ({ ...await original<typeof import('../utils/publicFeedFetch')>(), fetchPublicFeed: vi.fn() }));
 
 const options = { timezone: 'Europe/Copenhagen', days: 7, limit: 10 };

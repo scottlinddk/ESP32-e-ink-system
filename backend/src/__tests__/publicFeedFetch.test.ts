@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import { lookup } from 'node:dns/promises';
 import { request, RequestOptions } from 'node:https';
 import type { ClientRequest, IncomingMessage } from 'node:http';
-import { FeedStatusError, fetchPublicFeed, isPublicAddress, MAX_FEED_BYTES, validatePublicHttpsUrl } from '../utils/publicFeedFetch';
+import { FeedStatusError, fetchPublicFeed, isPublicAddress, parseRetryAfter, MAX_FEED_BYTES, validatePublicHttpsUrl } from '../utils/publicFeedFetch';
 
 vi.mock('node:dns/promises', () => ({ lookup: vi.fn() }));
 vi.mock('node:https', () => ({ request: vi.fn() }));
@@ -155,5 +155,18 @@ describe('public feed fetching', () => {
     await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
     controller.abort();
     await pending;
+  });
+});
+
+ describe('Retry-After', () => {
+  const now = Date.parse('2026-11-01T12:00:00Z');
+  it.each([['120', 120000], ['0', 0], ['Sun, 01 Nov 2026 12:02:00 GMT', 120000],
+    [undefined, undefined], ['', undefined], ['garbage', undefined], ['-1', undefined],
+    ['1.5', undefined], ['Sun, 01 Nov 2026 11:00:00 GMT', undefined]])('parses %s', (header, expected) => {
+    expect(parseRetryAfter(header, now)).toBe(expected);
+  });
+  it('preserves only the parsed retry delay on HTTP failures', async () => {
+    replies.push({ status: 429, headers: { 'retry-after': '120' } });
+    await expect(fetchPublicFeed('https://example.org/feed')).rejects.toMatchObject({ status: 429, retryAfterMs: 120000 });
   });
 });

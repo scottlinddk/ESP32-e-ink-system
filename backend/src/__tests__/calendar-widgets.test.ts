@@ -104,9 +104,21 @@ describe('calendar view options', () => {
 });
 
 describe('display data for additional calendars', () => {
-  const prefs: UserPreferences = { ...DEFAULT_PREFS, show_energy_price: false, show_weather: false, show_news: false, calendar_widgets: [work, family] };
+  const prefs: UserPreferences = { ...DEFAULT_PREFS, show_energy_price: false, show_weather: false, show_news: false, calendar_widgets: [work, family], layout: grid({ i: 'calendar:work', x: 0, y: 0, w: 5, h: 3 }, { i: 'calendar:fam2', x: 5, y: 0, w: 5, h: 3 }) };
   beforeEach(() => { vi.mocked(fetchCalendar).mockReset(); });
 
+  it('only fetches additional calendars placed on the selected layout, including draft overrides', async () => {
+    vi.mocked(fetchCalendar).mockResolvedValue(calendarData());
+    const keys = { 'calendar:work': 'https://calendar.example.org/work', 'calendar:fam2': 'https://calendar.example.org/family' };
+    const selected = grid({ i: 'calendar:work', x: 0, y: 0, w: 10, h: 6 });
+    const data = await buildDisplayData('user', prefs, keys, selected);
+    expect(Object.keys(data.calendars!)).toEqual(['work']);
+    expect(fetchCalendar).toHaveBeenCalledTimes(1);
+    vi.mocked(fetchCalendar).mockClear();
+    await buildDisplayData('user', prefs, keys, null);
+    await buildDisplayData('user', prefs, keys, grid());
+    expect(fetchCalendar).not.toHaveBeenCalled();
+  });
   it('fetches each calendar with its own URL and settings and keeps one failure isolated', async () => {
     vi.mocked(fetchCalendar).mockImplementation(async (url) => {
       if (url.endsWith('/family')) throw new Error('SECRET https://calendar.example.org/family failure');

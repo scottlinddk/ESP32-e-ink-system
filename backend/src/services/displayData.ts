@@ -324,10 +324,12 @@ export async function buildDisplayData(
     result.calendarError = calendarProblem('not_configured');
   }
 
-  // Additional calendars have no on/off switch: a configured calendar is loaded and only drawn
-  // when a layout places it. Each is fetched independently, so one failing calendar only marks
-  // its own widget unavailable. Calendar URLs are private and never logged.
-  const calendars = storedCalendarWidgets(prefs.calendar_widgets);
+  // Extra calendars only exist in explicit layouts. Fetch the draft/selected/scheduled
+  // page being drawn, not every calendar saved in settings.
+  const calendarLayout = layout === undefined ? resolved.layout : layout;
+  const visibleCalendars = new Set(calendarLayout?.widgets.map((widget) => widget.i) ?? []);
+  const calendars = storedCalendarWidgets(prefs.calendar_widgets)
+    .filter((calendar) => visibleCalendars.has(calendarProvider(calendar.id)));
   if (calendars.length) result.calendars = {};
   for (const calendar of calendars) {
     const url = apiKeyMap[calendarProvider(calendar.id)];
