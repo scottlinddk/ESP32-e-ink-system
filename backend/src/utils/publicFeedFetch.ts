@@ -8,10 +8,19 @@ const MAX_REDIRECTS = 3;
 
 /** A non-2xx answer. The status lets a caller tell a rejected credential from an outage; the message is unchanged. */
 export class FeedStatusError extends Error {
-  constructor(readonly status: number | undefined) {
+  constructor(readonly status: number | undefined, readonly retryAfterMs?: number) {
     super(`Feed request failed (${status ?? 'unknown'})`);
     this.name = 'FeedStatusError';
   }
+}
+
+/** Retry-After is either whole seconds or an HTTP date. Never retain raw response headers. */
+export function parseRetryAfter(value: string | undefined, now = Date.now()): number | undefined {
+  if (!value?.trim()) return undefined;
+  const raw = value.trim();
+  const delay = /^\d+$/.test(raw) ? Number(raw) * 1000
+    : /^[A-Za-z]{3}, /.test(raw) ? Date.parse(raw) - now : NaN;
+  return Number.isFinite(delay) && delay >= 0 ? delay : undefined;
 }
 
 export interface FeedRequestOptions {
@@ -94,7 +103,7 @@ async function download(url: URL, signal: AbortSignal, extraHeaders?: Record<str
         return;
       }
       if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
-        fail(new FeedStatusError(res.statusCode)); return;
+        fail(new FeedStatusError(res.statusCode, parseRetryAfter(res.headers['retry-after']))); return;
       }
       if (res.headers['content-encoding'] && res.headers['content-encoding'] !== 'identity') {
         fail(new Error('Compressed feed responses are not supported')); return;

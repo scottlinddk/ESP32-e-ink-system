@@ -38,11 +38,29 @@ A view the widget is too small for falls back to the list instead of drawing som
 2. Under **Integrations → Calendar → Additional calendars**, choose **Add calendar**, give it a name, a time zone, **Days ahead** and **Events** (used by the list view), paste the URL and choose **Save calendars**. Up to 8 calendars.
 3. Add **Calendar: <name>** to a layout and pick a view.
 
-The URL is write-only. It is stored encrypted in `api_keys` under the provider `calendar:<id>` (the same ID as the layout widget), and no route returns it: `GET /api/preferences/calendar-credentials/widgets` lists only which calendars have one. Taking a calendar off the list deletes its URL. A URL can only be saved for a calendar that is already saved, so the list is saved first. Additional calendars are excluded from exported templates, which is also why they have no on/off switch: a configured calendar is fetched on every refresh and drawn wherever a layout places it.
+The URL is write-only. It is stored encrypted in `api_keys` under the provider `calendar:<id>` (the same ID as the layout widget), and no route returns it: `GET /api/preferences/calendar-credentials/widgets` lists only which calendars have one. Taking a calendar off the list deletes its URL. A URL can only be saved for a calendar that is already saved, so the list is saved first. Additional calendars are excluded from exported templates, which is also why they have no on/off switch: a configured additional calendar is fetched only when the selected, scheduled or draft layout places it.
 
 A calendar with no URL shows `Calendar: Add calendar URL`, a failing one `Calendar: Unavailable` or `Timed out`, and a calendar removed from the settings but still in a layout shows as unavailable until its widget is removed. One failing calendar never affects another. An empty calendar shows `No upcoming events` in the list view.
 
 ## What the server fetches
+
+Calendar downloads are cached in memory for 15 minutes per backend process. Concurrent
+requests for the same URL share a download; each caller parses the cached ICS again
+with its own settings and the current time, so date ranges do not freeze. Changing
+the saved URL uses a different cache entry. At most 16 feeds (each at most 1 MiB)
+are retained; inactive entries are evicted in least-recently-used order.
+
+On HTTP 429 the server waits for `Retry-After` (seconds or HTTP date), or 15 minutes
+if it is missing or invalid, with a minimum wait of one minute. During that wait
+it can use the last downloaded feed for up to 24 hours from download; otherwise
+the widget reports 429. Other failures, including revoked access, discard the old
+feed. Cancellation of a preview stops its wait without cancelling another caller's
+shared download. Existing HTTPS/DNS checks and download limits still apply.
+
+This cache and backoff are process-local, not distributed: restarts, eviction and
+separate serverless instances can still cause new requests. It reduces repeated
+polling but cannot guarantee a provider-wide rate limit or immediate recovery
+from an existing Google throttle. No firmware update is required.
 
 One fetch per calendar holds what every view needs: the month grid of the current month and at least the next 7 days (or the calendar's **Days ahead**, if more), up to 300 events. Events are expanded from recurrences in the same bounded worker as before (two seconds, 64 MiB, 500 event components, 5,000 expanded instances) and each carries its local day, last day and start and end minutes, so the views place it without time zone arithmetic. An event that ends exactly at midnight belongs to the day before; an event that runs past midnight is drawn on both days.
 

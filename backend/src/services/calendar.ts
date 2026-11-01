@@ -1,5 +1,6 @@
+import { fetchCalendarFeed } from './calendarFeed';
 import { Worker } from 'node:worker_threads';
-import { fetchPublicFeed, FeedStatusError, MAX_FEED_BYTES } from '../utils/publicFeedFetch';
+import { FeedStatusError, MAX_FEED_BYTES } from '../utils/publicFeedFetch';
 import type { CalendarData } from '../types';
 import { validateCalendarOptions, type CalendarOptions } from '../utils/calendarOptions';
 
@@ -66,7 +67,7 @@ export async function parseCalendar(text: string, options: CalendarOptions, now 
 
 export async function fetchCalendar(url: string, options: CalendarOptions, signal?: AbortSignal): Promise<CalendarData> {
   try {
-    const { text } = await fetchPublicFeed(url, signal);
+    const text = await fetchCalendarFeed(url, signal);
     return await parseCalendar(text, options, new Date(), signal);
   } catch (error) {
     // URLs may contain private tokens, including in DNS/client error messages, so only a fixed reason code is kept.
