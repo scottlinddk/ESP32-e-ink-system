@@ -62,6 +62,14 @@ separate serverless instances can still cause new requests. It reduces repeated
 polling but cannot guarantee a provider-wide rate limit or immediate recovery
 from an existing Google throttle. No firmware update is required.
 
+One broken event does not blank a calendar. An event the server cannot use (an
+invalid recurrence rule such as a garbled `UNTIL`, an end before its start, an
+unsupported `RDATE`, an unknown time zone) is left out and the rest are shown;
+the server logs how many it left out, by reason code only. Old, long-lived Google
+calendars often contain one such event. The calendar is reported unavailable only
+when the feed itself is broken or every event in it is unusable. `worker_failed`
+means the server's parser crashed, which is a server problem, not a feed problem.
+
 One fetch per calendar holds what every view needs: the month grid of the current month and at least the next 7 days (or the calendar's **Days ahead**, if more), up to 300 events. Events are expanded from recurrences in the same bounded worker as before (two seconds, 64 MiB, 500 event components, 5,000 expanded instances) and each carries its local day, last day and start and end minutes, so the views place it without time zone arithmetic. An event that ends exactly at midnight belongs to the day before; an event that runs past midnight is drawn on both days.
 
 The parser runs from the standalone `calendarWorker.cjs` module. Keep it as a deployment asset: copying a bundled function with `toString()` loses build-generated helpers and can make valid feeds appear unavailable. The backend build copies and type-checks the worker through `tsconfig.worker.json`; the Vercel backend service explicitly includes the worker and the complete `node-ical`, `rrule-temporal`, `temporal-polyfill`, `temporal-spec` and `temporal-utils` packages. Worker-only dependencies and the dynamically loaded `windowsZones.json` must be included even when the application file tracer does not discover them. The regression tests cover bundled parsing and start the worker outside the checkout using only explicitly included deployment assets, including Outlook recurrence across daylight saving time. This backend change does not require a firmware update.

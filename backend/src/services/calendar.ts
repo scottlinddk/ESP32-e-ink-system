@@ -3,6 +3,7 @@ import { Worker } from 'node:worker_threads';
 import { FeedStatusError, MAX_FEED_BYTES } from '../utils/publicFeedFetch';
 import type { CalendarData } from '../types';
 import { validateCalendarOptions, type CalendarOptions } from '../utils/calendarOptions';
+import { logger } from '../lib/logger';
 
 /**
  * A calendar that could not be loaded. `reason` is a short fixed code (`too_many_events`, `http_404`,
@@ -19,7 +20,7 @@ export class CalendarUnavailableError extends Error {
 const KNOWN_MESSAGES: ReadonlyArray<readonly [RegExp, string]> = [
   [/1 MiB limit/, 'feed_too_large'], [/resolve only to public/, 'private_address'], [/timed out/, 'timeout'],
   [/Too many feed redirects|redirect has no destination/, 'bad_redirect'], [/Compressed feed/, 'compressed'],
-  [/^Feed URL must/, 'invalid_url'], [/interrupted|Unable to retrieve feed/, 'unreachable'], [/Calendar parsing failed/, 'parse_error'],
+  [/^Feed URL must/, 'invalid_url'], [/interrupted|Unable to retrieve feed/, 'unreachable'],
 ];
 
 function reasonOf(error: unknown): string {
@@ -58,10 +59,15 @@ export async function parseCalendar(text: string, options: CalendarOptions, now 
     const abort = () => finish(new Error('Calendar request cancelled'));
     const timer = setTimeout(() => finish(new Error('Calendar parsing timed out')), 2000);
     signal?.addEventListener('abort', abort, { once: true });
-    worker.once('message', (message: { error?: string; reason?: string; result?: CalendarData }) =>
-      finish(message.error ? Object.assign(new Error(message.error), { reason: message.reason }) : undefined, message.result));
-    worker.once('error', () => finish(new Error('Calendar parsing failed')));
-    worker.once('exit', (code) => { if (code !== 0) finish(new Error('Calendar parsing failed')); });
+    worker.once('message', (message: { error?: string; reason?: string; result?: CalendarData; skipped?: Record<string, number> }) => {
+      // Events the worker left out, by fixed reason code. Never event text.
+      if (message.result && message.skipped && Object.keys(message.skipped).length) logger.info({ skipped: message.skipped }, 'Calendar events skipped');
+      finish(message.error ? Object.assign(new Error(message.error), { reason: message.reason }) : undefined, message.result);
+    });
+    // A worker that crashes or cannot start is a server problem, not a problem with the feed.
+    const crashed = () => finish(Object.assign(new Error('Calendar parsing failed'), { reason: 'worker_failed' }));
+    worker.once('error', crashed);
+    worker.once('exit', (code) => { if (code !== 0) crashed(); });
   });
 }
 
