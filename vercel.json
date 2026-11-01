@@ -11,7 +11,7 @@
       "entrypoint": "api/index.ts",
       "functions": {
         "api/index.ts": {
-          "includeFiles": "{src/services/calendarWorker.cjs,../node_modules/node-ical/**,../node_modules/rrule-temporal/**,../node_modules/temporal-polyfill/**,../node_modules/temporal-spec/**,../node_modules/temporal-utils/**}"
+          "includeFiles": "{src/services/calendarWorker.bundle.cjs}"
         }
       },
       "bindings": [

@@ -1,6 +1,5 @@
 import { fetchCalendarFeed } from './calendarFeed';
 import { Worker } from 'node:worker_threads';
-import { dirname, join } from 'node:path';
 import { FeedStatusError, MAX_FEED_BYTES } from '../utils/publicFeedFetch';
 import type { CalendarData } from '../types';
 import { validateCalendarOptions, type CalendarOptions } from '../utils/calendarOptions';
@@ -37,23 +36,15 @@ function reasonOf(error: unknown): string {
 
 export { validateCalendarOptions, MAX_CALENDAR_EVENTS, type CalendarOptions } from '../utils/calendarOptions';
 
-/**
- * The worker's dependencies, resolved here. A plain require.resolve also makes deployment
- * tracing include node-ical, which the worker file alone does not guarantee.
- */
-function workerModules(): { ical: string; windowsZones: string } {
-  return { ical: require.resolve('node-ical'), windowsZones: join(dirname(require.resolve('node-ical/package.json')), 'windowsZones.json') };
-}
-
 /** Bound both parser memory and CPU; an HTTP deadline alone cannot stop RRULE expansion. */
 export async function parseCalendar(text: string, options: CalendarOptions, now = new Date(), signal?: AbortSignal): Promise<CalendarData> {
   validateCalendarOptions(options);
   if (typeof text !== 'string' || Buffer.byteLength(text) > MAX_FEED_BYTES || !Number.isFinite(now.getTime())) throw new Error('Invalid calendar feed');
   if (signal?.aborted) throw new Error('Calendar request cancelled');
-  const modules = workerModules();
   return new Promise((resolve, reject) => {
-    const worker = new Worker(require.resolve('./calendarWorker.cjs'), {
-      workerData: { text, ...options, now: now.getTime(), modules },
+    // Self-contained build of calendarWorker.cjs: it loads nothing from node_modules at run time.
+    const worker = new Worker(require.resolve('./calendarWorker.bundle.cjs'), {
+      workerData: { text, ...options, now: now.getTime() },
       resourceLimits: { maxOldGenerationSizeMb: 64, stackSizeMb: 4 }, stdout: true, stderr: true,
     });
     // Suppress dependency diagnostics: a malformed feed may contain private text.
