@@ -44,7 +44,7 @@ A calendar with no URL shows `Calendar: Add calendar URL`, a failing one `Calend
 
 ## What the server fetches
 
-Calendar downloads are cached in memory for 15 minutes per backend process. Concurrent
+Calendar downloads are cached in memory for 1 hour per backend process. Concurrent
 requests for the same URL share a download; each caller parses the cached ICS again
 with its own settings and the current time, so date ranges do not freeze. Changing
 the saved URL uses a different cache entry. At most 16 feeds (each at most 1 MiB)
