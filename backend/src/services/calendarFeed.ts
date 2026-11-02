@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { fetchPublicFeed, FeedStatusError, validatePublicHttpsUrl } from '../utils/publicFeedFetch';
 
-const FRESH_MS = 15 * 60_000;
+const FRESH_MS = 60 * 60_000; // Reuse a download for an hour: fewer provider requests, fewer slow cold fetches.
+const RATE_LIMIT_FALLBACK_MS = 15 * 60_000; // Backoff when a 429 has no usable Retry-After.
 const STALE_MS = 24 * 60 * 60_000;
 const MAX_ENTRIES = 16; // Each feed is bounded to 1 MiB by fetchPublicFeed.
 
@@ -59,7 +60,7 @@ export class CalendarFeedCache {
     } catch (error) {
       if (error instanceof FeedStatusError && error.status === 429) {
         // No rapid retry loops, even if the provider sends Retry-After: 0.
-        entry.retryAt = Date.now() + Math.max(60_000, error.retryAfterMs ?? FRESH_MS);
+        entry.retryAt = Date.now() + Math.max(60_000, error.retryAfterMs ?? RATE_LIMIT_FALLBACK_MS);
         return this.staleOrThrow(entry);
       }
       // Never mask revoked access (401/403/404) or malformed downloads with old data.

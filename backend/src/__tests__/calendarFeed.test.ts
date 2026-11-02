@@ -14,13 +14,16 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); });
 
 describe('calendar download caching', () => {
-  it('reuses downloads for 15 minutes, then refreshes; a changed URL has its own cache', async () => {
+  it('reuses downloads for 1 hour, then refreshes; a changed URL has its own cache', async () => {
     expect(await cache.get(url)).toBe(feed.text);
     await cache.get(url);
     expect(fetchPublicFeed).toHaveBeenCalledTimes(1);
     await cache.get(url.replace('private-token', 'new-token'));
     expect(fetchPublicFeed).toHaveBeenCalledTimes(2);
-    vi.advanceTimersByTime(15 * 60_000);
+    vi.advanceTimersByTime(60 * 60_000 - 1);
+    await cache.get(url);
+    expect(fetchPublicFeed).toHaveBeenCalledTimes(2);
+    vi.advanceTimersByTime(1);
     vi.mocked(fetchPublicFeed).mockResolvedValue({ ...feed, text: 'updated' });
     expect(await cache.get(url)).toBe('updated');
     expect(fetchPublicFeed).toHaveBeenCalledTimes(3);
@@ -71,7 +74,7 @@ describe('calendar download caching', () => {
   });
   it('serves the last download on 429, but never past 24 hours, even during a longer backoff', async () => {
     await cache.get(url);
-    vi.advanceTimersByTime(15 * 60_000);
+    vi.advanceTimersByTime(60 * 60_000);
     vi.mocked(fetchPublicFeed).mockRejectedValueOnce(new FeedStatusError(429, 48 * 60 * 60_000));
     expect(await cache.get(url)).toBe(feed.text);
     expect(await cache.get(url)).toBe(feed.text);
@@ -81,7 +84,7 @@ describe('calendar download caching', () => {
   });
   it.each([401, 403, 404, 500])('does not serve stale data after HTTP %s', async (status) => {
     await cache.get(url);
-    vi.advanceTimersByTime(15 * 60_000);
+    vi.advanceTimersByTime(60 * 60_000);
     vi.mocked(fetchPublicFeed).mockRejectedValueOnce(new FeedStatusError(status));
     await expect(cache.get(url)).rejects.toMatchObject({ status });
     vi.mocked(fetchPublicFeed).mockRejectedValueOnce(new FeedStatusError(429));
