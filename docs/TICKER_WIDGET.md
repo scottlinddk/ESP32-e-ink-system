@@ -50,7 +50,7 @@ A placement can override the view and the stocks per page for one layout or sche
 | Symbol search | `GET /api/tickers/search?q=&region=any\|dk` (`backend/src/routes/tickers.ts`) |
 | Dashboard form | `frontend/src/components/dashboard/TickerWidgetsFields.tsx` |
 
-`backend/` is deployed on its own (Vercel root and the Docker image are `backend/`),
+`backend/` is deployed on its own (the Docker image is built from `backend/`),
 so it cannot import the workspace package and carries a copy of the pure ticker
 code. Behavioural changes must be made in both places; both have tests.
 
