@@ -1,0 +1,101 @@
+# Postgres + PostgREST + nginx gateway for the ESP32 e-ink backend, adapted for Coolify.
+# Adapted from infra/raspberry-pi/compose.yaml in the repo.
+#
+# Intended use: kept at the repo root as docker-compose.eink-db.yaml so every ./ path is unambiguous.
+# Deploy in Coolify as a "Docker Compose" application from the GitHub repo (Base Directory = repo root),
+# so the ./backend/src/db/migrations and ./infra/raspberry-pi/init mounts resolve.
+#
+# Changes from the Pi file: no arm64 platform pin, no Pi memory caps, no host port,
+# no migration "tools" service, named volume instead of the SSD bind mount.
+# Verify the server arch (x86 vs arm64) before pinning anything.
+#
+# Secrets (set in Coolify, never in git):
+#   POSTGRES_PASSWORD, AUTHENTICATOR_PASSWORD  URL-safe, 40+ chars
+#   JWT_SECRET                                  URL-safe, 48+ chars
+# The service-role JWT for the backend is signed from JWT_SECRET with
+# infra/raspberry-pi/generate-secrets.py (--jwt-secret-env). Do not paste it in chat.
+
+name: esp32-eink-db
+
+services:
+  postgres:
+    image: postgres:17.11-bookworm   # match the hosted project's major (17); confirm with preflight
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: eink
+      POSTGRES_USER: eink_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in Coolify}
+      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD:?set in Coolify}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - eink_pgdata:/var/lib/postgresql/data
+      - ./infra/raspberry-pi/init:/docker-entrypoint-initdb.d:ro
+      - ./backend/src/db/migrations:/migrations:ro
+    command:
+      - postgres
+      - -c
+      - max_connections=20
+      - -c
+      - password_encryption=scram-sha-256
+      - -c
+      - statement_timeout=15000
+      - -c
+      - log_statement=none
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "eink_admin", "-d", "eink"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 45s
+
+  postgrest:
+    image: postgrest/postgrest:v14.18
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://eink_authenticator:${AUTHENTICATOR_PASSWORD:?set in Coolify}@postgres:5432/eink
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_EXTRA_SEARCH_PATH: public
+      PGRST_DB_POOL: "5"
+      PGRST_DB_CONFIG: "false"
+      PGRST_JWT_SECRET: ${JWT_SECRET:?set in Coolify}
+      PGRST_JWT_AUD: esp32-eink-backend
+      PGRST_JWT_ROLE_CLAIM_KEY: .role
+      # No PGRST_DB_ANON_ROLE on purpose: unauthenticated requests fail.
+      PGRST_ADMIN_SERVER_PORT: "3001"
+      PGRST_SERVER_PORT: "3000"
+      PGRST_OPENAPI_MODE: disabled
+      PGRST_LOG_LEVEL: crit
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+
+  gateway:
+    # Strips the supabase-js /rest/v1 prefix. Reached by the backend as http://gateway:8080
+    # when both apps share a Coolify predefined network. No public domain by default.
+    image: nginx:1.30.5-alpine
+    restart: unless-stopped
+    depends_on:
+      postgrest:
+        condition: service_started
+    user: "101:101"
+    entrypoint: ["nginx", "-g", "daemon off;"]
+    volumes:
+      - ./infra/raspberry-pi/nginx.conf:/etc/nginx/nginx.conf:ro
+    read_only: true
+    tmpfs: ["/tmp:size=16m,noexec,nosuid,uid=101,gid=101"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  eink_pgdata:
