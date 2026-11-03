@@ -99,6 +99,12 @@ npm run build      # frontend and backend production builds
 
 Tests use mocked external services and do not require account credentials or hardware. The application-check workflow runs type checks, tests and builds for pull requests.
 
+## Deployment
+
+The app is built into Docker images by GitHub Actions and deployed with Coolify. See the
+[Coolify deployment guide](docs/COOLIFY_DEPLOYMENT.md) (the previous Vercel setup remains in
+`vercel.json` until cutover is complete).
+
 ## Raspberry Pi database
 
 To move database storage to a Raspberry Pi already running Investor, use the
