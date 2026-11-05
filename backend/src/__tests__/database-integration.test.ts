@@ -8,7 +8,7 @@
  * The server must be disposable: each test file creates and drops its own database.
  * Without TEST_DATABASE_URL these tests are skipped locally; CI sets REQUIRE_TEST_DATABASE=1.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { createIsolatedDatabase, TEST_DATABASE_REQUIRED, TEST_DATABASE_URL, type IsolatedDatabase } from './helpers/testDatabase';
 import { closePool, getPool, query, resetPoolForTests, withTransaction } from '../db/pool';
@@ -742,7 +742,8 @@ describe.skipIf(!TEST_DATABASE_URL)('PostgreSQL persistence (real database, appl
       const open = () => db.admin<{ n: number }>(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE application_name = $1`, [application]);
       expect((await open())[0].n).toBeGreaterThan(0);
       await closePool();
-      expect((await open())[0].n).toBe(0);
+      // The client sockets are closed when closePool resolves; the server drops its backends a moment later.
+      await vi.waitFor(async () => { expect((await open())[0].n).toBe(0); }, { timeout: 3000, interval: 50 });
       await closePool(); // idempotent
     });
   });
