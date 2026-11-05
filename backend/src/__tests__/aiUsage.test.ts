@@ -6,8 +6,6 @@ import {
 import { localDay, startOfLocalDay } from '../aiUsage/time';
 import { buildAiUsage, clearAiUsageCache } from '../aiUsage';
 
-vi.mock('../services/database', () => ({ getSupabaseClient: vi.fn() }));
-
 const NOW = new Date('2026-10-07T10:00:00Z');
 const ANTHROPIC_KEY = `sk-ant-admin01-${'a'.repeat(40)}`;
 const OPENAI_KEY = `sk-admin-${'b'.repeat(40)}`;

@@ -17,35 +17,34 @@ const state = vi.hoisted(() => ({
   writes: [] as unknown[],
 }));
 
-// In-memory PostgREST double that honours equality filters, so the tests exercise the
-// store's owner and token-hash filtering.
-class Query {
-  private operation = 'select';
-  private payload: Record<string, unknown> = {};
-  private filters: Array<[string, unknown]> = [];
-  select(_fields?: string) { return this; }
-  eq(key: string, value: unknown) { this.filters.push([key, value]); return this; }
-  abortSignal(_signal: AbortSignal) { return this; }
-  upsert(payload: Record<string, unknown>) { this.operation = 'upsert'; this.payload = payload; return this; }
-  update(payload: Record<string, unknown>) { this.operation = 'update'; this.payload = payload; return this; }
-  async maybeSingle() { return this.run(); }
-  then(resolve: (value: ReturnType<Query['run']>) => unknown, reject?: (error: unknown) => unknown) {
-    return Promise.resolve(this.run()).then(resolve, reject);
-  }
-  private run() {
-    state.writes.push(this.payload);
-    if (this.operation === 'upsert') {
-      state.records.set(String(this.payload.user_id), structuredClone(this.payload) as unknown as AiUsageRecord);
-      return { data: this.payload, error: null };
-    }
-    const matches = [...state.records.values()].filter((row) => this.filters.every(([key, value]) => (row as unknown as Record<string, unknown>)[key] === value));
-    if (this.operation === 'update') for (const row of matches) Object.assign(row, structuredClone(this.payload));
-    return { data: matches[0] ? structuredClone(matches[0]) : null, error: null };
-  }
-}
+// In-memory double for the persistence layer. The SQL itself is covered by the database
+// integration tests; here the store's owner and token-hash filtering is exercised.
+vi.mock('../db/repositories/integrationTokens', () => ({
+  findAiUsageRow: async (userId: string) => (state.records.has(userId) ? structuredClone(state.records.get(userId)) : null),
+  replaceAiUsageToken: async (userId: string, hash: string) => {
+    const row = { user_id: userId, token_hash: hash, token_created_at: new Date().toISOString(), providers: {}, received_at: null };
+    state.writes.push(row);
+    state.records.set(userId, structuredClone(row) as unknown as AiUsageRecord);
+  },
+  clearAiUsageToken: async (userId: string) => {
+    const row = state.records.get(userId);
+    state.writes.push({ cleared: userId });
+    if (row) Object.assign(row, { token_hash: null, token_created_at: null, providers: {}, received_at: null });
+  },
+  findAiUsageRowByHash: async (hash: string) => {
+    const row = [...state.records.values()].find((entry) => entry.token_hash === hash);
+    return row ? structuredClone(row) : null;
+  },
+  writeAiUsageProviders: async (userId: string, hash: string, providers: unknown, receivedAt: string) => {
+    state.writes.push({ providers, receivedAt });
+    const row = state.records.get(userId);
+    if (!row || row.token_hash !== hash) return false;
+    Object.assign(row, { providers: structuredClone(providers), received_at: receivedAt });
+    return true;
+  },
+}));
 
 vi.mock('../services/database', () => ({
-  getSupabaseClient: vi.fn(() => ({ from: vi.fn(() => new Query()) })),
   getPreferences: vi.fn(async (userId: string) => state.preferences.get(userId) ?? null),
   getApiKeys: vi.fn(async (userId: string) => state.keys.get(userId) ?? []),
   upsertApiKey: vi.fn(async (userId: string, provider: string, apiKey: string) => {

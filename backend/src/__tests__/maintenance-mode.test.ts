@@ -2,11 +2,14 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import type { Server } from 'http';
 import type { AddressInfo } from 'net';
 import type { Request, Response, NextFunction } from 'express';
-import { createClient } from '@supabase/supabase-js';
+import { getPool } from '../db/pool';
 import { createRateLimiter } from '../middleware/rateLimit';
 import app from '../app';
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn() }));
+vi.mock('../db/pool', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../db/pool')>()),
+  getPool: vi.fn(),
+}));
 vi.mock('../middleware/rateLimit', () => ({
   createRateLimiter: vi.fn(() => vi.fn((_req: Request, _res: Response, next: NextFunction) => next())),
 }));
@@ -22,7 +25,7 @@ describe('database migration maintenance mode', () => {
 
   beforeEach(() => {
     vi.stubEnv('DATABASE_MAINTENANCE_MODE', 'true');
-    vi.mocked(createClient).mockClear();
+    vi.mocked(getPool).mockClear();
     for (const result of vi.mocked(createRateLimiter).mock.results) vi.mocked(result.value).mockClear();
   });
 
@@ -57,7 +60,7 @@ describe('database migration maintenance mode', () => {
     expect(response.headers.get('Retry-After')).toBe('300');
     expect(response.headers.get('Cache-Control')).toBe('no-store');
     expect(await response.json()).toMatchObject({ error: expect.stringContaining('maintenance') });
-    expect(createClient).not.toHaveBeenCalled();
+    expect(getPool).not.toHaveBeenCalled();
     for (const result of vi.mocked(createRateLimiter).mock.results) expect(result.value).not.toHaveBeenCalled();
   });
 
@@ -74,7 +77,7 @@ describe('database migration maintenance mode', () => {
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://esp32.scottlind.dk');
     expect(response.headers.get('Access-Control-Allow-Methods')).toContain('POST');
     expect(response.headers.get('Access-Control-Allow-Headers')).toContain('Authorization');
-    expect(createClient).not.toHaveBeenCalled();
+    expect(getPool).not.toHaveBeenCalled();
     for (const result of vi.mocked(createRateLimiter).mock.results) expect(result.value).not.toHaveBeenCalled();
   });
 
@@ -82,7 +85,7 @@ describe('database migration maintenance mode', () => {
     const response = await fetch(`${baseUrl}/health`);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ status: 'ok' });
-    expect(createClient).not.toHaveBeenCalled();
+    expect(getPool).not.toHaveBeenCalled();
     for (const result of vi.mocked(createRateLimiter).mock.results) expect(result.value).not.toHaveBeenCalled();
   });
 
@@ -101,6 +104,6 @@ describe('database migration maintenance mode', () => {
     const response = await fetch(`${baseUrl}/checkout`, { method: 'POST' });
     expect(response.status).toBe(501);
     expect(await response.json()).toMatchObject({ error: 'Checkout not yet implemented' });
-    expect(createClient).not.toHaveBeenCalled();
+    expect(getPool).not.toHaveBeenCalled();
   });
 });

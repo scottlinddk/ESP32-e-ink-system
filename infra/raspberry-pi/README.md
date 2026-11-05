@@ -1,4 +1,10 @@
-# Raspberry Pi database migration
+# Raspberry Pi database migration (historical)
+
+> **Historical / legacy.** The API no longer talks to PostgREST; it connects straight to PostgreSQL
+> with `DATABASE_URL` ([docs/DATABASE.md](../../docs/DATABASE.md)). Still in use: `init/` (role and
+> schema bootstrap, mounted by `docker-compose.eink-db.yaml`) and the Python tooling. Not usable
+> any more: `smoke.mjs` and the PostgREST/SDK stage of `test-stack.sh` (they need
+> `@supabase/supabase-js`, removed from the backend). CI no longer runs them.
 
 Start with the [migration runbook](../../docs/RASPBERRY_PI_DATABASE_MIGRATION.md)
 and [validation record](VALIDATION.md). This package replaces the hosted database

@@ -3,22 +3,21 @@ import { redactForCollaborator, resolveDeviceAccess } from '../services/sharing'
 import { DEFAULT_PREFS } from '../services/displayData';
 import type { UserPreferences } from '../types';
 
-const db = vi.hoisted(() => ({ device: null as unknown, share: null as unknown, shareError: null as unknown, from: vi.fn() }));
-vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ from: db.from }) }));
+const db = vi.hoisted(() => ({ owner: 'owner' as string | null, share: null as null | { role: 'viewer' | 'editor'; owner_id: string }, shareError: null as unknown }));
+// Double for the persistence layer. The real queries (including the "granted by the current owner"
+// filter) run against PostgreSQL in database-integration.test.ts.
+vi.mock('../db/repositories/sharing', () => ({
+  selectDeviceOwner: async () => db.owner,
+  selectShareRole: async (_device: string, _collaborator: string, deviceOwner: string) => {
+    if (db.shareError) throw db.shareError;
+    return db.share && db.share.owner_id === deviceOwner ? db.share.role : null;
+  },
+}));
 
-const chain = (table: string) => {
-  const query = { select: () => query, eq: () => query,
-    maybeSingle: async () => (table === 'devices' ? { data: db.device, error: null } : { data: db.share, error: db.shareError }) };
-  return query;
-};
 const DEVICE = '0b3c5c8e-1111-4a4a-9b9b-000000000001';
 
 describe('device access', () => {
-  beforeEach(() => {
-    vi.stubEnv('SUPABASE_URL', 'https://db.example.org');
-    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-only');
-    db.device = { user_id: 'owner' }; db.share = null; db.shareError = null; db.from.mockImplementation(chain);
-  });
+  beforeEach(() => { db.owner = 'owner'; db.share = null; db.shareError = null; });
 
   it('gives the owner full control', async () => {
     expect(await resolveDeviceAccess('owner', DEVICE, 'owner')).toEqual({ ownerId: 'owner', role: 'owner' });
@@ -39,7 +38,7 @@ describe('device access', () => {
     await expect(resolveDeviceAccess('stranger', DEVICE)).rejects.toMatchObject({ statusCode: 404 });
     db.share = { role: 'editor', owner_id: 'previous-owner' };
     await expect(resolveDeviceAccess('friend', DEVICE)).rejects.toMatchObject({ statusCode: 404 });
-    db.device = null;
+    db.owner = null;
     await expect(resolveDeviceAccess('owner', DEVICE)).rejects.toMatchObject({ statusCode: 404 });
   });
   it('still serves owners before migration 027 is applied', async () => {

@@ -1,5 +1,12 @@
 # Move the e-ink database to the Raspberry Pi
 
+> **HISTORICAL. Not the current deployment path.** This runbook describes the Raspberry Pi + PostgREST
+> plan, when the API reached the database through a REST gateway (`SUPABASE_URL` and a service-role JWT).
+> The API now connects directly to PostgreSQL with `DATABASE_URL`: see [DATABASE.md](DATABASE.md) and
+> [COOLIFY_DEPLOYMENT.md](COOLIFY_DEPLOYMENT.md). Instructions below that mention `SUPABASE_URL`,
+> `SUPABASE_SERVICE_ROLE_KEY`, PostgREST or `infra/raspberry-pi/smoke.mjs` no longer apply to the
+> backend. `smoke.mjs` needs `@supabase/supabase-js`, which is no longer a dependency.
+
 Reviewed 2026-09-28 against e-ink `origin/main` at `2cffedd` and Investor
 `origin/main` at `605e9df`, including its managed updater. These are repository findings, not a live inventory of
 the Pi or Supabase. No production data, DNS, Vercel settings or Pi services

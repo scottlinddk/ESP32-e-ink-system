@@ -5,7 +5,6 @@ import type { Request, Response, NextFunction } from 'express';
 import app from '../app';
 import { checkDatabase } from '../services/databaseHealth';
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn() }));
 vi.mock('../middleware/rateLimit', () => ({
   createRateLimiter: vi.fn(() => vi.fn((_req: Request, _res: Response, next: NextFunction) => next())),
 }));
@@ -14,7 +13,7 @@ vi.mock('../services/databaseHealth', async (importOriginal) => ({
   checkDatabase: vi.fn(),
 }));
 
-describe('GET /health/db', () => {
+describe.each(['/health/ready', '/health/db'])('GET %s', (path) => {
   let server: Server;
   let baseUrl: string;
 
@@ -29,17 +28,17 @@ describe('GET /health/db', () => {
 
   it('returns 200 when the database is reachable', async () => {
     vi.mocked(checkDatabase).mockResolvedValue({ ok: true });
-    const response = await fetch(`${baseUrl}/api/health/db`);
+    const response = await fetch(`${baseUrl}/api${path}`);
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(await response.json()).toEqual({ status: 'ok' });
   });
 
-  it.each(['token_rejected', 'gateway_challenge', 'gateway_error', 'unreachable', 'not_configured', 'error'] as const)(
+  it.each(['not_configured', 'authentication_failed', 'tls_error', 'unreachable', 'timeout', 'too_many_connections', 'error'] as const)(
     'returns 503 with only the coarse reason %s',
     async (reason) => {
       vi.mocked(checkDatabase).mockResolvedValue({ ok: false, reason });
-      const response = await fetch(`${baseUrl}/health/db`);
+      const response = await fetch(`${baseUrl}${path}`);
       expect(response.status).toBe(503);
       expect(await response.json()).toEqual({ status: 'error', reason });
     }

@@ -1,9 +1,17 @@
 import type { UserPreferences } from '../types';
-import { getSupabaseClient } from './database';
 import { DeviceNotFound } from './deviceDelivery';
 import { DEFAULT_PREFS } from './displayData';
 import { DEVICE_PRESENTATION_KEYS, getDeviceDisplay, saveDeviceDisplay } from './deviceDisplays';
 import { createError } from '../middleware/errorHandler';
+import { isMissingTable, isUuid, pgCode } from '../db/errors';
+import { withTransaction, type Queryable } from '../db/pool';
+import {
+  acceptPendingConnection, countPendingItems, deleteConnectionRow, deletePendingItem, deletePendingItemsBetween, deleteShare,
+  deleteSharesBetween, insertConnection, insertItem, lockAcceptedConnection, markItemAccepted, markItemDeclined,
+  selectConnectionBetween, selectConnectionOfMember, selectConnectionsOf, selectDeviceOwner, selectDevicesSharedWith,
+  selectItemOfMember, selectItems, selectPendingItemForRecipient, selectPublicUsers, selectShareRole, selectSharesOfDevice,
+  selectUserIdByEmail, upsertShare, type ConnectionRow, type ItemRow,
+} from '../db/repositories/sharing';
 import {
   buildAcceptUpdates, parsePayload, portableLayout, portableWidget, SHARED_PAYLOAD_MAX_BYTES, SharedItemError, summarize,
   type DashboardPayload, type SharedItemKind, type SharedPayload,
@@ -16,40 +24,23 @@ export interface PublicUser { id: string; email: string; display_name: string | 
 
 const RANK: Record<DeviceRole, number> = { viewer: 1, editor: 2, owner: 3 };
 const MAX_PENDING_PER_PAIR = 20;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,255}$/;
 
-/** A rolling deployment may serve requests before migration 027 is applied. */
-const missingTable = (error: { code?: string } | null) => error?.code === '42P01' || error?.code === 'PGRST205';
-function check<T>(result: { data: T; error: { code?: string; message?: string } | null }): T {
-  if (result.error) throw result.error;
-  return result.data;
-}
 export function parseUuid(value: unknown, name: string): string {
-  if (typeof value !== 'string' || !UUID.test(value)) throw createError(`${name} must be a UUID.`, 400);
+  if (!isUuid(value)) throw createError(`${name} must be a UUID.`, 400);
   return value;
 }
 
 // ---------------------------------------------------------------- users
 
 async function publicUsers(ids: string[]): Promise<Map<string, PublicUser>> {
-  if (ids.length === 0) return new Map();
-  const rows = check(await getSupabaseClient().from('users').select('id, email, display_name').in('id', [...new Set(ids)])) as PublicUser[];
+  const rows = await selectPublicUsers(ids);
   return new Map(rows.map((row) => [row.id, { id: row.id, email: row.email, display_name: row.display_name }]));
 }
 const unknownUser = (id: string): PublicUser => ({ id, email: '', display_name: null });
 
-/** Case-insensitive exact match: LIKE wildcards in the address are escaped. */
-async function findUserIdByEmail(email: string): Promise<string | null> {
-  const pattern = email.replace(/[\\%_]/g, (char) => `\\${char}`);
-  const { data, error } = await getSupabaseClient().from('users').select('id').ilike('email', pattern).limit(1).maybeSingle();
-  if (error) throw error;
-  return (data as { id: string } | null)?.id ?? null;
-}
-
 // ---------------------------------------------------------- connections
 
-interface ConnectionRow { id: string; requester_id: string; addressee_id: string; status: 'pending' | 'accepted'; created_at: string }
 export interface Connection {
   id: string;
   status: 'connected' | 'incoming' | 'outgoing';
@@ -57,20 +48,14 @@ export interface Connection {
   created_at: string;
 }
 
-async function connectionBetween(a: string, b: string): Promise<ConnectionRow | null> {
-  const rows = check(await getSupabaseClient().from('user_connections').select('*')
-    .or(`and(requester_id.eq.${a},addressee_id.eq.${b}),and(requester_id.eq.${b},addressee_id.eq.${a})`)) as ConnectionRow[];
-  return rows[0] ?? null;
-}
 export async function areConnected(a: string, b: string): Promise<boolean> {
-  return (await connectionBetween(a, b))?.status === 'accepted';
+  return (await selectConnectionBetween(a, b))?.status === 'accepted';
 }
 
 export async function listConnections(me: string): Promise<Connection[]> {
-  const result = await getSupabaseClient().from('user_connections').select('*')
-    .or(`requester_id.eq.${me},addressee_id.eq.${me}`).order('created_at', { ascending: false });
-  if (missingTable(result.error)) return [];
-  const rows = check(result) as ConnectionRow[];
+  let rows: ConnectionRow[];
+  try { rows = await selectConnectionsOf(me); }
+  catch (error) { if (isMissingTable(error)) return []; throw error; }
   const users = await publicUsers(rows.map((row) => (row.requester_id === me ? row.addressee_id : row.requester_id)));
   return rows.map((row) => {
     const other = row.requester_id === me ? row.addressee_id : row.requester_id;
@@ -88,55 +73,53 @@ export async function listConnections(me: string): Promise<Connection[]> {
 export async function requestConnection(me: string, rawEmail: unknown): Promise<void> {
   const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
   if (!EMAIL.test(email)) throw createError('Enter a valid email address.', 400);
-  const other = await findUserIdByEmail(email);
+  const other = await selectUserIdByEmail(email);
   if (other === me) throw createError('You cannot connect to yourself.', 400);
   if (!other) return;
-  const db = getSupabaseClient();
-  const existing = await connectionBetween(me, other);
+  const existing = await selectConnectionBetween(me, other);
   if (existing) {
     // They already asked me: asking back is the same as accepting.
-    if (existing.status === 'pending' && existing.addressee_id === me) {
-      check(await db.from('user_connections').update({ status: 'accepted', responded_at: new Date().toISOString() }).eq('id', existing.id).eq('status', 'pending'));
-    }
+    if (existing.status === 'pending' && existing.addressee_id === me) await acceptPendingConnection(me, existing.id);
     return;
   }
-  const inserted = await db.from('user_connections').insert({ requester_id: me, addressee_id: other });
   // A concurrent request from the other side wins; that is also a success.
-  if (inserted.error && inserted.error.code !== '23505') throw inserted.error;
+  await insertConnection(me, other);
 }
 
 export async function acceptConnection(me: string, id: string): Promise<void> {
-  const rows = check(await getSupabaseClient().from('user_connections')
-    .update({ status: 'accepted', responded_at: new Date().toISOString() })
-    .eq('id', id).eq('addressee_id', me).eq('status', 'pending').select('id')) as Array<{ id: string }>;
-  if (rows.length === 0) throw createError('Request not found.', 404);
+  if (!(await acceptPendingConnection(me, id))) throw createError('Request not found.', 404);
 }
 
-/** Decline, cancel or disconnect. Ending a connection also ends every device share between the two. */
+/**
+ * Decline, cancel or disconnect. Ending a connection also ends every device share between the two.
+ * One transaction: a half-finished disconnect would leave shares alive without a connection.
+ */
 export async function removeConnection(me: string, id: string): Promise<void> {
-  const db = getSupabaseClient();
-  const row = check(await db.from('user_connections').select('*').eq('id', id).or(`requester_id.eq.${me},addressee_id.eq.${me}`).maybeSingle()) as ConnectionRow | null;
+  const row = await selectConnectionOfMember(id, me);
   if (!row) throw createError('Connection not found.', 404);
   const other = row.requester_id === me ? row.addressee_id : row.requester_id;
-  check(await db.from('user_connections').delete().eq('id', id));
-  check(await db.from('device_shares').delete().or(`and(owner_id.eq.${me},collaborator_id.eq.${other}),and(owner_id.eq.${other},collaborator_id.eq.${me})`));
-  check(await db.from('shared_items').delete().eq('status', 'pending')
-    .or(`and(sender_id.eq.${me},recipient_id.eq.${other}),and(sender_id.eq.${other},recipient_id.eq.${me})`));
+  await withTransaction(async (tx) => {
+    // The connection row goes first: it is what concurrent sharing locks (see lockAcceptedConnection).
+    await deleteConnectionRow(id, tx);
+    await deleteSharesBetween(me, other, tx);
+    await deletePendingItemsBetween(me, other, tx);
+  });
 }
 
 // -------------------------------------------------------- device shares
 
 /** Who may do what with this device. Anything else is "not found", never "forbidden". */
-export async function resolveDeviceAccess(userId: string, deviceId: string, minimum: DeviceRole = 'viewer'): Promise<DeviceAccess> {
-  const db = getSupabaseClient();
-  const device = check(await db.from('devices').select('user_id').eq('id', deviceId).maybeSingle()) as { user_id: string } | null;
-  if (!device) throw new DeviceNotFound('Device not found');
-  let access: DeviceAccess | null = device.user_id === userId ? { ownerId: userId, role: 'owner' } : null;
+export async function resolveDeviceAccess(userId: string, deviceId: string, minimum: DeviceRole = 'viewer', db?: Queryable): Promise<DeviceAccess> {
+  const ownerId = await selectDeviceOwner(deviceId, db);
+  if (!ownerId) throw new DeviceNotFound('Device not found');
+  let access: DeviceAccess | null = ownerId === userId ? { ownerId: userId, role: 'owner' } : null;
   if (!access) {
-    const share = await db.from('device_shares').select('role, owner_id').eq('device_id', deviceId).eq('collaborator_id', userId).maybeSingle();
-    if (share.error && !missingTable(share.error)) throw share.error;
-    const row = share.data as { role: ShareRole; owner_id: string } | null;
-    if (row && row.owner_id === device.user_id) access = { ownerId: row.owner_id, role: row.role };
+    let role: ShareRole | null = null;
+    // A rolling deployment may serve requests before migration 027 is applied.
+    try { role = await selectShareRole(deviceId, userId, ownerId, db); }
+    catch (error) { if (!isMissingTable(error)) throw error; }
+    // A share only counts while the person who granted it still owns the device.
+    if (role) access = { ownerId, role };
   }
   if (!access) throw new DeviceNotFound('Device not found');
   // Visible to the user but not allowed to do this: say so, there is nothing to hide.
@@ -160,9 +143,9 @@ export interface DeviceShare { collaborator: PublicUser; role: ShareRole; create
 
 export async function listDeviceShares(owner: string, deviceId: string): Promise<DeviceShare[]> {
   await resolveDeviceAccess(owner, deviceId, 'owner');
-  const result = await getSupabaseClient().from('device_shares').select('*').eq('device_id', deviceId).eq('owner_id', owner).order('created_at');
-  if (missingTable(result.error)) return [];
-  const rows = check(result) as Array<{ collaborator_id: string; role: ShareRole; created_at: string }>;
+  let rows;
+  try { rows = await selectSharesOfDevice(deviceId, owner); }
+  catch (error) { if (isMissingTable(error)) return []; throw error; }
   const users = await publicUsers(rows.map((row) => row.collaborator_id));
   return rows.map((row) => ({ collaborator: users.get(row.collaborator_id) ?? unknownUser(row.collaborator_id), role: row.role, created_at: row.created_at }));
 }
@@ -172,34 +155,35 @@ export async function shareDevice(owner: string, deviceId: string, collaboratorI
   await resolveDeviceAccess(owner, deviceId, 'owner');
   if (collaboratorId === owner) throw createError('You already own this device.', 400);
   if (!(await areConnected(owner, collaboratorId))) throw createError('Connect with this person before sharing a device.', 403);
-  const result = await getSupabaseClient().from('device_shares')
-    .upsert({ device_id: deviceId, owner_id: owner, collaborator_id: collaboratorId, role }, { onConflict: 'device_id,collaborator_id' });
-  if (missingTable(result.error)) throw createError('Apply database migration 027 before sharing devices.', 503);
-  if (result.error) throw result.error;
+  try {
+    await withTransaction(async (tx) => {
+      // Re-check under a lock: a disconnect that raced ahead is not undone by a late share.
+      if (!(await lockAcceptedConnection(owner, collaboratorId, tx))) throw createError('Connect with this person before sharing a device.', 403);
+      await upsertShare(deviceId, owner, collaboratorId, role, tx);
+    });
+  } catch (error) {
+    if (isMissingTable(error)) throw createError('Apply database migration 027 before sharing devices.', 503);
+    // The composite foreign key rejects an owner who no longer owns the device.
+    if (pgCode(error) === '23503') throw new DeviceNotFound('Device not found');
+    throw error;
+  }
 }
 
 /** The owner removes a collaborator, or a collaborator leaves a device shared with them. */
 export async function revokeDeviceShare(me: string, deviceId: string, collaboratorId: string): Promise<void> {
-  const db = getSupabaseClient();
   if (me !== collaboratorId) await resolveDeviceAccess(me, deviceId, 'owner');
-  const rows = check(await db.from('device_shares').delete().eq('device_id', deviceId).eq('collaborator_id', collaboratorId).select('device_id')) as unknown[];
-  if (rows.length === 0) throw createError('Share not found.', 404);
+  if ((await deleteShare(deviceId, collaboratorId)) === 0) throw createError('Share not found.', 404);
 }
 
 export interface SharedDevice { id: string; device_name: string; role: ShareRole; owner: PublicUser }
 /** Never selects the license key or hardware identifiers of someone else's device. */
 export async function listDevicesSharedWithMe(me: string): Promise<SharedDevice[]> {
-  const db = getSupabaseClient();
-  const result = await db.from('device_shares').select('device_id, owner_id, role').eq('collaborator_id', me);
-  if (missingTable(result.error)) return [];
-  const shares = check(result) as Array<{ device_id: string; owner_id: string; role: ShareRole }>;
-  if (shares.length === 0) return [];
-  const devices = check(await db.from('devices').select('id, device_name').in('id', shares.map((share) => share.device_id))) as Array<{ id: string; device_name: string }>;
-  const owners = await publicUsers(shares.map((share) => share.owner_id));
-  return shares.flatMap((share) => {
-    const device = devices.find((entry) => entry.id === share.device_id);
-    return device ? [{ id: device.id, device_name: device.device_name, role: share.role, owner: owners.get(share.owner_id) ?? unknownUser(share.owner_id) }] : [];
-  });
+  let shared;
+  try { shared = await selectDevicesSharedWith(me); }
+  catch (error) { if (isMissingTable(error)) return []; throw error; }
+  if (shared.length === 0) return [];
+  const owners = await publicUsers(shared.map((share) => share.owner_id));
+  return shared.map((share) => ({ id: share.id, device_name: share.device_name, role: share.role, owner: owners.get(share.owner_id) ?? unknownUser(share.owner_id) }));
 }
 
 // --------------------------------------------------------- shared items
@@ -209,12 +193,10 @@ export type ItemSource =
   | { kind: 'widget'; device_id: string; page_id?: string | null; widget_id: string }
   | { kind: 'dashboard'; device_id: string };
 
-interface ItemRow { id: string; sender_id: string; recipient_id: string; kind: SharedItemKind; name: string; payload: unknown; status: string; created_at: string }
 export interface SharedItem {
   id: string; kind: SharedItemKind; name: string; status: string; created_at: string;
   from: PublicUser; to: PublicUser; summary: { widgets: string[]; pages: number };
 }
-
 function parseSource(value: unknown): ItemSource {
   const source = value as Record<string, unknown> | null;
   if (!source || typeof source !== 'object') throw createError('Choose what to share.', 400);
@@ -265,59 +247,56 @@ export async function sendItem(sender: string, input: { recipient_id: unknown; s
   if (recipient === sender) throw createError('Send items to a connection, not to yourself.', 400);
   if (!(await areConnected(sender, recipient))) throw createError('Connect with this person before sharing with them.', 403);
   const source = parseSource(input.source);
-  const db = getSupabaseClient();
-  const pending = check(await db.from('shared_items').select('id').eq('sender_id', sender).eq('recipient_id', recipient).eq('status', 'pending')) as unknown[];
-  if (pending.length >= MAX_PENDING_PER_PAIR) throw createError('This person has too many unanswered items from you. Wait for them to respond.', 429);
+  if ((await countPendingItems(sender, recipient)) >= MAX_PENDING_PER_PAIR) throw createError('This person has too many unanswered items from you. Wait for them to respond.', 429);
   let built;
   try { built = await buildPayload(sender, source); }
   catch (error) { if (error instanceof SharedItemError) throw createError(error.message, error.statusCode); throw error; }
   if (Buffer.byteLength(JSON.stringify(built.payload), 'utf8') > SHARED_PAYLOAD_MAX_BYTES) throw createError('That is too large to share.', 413);
   const name = (typeof input.name === 'string' && input.name.trim() ? input.name : built.defaultName).trim().slice(0, 80);
-  const row = check(await db.from('shared_items').insert({ sender_id: sender, recipient_id: recipient, kind: source.kind, name, payload: built.payload }).select('*').single()) as ItemRow;
+  const row = await withTransaction(async (tx) => {
+    // Re-check under a lock so an item cannot be created after the connection ended.
+    if (!(await lockAcceptedConnection(sender, recipient, tx))) throw createError('Connect with this person before sharing with them.', 403);
+    if ((await countPendingItems(sender, recipient, tx)) >= MAX_PENDING_PER_PAIR) throw createError('This person has too many unanswered items from you. Wait for them to respond.', 429);
+    return insertItem(sender, recipient, source.kind, name, built.payload, tx);
+  });
   return { item: toItem(row, await publicUsers([sender, recipient])), dropped: built.dropped };
 }
 
 export async function listItems(me: string, box: 'inbox' | 'sent'): Promise<SharedItem[]> {
-  const column = box === 'inbox' ? 'recipient_id' : 'sender_id';
-  let query = getSupabaseClient().from('shared_items').select('*').eq(column, me).order('created_at', { ascending: false }).limit(50);
-  if (box === 'inbox') query = query.eq('status', 'pending');
-  const result = await query;
-  if (missingTable(result.error)) return [];
-  const rows = check(result) as ItemRow[];
+  let rows: ItemRow[];
+  try { rows = await selectItems(me, box); }
+  catch (error) { if (isMissingTable(error)) return []; throw error; }
   const users = await publicUsers(rows.flatMap((row) => [row.sender_id, row.recipient_id]));
   return rows.flatMap((row) => { try { return [toItem(row, users)]; } catch { return []; } });
 }
 
+/**
+ * One transaction: the item is locked, applied to the device and marked accepted together.
+ * If applying fails (validation, a settings conflict) the item simply stays pending, and a
+ * double click waits on the lock and then finds nothing pending.
+ */
 export async function acceptItem(me: string, id: string, input: { device_id: unknown; page_id?: unknown }): Promise<void> {
   const deviceId = parseUuid(input.device_id, 'device_id');
-  const db = getSupabaseClient();
-  const row = check(await db.from('shared_items').select('*').eq('id', id).eq('recipient_id', me).eq('status', 'pending').maybeSingle()) as ItemRow | null;
-  if (!row) throw createError('Shared item not found.', 404);
-  // Applying changes the device, so the recipient must be allowed to edit it.
-  const access = await resolveDeviceAccess(me, deviceId, 'editor');
-  const { preferences } = await getDeviceDisplay(access.ownerId, deviceId);
-  let updates;
-  try {
-    const pageId = input.page_id === undefined || input.page_id === null ? null : String(input.page_id);
-    updates = buildAcceptUpdates(row.kind, row.payload, preferences, { page_id: pageId, name: row.name });
-  } catch (error) { if (error instanceof SharedItemError) throw createError(error.message, error.statusCode); throw error; }
-  // Claim before applying so a double click cannot add the item twice; give it back if applying fails.
-  const claimed = check(await db.from('shared_items').update({ status: 'accepted', responded_at: new Date().toISOString() })
-    .eq('id', id).eq('status', 'pending').select('id')) as unknown[];
-  if (claimed.length === 0) throw createError('This item was already answered.', 409);
-  try {
-    await saveDeviceDisplay(access.ownerId, deviceId, updates);
-  } catch (error) {
-    await db.from('shared_items').update({ status: 'pending', responded_at: null }).eq('id', id);
-    throw error;
-  }
+  await withTransaction(async (tx) => {
+    const row = await selectPendingItemForRecipient(id, me, tx, true);
+    if (!row) throw createError('Shared item not found.', 404);
+    // Applying changes the device, so the recipient must be allowed to edit it.
+    const access = await resolveDeviceAccess(me, deviceId, 'editor', tx);
+    const { preferences } = await getDeviceDisplay(access.ownerId, deviceId, tx);
+    let updates;
+    try {
+      const pageId = input.page_id === undefined || input.page_id === null ? null : String(input.page_id);
+      updates = buildAcceptUpdates(row.kind, row.payload, preferences, { page_id: pageId, name: row.name });
+    } catch (error) { if (error instanceof SharedItemError) throw createError(error.message, error.statusCode); throw error; }
+    await saveDeviceDisplay(access.ownerId, deviceId, updates, tx);
+    if (!(await markItemAccepted(id, tx))) throw createError('This item was already answered.', 409);
+  });
 }
 
 /** The recipient declines, or the sender withdraws an unanswered item. */
 export async function dismissItem(me: string, id: string): Promise<void> {
-  const db = getSupabaseClient();
-  const row = check(await db.from('shared_items').select('*').eq('id', id).or(`recipient_id.eq.${me},sender_id.eq.${me}`).maybeSingle()) as ItemRow | null;
+  const row = await selectItemOfMember(id, me);
   if (!row) throw createError('Shared item not found.', 404);
-  if (row.recipient_id === me) check(await db.from('shared_items').update({ status: 'declined', responded_at: new Date().toISOString() }).eq('id', id).eq('status', 'pending'));
-  else check(await db.from('shared_items').delete().eq('id', id).eq('status', 'pending'));
+  if (row.recipient_id === me) await markItemDeclined(id);
+  else await deletePendingItem(id);
 }

@@ -17,42 +17,34 @@ const state = vi.hoisted(() => ({
   writes: [] as Array<{ filters: Array<[string, unknown]>; data: unknown }>, revokeOnWrite: false,
 }));
 
-// A minimal in-memory PostgREST query double preserves equality filters so these
-// tests exercise the service's actual owner/hash filtering and token storage.
-class Query {
-  private operation = 'select';
-  private payload: Record<string, unknown> = {};
-  private filters: Array<[string, unknown]> = [];
-  select(_fields?: string) { return this; }
-  eq(key: string, value: unknown) { this.filters.push([key, value]); return this; }
-  abortSignal(_signal: AbortSignal) { return this; }
-  upsert(payload: Record<string, unknown>) { this.operation = 'upsert'; this.payload = payload; return this; }
-  update(payload: Record<string, unknown>) { this.operation = 'update'; this.payload = payload; return this; }
-  async maybeSingle() { return this.run(); }
-  then(resolve: (value: ReturnType<Query['run']>) => unknown, reject?: (error: unknown) => unknown) {
-    return Promise.resolve(this.run()).then(resolve, reject);
-  }
-  private run() {
-    if (this.operation === 'upsert') {
-      state.records.set(String(this.payload.user_id), structuredClone(this.payload) as unknown as WebhookRecord);
-      state.writes.push({ filters: this.filters, data: this.payload });
-      return { data: this.payload, error: null };
-    }
-    if (this.operation === 'update' && state.revokeOnWrite) {
+// An in-memory double for the persistence layer. The SQL itself is covered by the
+// database integration tests; here the service's owner/token-hash filtering is exercised.
+vi.mock('../db/repositories/integrationTokens', () => ({
+  findWebhookRow: async (userId: string) => state.records.get(userId) ?? null,
+  replaceWebhookToken: async (userId: string, hash: string) => {
+    const row = { user_id: userId, token_hash: hash, token_created_at: new Date().toISOString(), rows: [], observed_at: null, received_at: null };
+    state.records.set(userId, structuredClone(row) as unknown as WebhookRecord);
+    state.writes.push({ filters: [], data: row });
+  },
+  clearWebhookToken: async (userId: string) => {
+    const row = state.records.get(userId);
+    if (row) Object.assign(row, { token_hash: null, token_created_at: null, rows: [], observed_at: null, received_at: null });
+  },
+  findWebhookOwnerByHash: async (hash: string) => [...state.records.values()].find((row) => row.token_hash === hash)?.user_id ?? null,
+  writeWebhookPayload: async (userId: string, hash: string, payload: unknown) => {
+    if (state.revokeOnWrite) {
       state.revokeOnWrite = false;
       for (const record of state.records.values()) record.token_hash = null;
     }
-    const matches = [...state.records.values()].filter((row) => this.filters.every(([key, value]) => (row as unknown as Record<string, unknown>)[key] === value));
-    if (this.operation === 'update') {
-      state.writes.push({ filters: this.filters, data: this.payload });
-      for (const row of matches) Object.assign(row, this.payload);
-    }
-    return { data: matches[0] ?? null, error: null };
-  }
-}
+    state.writes.push({ filters: [['user_id', userId], ['token_hash', hash]], data: payload });
+    const row = state.records.get(userId);
+    if (!row || row.token_hash !== hash) return false;
+    Object.assign(row, payload);
+    return true;
+  },
+}));
 
 vi.mock('../services/database', () => ({
-  getSupabaseClient: vi.fn(() => ({ from: vi.fn(() => new Query()) })),
   getPreferences: vi.fn(async (userId: string) => state.preferences.get(userId) ?? null),
   upsertPreferences: vi.fn(async (userId: string, updates: Partial<UserPreferences>) => {
     const next = { ...state.preferences.get(userId), ...updates } as UserPreferences;

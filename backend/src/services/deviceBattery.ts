@@ -1,4 +1,4 @@
-import { getSupabaseClient } from './database';
+import { findReportedBatteryPercent } from '../db/repositories/deviceDelivery';
 import { logger } from '../lib/logger';
 import type { DisplayData, DisplayLayout } from '../types/index';
 
@@ -10,10 +10,7 @@ export function layoutHasBattery(layout: DisplayLayout | null | undefined): bool
 /** The charge a device last reported, or undefined if it never reported or the lookup failed. */
 export async function loadReportedBattery(owner: string, deviceId: string): Promise<DisplayData['battery']> {
   try {
-    const { data, error } = await getSupabaseClient().from('device_delivery')
-      .select('battery_percent').eq('device_id', deviceId).eq('owner_id', owner).maybeSingle();
-    if (error) throw error;
-    const percent = data?.battery_percent;
+    const percent = await findReportedBatteryPercent(owner, deviceId);
     return typeof percent === 'number' ? { percent } : undefined;
   } catch (error) {
     // Like any other source, a failed reading stays absent instead of failing the whole frame.

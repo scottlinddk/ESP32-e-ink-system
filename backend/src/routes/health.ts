@@ -45,11 +45,13 @@ router.get('/', (_req: Request, res: Response) => {
 });
 
 /**
- * GET /health/db
- * Checks the database URL, gateway and token. Returns only a coarse reason on
- * failure, never upstream text.
+ * GET /health/ready (alias: /health/db)
+ * Readiness: a real statement against PostgreSQL. 200 {status:"ok"}, or 503 with only a coarse
+ * reason (never server text, host names or credentials). Use this for deploy gating and
+ * monitoring. The container health check stays on GET /health, which never touches the
+ * database, so a database outage does not restart a healthy API process.
  */
-router.get('/db', async (_req: Request, res: Response) => {
+async function readiness(_req: Request, res: Response): Promise<void> {
   const result = await checkDatabase();
   res.setHeader('Cache-Control', 'no-store');
   if (result.ok) {
@@ -57,6 +59,8 @@ router.get('/db', async (_req: Request, res: Response) => {
     return;
   }
   res.status(503).json({ status: 'error', reason: result.reason });
-});
+}
+router.get('/ready', readiness);
+router.get('/db', readiness);
 
 export default router;

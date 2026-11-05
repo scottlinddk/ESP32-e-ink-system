@@ -4,7 +4,6 @@ import type { AddressInfo } from 'net';
 import type { Request, Response, NextFunction } from 'express';
 import app from '../app';
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn() }));
 vi.mock('../middleware/rateLimit', () => ({
   createRateLimiter: vi.fn(() => vi.fn((_req: Request, _res: Response, next: NextFunction) => next())),
 }));
