@@ -3,7 +3,7 @@
 #   docker build -f backend/Dockerfile -t esp32-eink-backend .
 
 # ---- Build ----
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 WORKDIR /app
 
 # Every workspace manifest must exist for `npm ci` to validate the root lockfile.
@@ -21,7 +21,7 @@ COPY backend/api backend/api
 RUN npm run build -w backend
 
 # ---- Runtime ----
-FROM node:22-alpine AS runner
+FROM node:26-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3001
