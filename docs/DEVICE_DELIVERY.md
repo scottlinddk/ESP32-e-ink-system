@@ -1,6 +1,6 @@
 # Unattended display delivery
 
-Apply `backend/src/db/migrations/015_device_delivery.sql` and configure the backend's Supabase **service role** key. The new `device_delivery` table has RLS enabled and denies `anon`/`authenticated` access; tokens and telemetry never become columns on the legacy `devices` table.
+Apply `backend/src/db/migrations/015_device_delivery.sql` and configure the backend's `DATABASE_URL` with the application role from `backend/src/db/roles/app-role.sql` ([DATABASE.md](DATABASE.md)). The new `device_delivery` table has RLS enabled and denies `anon`/`authenticated` access; tokens and telemetry never become columns on the legacy `devices` table.
 
 When upgrading the complete feature set, apply missing migrations in order through `020_device_instant_updates.sql`, including `016_display_timezone.sql`, `017_energy_price_settings.sql` and `018_device_displays.sql`. Earlier installations must also have their preceding migrations. Automated validation uses isolated fixtures and mocked database services; it does not verify production SQL or a physical panel.
 

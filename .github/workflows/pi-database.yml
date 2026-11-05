@@ -1,12 +1,13 @@
-name: Raspberry Pi database migration
+# LEGACY: offline checks for the Raspberry Pi / PostgREST tooling in infra/raspberry-pi.
+# The API no longer talks to PostgREST (it connects with DATABASE_URL), so the PostgREST + Supabase SDK
+# integration step was removed. Schema migrations are now exercised against a real PostgreSQL by ci.yml.
+name: Raspberry Pi tooling (legacy)
 
 on:
   pull_request:
     paths:
       - "infra/raspberry-pi/**"
       - "backend/src/db/migrations/**"
-      - "backend/src/services/database.ts"
-      - "backend/src/__tests__/database-client.test.ts"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/pi-database.yml"
@@ -15,8 +16,6 @@ on:
     paths:
       - "infra/raspberry-pi/**"
       - "backend/src/db/migrations/**"
-      - "backend/src/services/database.ts"
-      - "backend/src/__tests__/database-client.test.ts"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/pi-database.yml"
@@ -53,6 +52,3 @@ jobs:
           for script in infra/raspberry-pi/*.sh infra/raspberry-pi/init/*.sh; do
             bash -n "$script"
           done
-      - name: Disposable PostgreSQL, PostgREST and Supabase SDK integration
-        run: bash infra/raspberry-pi/test-stack.sh
-      # Do not upload the private fixture directory, database files or credentials.

@@ -1,27 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requestConnection, shareDevice } from '../services/sharing';
 
-const db = vi.hoisted(() => ({ userId: null as string | null, connection: null as unknown, inserts: [] as unknown[], updates: [] as unknown[], upserts: [] as unknown[], from: vi.fn() }));
-vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ from: db.from }) }));
-
-function chain(table: string) {
-  const query: Record<string, unknown> = {
-    select: () => query, eq: () => query, limit: () => query, or: async () => ({ data: db.connection ? [db.connection] : [], error: null }),
-    ilike: () => query,
-    maybeSingle: async () => ({ data: table === 'users' ? (db.userId ? { id: db.userId } : null) : table === 'devices' ? { user_id: 'me' } : null, error: null }),
-    insert: async (row: unknown) => { db.inserts.push([table, row]); return { error: null }; },
-    upsert: async (row: unknown) => { db.upserts.push([table, row]); return { error: null }; },
-    update: (row: unknown) => { db.updates.push([table, row]); return query; },
-    then: (resolve: (value: unknown) => void) => resolve({ error: null }),
-  };
-  return query;
-}
+const db = vi.hoisted(() => ({
+  userId: null as string | null, connection: null as unknown, connected: false,
+  inserts: [] as unknown[], accepts: [] as unknown[], shares: [] as unknown[],
+}));
+// Double for the persistence layer. SQL behaviour is covered by database-integration.test.ts.
+vi.mock('../db/pool', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../db/pool')>()),
+  withTransaction: async (work: (tx: unknown) => Promise<unknown>) => work({}),
+}));
+vi.mock('../db/repositories/sharing', () => ({
+  selectUserIdByEmail: async () => db.userId,
+  selectConnectionBetween: async () => db.connection ?? (db.connected ? { id: 'c', status: 'accepted' } : null),
+  insertConnection: async (requester: string, addressee: string) => { db.inserts.push([requester, addressee]); },
+  acceptPendingConnection: async (me: string, id: string) => { db.accepts.push([me, id]); return true; },
+  lockAcceptedConnection: async () => db.connected,
+  selectDeviceOwner: async () => 'me',
+  selectShareRole: async () => null,
+  upsertShare: async (...args: unknown[]) => { db.shares.push(args); },
+}));
 
 describe('requesting a connection', () => {
   beforeEach(() => {
-    vi.stubEnv('SUPABASE_URL', 'https://db.example.org');
-    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-only');
-    db.userId = null; db.connection = null; db.inserts = []; db.updates = []; db.upserts = []; db.from.mockImplementation(chain);
+    db.userId = null; db.connection = null; db.connected = false; db.inserts = []; db.accepts = []; db.shares = [];
   });
 
   it('rejects malformed addresses', async () => {
@@ -33,7 +35,7 @@ describe('requesting a connection', () => {
     expect(db.inserts).toEqual([]);
     db.userId = 'them';
     await expect(requestConnection('me', 'someone@example.org')).resolves.toBeUndefined();
-    expect(db.inserts).toEqual([['user_connections', { requester_id: 'me', addressee_id: 'them' }]]);
+    expect(db.inserts).toEqual([['me', 'them']]);
   });
   it('refuses to connect a user to themselves', async () => {
     db.userId = 'me';
@@ -44,15 +46,23 @@ describe('requesting a connection', () => {
     db.connection = { id: 'c1', requester_id: 'them', addressee_id: 'me', status: 'pending' };
     await requestConnection('me', 'them@example.org');
     expect(db.inserts).toEqual([]);
-    expect(db.updates[0]).toEqual(['user_connections', expect.objectContaining({ status: 'accepted' })]);
+    expect(db.accepts).toEqual([['me', 'c1']]);
   });
 });
 
 describe('sharing a device', () => {
-  beforeEach(() => { db.connection = null; db.upserts = []; db.from.mockImplementation(chain); });
+  beforeEach(() => { db.connection = null; db.connected = false; db.shares = []; });
   it('needs an accepted connection first', async () => {
     await expect(shareDevice('me', '0b3c5c8e-1111-4a4a-9b9b-000000000001', '0b3c5c8e-1111-4a4a-9b9b-000000000002', 'viewer')).rejects.toMatchObject({ statusCode: 403 });
-    expect(db.upserts).toEqual([]);
+    expect(db.shares).toEqual([]);
+  });
+  it('writes the share only while the connection still holds at write time', async () => {
+    db.connection = { id: 'c', status: 'accepted' }; db.connected = false; // disconnected between the check and the write
+    await expect(shareDevice('me', '0b3c5c8e-1111-4a4a-9b9b-000000000001', '0b3c5c8e-1111-4a4a-9b9b-000000000002', 'viewer')).rejects.toMatchObject({ statusCode: 403 });
+    expect(db.shares).toEqual([]);
+    db.connected = true;
+    await shareDevice('me', '0b3c5c8e-1111-4a4a-9b9b-000000000001', '0b3c5c8e-1111-4a4a-9b9b-000000000002', 'editor');
+    expect(db.shares).toHaveLength(1);
   });
   it('accepts only the two roles', async () => {
     await expect(shareDevice('me', 'd', 'c', 'admin')).rejects.toMatchObject({ statusCode: 400 });

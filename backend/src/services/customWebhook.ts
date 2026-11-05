@@ -1,5 +1,9 @@
 import crypto from 'crypto';
-import { getSupabaseClient } from './database';
+import { withSignal } from '../db/pool';
+import {
+  clearWebhookToken, findWebhookOwnerByHash, findWebhookRow, replaceWebhookToken, writeWebhookPayload,
+} from '../db/repositories/integrationTokens';
+import { withCause } from '../db/errors';
 import type { CustomWebhookData, SensorRow, UserPreferences } from '../types';
 
 export interface WebhookRecord {
@@ -12,7 +16,6 @@ export interface WebhookRecord {
 }
 export interface WebhookPayload { rows: SensorRow[]; observed_at: string; received_at: string; }
 export const DEFAULT_WEBHOOK_TTL_MINUTES = 60;
-const FIELDS = 'user_id,token_hash,token_created_at,rows,observed_at,received_at';
 
 export function hashWebhookToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -78,43 +81,34 @@ export function parseWebhookPreferences(body: Record<string, unknown>): Partial<
 }
 
 export async function getWebhookRecord(userId: string, signal?: AbortSignal): Promise<WebhookRecord | null> {
-  let query = getSupabaseClient().from('custom_webhooks').select(FIELDS).eq('user_id', userId);
-  if (signal) query = query.abortSignal(signal);
-  const { data, error } = await query.maybeSingle();
-  if (error) throw new Error('Could not load custom webhook data');
-  return data as WebhookRecord | null;
+  try { return (await withSignal(findWebhookRow(userId), signal)) as WebhookRecord | null; }
+  catch (cause) {
+    throw withCause('Could not load custom webhook data', cause);
+  }
 }
 
 export async function issueWebhookToken(userId: string): Promise<string> {
   const token = `ewh_${crypto.randomBytes(32).toString('hex')}`;
-  const { error } = await getSupabaseClient().from('custom_webhooks').upsert({
-    user_id: userId, token_hash: hashWebhookToken(token), token_created_at: new Date().toISOString(),
-    rows: [], observed_at: null, received_at: null,
-  }, { onConflict: 'user_id' });
-  if (error) throw new Error('Could not create an integration token');
+  try { await replaceWebhookToken(userId, hashWebhookToken(token)); }
+  catch (cause) { throw withCause('Could not create an integration token', cause); }
   return token;
 }
 
 export async function revokeWebhookToken(userId: string): Promise<void> {
-  const { error } = await getSupabaseClient().from('custom_webhooks').update({
-    token_hash: null, token_created_at: null, rows: [], observed_at: null, received_at: null,
-  }).eq('user_id', userId);
-  if (error) throw new Error('Could not revoke the integration token');
+  try { await clearWebhookToken(userId); }
+  catch (cause) { throw withCause('Could not revoke the integration token', cause); }
 }
 
 export async function findWebhookOwner(tokenHash: string): Promise<string | null> {
-  const { data, error } = await getSupabaseClient().from('custom_webhooks').select('user_id').eq('token_hash', tokenHash).maybeSingle();
-  if (error) throw new Error('Could not authenticate the integration token');
-  return data?.user_id ?? null;
+  try { return await findWebhookOwnerByHash(tokenHash); }
+  catch (cause) { throw withCause('Could not authenticate the integration token', cause); }
 }
 
 export async function saveWebhookPayload(userId: string, tokenHash: string, payload: WebhookPayload): Promise<boolean> {
-  // Include the current token in the write filter: revocation/rotation between
+  // The write is filtered on the current token hash: revocation/rotation between
   // lookup and update must not allow an old request to publish another payload.
-  const { data, error } = await getSupabaseClient().from('custom_webhooks').update(payload)
-    .eq('user_id', userId).eq('token_hash', tokenHash).select('user_id').maybeSingle();
-  if (error) throw new Error('Could not store custom webhook data');
-  return !!data;
+  try { return await writeWebhookPayload(userId, tokenHash, payload); }
+  catch (cause) { throw withCause('Could not store custom webhook data', cause); }
 }
 
 export function webhookDisplayData(record: WebhookRecord | null, ttlMinutes: number, now = new Date()): CustomWebhookData {

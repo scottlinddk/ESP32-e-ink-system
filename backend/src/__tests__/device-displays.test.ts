@@ -35,37 +35,43 @@ vi.mock('../services/deviceDelivery', async (original) => ({ ...await original<t
 vi.mock('../lib/logger', () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock('../services/database', () => ({
   getPreferences: vi.fn(), getApiKeys: vi.fn(), upsertUser: vi.fn(), getUserByEmail: vi.fn(), logApiUsage: vi.fn(),
-  getSupabaseClient: () => ({ from: (table: string) => {
-    const filters: Array<[string, unknown]> = []; let operation = ''; let values: Record<string, unknown> = {};
-    const read = () => table === 'devices' ? [...state.owners].map(([id, user_id]) => ({ id, user_id })) : table === 'device_displays' ? [...state.rows.values()] : [];
-    const matches = () => read().filter((row) => filters.every(([key, value]) => (row as Record<string, unknown>)[key] === value));
-    const execute = async () => {
-      if (table === 'device_displays' && state.error) return { data: null, error: state.error };
-      if (operation) {
-        if (state.writeError) return { data: null, error: state.writeError };
-        state.writes++;
-        if (state.transferOnWrite) return { data: null, error: { code: '23503' } };
-        if (operation === 'insert') {
-          if (state.rows.has(String(values.device_id))) return { data: null, error: { code: '23505' } };
-          state.rows.set(String(values.device_id), { ...values });
-          return { data: values, error: null };
-        }
-        const row = matches()[0];
-        if (row) Object.assign(row, values);
-        return { data: row ?? null, error: null };
-      }
-      const row = matches()[0];
-      return { data: row ? structuredClone(row) : null, error: null };
-    };
-    const query = {
-      select: () => query, eq: (key: string, value: unknown) => { filters.push([key, value]); return query; },
-      is: (key: string, value: unknown) => { filters.push([key, value]); return query; },
-      maybeSingle: execute, single: execute,
-      insert: (value: Record<string, unknown>) => { operation = 'insert'; values = value; return query; },
-      update: (value: Record<string, unknown>) => { operation = 'update'; values = value; return query; },
-    };
-    return query;
-  } }),
+}));
+vi.mock('../db/repositories/sharing', () => ({
+  selectDeviceOwner: async (id: string) => state.owners.get(id) ?? null,
+  selectShareRole: async () => null,
+}));
+vi.mock('../db/repositories/deviceDelivery', () => ({
+  isDeviceOwnedBy: async (owner: string, id: string) => state.owners.get(id) === owner,
+  findActiveDelivery: async () => null,
+  findReportedBatteryPercent: async () => null,
+}));
+// In-memory double for the persistence layer: compare-and-swap on (owner, revision), first save is an
+// insert that conflicts with a concurrent one (23505), and the composite foreign key rejects a transfer (23503).
+// The real SQL runs against PostgreSQL in database-integration.test.ts.
+vi.mock('../db/repositories/deviceDisplays', () => ({
+  findDeviceDisplay: async (deviceId: string) => {
+    if (state.error) throw Object.assign(new Error(state.error.message), { code: state.error.code });
+    const row = state.rows.get(deviceId);
+    return row ? structuredClone(row) : null;
+  },
+  insertDeviceDisplay: async (deviceId: string, owner: string, revision: number, values: Record<string, unknown>) => {
+    if (state.writeError) throw Object.assign(new Error(state.writeError.message), { code: state.writeError.code });
+    state.writes++;
+    if (state.transferOnWrite) throw Object.assign(new Error('foreign key'), { code: '23503' });
+    if (state.rows.has(deviceId)) throw Object.assign(new Error('duplicate'), { code: '23505' });
+    const row = { ...values, device_id: deviceId, owner_id: owner, revision };
+    state.rows.set(deviceId, row);
+    return structuredClone(row);
+  },
+  updateDeviceDisplay: async (deviceId: string, expectedOwner: string, expectedRevision: number, newOwner: string, nextRevision: number, values: Record<string, unknown>) => {
+    if (state.writeError) throw Object.assign(new Error(state.writeError.message), { code: state.writeError.code });
+    state.writes++;
+    if (state.transferOnWrite) throw Object.assign(new Error('foreign key'), { code: '23503' });
+    const row = state.rows.get(deviceId);
+    if (!row || row.owner_id !== expectedOwner || row.revision !== expectedRevision) return null;
+    Object.assign(row, values, { owner_id: newOwner, revision: nextRevision });
+    return structuredClone(row);
+  },
 }));
 
 const baseLayout: DisplayLayout = { version: 1, cols: 10, rows: 6, widgets: [{ i: 'energy', x: 0, y: 0, w: 10, h: 6 }] };
@@ -150,7 +156,7 @@ describe('device display persistence', () => {
     expect(state.rows.get(A)).toMatchObject({ display_timezone: 'UTC', refresh_interval_minutes: 5 });
   });
 
-  it.each(['42P01', 'PGRST205'])('keeps unmigrated devices working only for missing-table code %s', async (code) => {
+  it.each(['42P01'])('keeps unmigrated devices working only for missing-table code %s', async (code) => {
     state.error = { code, message: 'missing table' };
     expect(await getDeviceDisplay('owner', A)).toMatchObject({ inherited: true, preferences: { layout: baseLayout } });
     await expect(saveDeviceDisplay('owner', A, { display_timezone: 'UTC' })).rejects.toMatchObject({ statusCode: 503, message: expect.stringContaining('018') });
@@ -191,8 +197,7 @@ describe('device display persistence', () => {
     expect(state.rows.get(B)).not.toHaveProperty('display_language');
   });
 
-  it.each([['PGRST204', "Could not find the 'display_language' column of 'device_displays' in the schema cache"],
-    ['42703', 'column "display_language" of relation "device_displays" does not exist']])(
+  it.each([['42703', 'column "display_language" of relation "device_displays" does not exist']])(
     'asks for migration 025 when the column is missing (%s)', async (code, message) => {
       state.writeError = { code, message };
       await expect(saveDeviceDisplay('owner', A, { display_language: 'da' })).rejects.toMatchObject({ statusCode: 503, message: expect.stringContaining('025') });

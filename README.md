@@ -76,7 +76,7 @@ See the [browser flashing and recovery guide](docs/FIRMWARE_FLASHING.md) and [fi
 
 ## Development
 
-Requires Node.js 20+ and npm, a Supabase project or the Raspberry Pi database below, and a Clerk application. Browser Bluetooth requires a supported browser and a secure context (HTTPS or localhost).
+Requires Node.js 20+ and npm, a PostgreSQL 14+ database, and a Clerk application. Browser Bluetooth requires a supported browser and a secure context (HTTPS or localhost).
 
 Install from the repository root; this is an npm workspace:
 
@@ -86,9 +86,9 @@ cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
 ```
 
-On PowerShell, use `Copy-Item` in place of `cp` if preferred. Fill in Clerk and Supabase settings, plus a 64-character hexadecimal `ENCRYPTION_KEY`. Leave `VITE_API_BASE_URL` empty for local development: Vite proxies `/api/*` to the backend and removes the prefix.
+On PowerShell, use `Copy-Item` in place of `cp` if preferred. Fill in Clerk settings, `DATABASE_URL` (see [Database access](docs/DATABASE.md)) and a 64-character hexadecimal `ENCRYPTION_KEY`. Leave `VITE_API_BASE_URL` empty for local development: Vite proxies `/api/*` to the backend and removes the prefix.
 
-For a new database, apply all SQL files in `backend/src/db/migrations/` in filename order, including both `002_*.sql` files. Existing installations should apply only missing migrations; these files are not all safe to rerun.
+For a new database, apply all SQL files in `backend/src/db/migrations/` in filename order, including both `002_*.sql` files, then create the application role with `backend/src/db/roles/app-role.sql` ([details](docs/DATABASE.md#database-roles)). Existing installations should apply only missing migrations; these files are not all safe to rerun.
 
 ```sh
 npm run dev         # frontend http://localhost:5173; backend http://localhost:3001
@@ -97,15 +97,23 @@ npm test           # backend, frontend Bluetooth, widgets and rendering tests
 npm run build      # frontend and backend production builds
 ```
 
-Tests use mocked external services and do not require account credentials or hardware. The application-check workflow runs type checks, tests and builds for pull requests.
+Tests use mocked external services and do not require account credentials or hardware. The persistence tests additionally run against a real PostgreSQL when `TEST_DATABASE_URL` points at a disposable server (otherwise they are skipped locally; see [Tests](docs/DATABASE.md#tests)). The application-check workflow runs type checks, all tests including those against a PostgreSQL service container, and builds for pull requests.
 
 ## Deployment
 
 The app is built into Docker images by GitHub Actions and deployed with Coolify. See the
-[Coolify deployment guide](docs/COOLIFY_DEPLOYMENT.md) (the previous Vercel setup remains in
-`vercel.json` until cutover is complete).
+[Coolify deployment guide](docs/COOLIFY_DEPLOYMENT.md), which includes the database setup,
+verification and rollback checklist (the previous Vercel setup remains in `vercel.json` until
+cutover is complete). The API connects directly to PostgreSQL with `DATABASE_URL`; see
+[Database access](docs/DATABASE.md) for the persistence design, the least-privilege application
+role and the environment variables.
 
-## Raspberry Pi database
+## Raspberry Pi database (historical)
+
+> **Historical.** This describes the earlier plan of running PostgreSQL behind a PostgREST gateway on
+> a Raspberry Pi. It is not the current deployment path: the API no longer uses a REST gateway or
+> `SUPABASE_URL`. Use the [Coolify guide](docs/COOLIFY_DEPLOYMENT.md) and
+> [Database access](docs/DATABASE.md).
 
 To move database storage to a Raspberry Pi already running Investor, use the
 [migration plan and runbook](docs/RASPBERRY_PI_DATABASE_MIGRATION.md). The
@@ -127,7 +135,7 @@ source database exists.
 | Directory | Purpose |
 |---|---|
 | `frontend/` | React 19, Vite, TanStack Query, Clerk, dashboard and browser Bluetooth |
-| `backend/` | Express API, Supabase-compatible database persistence, source integrations, BMP/raw rendering |
+| `backend/` | Express API, direct PostgreSQL persistence (`pg`), source integrations, BMP/raw rendering |
 | `packages/widgets/` | Reusable widget definitions and provider adapters |
 | `packages/rendering/` | Layout and typography utilities |
 | `packages/types/` | Shared widget contracts |

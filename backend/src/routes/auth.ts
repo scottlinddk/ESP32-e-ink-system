@@ -11,7 +11,7 @@ import { createClerkClient } from '@clerk/backend';
  *
  * /api/auth/login:
  *   post:
- *     summary: Sync Clerk user into Supabase
+ *     summary: Sync Clerk user into the database
  *     description: Called after Clerk authentication to upsert the user in the database
  *     tags: [Auth]
  *     security:
@@ -81,7 +81,7 @@ const router = Router();
 
 /**
  * POST /api/auth/login
- * Called after Clerk auth to sync user into Supabase
+ * Called after Clerk auth to sync user into the database
  */
 router.post(
   '/login',

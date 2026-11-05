@@ -1,7 +1,13 @@
 import type { UserPreferences } from '../types';
-import { getPreferences, getSupabaseClient } from './database';
 import { DEFAULT_PREFS } from './displayData';
-import { assertDeviceOwner, DeviceNotFound } from './deviceDelivery';
+import { DeviceNotFound, isMissingColumn, isMissingTable, pgCode } from '../db/errors';
+import type { Queryable } from '../db/pool';
+import { isDeviceOwnedBy } from '../db/repositories/deviceDelivery';
+import { findPreferences } from '../db/repositories/accounts';
+import { getPreferences } from './database';
+import {
+  findDeviceDisplay, insertDeviceDisplay, updateDeviceDisplay, type DeviceDisplayRow as StoredDisplayRow,
+} from '../db/repositories/deviceDisplays';
 import { createError } from '../middleware/errorHandler';
 import { parseDisplayTemplate } from '../utils/displayTemplates';
 import { displayLanguageOrDefault, parseDisplayLanguage } from '../utils/displayLanguage';
@@ -57,24 +63,27 @@ export function parseDeviceDisplayUpdates(input: unknown): Partial<DevicePresent
   } catch (error) { throw createError((error as Error).message, 400); }
 }
 
-async function readDeviceDisplay(owner: string, deviceId: string) {
-  await assertDeviceOwner(owner, deviceId);
-  const [saved, result] = await Promise.all([
-    getPreferences(owner),
-    getSupabaseClient().from('device_displays').select('*').eq('device_id', deviceId).maybeSingle(),
-  ]);
+/** `db` lets a caller read on the same transaction it later writes in. */
+async function readDeviceDisplay(owner: string, deviceId: string, db?: Queryable) {
+  if (!(await isDeviceOwnedBy(owner, deviceId, db))) throw new DeviceNotFound('Device not found');
+  const loadDisplay = () => findDeviceDisplay(deviceId, db).then((row) => ({ row, error: null as unknown }), (error: unknown) => ({ row: null, error }));
+  const loadPreferences = () => (db ? findPreferences(owner, db) : getPreferences(owner));
+  // A single transaction client runs one statement at a time; the pool can overlap them.
+  const [saved, found] = db
+    ? [await loadPreferences(), await loadDisplay()] as const
+    : await Promise.all([loadPreferences(), loadDisplay()]);
   // A rolling deployment may serve old devices before migration 018 is applied.
-  // Only an absent table/schema-cache entry preserves legacy delivery; outages fail.
-  const missingTable = result.error?.code === '42P01' || result.error?.code === 'PGRST205';
-  if (result.error && !missingTable) throw result.error;
+  // Only an absent table preserves legacy delivery; outages fail.
+  const missingTable = isMissingTable(found.error);
+  if (found.error && !missingTable) throw found.error;
   const base = saved ?? DEFAULT_PREFS;
-  const row = result.data as DeviceDisplayRow | null;
+  const row = found.row as DeviceDisplayRow | null;
   const preferences = row?.owner_id === owner ? { ...base, ...presentation(row) } : { ...base, active_layout_id: null };
   return { preferences, inherited: row?.owner_id !== owner, row, missingTable };
 }
 
-export async function getDeviceDisplay(owner: string, deviceId: string): Promise<DeviceDisplaySettings> {
-  const { preferences, inherited } = await readDeviceDisplay(owner, deviceId);
+export async function getDeviceDisplay(owner: string, deviceId: string, db?: Queryable): Promise<DeviceDisplaySettings> {
+  const { preferences, inherited } = await readDeviceDisplay(owner, deviceId, db);
   return { preferences, inherited };
 }
 
@@ -89,33 +98,36 @@ export async function resolveDevicePreferences(owner: string, deviceId?: string)
   return preferences;
 }
 
-export async function saveDeviceDisplay(owner: string, deviceId: string, input: unknown): Promise<DeviceDisplaySettings> {
+/**
+ * Saves presentation settings with compare-and-swap on the stored revision. Pass the
+ * transaction client when the save is one step of a larger change that must succeed or fail whole.
+ */
+export async function saveDeviceDisplay(owner: string, deviceId: string, input: unknown, db?: Queryable): Promise<DeviceDisplaySettings> {
   const updates = parseDeviceDisplayUpdates(input);
-  const current = await readDeviceDisplay(owner, deviceId);
+  const current = await readDeviceDisplay(owner, deviceId, db);
   if (current.missingTable) throw createError('Apply database migration 018 before saving device display settings.', 503);
   const next = { ...presentation(current.preferences), ...updates };
   if (next.active_layout_id && !next.display_schedule?.pages.some((page) => page.id === next.active_layout_id)) {
     throw createError('Select another saved layout before removing the active layout.', 400);
   }
-  const db = getSupabaseClient();
   const revision = (current.row?.revision ?? 0) + 1;
-  const values: Record<string, unknown> = { ...(current.inherited ? next : updates), owner_id: owner, revision, updated_at: new Date().toISOString() };
+  const values: Record<string, unknown> = { ...(current.inherited ? next : updates) };
   // Written only when chosen, so saving any other setting still works before migration 025.
   if (updates.display_language === undefined) delete values.display_language;
   // Compare-and-swap protects partial updates and reassignment snapshots. A
   // concurrent first save is a conflict, never an upsert over the other writer.
-  const result = current.row
-    ? await db.from('device_displays').update(values).eq('device_id', deviceId)
-      .eq('owner_id', current.row.owner_id).eq('revision', current.row.revision).select('*').maybeSingle()
-    : await db.from('device_displays').insert({ ...values, device_id: deviceId }).select('*').single();
-  if (result.error?.code === '23505' || (!result.error && !result.data)) {
-    throw createError('Device settings changed. Reload them and try again.', 409);
+  let saved: StoredDisplayRow | null;
+  try {
+    saved = current.row
+      ? await updateDeviceDisplay(deviceId, current.row.owner_id, current.row.revision, owner, revision, values, db)
+      : await insertDeviceDisplay(deviceId, owner, revision, values, db);
+  } catch (error) {
+    if (pgCode(error) === '23505') throw createError('Device settings changed. Reload them and try again.', 409);
+    // The composite foreign key checks ownership atomically with this write.
+    if (pgCode(error) === '23503') throw new DeviceNotFound('Device not found');
+    if (isMissingColumn(error, /display_language/)) throw createError('Apply database migration 025 before changing the display language.', 503);
+    throw error;
   }
-  // The composite foreign key checks ownership atomically with this write.
-  if (result.error?.code === '23503') throw new DeviceNotFound('Device not found');
-  if (result.error && ['PGRST204', '42703'].includes(result.error.code) && /display_language/.test(result.error.message)) {
-    throw createError('Apply database migration 025 before changing the display language.', 503);
-  }
-  if (result.error) throw result.error;
-  return { preferences: { ...current.preferences, ...presentation(result.data as DeviceDisplayRow) }, inherited: false };
+  if (!saved) throw createError('Device settings changed. Reload them and try again.', 409);
+  return { preferences: { ...current.preferences, ...presentation(saved as DeviceDisplayRow) }, inherited: false };
 }

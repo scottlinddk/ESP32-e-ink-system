@@ -28,35 +28,94 @@ vi.mock('../middleware/auth', () => ({ requireAuth: (req: express.Request, res: 
 vi.mock('../routes/preferences-helpers', () => ({ getOrCreateUserFromClerk: async (id: string) => id }));
 vi.mock('../lib/logger', () => ({ logger: { error: vi.fn(), warn: vi.fn() } }));
 vi.mock('../services/displayData', async (original) => ({ ...await original<typeof import('../services/displayData')>(), buildDisplayData: vi.fn() }));
-vi.mock('../services/database', () => ({ getApiKeys: vi.fn(), getPreferences: vi.fn(), getSupabaseClient: () => ({ from: (table: string) => {
-  const filters: Array<[string, unknown]> = []; const present: string[] = []; let operation = ''; let update: Record<string, unknown> = {}; let selected = '*';
-  const rows = () => table === 'devices' ? [...state.owners].map(([id, user_id]) => ({ id, user_id })) : table === 'device_delivery' ? [...state.deliveries.values()] : [];
-  const matches = () => rows().filter((row) => filters.every(([key, value]) => (row as Record<string, unknown>)[key] === value)
-    && present.every((key) => (row as Record<string, unknown>)[key] != null));
-  const execute = async () => {
-    if (table === 'device_delivery' && state.storageError) return { data: null, error: { code: state.storageError, message: 'Database unavailable' } };
-    if (table === 'device_delivery' && state.instantMissing && 'instant_updates' in update) {
-      return { data: null, error: { code: '42703', message: 'column device_delivery.instant_updates does not exist' } };
-    }
-    // A missing column never fails select('*'); a permission error always does.
-    const permissionError = state.schemaError && !['42703', 'PGRST204'].includes(state.schemaError);
-    if (table === 'device_delivery' && state.schemaError && (selected.includes('refresh_') || (permissionError && selected === '*') || Object.keys(update).some((key) => key.startsWith('refresh_')))) {
-      return { data: null, error: { code: state.schemaError, message: 'Column refresh_request_id is missing' } };
-    }
-    if (operation === 'upsert') state.deliveries.set(String(update.device_id), { ...state.deliveries.get(String(update.device_id)), ...update });
-    if (operation === 'update') for (const row of matches()) Object.assign(row, update);
-    const row = matches()[0]; return { data: row ? structuredClone(row) : null, error: null };
+vi.mock('../services/database', () => ({ getApiKeys: vi.fn(), getPreferences: vi.fn() }));
+vi.mock('../db/pool', async (original) => ({
+  ...await original<typeof import('../db/pool')>(),
+  withTransaction: async (work: (tx: unknown) => Promise<unknown>) => work({}),
+}));
+vi.mock('../db/repositories/deviceDisplays', () => ({ findDeviceDisplay: async () => null }));
+
+// In-memory double for the persistence layer. It mirrors the SQL semantics that matter here:
+// every statement is scoped by device AND owner, credentials by hash and revocation, and
+// columns from migrations 019/020 may be absent. The real SQL runs in database-integration.test.ts.
+vi.mock('../db/repositories/deviceDelivery', () => {
+  const dbError = (code: string, message: string) => Object.assign(new Error(message), { code });
+  const refreshKeys = ['refresh_request_id', 'refresh_requested_at', 'refresh_applied_at'];
+  const storage = () => { if (state.storageError) throw dbError(state.storageError, 'Database unavailable'); };
+  const needsRefreshColumns = () => { if (state.schemaError) throw dbError(state.schemaError, 'column "refresh_request_id" does not exist'); };
+  // SELECT * never fails on a missing column, but a permission error always does.
+  const readable = (row: Record<string, unknown> | undefined) => {
+    storage();
+    if (state.schemaError && state.schemaError !== '42703') throw dbError(state.schemaError, 'permission denied');
+    if (!row) return null;
+    const copy = structuredClone(row);
+    if (state.schemaError === '42703') for (const key of [...refreshKeys, 'instant_updates']) delete copy[key];
+    return copy;
   };
-  const query = {
-    select: (columns = '*') => { selected = columns; return query; }, eq: (key: string, value: unknown) => { filters.push([key, value]); return query; }, is: (key: string, value: unknown) => { filters.push([key, value]); return query; },
-    not: (key: string, operator: string, value: unknown) => { expect([operator, value]).toEqual(['is', null]); present.push(key); return query; },
-    maybeSingle: execute,
-    upsert: (value: Record<string, unknown>) => { operation = 'upsert'; update = value; return query; },
-    update: (value: Record<string, unknown>) => { operation = 'update'; update = value; return query; },
-    then: (resolve: (result: Awaited<ReturnType<typeof execute>>) => unknown) => execute().then(resolve),
+  const find = (predicate: (row: Record<string, unknown>) => boolean) => [...state.deliveries.values()].find(predicate);
+  const active = (owner: string, id: string, hash: string) => find((row) => row.device_id === id && row.owner_id === owner && row.token_hash === hash && row.revoked_at === null);
+  return {
+    isDeviceOwnedBy: async (owner: string, id: string) => state.owners.get(id) === owner,
+    findDelivery: async (id: string) => readable(find((row) => row.device_id === id)),
+    findOwnedDelivery: async (owner: string, id: string) => readable(find((row) => row.device_id === id && row.owner_id === owner)),
+    findActiveDelivery: async (owner: string, id: string, hash: string) => readable(active(owner, id, hash)),
+    findOwnerByDeviceToken: async (id: string, hash: string) => {
+      storage();
+      const row = find((entry) => entry.device_id === id && entry.token_hash === hash && entry.revoked_at === null);
+      return row && state.owners.get(id) === row.owner_id ? String(row.owner_id) : null;
+    },
+    upsertDeliveryToken: async (owner: string, id: string, hash: string, includeRefresh: boolean) => {
+      storage();
+      if (includeRefresh) needsRefreshColumns();
+      if (state.owners.get(id) !== owner) return false;
+      const reset = { device_id: id, owner_id: owner, token_hash: hash, rotated_at: new Date().toISOString(), revoked_at: null, last_seen_at: null,
+        firmware_version: null, battery_percent: null, rssi: null, last_applied_hash: null,
+        ...(includeRefresh ? { refresh_request_id: null, refresh_requested_at: null, refresh_applied_at: null } : {}) };
+      state.deliveries.set(id, { ...state.deliveries.get(id), ...reset });
+      return true;
+    },
+    revokeDelivery: async (owner: string, id: string, includeRefresh: boolean) => {
+      storage();
+      if (includeRefresh) needsRefreshColumns();
+      const row = find((entry) => entry.device_id === id && entry.owner_id === owner);
+      if (row) Object.assign(row, { token_hash: null, revoked_at: new Date().toISOString(), ...(includeRefresh ? { refresh_request_id: null, refresh_requested_at: null, refresh_applied_at: null } : {}) });
+    },
+    setRefreshRequest: async (owner: string, id: string, requestId: string, hash: string) => {
+      storage(); needsRefreshColumns();
+      const row = active(owner, id, hash);
+      if (!row) return null;
+      Object.assign(row, { refresh_request_id: requestId, refresh_requested_at: new Date().toISOString(), refresh_applied_at: null });
+      return structuredClone(row);
+    },
+    setInstantUpdatesFlag: async (owner: string, id: string, enabled: boolean) => {
+      storage();
+      if (state.instantMissing) throw dbError('42703', 'column "instant_updates" of relation "device_delivery" does not exist');
+      const row = find((entry) => entry.device_id === id && entry.owner_id === owner && entry.token_hash != null && entry.revoked_at === null);
+      if (!row) return null;
+      row.instant_updates = enabled;
+      return structuredClone(row);
+    },
+    updateTelemetry: async (owner: string, id: string, hash: string, telemetry: Record<string, unknown>) => {
+      storage();
+      const row = active(owner, id, hash);
+      if (!row) return false;
+      for (const [key, value] of Object.entries(telemetry)) if (value !== undefined) row[key] = value;
+      row.last_seen_at = new Date().toISOString();
+      return true;
+    },
+    acknowledgeRefresh: async (owner: string, id: string, hash: string, requestId: string) => {
+      storage(); needsRefreshColumns();
+      const row = active(owner, id, hash);
+      if (!row || row.refresh_request_id !== requestId || row.refresh_applied_at != null) return false;
+      row.refresh_applied_at = new Date().toISOString();
+      return true;
+    },
+    findReportedBatteryPercent: async (owner: string, id: string) => {
+      const row = find((entry) => entry.device_id === id && entry.owner_id === owner);
+      return typeof row?.battery_percent === 'number' ? row.battery_percent : null;
+    },
   };
-  return query;
-} }) }));
+});
 
 describe('authenticated device delivery', () => {
   let server: Server; let base: string;
@@ -125,16 +184,16 @@ describe('authenticated device delivery', () => {
     const invalid = await frame(token, { 'X-Device-Width': '99999', 'X-Device-Height': 'abc' });
     expect(invalid.headers.get('x-display-width')).toBe('250');
   });
-  it('logs a safe gateway reason when frame preferences receive an HTML proxy error', async () => {
+  it('logs a safe reason when frame preferences cannot reach the database', async () => {
     const token = await create();
-    vi.mocked(getPreferences).mockRejectedValueOnce({ message: `<html><title>404 Not Found</title><body>private upstream detail ${token}</body></html>` });
+    vi.mocked(getPreferences).mockRejectedValueOnce(Object.assign(new Error(`connect ECONNREFUSED 10.0.0.5:5432 private upstream detail ${token}`), { code: 'ECONNREFUSED' }));
     const response = await frame(token);
     expect(response.status).toBe(503);
     expect(response.headers.get('retry-after')).toBe('60');
     expect(await response.json()).toEqual({ error: 'Unable to render display frame' });
     expect(logger.error).toHaveBeenCalledWith(
-      { reason: 'gateway_error', hint: DATABASE_FAILURE_HINTS.gateway_error }, 'Device frame request failed');
-    expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toMatch(/private upstream detail|<html>|einkd_/);
+      { reason: 'unreachable', hint: DATABASE_FAILURE_HINTS.unreachable }, 'Device frame request failed');
+    expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toMatch(/private upstream detail|10\.0\.0\.5|einkd_/);
     expect((await heartbeat(token)).status).toBe(200);
   });
   it('validates reports and returns reported telemetry to the owner', async () => {
@@ -349,7 +408,7 @@ describe('authenticated device delivery', () => {
     expect(await rejected.json()).toMatchObject({ error: expect.stringContaining('020') });
   });
 
-  it.each(['42703', 'PGRST204'])('preserves legacy tokens, frames and heartbeats before migration019 (%s)', async (code) => {
+  it.each(['42703'])('preserves legacy tokens, frames and heartbeats before migration019 (%s)', async (code) => {
     state.schemaError = code;
     const token = await create(); expect((await frame(token)).status).toBe(200);
     expect((await heartbeat(token, { last_applied_hash: null })).status).toBe(200);

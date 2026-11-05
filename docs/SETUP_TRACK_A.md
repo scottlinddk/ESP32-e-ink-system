@@ -1,12 +1,17 @@
 # Setup Guide — Track A: Self-Hosted / Development
 
+> **Partly historical.** The original version of this guide used a Supabase project. The API now
+> connects directly to PostgreSQL with `DATABASE_URL`; the current database setup is in
+> [DATABASE.md](DATABASE.md) and the production path in [COOLIFY_DEPLOYMENT.md](COOLIFY_DEPLOYMENT.md).
+> Sections 2 and 3 below are updated; the rest is unchanged.
+
 This guide covers running the ESP32 Display SaaS stack locally for development.
 
 ## Prerequisites
 
 - Node.js 20+
 - npm 10+
-- A [Supabase](https://supabase.com) project
+- A PostgreSQL 14+ database you can create roles in (a local container is fine)
 - A [Clerk](https://clerk.com) application
 - (Optional) OpenWeatherMap API key
 - (Optional) NewsAPI key
@@ -36,8 +41,8 @@ Edit `backend/.env`:
 | Variable | Description |
 |---|---|
 | `PORT` | Port to run the API on (default: 3001) |
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (bypasses RLS) |
+| `DATABASE_URL` | `postgresql://eink_app:<password>@localhost:5432/eink` (the application role, see below) |
+| `DATABASE_SSL` | `disable` for a local database; leave unset (`verify-full`) for a TLS server |
 | `CLERK_SECRET_KEY` | Clerk secret key (starts with `sk_`) |
 | `OPENWEATHERMAP_API_KEY` | Fallback OpenWeatherMap key (optional) |
 | `NEWS_API_KEY` | Fallback NewsAPI key (optional) |
@@ -57,10 +62,16 @@ Edit `frontend/.env`:
 
 ## 3. Run the database migration
 
-1. Open your Supabase project dashboard
-2. Navigate to **SQL Editor**
-3. Paste the contents of `backend/src/db/migrations/001_initial.sql`
-4. Click **Run**
+As the database owner, apply every file in `backend/src/db/migrations/` in filename order (both
+`002_*.sql` files), then create the application role and give it a password:
+
+```bash
+psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/src/db/roles/app-role.sql
+psql "$ADMIN_DATABASE_URL" -c '\password eink_app'
+```
+
+The migrations expect the roles `anon`, `authenticated` and `service_role` to exist (empty `NOLOGIN`
+roles are enough). See [DATABASE.md](DATABASE.md#what-the-schema-still-requires).
 
 ## 4. Configure Clerk
 
@@ -113,8 +124,9 @@ cd frontend && npm run typecheck
 ### "CLERK_SECRET_KEY environment variable is not set"
 Make sure your `.env` file is in the `backend/` directory and contains `CLERK_SECRET_KEY`.
 
-### "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set"
-Check that your `.env` has both `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
+### "DATABASE_URL environment variable is required" or a 503 from `/health/ready`
+Check `DATABASE_URL` and `DATABASE_SSL` in `backend/.env`. `GET /health/ready` returns a coarse reason
+(`authentication_failed`, `tls_error`, `unreachable`, ...); the API log has a hint. See [DATABASE.md](DATABASE.md).
 
 ### CORS errors in the browser
 Make sure `FRONTEND_URL` in `backend/.env` matches the URL your frontend is running on.

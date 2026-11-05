@@ -11,25 +11,31 @@ vi.mock('../middleware/auth', () => ({ requireAuth: (req: express.Request, res: 
   req.clerkUserId = 'clerk-owner'; next();
 } }));
 vi.mock('../routes/preferences-helpers', () => ({ getOrCreateUserFromClerk: vi.fn().mockResolvedValue('owner') }));
-vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ from: (table: string) => ({
-  upsert: (row: { user_id: string; provider: string; api_key: string }) => {
+// In-memory double for the persistence layer: the service still encrypts before storing.
+vi.mock('../db/repositories/accounts', () => ({
+  upsertApiKeyRow: async (userId: string, provider: string, apiKey: string) => {
     if (db.fail) throw new Error('private https://example.org/secret-token');
-    if (table === 'api_keys') db.row = row; else db.prefs = row;
-    return { select: () => ({ single: async () => ({ data: row, error: null }) }) };
+    db.row = { user_id: userId, provider, api_key: apiKey };
+    return { id: 'key', created_at: '2026-01-01T00:00:00Z', ...db.row };
   },
-  select: () => ({ eq: async (_key: string, owner: string) => ({ data: db.row?.user_id === owner ? [db.row] : [], error: null }) }),
-  delete: () => ({ eq: (_key: string, owner: string) => ({ eq: async (_key2: string, provider: string) => {
+  upsertPreferenceRow: async (userId: string, prefs: Record<string, unknown>) => {
+    if (db.fail) throw new Error('private https://example.org/secret-token');
+    db.prefs = { user_id: userId, ...prefs };
+    return db.prefs;
+  },
+  findPreferences: async () => null,
+  listApiKeyRows: async (owner: string) => (db.row?.user_id === owner ? [{ id: 'key', created_at: '2026-01-01T00:00:00Z', ...db.row }] : []),
+  deleteApiKeyRow: async (owner: string, provider: string) => {
     if (db.row?.user_id === owner && db.row.provider === provider) db.row = null;
-    return { error: null };
-  } }) }),
-}) }) }));
+  },
+}));
 
 describe('private calendar configuration', () => {
   let server: Server;
   let base: string;
   const secret = 'https://calendar.example.org/private/secret-token?access=private-access';
   beforeAll(async () => {
-    vi.stubEnv('SUPABASE_URL', 'https://db.example.org'); vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-only'); vi.stubEnv('ENCRYPTION_KEY', 'ab'.repeat(32));
+    vi.stubEnv('ENCRYPTION_KEY', 'ab'.repeat(32));
     const app = express(); app.use(express.json()); app.use('/preferences', router);
     await new Promise<void>((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/preferences`;

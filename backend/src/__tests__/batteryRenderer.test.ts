@@ -5,15 +5,13 @@ import { batteryPercent, fillWidth } from '../utils/batteryRenderer';
 import { parseDisplayLayout } from '../utils/layoutValidation';
 import { layoutHasBattery, withReportedBattery } from '../services/deviceBattery';
 
-const query = vi.hoisted(() => ({ result: { data: null as { battery_percent: number | null } | null, error: null as Error | null }, from: vi.fn() }));
-vi.mock('../services/database', () => ({
-  getSupabaseClient: () => ({
-    from: (table: string) => {
-      query.from(table);
-      const chain = { select: () => chain, eq: () => chain, maybeSingle: async () => query.result };
-      return chain;
-    },
-  }),
+const query = vi.hoisted(() => ({ result: { percent: null as number | null, error: null as Error | null }, from: vi.fn() }));
+vi.mock('../db/repositories/deviceDelivery', () => ({
+  findReportedBatteryPercent: async (owner: string, deviceId: string) => {
+    query.from(owner, deviceId);
+    if (query.result.error) throw query.result.error;
+    return query.result.percent;
+  },
 }));
 
 const COL_PX = 25;
@@ -135,7 +133,7 @@ describe('battery in the status bar', () => {
 });
 
 describe('reported battery lookup', () => {
-  beforeEach(() => { query.from.mockClear(); query.result = { data: { battery_percent: 17 }, error: null }; });
+  beforeEach(() => { query.from.mockClear(); query.result = { percent: 17, error: null }; });
 
   it('detects the widget in a layout', () => {
     expect(layoutHasBattery(layout(2, 1))).toBe(true);
@@ -156,9 +154,9 @@ describe('reported battery lookup', () => {
   });
 
   it('leaves the reading absent when none was reported or the lookup fails', async () => {
-    query.result = { data: { battery_percent: null }, error: null };
+    query.result = { percent: null, error: null };
     expect(await withReportedBattery(base, layout(2, 1), 'owner', 'device')).toBe(base);
-    query.result = { data: null, error: new Error('database down') };
+    query.result = { percent: null, error: new Error('database down') };
     expect(await withReportedBattery(base, layout(2, 1), 'owner', 'device')).toBe(base);
   });
 });

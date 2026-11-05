@@ -34,7 +34,7 @@ Check if the API is running. No authentication required.
 
 ### POST /api/auth/login
 
-Sync the authenticated Clerk user into the Supabase database. Call this after sign-in.
+Sync the authenticated Clerk user into the database. Call this after sign-in.
 
 **Headers:** `Authorization: Bearer <clerk_jwt>`
 
@@ -301,7 +301,7 @@ Check for available OTA firmware updates for a device.
 
 **Headers:** `X-License-Key: <device_license_key>`
 
-**Path parameter:** `userId` — the Supabase user ID owning the device
+**Path parameter:** `userId` — the database user ID owning the device
 
 **Response 200:**
 ```json
@@ -321,7 +321,7 @@ Download the requested firmware binary.
 
 **Headers:** `X-License-Key: <device_license_key>`
 
-**Path parameter:** `userId` — the Supabase user ID owning the device
+**Path parameter:** `userId` — the database user ID owning the device
 
 **Query parameters:**
 - `version` (optional) — firmware version to download; latest active release is used if omitted

@@ -1,105 +1,84 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Request, Response } from 'express';
-import {
-  checkDatabase,
-  classifyDatabaseError,
-  resetDatabaseHealthCache,
-} from '../services/databaseHealth';
-import { getSupabaseClient } from '../services/database';
+import { checkDatabase, classifyDatabaseError, resetDatabaseHealthCache } from '../services/databaseHealth';
+import { DatabaseConfigError } from '../db/config';
+import { pingDatabase } from '../db/pool';
 import { errorHandler } from '../middleware/errorHandler';
 
-vi.mock('../services/database', () => ({ getSupabaseClient: vi.fn() }));
+vi.mock('../db/pool', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../db/pool')>()),
+  pingDatabase: vi.fn(),
+}));
 
-const CHALLENGE = '<!DOCTYPE html><html lang="en-US"><head><title>Just a moment...</title>';
-const GATEWAY_404 = '<html><head><title>404 Not Found</title></head><body>nginx</body></html>';
-
-function clientReturning(result: { error: unknown } | Error) {
-  const abortSignal = vi.fn(() =>
-    result instanceof Error ? Promise.reject(result) : Promise.resolve(result)
-  );
-  const limit = vi.fn(() => ({ abortSignal }));
-  const select = vi.fn(() => ({ limit }));
-  vi.mocked(getSupabaseClient).mockReturnValue({ from: vi.fn(() => ({ select })) } as never);
-}
+const pgError = (code: string, message: string) => Object.assign(new Error(message), { code });
 
 describe('classifyDatabaseError', () => {
   it.each([
-    [{ code: 'PGRST301', message: 'JWT cryptographic operation failed' }, 'token_rejected'],
-    [{ code: 'PGRST301', message: 'No suitable key or wrong key type' }, 'token_rejected'],
-    [{ code: 'PGRST303', message: 'JWT expired' }, 'token_rejected'],
-    [{ message: CHALLENGE }, 'gateway_challenge'],
-    [{ message: '<html><script src="/cdn-cgi/challenge-platform/h/g/orchestrate/chl_page/v1"></script></html>' }, 'gateway_challenge'],
-    [{ message: GATEWAY_404 }, 'gateway_error'],
-    [{ message: '<!DOCTYPE html><title>502 Bad Gateway</title>' }, 'gateway_error'],
-    [{ message: 'TypeError: fetch failed' }, 'unreachable'],
-    [new Error('connect ECONNREFUSED 127.0.0.1:3080'), 'unreachable'],
-  ])('classifies %j', (error, expected) => {
+    [pgError('28P01', 'password authentication failed for user "eink_app"'), 'authentication_failed'],
+    [pgError('28000', 'no pg_hba.conf entry for host'), 'authentication_failed'],
+    [pgError('ECONNREFUSED', 'connect ECONNREFUSED 10.0.0.5:5432'), 'unreachable'],
+    [pgError('ENOTFOUND', 'getaddrinfo ENOTFOUND postgres'), 'unreachable'],
+    [pgError('EAI_AGAIN', 'getaddrinfo EAI_AGAIN postgres'), 'unreachable'],
+    [pgError('57P01', 'terminating connection due to administrator command'), 'unreachable'],
+    [pgError('57P03', 'the database system is starting up'), 'unreachable'],
+    [pgError('08006', 'connection failure'), 'unreachable'],
+    [new Error('Connection terminated unexpectedly'), 'unreachable'],
+    [new Error('Cannot use a pool after calling end on the pool'), 'unreachable'],
+    [pgError('53300', 'sorry, too many clients already'), 'too_many_connections'],
+    [pgError('57014', 'canceling statement due to statement timeout'), 'timeout'],
+    [pgError('ETIMEDOUT', 'connect ETIMEDOUT 10.0.0.5:5432'), 'timeout'],
+    [new Error('timeout exceeded when trying to connect'), 'timeout'],
+    [pgError('DEPTH_ZERO_SELF_SIGNED_CERT', 'self-signed certificate'), 'tls_error'],
+    [pgError('SELF_SIGNED_CERT_IN_CHAIN', 'self-signed certificate in certificate chain'), 'tls_error'],
+    [pgError('UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'unable to verify the first certificate'), 'tls_error'],
+    [pgError('ERR_TLS_CERT_ALTNAME_INVALID', "Hostname/IP does not match certificate's altnames"), 'tls_error'],
+    [new Error('The server does not support SSL connections'), 'tls_error'],
+    [new DatabaseConfigError('DATABASE_URL environment variable is required.'), 'not_configured'],
+  ])('classifies %s', (error, expected) => {
     expect(classifyDatabaseError(error)).toBe(expected);
   });
 
   it.each([
-    [{ code: '23505', message: 'duplicate key value violates unique constraint' }],
-    [{ code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' }],
+    [pgError('23505', 'duplicate key value violates unique constraint')],
+    [pgError('23503', 'foreign key violation')],
+    [pgError('42P01', 'relation "users" does not exist')],
+    [pgError('42703', 'column does not exist')],
+    [pgError('22P02', 'invalid input syntax for type uuid')],
     [new Error('Preferences must be an object')],
-    ['a string'],
-    [null],
-    [undefined],
-  ])('leaves ordinary errors alone: %j', (error) => {
+    [new Error('unable to verify the first certificate of an unrelated upstream')],
+    ['a string'], [null], [undefined],
+  ])('leaves ordinary errors alone: %s', (error) => {
     expect(classifyDatabaseError(error)).toBeNull();
   });
 });
 
 describe('checkDatabase', () => {
-  beforeEach(() => {
-    resetDatabaseHealthCache();
-    vi.mocked(getSupabaseClient).mockReset();
-  });
+  beforeEach(() => { resetDatabaseHealthCache(); vi.mocked(pingDatabase).mockReset(); });
 
-  it('reports ok when the read succeeds', async () => {
-    clientReturning({ error: null });
+  it('reports ok when a statement succeeds', async () => {
+    vi.mocked(pingDatabase).mockResolvedValue();
     expect(await checkDatabase()).toEqual({ ok: true });
   });
 
-  it('reports a rejected token', async () => {
-    clientReturning({ error: { code: 'PGRST301', message: 'JWT cryptographic operation failed' } });
-    expect(await checkDatabase()).toEqual({ ok: false, reason: 'token_rejected' });
-  });
-
-  it('reports a bot-protection challenge', async () => {
-    clientReturning({ error: { message: CHALLENGE } });
-    expect(await checkDatabase()).toEqual({ ok: false, reason: 'gateway_challenge' });
-  });
-
-  it('distinguishes an HTML proxy error from a bot-protection challenge', async () => {
-    clientReturning({ error: { message: GATEWAY_404 } });
-    expect(await checkDatabase()).toEqual({ ok: false, reason: 'gateway_error' });
-  });
-
-  it('reports an unreachable gateway when the request throws', async () => {
-    clientReturning(new TypeError('fetch failed'));
-    expect(await checkDatabase()).toEqual({ ok: false, reason: 'unreachable' });
-  });
-
-  it('reports missing configuration', async () => {
-    vi.mocked(getSupabaseClient).mockImplementation(() => {
-      throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set');
-    });
-    expect(await checkDatabase()).toEqual({ ok: false, reason: 'not_configured' });
-  });
-
-  it('falls back to a generic reason for other errors', async () => {
-    clientReturning({ error: { code: '42P01', message: 'relation "users" does not exist' } });
-    expect(await checkDatabase()).toEqual({ ok: false, reason: 'error' });
+  it.each([
+    [pgError('28P01', 'password authentication failed'), 'authentication_failed'],
+    [pgError('ECONNREFUSED', 'connect ECONNREFUSED'), 'unreachable'],
+    [pgError('DEPTH_ZERO_SELF_SIGNED_CERT', 'self-signed certificate'), 'tls_error'],
+    [new DatabaseConfigError('DATABASE_URL has no host.'), 'not_configured'],
+    [pgError('42P01', 'relation does not exist'), 'error'],
+  ])('maps %s to the coarse reason %s', async (error, reason) => {
+    vi.mocked(pingDatabase).mockRejectedValue(error);
+    expect(await checkDatabase()).toEqual({ ok: false, reason });
   });
 
   it('caches the result briefly so the endpoint cannot hammer the database', async () => {
-    clientReturning({ error: null });
+    vi.mocked(pingDatabase).mockResolvedValue();
     const start = 1_000_000;
     await checkDatabase(start);
     await checkDatabase(start + 10_000);
-    expect(getSupabaseClient).toHaveBeenCalledTimes(1);
+    expect(pingDatabase).toHaveBeenCalledTimes(1);
     await checkDatabase(start + 31_000);
-    expect(getSupabaseClient).toHaveBeenCalledTimes(2);
+    expect(pingDatabase).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -111,21 +90,17 @@ describe('errorHandler', () => {
     return res;
   }
 
-  it('does not leak the upstream challenge page to the client', () => {
-    const res = run({ message: CHALLENGE }, 'iad1::abc');
+  it('answers a database outage with 503 and nothing from the server', () => {
+    const res = run(pgError('ECONNREFUSED', 'connect ECONNREFUSED 10.0.0.5:5432 password=hunter2'), 'req-1');
     expect(res.status).toHaveBeenCalledWith(503);
-    const body = JSON.stringify(res.json.mock.calls[0][0]);
-    expect(body).not.toMatch(/doctype|just a moment/i);
-    expect(res.json).toHaveBeenCalledWith({
-      error: 'Database is temporarily unavailable',
-      requestId: 'iad1::abc',
-    });
+    expect(res.json).toHaveBeenCalledWith({ error: 'Database is temporarily unavailable', requestId: 'req-1' });
+    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toMatch(/10\.0\.0\.5|hunter2/);
   });
 
-  it('answers a rejected token with 503 and a generic message', () => {
-    const res = run({ code: 'PGRST301', message: 'JWT cryptographic operation failed' });
+  it('answers a rejected role with 503 and a generic message', () => {
+    const res = run(pgError('28P01', 'password authentication failed for user "eink_app"'));
     expect(res.status).toHaveBeenCalledWith(503);
-    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toMatch(/jwt/i);
+    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toMatch(/eink_app|password/i);
   });
 
   it('hides messages of unexpected errors', () => {

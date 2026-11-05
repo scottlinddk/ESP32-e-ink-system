@@ -66,7 +66,7 @@ router.get(
       const deviceId = parsePreviewDeviceId(req.query.device_id);
       const clerkUserId = req.clerkUserId!;
 
-      // Resolve Supabase user from Clerk ID
+      // Resolve the database user from the Clerk ID
       const secretKey = process.env.CLERK_SECRET_KEY;
       if (!secretKey) {
         res.status(500).json({ error: 'Server misconfiguration' });

@@ -1,116 +1,47 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { User, UserPreferences, ApiKey, Device, FirmwareVersion } from '../types/index';
 import { encrypt, decrypt, isEncrypted } from '../utils/crypto';
 import { logger } from '../lib/logger';
+import {
+  deleteApiKeyRow, findPreferences, findUserByEmail, findUserById, listApiKeyRows, readDefaultDeviceId,
+  upsertApiKeyRow, upsertPreferenceRow, upsertUserRow, writeDefaultDeviceId,
+} from '../db/repositories/accounts';
+import {
+  findActiveFirmware, findFirmwareById, findFirmwareByVersion, insertApiUsage, insertDevice, insertFirmware,
+  listDeviceRows, listFirmwareRows, removeDevice, renameDevice,
+} from '../db/repositories/devices';
 
-let supabase: SupabaseClient | null = null;
-
-export function getSupabaseClient(): SupabaseClient {
-  if (!supabase) {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!url || !key) {
-      throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set');
-    }
-
-    supabase = createClient(url, key, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    });
-  }
-  return supabase;
-}
+/**
+ * Persistence facade used by the routes. SQL lives in db/repositories; this module
+ * keeps what is not SQL: encryption of provider keys and merging device telemetry.
+ * Every function that touches user data takes the user's id and filters on it.
+ */
 
 export async function getUserByEmail(email: string): Promise<User | null> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('users')
-    .select('*')
-    .eq('email', email)
-    .single();
-
-  if (error) {
-    if (error.code === 'PGRST116') return null; // no rows
-    throw error;
-  }
-  return data as User;
+  return findUserByEmail(email);
 }
 
 export async function getUserById(id: string): Promise<User | null> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('users')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (error) {
-    if (error.code === 'PGRST116') return null;
-    throw error;
-  }
-  return data as User;
+  return findUserById(id);
 }
 
 export async function upsertUser(email: string, displayName?: string): Promise<User> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('users')
-    .upsert(
-      { email, display_name: displayName ?? null, updated_at: new Date().toISOString() },
-      { onConflict: 'email' }
-    )
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data as User;
+  return upsertUserRow(email, displayName ?? null);
 }
 
 export async function getPreferences(userId: string): Promise<UserPreferences | null> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('user_preferences')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
-
-  if (error) {
-    if (error.code === 'PGRST116') return null;
-    throw error;
-  }
-  return data as UserPreferences;
+  return findPreferences(userId);
 }
 
 export async function upsertPreferences(
   userId: string,
   prefs: Partial<UserPreferences>
 ): Promise<UserPreferences> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('user_preferences')
-    .upsert(
-      { user_id: userId, ...prefs, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id' }
-    )
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data as UserPreferences;
+  return upsertPreferenceRow(userId, prefs);
 }
 
 export async function getApiKeys(userId: string): Promise<ApiKey[]> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('api_keys')
-    .select('*')
-    .eq('user_id', userId);
-
-  if (error) throw error;
-  return (data ?? []).map((row) => {
+  const rows = await listApiKeyRows(userId);
+  return rows.map((row) => {
     if (isEncrypted(row.api_key)) {
       return { ...row, api_key: decrypt(row.api_key) } as ApiKey;
     }
@@ -125,46 +56,31 @@ export async function upsertApiKey(
   provider: string,
   apiKey: string
 ): Promise<ApiKey> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('api_keys')
-    .upsert(
-      { user_id: userId, provider, api_key: encrypt(apiKey) },
-      { onConflict: 'user_id,provider' }
-    )
-    .select()
-    .single();
-
-  if (error) throw error;
+  const row = await upsertApiKeyRow(userId, provider, encrypt(apiKey));
   // Return with decrypted key so callers work with the plaintext value
-  return { ...data, api_key: apiKey } as ApiKey;
+  return { ...row, api_key: apiKey } as ApiKey;
+}
+
+export async function deleteApiKey(userId: string, provider: string): Promise<void> {
+  await deleteApiKeyRow(userId, provider);
 }
 
 export async function getDevices(userId: string): Promise<Device[]> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('devices')
-    // The one-to-one delivery relation supplies telemetry in the same query.
-    // Never select its credential hash or expose the relation in the API response.
-    .select('*, device_delivery(owner_id, last_seen_at, firmware_version)')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true });
-
-  if (error) throw error;
-  return (data ?? []).map((row) => {
-    const { device_delivery, ...device } = row;
+  const rows = await listDeviceRows(userId);
+  return rows.map((row) => {
+    const { delivery_owner_id, delivery_last_seen_at, delivery_firmware_version, ...device } = row;
     // Reassignment must not carry a previous owner's delivery reports across.
-    const report = device_delivery?.owner_id === userId ? device_delivery : null;
+    const reportOwned = delivery_owner_id === userId;
     const legacySeen = device.last_seen_at ? Date.parse(device.last_seen_at) : NaN;
-    const reportSeen = report?.last_seen_at ? Date.parse(report.last_seen_at) : NaN;
+    const reportSeen = reportOwned && delivery_last_seen_at ? Date.parse(delivery_last_seen_at) : NaN;
     const hasLegacyReport = Number.isFinite(legacySeen);
     const useDelivery = Number.isFinite(reportSeen) && (!hasLegacyReport || reportSeen >= legacySeen);
     return {
       ...device,
-      last_seen_at: useDelivery ? report.last_seen_at : hasLegacyReport ? device.last_seen_at : null,
+      last_seen_at: useDelivery ? delivery_last_seen_at : hasLegacyReport ? device.last_seen_at : null,
       // Old registrations defaulted to 1.0.0 before any device had connected.
       // Keep real legacy reports, but never present that default as telemetry.
-      firmware_version: useDelivery ? report.firmware_version : hasLegacyReport ? device.firmware_version : null,
+      firmware_version: useDelivery ? delivery_firmware_version : hasLegacyReport ? device.firmware_version : null,
     } as Device;
   });
 }
@@ -175,164 +91,52 @@ export async function createDevice(
   deviceName: string,
   bleName: string | null
 ): Promise<Device> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('devices')
-    .insert({
-      user_id: userId,
-      device_id: deviceId,
-      device_name: deviceName,
-      ble_name: bleName,
-      firmware_version: null,
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data as Device;
+  return insertDevice(userId, deviceId, deviceName, bleName);
 }
 
+/** Renames a device the user owns; any other id is a 404. */
 export async function updateDeviceName(
   id: string,
   userId: string,
   deviceName: string
 ): Promise<Device> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('devices')
-    .update({ device_name: deviceName })
-    .eq('id', id)
-    .eq('user_id', userId)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data as Device;
+  return renameDevice(id, userId, deviceName);
 }
 
 /** The user's default dashboard device, or null when unset. Ownership is checked by the caller. */
 export async function getDefaultDeviceId(userId: string): Promise<string | null> {
-  const db = getSupabaseClient();
-  const { data, error } = await db.from('users').select('default_device_id').eq('id', userId).single();
-  if (error) throw error;
-  return (data as { default_device_id: string | null }).default_device_id ?? null;
+  return readDefaultDeviceId(userId);
 }
 
 /** Sets or clears the default dashboard device. Returns false when the device is not the user's. */
 export async function setDefaultDeviceId(userId: string, deviceId: string | null): Promise<boolean> {
-  const db = getSupabaseClient();
-  if (deviceId) {
-    const { data, error } = await db.from('devices').select('id').eq('id', deviceId).eq('user_id', userId).maybeSingle();
-    if (error) throw error;
-    if (!data) return false;
-  }
-  const { error } = await db.from('users').update({ default_device_id: deviceId }).eq('id', userId);
-  if (error) throw error;
-  return true;
+  return writeDefaultDeviceId(userId, deviceId);
 }
 
 export async function deleteDevice(id: string, userId: string): Promise<void> {
-  const db = getSupabaseClient();
-  const { error } = await db
-    .from('devices')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', userId);
-
-  if (error) throw error;
-}
-
-export async function deleteApiKey(userId: string, provider: string): Promise<void> {
-  const db = getSupabaseClient();
-  const { error } = await db
-    .from('api_keys')
-    .delete()
-    .eq('user_id', userId)
-    .eq('provider', provider);
-
-  if (error) throw error;
-}
-
-export async function getDeviceByDeviceId(deviceId: string): Promise<Device | null> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('devices')
-    .select('*')
-    .eq('device_id', deviceId)
-    .single();
-
-  if (error) {
-    if (error.code === 'PGRST116') return null;
-    throw error;
-  }
-  return data as Device;
+  await removeDevice(id, userId);
 }
 
 export async function getLatestFirmwareVersion(userId: string): Promise<FirmwareVersion | null> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('firmware_versions')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('active', true)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-
-  if (error) {
-    if (error.code === 'PGRST116') return null;
-    throw error;
-  }
-  return data as FirmwareVersion;
+  return findActiveFirmware(userId);
 }
 
 export async function getFirmwareVersions(userId: string): Promise<FirmwareVersion[]> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('firmware_versions')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return (data ?? []) as FirmwareVersion[];
+  return listFirmwareRows(userId);
 }
 
 export async function getFirmwareVersionByUserAndVersion(
   userId: string,
   version: string
 ): Promise<FirmwareVersion | null> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('firmware_versions')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('version', version)
-    .single();
-
-  if (error) {
-    if (error.code === 'PGRST116') return null;
-    throw error;
-  }
-  return data as FirmwareVersion;
+  return findFirmwareByVersion(userId, version);
 }
 
 export async function getFirmwareVersionById(
   userId: string,
   id: string
 ): Promise<FirmwareVersion | null> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('firmware_versions')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('id', id)
-    .single();
-  if (error) {
-    if (error.code === 'PGRST116') return null;
-    throw error;
-  }
-  return data as FirmwareVersion;
+  return findFirmwareById(userId, id);
 }
 
 export async function createFirmwareVersion(
@@ -343,40 +147,12 @@ export async function createFirmwareVersion(
   releaseNotes: string | null,
   active = true
 ): Promise<FirmwareVersion> {
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('firmware_versions')
-    .insert({
-      user_id: userId,
-      version,
-      download_path: downloadPath,
-      checksum,
-      release_notes: releaseNotes,
-      active,
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data as FirmwareVersion;
+  return insertFirmware(userId, version, downloadPath, checksum, releaseNotes, active);
 }
 
-export async function updateDeviceLastSeen(deviceId: string): Promise<void> {
-  const db = getSupabaseClient();
-  const { error } = await db
-    .from('devices')
-    .update({ last_seen_at: new Date().toISOString() })
-    .eq('id', deviceId);
-
-  if (error) throw error;
-}
-
-export async function logApiUsage(userId: string, endpoint: string): Promise<void> {
-  const db = getSupabaseClient();
-  // Fire-and-forget — don't let logging failures break requests
-  db.from('api_usage')
-    .insert({ user_id: userId, endpoint, called_at: new Date().toISOString() })
-    .then(({ error }) => {
-      if (error) logger.error({ message: error.message }, 'Failed to log API usage');
-    });
+/** Fire-and-forget: a logging failure must never break the request. */
+export function logApiUsage(userId: string, endpoint: string): void {
+  insertApiUsage(userId, endpoint).catch((error: unknown) => {
+    logger.error({ message: error instanceof Error ? error.message : 'unknown' }, 'Failed to log API usage');
+  });
 }

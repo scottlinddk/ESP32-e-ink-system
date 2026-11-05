@@ -1,4 +1,10 @@
-# Postgres + PostgREST + nginx gateway for the ESP32 e-ink backend, adapted for Coolify.
+# Postgres (+ legacy PostgREST and nginx gateway) for the ESP32 e-ink backend, adapted for Coolify.
+#
+# CURRENT: only the `postgres` service is used. The backend connects to it directly with DATABASE_URL
+# as the least-privilege role from backend/src/db/roles/app-role.sql (docs/DATABASE.md).
+# LEGACY: `postgrest` and `gateway` serve SUPABASE_URL for backend images from before the direct
+# connection. Keep them running only while a rollback to such an image is possible, then remove both
+# services (docs/COOLIFY_DEPLOYMENT.md, section E). Nothing here is removed automatically.
 # Adapted from infra/raspberry-pi/compose.yaml in the repo.
 #
 # Intended use: kept at the repo root as docker-compose.eink-db.yaml so every ./ path is unambiguous.

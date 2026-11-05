@@ -1,13 +1,16 @@
 import app from '../src/app';
+import { loadDatabaseConfig } from '../src/db/config';
 
 // Fail fast on cold start if required secrets are absent.
 // (backend/src/index.ts startup checks only run in standalone mode, not on Vercel.)
-const required = ['CLERK_SECRET_KEY', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
+const required = ['CLERK_SECRET_KEY'];
 for (const key of required) {
   if (!process.env[key]) {
     throw new Error(`Missing required environment variable: ${key}`);
   }
 }
+// Throws without echoing DATABASE_URL.
+loadDatabaseConfig();
 if (!process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_KEY.length !== 64) {
   throw new Error('ENCRYPTION_KEY must be a 64-character hex string');
 }
