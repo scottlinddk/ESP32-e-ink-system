@@ -62,7 +62,7 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: python firmware/scripts/package_web_firmware.py --output-dir build/firmware-release --version "$VERSION"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: firmware-release
           path: build/firmware-release/
@@ -78,7 +78,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: firmware-release
           path: firmware-release
