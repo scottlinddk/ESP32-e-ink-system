@@ -14,6 +14,10 @@ The firmware in `firmware/` implements the BMP device-feed protocol directly for
 
 This firmware sets its clock before sending any device credential, from NTP or, when NTP is blocked, from the `Date` header of the backend's HTTPS `/api/health` response, and sleeps until the next bounded retry interval, unless [instant updates](#instant-updates) keep it online. Invalid credentials reopen the setup portal; holding the CrowPanel menu button during reset or waking with it also opens setup. Battery reporting and automatic OTA are disabled. See the [flashing guide](FIRMWARE_FLASHING.md) for recovery, CA maintenance and hardware verification. Physical/first-boot setup also enables manual Bluetooth image delivery as `EInk-XXXXXX`; automatic error recovery does not.
 
+## KOReader plugin for e-readers
+
+A jailbroken Kindle Paperwhite or another KOReader device can be the display. The plugin in `koreader/einkdisplay.koplugin` requests `format=raw`, declares its screen size with `X-Device-Width`/`X-Device-Height`, verifies size, encoding and SHA-256, and acknowledges manual refresh requests in its heartbeat. It does not stay online, so [instant updates](#instant-updates) do not apply. See [Kindle and KOReader](KINDLE_KOREADER.md).
+
 ## Reference bridge
 
 The dependency-free client requires Node.js 20+ and stays running between checks. Run it on a computer or gateway with access to the panel's display driver. It is an alternative to running the bundled device-feed firmware directly on the ESP32.

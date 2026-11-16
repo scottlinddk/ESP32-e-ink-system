@@ -74,6 +74,10 @@ This firmware fetches saved layouts over Wi-Fi using a registered device UUID an
 
 See the [browser flashing and recovery guide](docs/FIRMWARE_FLASHING.md) and [firmware build instructions](firmware/README.md). Local factory artifacts can be tested from `/flash` before publishing by setting backend `FIRMWARE_RELEASE_DIR` to their absolute output directory.
 
+## Use a Kindle Paperwhite as a display
+
+A jailbroken Kindle Paperwhite (or another e-reader running KOReader) can show a device's layout full screen. It is not flashed: copy the plugin in `koreader/einkdisplay.koplugin` to KOReader and enter the API address, device UUID and token from **Devices → Automatic updates**. See the [Kindle and KOReader guide](docs/KINDLE_KOREADER.md) for supported screens, setup and limits. The plugin has not yet been run on a physical e-reader.
+
 ## Development
 
 Requires Node.js 20+ and npm, a PostgreSQL 14+ database, and a Clerk application. Browser Bluetooth requires a supported browser and a secure context (HTTPS or localhost).
@@ -95,6 +99,7 @@ npm run dev         # frontend http://localhost:5173; backend http://localhost:3
 npm run typecheck   # all workspace TypeScript projects
 npm test           # backend, frontend Bluetooth, widgets and rendering tests
 npm run build      # frontend and backend production builds
+npm run test:koreader  # KOReader plugin tests; needs LuaJIT
 ```
 
 Tests use mocked external services and do not require account credentials or hardware. The persistence tests additionally run against a real PostgreSQL when `TEST_DATABASE_URL` points at a disposable server (otherwise they are skipped locally; see [Tests](docs/DATABASE.md#tests)). The application-check workflow runs type checks, all tests including those against a PostgreSQL service container, and builds for pull requests.
@@ -140,6 +145,7 @@ source database exists.
 | `packages/rendering/` | Layout and typography utilities |
 | `packages/types/` | Shared widget contracts |
 | `firmware/` | Device-feed Wi-Fi firmware, board drivers and web-flash packaging |
+| `koreader/` | KOReader plugin for Kindle Paperwhite and other e-readers, with its tests |
 | `docs/` | Setup, API and hardware reference material |
 
 ## API and hardware status
