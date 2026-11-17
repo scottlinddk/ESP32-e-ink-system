@@ -55,6 +55,17 @@ a Paperwhite 1 or 2, otherwise 4×); choose a text size per layout or widget und
 
 ## Install the plugin
 
+### From the web app (recommended)
+
+1. On **Devices → Automatic updates**, create or replace the token. Directly under the token, the **Kindle Paperwhite** box appears.
+2. Choose **Download Kindle package (ZIP)**. The plugin is built in your browser with the API address, device UUID and token already filled in; nothing is uploaded. Unzip it, connect the Kindle over USB and put the `einkdisplay.koplugin` folder in `koreader/plugins/`.
+3. Or, in Chrome or Edge over HTTPS, choose **Copy straight to the Kindle…** and pick the Kindle drive. The page writes the folder to `koreader/plugins/` itself. The browser may refuse some folders (drive roots are blocked on some systems); then use the ZIP.
+4. Eject the Kindle, restart KOReader and open **Tools → E-Ink Display → Update now**.
+
+The token is only shown right after it is created, so the package can only be built then. To build it again, replace the token (this invalidates the old one).
+
+### By hand
+
 1. Download this repository (**Code → Download ZIP**) and unzip it.
 2. Open `koreader/einkdisplay.koplugin/config.txt` in a text editor and fill in the three values:
 
@@ -158,3 +169,7 @@ luajit koreader/spec/run.lua    # or: npm run test:koreader
 | `spec/run.lua`, `spec/stubs.lua` | Tests and the stand-ins for KOReader modules |
 
 The tests need LuaJIT and `sha256sum`. They run in the application-check workflow.
+
+## Build note
+
+The web app bundles the plugin sources from `koreader/einkdisplay.koplugin` when it is built, so the build must be able to read that folder. `frontend/Dockerfile` copies it. A host that builds only the `frontend` directory (for example the `root: "frontend"` service in `vercel.json`) needs the repository root as its source, otherwise the page reports that the build does not include the plugin instead of offering an empty package.

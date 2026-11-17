@@ -15,6 +15,8 @@ COPY packages/widgets/package.json packages/widgets/
 RUN npm ci -w frontend --include-workspace-root
 
 COPY frontend frontend
+# The Kindle setup page bundles the KOReader plugin sources at build time.
+COPY koreader/einkdisplay.koplugin koreader/einkdisplay.koplugin
 
 # VITE_* values are inlined at build time, so they are build args, not runtime env.
 ARG VITE_CLERK_PUBLISHABLE_KEY
