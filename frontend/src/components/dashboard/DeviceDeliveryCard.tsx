@@ -5,6 +5,7 @@ import { useApp } from '../../lib/appContext';
 import { usePreferences } from '../../hooks/usePreferences';
 import { createDeviceDeliveryToken, getDeviceDeliveryStatus, revokeDeviceDeliveryToken } from '../../lib/api';
 import { Button } from '../ui/button';
+import { KindleSetupCard } from './KindleSetupCard';
 
 export function DeviceDeliveryCard({ deviceId }: { deviceId: string }) {
   const { user } = useAuth();
@@ -56,6 +57,7 @@ function DeliverySettings({ deviceId }: { deviceId: string }) {
           <p className="m-0">{da ? 'Kopiér nu. Tokenet vises kun denne gang. Indsæt det som Device token på displayets opsætningsside.' : 'Copy now. This token is shown only once. Paste it into Device token on the display setup page.'}</p>
           <code className="break-all rounded bg-black/5 p-3 select-all">{secret}</code>
           <Button size="sm" variant="text" onClick={() => setSecret('')}>{da ? 'Skjul token' : 'Hide token'}</Button>
+          <KindleSetupCard apiUrl={apiBase} deviceId={deviceId} token={secret} da={da} />
         </div>}
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 m-0 text-fg2">
           <dt>API URL</dt><dd className="m-0 font-mono break-all select-all">{apiBase}</dd>
