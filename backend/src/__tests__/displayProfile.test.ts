@@ -5,7 +5,12 @@ import { parseDisplayProfile, frameMetadata } from '../utils/displayProfile';
 const profile = { width: 65, height: 100, rotation: 0 as const, colorMode:'bw' as const };
 describe('display profiles and frame encoding', () => {
   it('preserves the default monochrome format', () => { expect(frameMetadata()).toMatchObject({width:250,height:122,rowBytes:32,byteLength:3904}); });
-  it.each([{}, [], { ...profile, width: 0 }, {...profile,height:1.5}, {...profile,rotation:45}, {...profile,colorMode:'bwr'}, {...profile,width:1600,height:1600}, {...profile,width:'800'}, {...profile,extra:true}])('rejects invalid profiles %j', (value) => { expect(()=>parseDisplayProfile(value)).toThrow(); });
+  it.each([{}, [], { ...profile, width: 0 }, {...profile,height:1.5}, {...profile,rotation:45}, {...profile,colorMode:'bwr'}, {...profile,width:1600,height:1600}, {...profile,width:2049,height:64}, {...profile,width:1404,height:1872}, {...profile,width:'800'}, {...profile,extra:true}])('rejects invalid profiles %j', (value) => { expect(()=>parseDisplayProfile(value)).toThrow(); });
+  it.each([[758,1024],[1072,1448],[1236,1648],[1264,1680]])('accepts the Kindle Paperwhite screen %i x %i within the device frame limit', (width, height) => {
+    const metadata = frameMetadata({ ...profile, width, height });
+    expect(metadata.rowBytes).toBe(Math.ceil(width / 8));
+    expect(metadata.byteLength).toBeLessThanOrEqual(512 * 1024);
+  });
   it('separates packed transport rows from BMP padding at odd widths', () => {
     const canvas = new BmpCanvas(profile); canvas.setPixel(64,99,true);
     const raw=canvas.toRawPixels(), bmp=canvas.toBmp();

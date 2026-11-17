@@ -9,3 +9,5 @@ tools/*.mjs text eol=lf
 firmware/scripts/*.sh text eol=lf
 firmware/scripts/*.py text eol=lf
 backend/src/services/calendarWorker.bundle.cjs linguist-generated=true -diff
+koreader/**/*.lua text eol=lf
+koreader/**/*.txt text eol=lf

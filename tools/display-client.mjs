@@ -59,7 +59,7 @@ export function createPoller(options) {
   const format = options.format ?? 'bmp';
   if (!['bmp', 'raw'].includes(format)) throw new Error('Format must be bmp or raw');
   const frame = { width: options.width, height: options.height, rotation: options.rotation ?? 0 };
-  if (!Number.isInteger(frame.width) || !Number.isInteger(frame.height) || frame.width < 64 || frame.width > 1600 || frame.height < 64 || frame.height > 1600 || frame.width * frame.height > 1920000 || ![0, 90, 180, 270].includes(frame.rotation)) throw new Error('Configure supported display dimensions and rotation');
+  if (!Number.isInteger(frame.width) || !Number.isInteger(frame.height) || frame.width < 64 || frame.width > 2048 || frame.height < 64 || frame.height > 2048 || frame.width * frame.height > 2200000 || ![0, 90, 180, 270].includes(frame.rotation)) throw new Error('Configure supported display dimensions and rotation');
   const file = resolve(options.outputFile ?? `frame.${format === 'bmp' ? 'bmp' : 'bin'}`);
   const driver = options.driver ? { ...options.driver, timeoutSeconds: options.driver.timeoutSeconds ?? 300 } : undefined;
   if (driver && (typeof driver.executable !== 'string' || !driver.executable || !Array.isArray(driver.args) || driver.args.some((arg) => typeof arg !== 'string') || !driver.args.some((arg) => arg.includes('{file}')))) throw new Error('Driver needs an executable and JSON string arguments containing {file}');

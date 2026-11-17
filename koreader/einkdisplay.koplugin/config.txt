@@ -1,0 +1,17 @@
+# E-Ink Display plugin settings.
+#
+# Fill in the three values from the web app (Devices -> Automatic updates),
+# then copy the whole einkdisplay.koplugin folder to koreader/plugins/.
+# The plugin reads this file each time KOReader starts. Lines left empty are
+# ignored, so settings typed on the device stay as they are.
+#
+# This file holds a secret once filled in. Do not commit or share it.
+
+# Address of the API, for example https://your-host.example/api
+api_url =
+
+# The device UUID shown on the device card
+device_id =
+
+# The device token (starts with einkd_), shown once when created
+token =

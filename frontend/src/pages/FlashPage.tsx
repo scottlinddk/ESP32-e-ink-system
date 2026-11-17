@@ -109,6 +109,12 @@ export function FlashPage() {
         <p className="mt-3 text-sm text-fg2">This firmware supports automatic Wi-Fi updates and manual Bluetooth pushes. Hold MENU while resetting (Waveshare: press BOOT within 3 seconds after releasing reset), then select EInk-… when pushing from the dashboard. Keep the computer on its normal internet connection; Wi-Fi credentials are configured through the setup portal.</p>
       </section>
 
+      <section className="border border-divider rounded-md p-5 mb-5">
+        <h2 className="text-h5 mb-3">Kindle Paperwhite or another e-reader</h2>
+        <p>An e-reader is not flashed from this page. Jailbreak the Kindle, install KOReader, and copy the E-Ink Display plugin to it. The plugin uses the same API URL, device UUID and device token as the boards above.</p>
+        <p className="mt-3 text-sm"><a className="underline" href="https://github.com/scottlinddk/ESP32-e-ink-system/blob/main/docs/KINDLE_KOREADER.md" target="_blank" rel="noreferrer">Kindle and KOReader setup guide</a></p>
+      </section>
+
       <section className="border border-divider rounded-md p-5">
         <h2 className="text-h5 mb-3">If the serial connection fails</h2>
         <ul className="list-disc pl-5 space-y-2">

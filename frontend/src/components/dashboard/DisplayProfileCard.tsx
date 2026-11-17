@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { usePreferences, useSavePreferences } from '../../hooks/usePreferences';
-import { DEFAULT_DISPLAY_PROFILE, parseDisplayProfile, DisplayProfile } from '../../lib/displayProfile';
+import { DEFAULT_DISPLAY_PROFILE, MAX_DISPLAY_SIDE, parseDisplayProfile, DisplayProfile } from '../../lib/displayProfile';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 
@@ -21,8 +21,9 @@ export function DisplayProfileCard({ deviceId }: { deviceId?: string }) {
     <fieldset disabled={save.isPending || preferences.isPending || preferences.isError || !preferences.data} className="grid gap-3 border-0 p-0 m-0">
       <label>Preset <select className="w-full border rounded p-2" value="" onChange={(event) => { const [width,height] = event.target.value.split('x').map(Number); if (width && height) change({ ...profile, width, height }); }}>
         <option value="">Choose a size</option><option value="250x122">250 × 122</option><option value="400x300">400 × 300</option><option value="800x480">800 × 480</option><option value="800x600">800 × 600</option><option value="1200x825">1200 × 825</option>
+        <option value="758x1024">758 × 1024 (Kindle Paperwhite 1–2)</option><option value="1072x1448">1072 × 1448 (Kindle Paperwhite 3–4)</option><option value="1236x1648">1236 × 1648 (Kindle Paperwhite 5)</option><option value="1264x1680">1264 × 1680 (Kindle Paperwhite 6)</option>
       </select></label>
-      <div className="grid grid-cols-2 gap-3">{(['width','height'] as const).map((key) => <label key={key}>{key === 'width' ? 'Native width' : 'Native height'}<input className="w-full border rounded p-2" type="number" min={64} max={1600} value={profile[key]} onChange={(event) => change({ ...profile, [key]: Number(event.target.value) })} /></label>)}</div>
+      <div className="grid grid-cols-2 gap-3">{(['width','height'] as const).map((key) => <label key={key}>{key === 'width' ? 'Native width' : 'Native height'}<input className="w-full border rounded p-2" type="number" min={64} max={MAX_DISPLAY_SIDE} value={profile[key]} onChange={(event) => change({ ...profile, [key]: Number(event.target.value) })} /></label>)}</div>
       <label>Content rotation <select className="w-full border rounded p-2" value={profile.rotation} onChange={(event) => change({ ...profile, rotation: Number(event.target.value) as DisplayProfile['rotation'] })}>{[0,90,180,270].map((angle) => <option key={angle} value={angle}>{angle}° clockwise</option>)}</select></label>
       <p className="text-xs text-fg2 m-0">Monochrome output. The bundled firmware supports 250 × 122 Bluetooth updates in setup mode. The separate OpenDisplay path requires a width divisible by 8. A size preset does not install a panel driver.</p>
       <Button onClick={submit} disabled={save.isPending || preferences.isLoading || preferences.isError}>Save display profile</Button>
