@@ -3,7 +3,7 @@
 #     --build-arg VITE_CLERK_PUBLISHABLE_KEY=pk_... -t esp32-eink-frontend .
 
 # ---- Build ----
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
