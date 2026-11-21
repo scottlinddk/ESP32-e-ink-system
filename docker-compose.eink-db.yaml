@@ -55,7 +55,7 @@ services:
       start_period: 45s
 
   postgrest:
-    image: postgrest/postgrest:v14.18
+    image: postgrest/postgrest:v16.6
     restart: unless-stopped
     depends_on:
       postgres:
